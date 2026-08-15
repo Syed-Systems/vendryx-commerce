@@ -1,0 +1,6 @@
+[module]
+name = "stheno-index"
+schema = "index"
+owned_tables = ["index_data", "index_relation", "index_field", "index_sync_state"]
+events = ["index.synced", "index.rebuilt"]
+links = []

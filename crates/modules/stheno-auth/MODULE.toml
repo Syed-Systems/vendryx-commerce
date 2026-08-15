@@ -1,0 +1,21 @@
+[module]
+name = "stheno-auth"
+schema = "auth"
+owned_tables = [
+    "auth_identity",
+    "auth_provider",
+    "auth_session",
+    "token_family",
+    "mfa_factor",
+    "password_reset_token"
+]
+events = [
+    "auth.identity_created",
+    "auth.identity_authenticated",
+    "auth.password_changed",
+    "auth.token_version_invalidated",
+    "auth.mfa_factor_added",
+    "auth.mfa_factor_verified",
+    "auth.lockout_triggered"
+]
+links = []

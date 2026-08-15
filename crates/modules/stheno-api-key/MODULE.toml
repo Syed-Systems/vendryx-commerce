@@ -1,0 +1,12 @@
+[module]
+name = "stheno-api-key"
+schema = "api_key"
+owned_tables = [
+    "api_key"
+]
+events = [
+    "api_key.created",
+    "api_key.revoked",
+    "api_key.deleted"
+]
+links = []

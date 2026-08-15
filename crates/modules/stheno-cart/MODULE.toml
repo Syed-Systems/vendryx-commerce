@@ -1,0 +1,26 @@
+[module]
+name = "stheno-cart"
+schema = "cart"
+owned_tables = [
+    "cart",
+    "line_item",
+    "line_item_adjustment",
+    "line_item_tax_line",
+    "shipping_method",
+    "shipping_method_adjustment",
+    "shipping_method_tax_line",
+    "credit_line",
+    "address"
+]
+events = [
+    "cart.created",
+    "cart.updated",
+    "cart.customer_updated",
+    "cart.region_updated",
+    "cart.item_added",
+    "cart.item_updated",
+    "cart.item_removed",
+    "cart.completed"
+]
+links = []
+

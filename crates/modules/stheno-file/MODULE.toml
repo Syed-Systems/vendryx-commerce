@@ -1,0 +1,6 @@
+[module]
+name = "stheno-file"
+schema = "file"
+owned_tables = ["file"]
+events = ["file.uploaded", "file.deleted"]
+links = []

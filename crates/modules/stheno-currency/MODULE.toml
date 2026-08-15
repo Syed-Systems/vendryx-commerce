@@ -1,0 +1,10 @@
+[module]
+name = "stheno-currency"
+schema = "currency"
+owned_tables = ["currency"]
+events = [
+    "currency.created",
+    "currency.updated",
+    "currency.deleted"
+]
+links = []

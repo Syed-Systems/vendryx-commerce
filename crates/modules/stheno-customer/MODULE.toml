@@ -1,0 +1,24 @@
+[module]
+name = "stheno-customer"
+schema = "customer"
+owned_tables = [
+    "customer",
+    "customer_group",
+    "customer_group_customer",
+    "customer_address"
+]
+events = [
+    "customer.created",
+    "customer.updated",
+    "customer.deleted",
+    "customer.group_created",
+    "customer.group_updated",
+    "customer.group_deleted",
+    "customer.group_customer_added",
+    "customer.group_customer_removed",
+    "customer.address_created",
+    "customer.address_updated",
+    "customer.address_deleted",
+    "customer.guest_upgraded"
+]
+links = []

@@ -1,0 +1,6 @@
+[module]
+name = "stheno-audit"
+schema = "audit"
+owned_tables = ["audit_log"]
+events = ["audit.entry_created"]
+links = []

@@ -1,0 +1,18 @@
+[module]
+name = "stheno-inventory"
+schema = "inventory"
+owned_tables = [
+    "inventory_item",
+    "inventory_level",
+    "reservation_item"
+]
+events = [
+    "inventory_level.created",
+    "inventory_level.updated",
+    "reservation_item.created",
+    "reservation_item.deleted"
+]
+links = [
+    "inventory_item_location_level",
+    "reservation_item_line_item"
+]

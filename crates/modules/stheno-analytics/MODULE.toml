@@ -1,0 +1,6 @@
+[module]
+name = "stheno-analytics"
+schema = "analytics"
+owned_tables = ["analytics_event"]
+events = ["analytics.tracked"]
+links = []

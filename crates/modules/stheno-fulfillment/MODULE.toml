@@ -1,0 +1,32 @@
+[module]
+name = "stheno-fulfillment"
+schema = "fulfillment"
+
+tables = [
+    "fulfillment",
+    "fulfillment_item",
+    "fulfillment_label",
+    "fulfillment_provider",
+    "fulfillment_set",
+    "service_zone",
+    "geo_zone",
+    "shipping_option",
+    "shipping_option_rule",
+    "shipping_option_type",
+    "shipping_profile",
+    "address",
+]
+
+events = [
+    "fulfillment.created",
+    "fulfillment.canceled",
+    "fulfillment.shipped",
+    "fulfillment.delivered",
+    "fulfillment_set.created",
+    "service_zone.created",
+    "shipping_option.created",
+]
+
+[dependencies]
+stheno-types = "0.1.0"
+stheno-db = "0.1.0"

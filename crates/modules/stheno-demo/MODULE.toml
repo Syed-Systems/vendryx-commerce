@@ -1,0 +1,6 @@
+[module]
+name = "stheno-demo"
+schema = "demo"
+owned_tables = ["demo"]
+events = ["demo.created", "demo.updated", "demo.deleted"]
+links = []

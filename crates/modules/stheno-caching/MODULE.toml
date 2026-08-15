@@ -1,0 +1,6 @@
+[module]
+name = "stheno-caching"
+schema = "caching"
+owned_tables = []
+events = []
+links = []
