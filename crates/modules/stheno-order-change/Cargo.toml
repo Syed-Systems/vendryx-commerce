@@ -1,0 +1,22 @@
+[package]
+name = "stheno-order-change"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+stheno-types = { workspace = true }
+stheno-db = { workspace = true }
+stheno-events = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rust_decimal = { workspace = true }
+chrono = { workspace = true }
+ulid = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+rust_decimal_macros = { workspace = true }

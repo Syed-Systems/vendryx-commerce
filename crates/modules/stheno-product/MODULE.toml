@@ -1,0 +1,30 @@
+[module]
+name = "stheno-product"
+schema = "product"
+owned_tables = [
+    "product",
+    "product_variant",
+    "product_option",
+    "product_option_value",
+    "product_product_option",
+    "product_product_option_value",
+    "product_image",
+    "product_variant_product_image",
+    "product_category",
+    "product_collection",
+    "product_tag",
+    "product_type"
+]
+events = [
+    "product.created",
+    "product.updated",
+    "product.deleted",
+    "product_variant.created",
+    "product_variant.updated"
+]
+links = [
+    "product_sales_channel",
+    "product_variant_price_set",
+    "product_variant_inventory_item",
+    "product_shipping_profile"
+]

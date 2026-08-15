@@ -1,0 +1,18 @@
+[module]
+name = "stheno-region"
+schema = "region"
+owned_tables = [
+    "region",
+    "country"
+]
+events = [
+    "region.created",
+    "region.updated",
+    "region.deleted",
+    "country.created",
+    "country.updated",
+    "country.deleted"
+]
+links = [
+    "region_payment_provider"
+]

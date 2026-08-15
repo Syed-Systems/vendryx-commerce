@@ -1,0 +1,26 @@
+[module]
+name = "stheno-pricing"
+schema = "pricing"
+owned_tables = [
+    "price_set",
+    "price",
+    "price_rule",
+    "price_list",
+    "price_list_rule",
+    "price_preference"
+]
+events = [
+    "price_set.created",
+    "price_set.updated",
+    "price_set.deleted",
+    "price.created",
+    "price.updated",
+    "price.deleted",
+    "price_list.created",
+    "price_list.updated",
+    "price_list.deleted"
+]
+links = [
+    "product_variant_price_set",
+    "shipping_option_price_set"
+]

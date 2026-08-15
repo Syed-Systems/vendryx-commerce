@@ -1,0 +1,6 @@
+[module]
+name = "stheno-translation"
+schema = "translation"
+owned_tables = ["locale", "translation", "translation_override"]
+events = ["translation.updated", "locale.created"]
+links = []

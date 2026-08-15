@@ -1,0 +1,22 @@
+[module]
+name = "stheno-promotion"
+schema = "promotion"
+owned_tables = [
+    "promotion",
+    "application_method",
+    "promotion_rule",
+    "promotion_rule_value",
+    "campaign",
+    "campaign_budget",
+    "campaign_budget_usage"
+]
+events = [
+    "promotion.created",
+    "promotion.updated",
+    "promotion.deleted",
+    "campaign.created",
+    "campaign.updated",
+    "campaign.deleted"
+]
+links = []
+

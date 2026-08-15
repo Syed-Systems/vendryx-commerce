@@ -1,0 +1,17 @@
+[module]
+name = "stheno-user"
+schema = "user"
+owned_tables = [
+    "user",
+    "invite"
+]
+events = [
+    "user.created",
+    "user.updated",
+    "user.deleted",
+    "invite.created",
+    "invite.accepted",
+    "invite.revoked",
+    "invite.resent"
+]
+links = []

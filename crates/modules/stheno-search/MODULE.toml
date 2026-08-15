@@ -1,0 +1,6 @@
+[module]
+name = "stheno-search"
+schema = "search"
+owned_tables = []
+events = []
+links = []

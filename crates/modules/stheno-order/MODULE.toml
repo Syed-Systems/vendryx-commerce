@@ -1,0 +1,51 @@
+[module]
+name = "stheno-order"
+schema = "order"
+
+tables = [
+    "order",
+    "order_item",
+    "line_item",
+    "line_item_adjustment",
+    "line_item_tax_line",
+    "order_shipping_method",
+    "shipping_method",
+    "shipping_method_adjustment",
+    "shipping_method_tax_line",
+    "order_summary",
+    "order_change",
+    "order_change_action",
+    "transaction",
+    "credit_line",
+    "address",
+    "return",
+    "return_item",
+    "return_reason",
+    "claim",
+    "claim_item",
+    "claim_item_image",
+    "exchange",
+    "exchange_item",
+]
+
+events = [
+    "order.placed",
+    "order.updated",
+    "order.canceled",
+    "order.completed",
+    "order.archived",
+    "order.change_requested",
+    "order.change_confirmed",
+    "order.change_declined",
+    "order.change_canceled",
+    "order.return_requested",
+    "order.return_received",
+    "order.claim_created",
+    "order.exchange_created",
+    "order.transfer_requested",
+    "order.transfer_completed",
+]
+
+[dependencies]
+stheno-types = "0.1.0"
+stheno-db = "0.1.0"

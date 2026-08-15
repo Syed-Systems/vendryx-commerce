@@ -1,0 +1,26 @@
+[package]
+name = "stheno-product"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+stheno-types = { workspace = true }
+stheno-db = { workspace = true }
+stheno-events = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rust_decimal = { workspace = true }
+chrono = { workspace = true }
+ulid = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+diesel = { workspace = true, features = ["32-column-tables", "64-column-tables"] }
+
+[dev-dependencies]
+rust_decimal_macros = { workspace = true }

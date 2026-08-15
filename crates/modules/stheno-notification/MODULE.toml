@@ -1,0 +1,6 @@
+[module]
+name = "stheno-notification"
+schema = "notification"
+owned_tables = ["notification", "notification_template", "notification_delivery"]
+events = ["notification.sent", "notification.failed"]
+links = []

@@ -1,0 +1,29 @@
+[module]
+name = "stheno-payment"
+schema = "payment"
+owned_tables = [
+    "payment_collection",
+    "payment_session",
+    "payment",
+    "payment_provider",
+    "capture",
+    "refund",
+    "refund_reason",
+    "account_holder",
+    "payment_provider_request",
+    "payment_webhook_event",
+    "payment_reconciliation_run"
+]
+events = [
+    "payment_collection.created",
+    "payment_collection.updated",
+    "payment_session.created",
+    "payment_session.updated",
+    "payment.created",
+    "payment.updated",
+    "payment.captured",
+    "payment.refunded",
+    "payment.canceled"
+]
+links = []
+

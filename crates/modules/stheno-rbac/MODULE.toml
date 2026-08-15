@@ -1,0 +1,18 @@
+[module]
+name = "stheno-rbac"
+schema = "rbac"
+owned_tables = [
+    "role",
+    "permission",
+    "policy",
+    "role_inheritance"
+]
+events = [
+    "rbac.role_created",
+    "rbac.role_updated",
+    "rbac.role_deleted",
+    "rbac.policy_assigned",
+    "rbac.policy_revoked",
+    "rbac.sensitive_action_audited"
+]
+links = []

@@ -1,0 +1,17 @@
+[module]
+name = "stheno-stock-location"
+schema = "stock_location"
+owned_tables = [
+    "stock_location",
+    "stock_location_address"
+]
+events = [
+    "stock_location.created",
+    "stock_location.updated",
+    "stock_location.deleted"
+]
+links = [
+    "sales_channel_location",
+    "fulfillment_set_location",
+    "fulfillment_provider_location"
+]

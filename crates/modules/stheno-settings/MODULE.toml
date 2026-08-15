@@ -1,0 +1,6 @@
+[module]
+name = "stheno-settings"
+schema = "settings"
+owned_tables = ["store_setting", "view_config", "property_label", "layout_preference"]
+events = ["setting.updated", "view_config.saved"]
+links = []

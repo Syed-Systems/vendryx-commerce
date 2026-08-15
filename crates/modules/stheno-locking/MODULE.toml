@@ -1,0 +1,6 @@
+[module]
+name = "stheno-locking"
+schema = "locking"
+owned_tables = []
+events = []
+links = []

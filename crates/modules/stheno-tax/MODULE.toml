@@ -1,0 +1,18 @@
+[module]
+name = "stheno-tax"
+schema = "tax"
+owned_tables = [
+    "tax_region",
+    "tax_rate",
+    "tax_rate_rule",
+    "tax_provider"
+]
+events = [
+    "tax_region.created",
+    "tax_region.updated",
+    "tax_region.deleted",
+    "tax_rate.created",
+    "tax_rate.updated",
+    "tax_rate.deleted"
+]
+links = []

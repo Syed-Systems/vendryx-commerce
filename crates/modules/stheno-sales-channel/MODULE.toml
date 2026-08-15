@@ -1,0 +1,16 @@
+[module]
+name = "stheno-sales-channel"
+schema = "sales_channel"
+owned_tables = [
+    "sales_channel"
+]
+events = [
+    "sales_channel.created",
+    "sales_channel.updated",
+    "sales_channel.deleted"
+]
+links = [
+    "product_sales_channel",
+    "sales_channel_location",
+    "publishable_api_key_sales_channel"
+]

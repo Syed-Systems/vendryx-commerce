@@ -1,0 +1,14 @@
+[module]
+name = "stheno-store"
+schema = "store"
+owned_tables = [
+    "store",
+    "store_currency",
+    "store_locale"
+]
+events = [
+    "store.created",
+    "store.updated",
+    "store.deleted"
+]
+links = []
