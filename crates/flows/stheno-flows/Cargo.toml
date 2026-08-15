@@ -1,0 +1,57 @@
+[package]
+name = "stheno-flows"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+stheno-types = { workspace = true }
+stheno-workflow = { workspace = true }
+stheno-links = { workspace = true }
+stheno-http = { workspace = true }
+axum = { workspace = true }
+stheno-product = { workspace = true }
+stheno-cart = { workspace = true }
+stheno-order = { workspace = true }
+stheno-pricing = { workspace = true }
+stheno-inventory = { workspace = true }
+stheno-payment = { workspace = true }
+stheno-promotion = { workspace = true }
+stheno-fulfillment = { workspace = true }
+stheno-tax = { workspace = true }
+stheno-region = { workspace = true }
+stheno-store = { workspace = true }
+stheno-customer = { workspace = true }
+stheno-auth = { workspace = true }
+stheno-user = { workspace = true }
+stheno-api-key = { workspace = true }
+stheno-rbac = { workspace = true }
+stheno-file = { workspace = true }
+stheno-notification = { workspace = true }
+stheno-settings = { workspace = true }
+stheno-translation = { workspace = true }
+stheno-analytics = { workspace = true }
+stheno-search = { workspace = true }
+stheno-index = { workspace = true }
+stheno-caching = { workspace = true }
+stheno-locking = { workspace = true }
+stheno-sales-channel = { workspace = true }
+stheno-stock-location = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
+rust_decimal_macros = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+stheno-payment-offline = { workspace = true }
+stheno-fulfillment-manual = { workspace = true }
+stheno-file-local = { workspace = true }
+
+
+
