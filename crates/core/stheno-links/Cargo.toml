@@ -1,0 +1,12 @@
+[package]
+name = "stheno-links"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+stheno-types = { workspace = true }
+stheno-db = { workspace = true }
+serde = { workspace = true }
