@@ -1,0 +1,197 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/stheno-server",
+    "crates/stheno-cli",
+    "crates/core/stheno-types",
+    "crates/core/stheno-db",
+    "crates/core/stheno-events",
+    "crates/core/stheno-workflow",
+    "crates/core/stheno-links",
+    "crates/core/stheno-query",
+    "crates/core/stheno-http",
+    "crates/core/stheno-registry",
+    "crates/modules/stheno-audit",
+    "crates/modules/stheno-product",
+    "crates/modules/stheno-pricing",
+    "crates/modules/stheno-inventory",
+    "crates/modules/stheno-stock-location",
+    "crates/modules/stheno-sales-channel",
+    "crates/modules/stheno-cart",
+    "crates/modules/stheno-promotion",
+    "crates/modules/stheno-payment",
+    "crates/modules/stheno-tax",
+    "crates/modules/stheno-region",
+    "crates/modules/stheno-currency",
+    "crates/modules/stheno-store",
+    "crates/modules/stheno-order",
+    "crates/modules/stheno-fulfillment",
+    "crates/modules/stheno-customer",
+    "crates/modules/stheno-auth",
+    "crates/modules/stheno-user",
+    "crates/modules/stheno-api-key",
+    "crates/modules/stheno-rbac",
+    "crates/modules/stheno-file",
+    "crates/modules/stheno-notification",
+    "crates/modules/stheno-search",
+    "crates/modules/stheno-index",
+    "crates/modules/stheno-caching",
+    "crates/modules/stheno-locking",
+    "crates/modules/stheno-translation",
+    "crates/modules/stheno-settings",
+    "crates/modules/stheno-analytics",
+    "crates/modules/stheno-order-change",
+    "crates/modules/stheno-demo",
+    "crates/providers/stheno-payment-stripe",
+    "crates/providers/stheno-payment-offline",
+    "crates/providers/stheno-fulfillment-manual",
+    "crates/providers/stheno-file-local",
+    "crates/providers/stheno-file-s3",
+    "crates/providers/stheno-notification-local",
+    "crates/providers/stheno-notification-sendgrid",
+    "crates/providers/stheno-notification-webpush",
+    "crates/providers/stheno-auth-emailpass",
+    "crates/providers/stheno-auth-google",
+    "crates/providers/stheno-auth-github",
+    "crates/providers/stheno-auth-oidc",
+    "crates/providers/stheno-caching-redis",
+    "crates/providers/stheno-search-local",
+    "crates/subscribers/stheno-subscribers",
+    "crates/flows/stheno-flows",
+    "crates/flows/stheno-flows-order",
+    "crates/api/stheno-api-core",
+    "crates/api/stheno-api-store",
+    "crates/api/stheno-api-admin",
+    "crates/api/stheno-api-admin-platform",
+    "crates/api/stheno-api-router",
+    "crates/api/stheno-api-auth",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+authors = ["Syed Systems <engineering@syedsystems.com>"]
+
+[workspace.dependencies]
+# Internal core crates
+stheno-types = { path = "crates/core/stheno-types", version = "0.1.0" }
+stheno-db = { path = "crates/core/stheno-db", version = "0.1.0" }
+stheno-events = { path = "crates/core/stheno-events", version = "0.1.0" }
+stheno-workflow = { path = "crates/core/stheno-workflow", version = "0.1.0" }
+stheno-links = { path = "crates/core/stheno-links", version = "0.1.0" }
+stheno-query = { path = "crates/core/stheno-query", version = "0.1.0" }
+stheno-http = { path = "crates/core/stheno-http", version = "0.1.0" }
+stheno-registry = { path = "crates/core/stheno-registry", version = "0.1.0" }
+
+# Subscribers
+stheno-subscribers = { path = "crates/subscribers/stheno-subscribers", version = "0.1.0" }
+
+# Internal domain modules
+stheno-audit = { path = "crates/modules/stheno-audit", version = "0.1.0" }
+stheno-product = { path = "crates/modules/stheno-product", version = "0.1.0" }
+stheno-pricing = { path = "crates/modules/stheno-pricing", version = "0.1.0" }
+stheno-inventory = { path = "crates/modules/stheno-inventory", version = "0.1.0" }
+stheno-stock-location = { path = "crates/modules/stheno-stock-location", version = "0.1.0" }
+stheno-sales-channel = { path = "crates/modules/stheno-sales-channel", version = "0.1.0" }
+stheno-cart = { path = "crates/modules/stheno-cart", version = "0.1.0" }
+stheno-promotion = { path = "crates/modules/stheno-promotion", version = "0.1.0" }
+stheno-payment = { path = "crates/modules/stheno-payment", version = "0.1.0" }
+stheno-tax = { path = "crates/modules/stheno-tax", version = "0.1.0" }
+stheno-region = { path = "crates/modules/stheno-region", version = "0.1.0" }
+stheno-currency = { path = "crates/modules/stheno-currency", version = "0.1.0" }
+stheno-store = { path = "crates/modules/stheno-store", version = "0.1.0" }
+stheno-order = { path = "crates/modules/stheno-order", version = "0.1.0" }
+stheno-fulfillment = { path = "crates/modules/stheno-fulfillment", version = "0.1.0" }
+stheno-customer = { path = "crates/modules/stheno-customer", version = "0.1.0" }
+stheno-auth = { path = "crates/modules/stheno-auth", version = "0.1.0" }
+stheno-user = { path = "crates/modules/stheno-user", version = "0.1.0" }
+stheno-api-key = { path = "crates/modules/stheno-api-key", version = "0.1.0" }
+stheno-rbac = { path = "crates/modules/stheno-rbac", version = "0.1.0" }
+stheno-file = { path = "crates/modules/stheno-file", version = "0.1.0" }
+stheno-notification = { path = "crates/modules/stheno-notification", version = "0.1.0" }
+stheno-search = { path = "crates/modules/stheno-search", version = "0.1.0" }
+stheno-index = { path = "crates/modules/stheno-index", version = "0.1.0" }
+stheno-caching = { path = "crates/modules/stheno-caching", version = "0.1.0" }
+stheno-locking = { path = "crates/modules/stheno-locking", version = "0.1.0" }
+stheno-translation = { path = "crates/modules/stheno-translation", version = "0.1.0" }
+stheno-settings = { path = "crates/modules/stheno-settings", version = "0.1.0" }
+stheno-analytics = { path = "crates/modules/stheno-analytics", version = "0.1.0" }
+stheno-order-change = { path = "crates/modules/stheno-order-change", version = "0.1.0" }
+stheno-payment-offline = { path = "crates/providers/stheno-payment-offline", version = "0.1.0" }
+stheno-payment-stripe = { path = "crates/providers/stheno-payment-stripe", version = "0.1.0" }
+stheno-fulfillment-manual = { path = "crates/providers/stheno-fulfillment-manual", version = "0.1.0" }
+stheno-file-local = { path = "crates/providers/stheno-file-local", version = "0.1.0" }
+stheno-notification-webpush = { path = "crates/providers/stheno-notification-webpush", version = "0.1.0" }
+
+# Flows & API
+stheno-flows = { path = "crates/flows/stheno-flows", version = "0.1.0" }
+stheno-flows-order = { path = "crates/flows/stheno-flows-order", version = "0.1.0" }
+stheno-api-core = { path = "crates/api/stheno-api-core", version = "0.1.0" }
+stheno-api-store = { path = "crates/api/stheno-api-store", version = "0.1.0" }
+stheno-api-admin = { path = "crates/api/stheno-api-admin", version = "0.1.0" }
+stheno-api-admin-platform = { path = "crates/api/stheno-api-admin-platform", version = "0.1.0" }
+stheno-api-router = { path = "crates/api/stheno-api-router", version = "0.1.0" }
+stheno-api-auth = { path = "crates/api/stheno-api-auth", version = "0.1.0" }
+
+# Async runtime & HTTP
+tokio = { version = "1.39", features = ["full"] }
+axum = { version = "0.8", features = ["macros"] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "request-id", "limit", "set-header", "timeout"] }
+hyper = { version = "1.4", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+async-trait = "0.1"
+futures-util = { version = "0.3", features = ["alloc", "sink", "async-await"] }
+url = "2.5"
+
+# Serialization & Validation
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+garde = { version = "0.20", features = ["derive", "email", "url"] }
+
+# Data, Money & Identifiers
+rust_decimal = { version = "1.36", features = ["serde", "serde-with-str"] }
+rust_decimal_macros = "1.36"
+ulid = { version = "1.1", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Database & ORM
+diesel = { version = "2.2", default-features = false, features = ["postgres_backend", "chrono", "serde_json", "numeric", "uuid", "r2d2", "32-column-tables", "64-column-tables"] }
+diesel-async = { version = "0.5", features = ["postgres", "deadpool"] }
+diesel_migrations = { version = "2.2", default-features = false }
+deadpool = "0.12"
+
+# Auth & Security
+jsonwebtoken = "9.3"
+argon2 = { version = "0.5", features = ["std"] }
+scrypt = "0.11"
+totp-rs = { version = "5.6", features = ["qr", "serde"] }
+sha2 = "0.10"
+subtle = "2.6"
+hmac = "0.12"
+hex = "0.4"
+rand = "0.8"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = "0.25"
+opentelemetry = "0.24"
+opentelemetry-otlp = "0.24"
+
+# Scheduling & Caching
+croner = "2.1"
+fred = { version = "9.0", features = ["transactions", "subscriber-client", "serde-json"] }
+
+# OpenAPI & CLI
+utoipa = { version = "4.2", features = ["axum_extras", "chrono", "ulid", "serde_yaml"] }
+utoipa-axum = "0.1"
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Testing & Property Testing
+proptest = "1.5"
+wiremock = "0.6"
+testcontainers = "0.23"
+insta = { version = "1.39", features = ["json"] }
