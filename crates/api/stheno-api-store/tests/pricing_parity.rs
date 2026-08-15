@@ -1,0 +1,173 @@
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use serde_json::Value;
+use std::sync::Arc;
+use stheno_api_store::{store_pricing_routes, StoreApiContext};
+use stheno_currency::CurrencyService;
+use stheno_pricing::PricingService;
+use stheno_product::{CreateProductInput, ProductService};
+use stheno_region::{CreateRegionInput, RegionService};
+use tower::ServiceExt;
+
+#[tokio::test]
+async fn test_store_pricing_endpoints_parity() {
+    let product_service = Arc::new(ProductService::new());
+    let region_service = Arc::new(RegionService::new());
+    let currency_service = Arc::new(CurrencyService::new());
+    let pricing_service = Arc::new(PricingService::new());
+
+    // 1. Seed Product
+    let _prod = product_service
+        .create_product(CreateProductInput {
+            title: "Medusa Parity Silk Scarf".to_string(),
+            handle: Some("medusa-parity-silk-scarf".to_string()),
+            subtitle: Some("100% Mulberry Silk".to_string()),
+            description: Some("Luxury scarf".to_string()),
+            discountable: Some(true),
+        })
+        .await
+        .unwrap();
+
+    // 2. Seed Region
+    let reg = region_service
+        .create_region(CreateRegionInput {
+            name: "European Union".to_string(),
+            currency_code: "eur".to_string(),
+            automatic_taxes: Some(true),
+            countries: vec!["de".to_string(), "fr".to_string(), "it".to_string()],
+        })
+        .await
+        .unwrap();
+
+    let reg_id = reg.id.to_string();
+
+    let cart_service = Arc::new(stheno_cart::CartService::new());
+    let payment_service = Arc::new(stheno_payment::PaymentService::new());
+    let order_service = Arc::new(stheno_order::OrderService::new());
+    let order_flows = Arc::new(stheno_flows::OrderWorkflowEngine::new(
+        order_service.clone(),
+    ));
+    let return_flows = Arc::new(stheno_flows::ReturnWorkflowEngine::new(
+        order_service.clone(),
+        None,
+    ));
+    let fulfillment_service = Arc::new(stheno_fulfillment::FulfillmentService::new());
+
+    let ctx = StoreApiContext {
+        product_service,
+        region_service,
+        currency_service,
+        pricing_service,
+        cart_service,
+        payment_service,
+        order_service,
+        order_flows,
+        return_flows,
+        fulfillment_service,
+    };
+
+    let app = store_pricing_routes(ctx);
+
+    // ── Test 1: GET /store/regions ─────────────────────────────────────────
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/store/regions")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert_eq!(body["count"], 1);
+    assert_eq!(body["regions"][0]["name"], "European Union");
+    assert_eq!(body["regions"][0]["currency_code"], "eur");
+    assert_eq!(body["regions"][0]["countries"].as_array().unwrap().len(), 3);
+
+    // ── Test 2: GET /store/regions/{id} ────────────────────────────────────
+    let reg_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/store/regions/{}", reg_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(reg_response.status(), StatusCode::OK);
+    let reg_bytes = axum::body::to_bytes(reg_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let reg_body: Value = serde_json::from_slice(&reg_bytes).unwrap();
+    assert_eq!(reg_body["region"]["name"], "European Union");
+
+    // ── Test 3: GET /store/currencies ──────────────────────────────────────
+    let currs_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/store/currencies")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(currs_response.status(), StatusCode::OK);
+    let currs_bytes = axum::body::to_bytes(currs_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let currs_body: Value = serde_json::from_slice(&currs_bytes).unwrap();
+    assert!(currs_body["count"].as_u64().unwrap() >= 20);
+
+    // ── Test 4: GET /store/currencies/eur ──────────────────────────────────
+    let eur_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/store/currencies/eur")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(eur_response.status(), StatusCode::OK);
+    let eur_bytes = axum::body::to_bytes(eur_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let eur_body: Value = serde_json::from_slice(&eur_bytes).unwrap();
+    assert_eq!(eur_body["currency"]["code"], "eur");
+    assert_eq!(eur_body["currency"]["symbol"], "€");
+    assert_eq!(eur_body["currency"]["decimal_digits"], 2);
+
+    // ── Test 5: GET /store/products ────────────────────────────────────────
+    let prods_response = app
+        .oneshot(
+            Request::builder()
+                .uri("/store/products")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(prods_response.status(), StatusCode::OK);
+    let prods_bytes = axum::body::to_bytes(prods_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let prods_body: Value = serde_json::from_slice(&prods_bytes).unwrap();
+    assert_eq!(prods_body["count"], 1);
+    assert_eq!(
+        prods_body["products"][0]["handle"],
+        "medusa-parity-silk-scarf"
+    );
+}

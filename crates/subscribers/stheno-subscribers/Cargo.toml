@@ -1,0 +1,21 @@
+[package]
+name = "stheno-subscribers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+stheno-types = { workspace = true }
+stheno-events = { workspace = true }
+stheno-notification = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+stheno-notification-webpush = { workspace = true }
+
+

@@ -1,0 +1,40 @@
+[package]
+name = "stheno-api-store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+stheno-types = { workspace = true }
+stheno-http = { workspace = true }
+stheno-registry = { workspace = true }
+stheno-flows = { workspace = true }
+stheno-product = { workspace = true }
+stheno-inventory = { workspace = true }
+stheno-stock-location = { workspace = true }
+stheno-sales-channel = { workspace = true }
+stheno-region = { workspace = true }
+stheno-currency = { workspace = true }
+stheno-pricing = { workspace = true }
+stheno-store = { workspace = true }
+stheno-cart = { workspace = true }
+stheno-order = { workspace = true }
+stheno-fulfillment = { workspace = true }
+stheno-promotion = { workspace = true }
+stheno-payment = { workspace = true }
+rust_decimal = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+garde = { workspace = true }
+tracing = { workspace = true }
+utoipa = { workspace = true }
+
+[dev-dependencies]
+stheno-payment-offline = { workspace = true }
+rust_decimal_macros = { workspace = true }
+

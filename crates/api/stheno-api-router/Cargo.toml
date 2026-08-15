@@ -1,0 +1,22 @@
+[package]
+name = "stheno-api-router"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+stheno-types = { workspace = true }
+stheno-http = { workspace = true }
+stheno-registry = { workspace = true }
+stheno-api-store = { workspace = true }
+stheno-api-admin = { workspace = true }
+stheno-api-admin-platform = { workspace = true }
+stheno-api-auth = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+garde = { workspace = true }
+tracing = { workspace = true }
+utoipa = { workspace = true }
