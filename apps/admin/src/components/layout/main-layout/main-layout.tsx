@@ -8,6 +8,7 @@ import {
   OpenRectArrowOut,
   ReceiptPercent,
   ShoppingCart,
+  Sparkles,
   SquaresPlus,
   Tag,
   Users,
@@ -120,7 +121,7 @@ const Header = () => {
           )}
         >
           {fallback ? (
-            <Avatar variant="squared" size="xsmall" fallback={fallback} />
+            <Avatar variant="squared" size="xsmall" src="/favicon.png" fallback={fallback} />
           ) : (
             <Skeleton className="h-6 w-6 rounded-md" />
           )}
@@ -143,7 +144,7 @@ const Header = () => {
         {isLoaded && (
           <DropdownMenu.Content className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-0">
             <div className="flex items-center gap-x-3 px-2 py-1">
-              <Avatar variant="squared" size="small" fallback={fallback} />
+              <Avatar variant="squared" size="small" src="/favicon.png" fallback={fallback} />
               <div className="flex flex-col overflow-hidden">
                 <Text
                   size="small"
@@ -255,6 +256,11 @@ const useCoreRoutes = (): Omit<INavItem, "pathname">[] => {
       icon: <CurrencyDollar />,
       label: t("priceLists.domain"),
       to: "/price-lists",
+    },
+    {
+      icon: <Sparkles />,
+      label: "Analytics & Reports",
+      to: "/analytics",
     },
   ]
 }

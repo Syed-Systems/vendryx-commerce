@@ -134,6 +134,10 @@ const useDeveloperRoutes = (): INavItem[] => {
         label: t("workflowExecutions.domain"),
         to: "/settings/workflows",
       },
+      {
+        label: "Platform & Entitlements",
+        to: "/settings/entitlements",
+      },
     ],
     [t]
   )

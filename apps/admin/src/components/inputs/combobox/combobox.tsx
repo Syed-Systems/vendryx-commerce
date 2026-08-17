@@ -502,8 +502,8 @@ const ComboboxImpl = <T extends Value = string>(
               </Text>
             </div>
           ))}
-        {(!results.length ||
-          (shouldAlwaysShowCreateOption && normalizedSearchValue.length > 0)) &&
+        {normalizedSearchValue.length > 0 &&
+          (!results.length || shouldAlwaysShowCreateOption) &&
           onCreateOption && (
             <Fragment>
               <PrimitiveSeparator className="bg-ui-border-base -mx-1" />

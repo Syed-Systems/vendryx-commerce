@@ -13,7 +13,7 @@ interface UseExtendableFormProps<
     UseFormProps<z.infer<TSchema>, TContext, TTransformedValues>,
     "resolver"
   > {
-  schema: TSchema | z.ZodPipe<TSchema, z.ZodType>
+  schema: TSchema | any
   configs: ConfigField[]
   data?: TData
 }
@@ -26,29 +26,47 @@ function createAdditionalDataSchema(configs: ConfigField[]) {
 }
 
 /**
- * Extracts the shape from a schema, handling both ZodObject and ZodPipe.
- * ZodPipe is created by .transform() and wraps the original schema.
+ * Extracts the shape from a schema, handling ZodObject, ZodEffects, and ZodPipeline.
  */
 function getSchemaShape(
-  schema: ZodObject<any> | z.ZodPipe<ZodObject<any>, z.ZodType>
+  schema: any
 ): z.ZodRawShape {
-  if (schema instanceof z.ZodPipe) {
-    const innerSchema = schema.def.in
-    // Guard: ensure inner schema is a ZodObject before accessing shape
-    if (innerSchema instanceof ZodObject) {
-      return innerSchema.shape
-    }
-    throw new Error(
-      "Expected ZodPipe to contain a ZodObject. Schema extensions require the base schema to be a ZodObject."
-    )
+  if (!schema) {
+    return {}
   }
-  return schema.shape
+
+  // Handle direct ZodObject
+  if (schema instanceof ZodObject || schema._def?.typeName === "ZodObject") {
+    return schema.shape
+  }
+
+  // Handle pipeline / effects (.transform, .refine)
+  if (
+    schema._def?.typeName === "ZodPipeline" ||
+    schema._def?.typeName === "ZodEffects"
+  ) {
+    const innerSchema = schema._def.in || schema._def.schema
+    if (innerSchema) {
+      return getSchemaShape(innerSchema)
+    }
+  }
+
+  if (schema.shape) {
+    return schema.shape
+  }
+
+  return {}
 }
 
 function createExtendedSchema(
-  baseSchema: ZodObject<any> | z.ZodPipe<ZodObject<any>, z.ZodType>,
+  baseSchema: any,
   additionalDataSchema: Record<string, z.ZodTypeAny>
 ) {
+  const hasAdditionalData = Object.keys(additionalDataSchema).length > 0
+  if (!hasAdditionalData) {
+    return baseSchema
+  }
+
   const baseShape = getSchemaShape(baseSchema)
 
   const extendedObjectSchema = z.object({
@@ -56,14 +74,18 @@ function createExtendedSchema(
     additional_data: z.object(additionalDataSchema).optional(),
   })
 
-  return baseSchema
-    .superRefine((data, ctx) => {
-      const result = extendedObjectSchema.safeParse(data)
-      if (!result.success) {
-        result.error.issues.forEach((issue) => ctx.addIssue({ ...issue }))
-      }
-    })
-    .and(extendedObjectSchema)
+  if (typeof baseSchema?.and === "function") {
+    return baseSchema
+      .superRefine((data: any, ctx: any) => {
+        const result = extendedObjectSchema.safeParse(data)
+        if (!result.success) {
+          result.error.issues.forEach((issue) => ctx.addIssue({ ...issue }))
+        }
+      })
+      .and(extendedObjectSchema)
+  }
+
+  return z.intersection(baseSchema, extendedObjectSchema)
 }
 
 function createExtendedDefaultValues<TData>(

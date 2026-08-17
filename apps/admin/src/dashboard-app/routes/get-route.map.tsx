@@ -31,6 +31,14 @@ export function getRouteMap({
               lazy: () => import("../../routes/home"),
             },
             {
+              path: "/analytics",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/analytics"),
+              handle: {
+                breadcrumb: () => "Analytics & Reports",
+              },
+            },
+            {
               path: "/products",
               errorElement: <ErrorBoundary />,
               handle: {
@@ -1094,6 +1102,14 @@ export function getRouteMap({
                   lazy: () => import("../../routes/profile/profile-edit"),
                 },
               ],
+            },
+            {
+              path: "entitlements",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/entitlements"),
+              handle: {
+                breadcrumb: () => "Platform & Entitlements",
+              },
             },
             {
               path: "regions",
