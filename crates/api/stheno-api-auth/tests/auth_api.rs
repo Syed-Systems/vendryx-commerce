@@ -6,12 +6,16 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use stheno_api_auth::{auth_routes, AuthApiContext};
 use stheno_auth::AuthService;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::AuthWorkflows;
 use tower::ServiceExt;
 
 #[tokio::test]
 async fn test_auth_api_endpoints_parity() {
-    let auth_service = Arc::new(AuthService::new(None));
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let auth_service = Arc::new(AuthService::new(pool, None));
     let auth_flows = Arc::new(AuthWorkflows::new(auth_service));
     let app = auth_routes(AuthApiContext { auth_flows });
 

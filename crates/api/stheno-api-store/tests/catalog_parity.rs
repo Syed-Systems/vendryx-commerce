@@ -3,12 +3,15 @@ use axum::http::{Request, StatusCode};
 use serde_json::Value;
 use std::sync::Arc;
 use stheno_api_store::store_catalog_routes;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_product::{CreateCategoryInput, CreateProductInput, ProductService};
 use tower::ServiceExt;
 
 #[tokio::test]
 async fn test_store_catalog_endpoints_parity() {
-    let service = Arc::new(ProductService::new());
+    let db = TestDb::migrated().await;
+    let service = Arc::new(ProductService::new(create_pool(&db.url, 5).expect("pool")));
 
     // Seed test product
     let _prod = service
@@ -73,4 +76,6 @@ async fn test_store_catalog_endpoints_parity() {
     let cat_body: Value = serde_json::from_slice(&cat_bytes).unwrap();
     assert_eq!(cat_body["count"], 1);
     assert_eq!(cat_body["product_categories"][0]["handle"], "sweatshirts");
+
+    db.drop().await;
 }

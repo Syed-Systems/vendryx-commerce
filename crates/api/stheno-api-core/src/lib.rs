@@ -1,5 +1,12 @@
 //! `stheno-api-core`: Shared response envelopes and DTO wrappers for Medusa v2 wire-compatibility.
 
+pub mod entitlements;
+
+pub use entitlements::{
+    Entitlements, EntitlementsError, Feature, QuotaKey, QuotaState, Tier, TierConfig,
+    TierDefinition, WindowKey,
+};
+
 use serde::{Deserialize, Serialize};
 
 /// Standard envelope for list endpoints returning offset paginated data.

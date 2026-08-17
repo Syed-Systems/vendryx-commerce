@@ -11,7 +11,9 @@ use stheno_order::{
     CreateOrderInput, CreateReturnInput, CreateReturnReasonInput, OrderDTO, OrderFilter,
     OrderService, ReturnDTO, ReturnReasonDTO, UpdateOrderInput,
 };
-use stheno_payment::{CaptureDTO, CapturePaymentInput, PaymentService, RefundDTO, RefundPaymentInput};
+use stheno_payment::{
+    CaptureDTO, CapturePaymentInput, PaymentService, RefundDTO, RefundPaymentInput,
+};
 
 #[derive(Clone)]
 pub struct AdminOrderContext {
@@ -24,13 +26,17 @@ pub struct AdminOrderContext {
 pub async fn list_orders(
     State(ctx): State<AdminOrderContext>,
 ) -> Result<Json<ListResponse<Vec<OrderDTO>>>, Response> {
-    let (all, count) = ctx.order_service.list_orders(OrderFilter::default()).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("unexpected_state", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let (all, count) = ctx
+        .order_service
+        .list_orders(OrderFilter::default())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+            )
+                .into_response()
+        })?;
     Ok(Json(ListResponse {
         data: all,
         count,
@@ -61,7 +67,10 @@ pub async fn get_order(
         Ok(order) => Ok(Json(GetResponse { data: order })),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &format!("Order with id {} was not found", id))),
+            Json(ErrorResponse::new(
+                "not_found",
+                &format!("Order with id {} was not found", id),
+            )),
         )
             .into_response()),
     }
@@ -81,6 +90,20 @@ pub async fn cancel_order(
     Ok(Json(GetResponse { data: order }))
 }
 
+pub async fn archive_order(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+) -> Result<Json<GetResponse<OrderDTO>>, Response> {
+    let order = ctx.order_service.archive_order(&id).await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::new("invalid_action", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    Ok(Json(GetResponse { data: order }))
+}
+
 // 2. Fulfillment Handlers
 pub async fn create_fulfillment(
     State(ctx): State<AdminOrderContext>,
@@ -88,19 +111,32 @@ pub async fn create_fulfillment(
     Json(input): Json<CreateFulfillmentInput>,
 ) -> Result<(StatusCode, Json<GetResponse<FulfillmentDTO>>), Response> {
     // 1. Create fulfillment
-    let ful = ctx.fulfillment_service.create_fulfillment(input).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("invalid_fulfillment_data", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let ful = ctx
+        .fulfillment_service
+        .create_fulfillment(input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new(
+                    "invalid_fulfillment_data",
+                    &e.to_string(),
+                )),
+            )
+                .into_response()
+        })?;
 
     // 2. Transition order fulfillment status to "fulfilled"
-    let _ = ctx.order_service.update_order(&order_id, UpdateOrderInput {
-        fulfillment_status: Some("fulfilled".to_string()),
-        ..Default::default()
-    }).await;
+    let _ = ctx
+        .order_service
+        .update_order(
+            &order_id,
+            UpdateOrderInput {
+                fulfillment_status: Some("fulfilled".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
 
     Ok((StatusCode::CREATED, Json(GetResponse { data: ful })))
 }
@@ -111,13 +147,17 @@ pub async fn capture_payment(
     Path(_order_id): Path<String>,
     Json(input): Json<CapturePaymentInput>,
 ) -> Result<(StatusCode, Json<GetResponse<CaptureDTO>>), Response> {
-    let cap = ctx.payment_service.capture_payment(input).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("payment_capture_failed", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let cap = ctx
+        .payment_service
+        .capture_payment(input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("payment_capture_failed", &e.to_string())),
+            )
+                .into_response()
+        })?;
     Ok((StatusCode::CREATED, Json(GetResponse { data: cap })))
 }
 
@@ -126,13 +166,17 @@ pub async fn refund_payment(
     Path(_order_id): Path<String>,
     Json(input): Json<RefundPaymentInput>,
 ) -> Result<(StatusCode, Json<GetResponse<RefundDTO>>), Response> {
-    let ref_dto = ctx.payment_service.refund_payment(input).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("payment_refund_failed", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let ref_dto = ctx
+        .payment_service
+        .refund_payment(input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("payment_refund_failed", &e.to_string())),
+            )
+                .into_response()
+        })?;
     Ok((StatusCode::CREATED, Json(GetResponse { data: ref_dto })))
 }
 
@@ -175,13 +219,17 @@ pub async fn receive_return(
     Path(id): Path<String>,
 ) -> Result<Json<GetResponse<ReturnDTO>>, Response> {
     // receive the return
-    let ret = ctx.order_service.receive_return_items(&id, vec![]).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("receive_failed", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let ret = ctx
+        .order_service
+        .receive_return_items(&id, vec![])
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("receive_failed", &e.to_string())),
+            )
+                .into_response()
+        })?;
     Ok(Json(GetResponse { data: ret }))
 }
 
@@ -209,12 +257,16 @@ pub async fn create_return_reason(
     State(ctx): State<AdminOrderContext>,
     Json(input): Json<CreateReturnReasonInput>,
 ) -> Result<(StatusCode, Json<GetResponse<ReturnReasonDTO>>), Response> {
-    let reason = ctx.order_service.create_return_reason(input).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("invalid_reason_data", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let reason = ctx
+        .order_service
+        .create_return_reason(input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("invalid_reason_data", &e.to_string())),
+            )
+                .into_response()
+        })?;
     Ok((StatusCode::CREATED, Json(GetResponse { data: reason })))
 }

@@ -4,6 +4,8 @@ use rust_decimal_macros::dec;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use stheno_api_store::{store_order_routes, store_shipping_option_routes};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::OrderWorkflowEngine;
 use stheno_fulfillment::{
     CreateFulfillmentSetInput, CreateServiceZoneInput, CreateShippingOptionInput,
@@ -14,9 +16,11 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn test_store_order_and_shipping_option_endpoints_parity() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool.clone()));
     let order_flows = Arc::new(OrderWorkflowEngine::new(order_service.clone()));
-    let fulfillment_service = Arc::new(FulfillmentService::new());
+    let fulfillment_service = Arc::new(FulfillmentService::new(pool.clone()));
 
     let app = axum::Router::new()
         .merge(store_order_routes(
@@ -221,4 +225,6 @@ async fn test_store_order_and_shipping_option_endpoints_parity() {
         body["shipping_options"][0]["name"],
         "Standard Ground Delivery"
     );
+
+    db.drop().await;
 }

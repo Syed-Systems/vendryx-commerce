@@ -35,13 +35,17 @@ pub async fn create_inventory_item(
     State(ctx): State<InventoryContext>,
     Json(input): Json<CreateInventoryItemInput>,
 ) -> Result<(StatusCode, Json<GetResponse<InventoryItemDTO>>), Response> {
-    let item = ctx.inventory_service.create_item(input).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("invalid_data", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let item = ctx
+        .inventory_service
+        .create_item(input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("invalid_data", &e.to_string())),
+            )
+                .into_response()
+        })?;
     Ok((StatusCode::CREATED, Json(GetResponse { data: item })))
 }
 
@@ -75,13 +79,17 @@ pub async fn create_reservation(
 pub async fn list_stock_locations(
     State(ctx): State<InventoryContext>,
 ) -> Result<Json<ListResponse<Vec<StockLocationDTO>>>, Response> {
-    let all = ctx.stock_location_service.list_locations().await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("unexpected_state", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let all = ctx
+        .stock_location_service
+        .list_locations()
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+            )
+                .into_response()
+        })?;
     let count = all.len();
     Ok(Json(ListResponse {
         data: all,
@@ -95,13 +103,17 @@ pub async fn create_stock_location(
     State(ctx): State<InventoryContext>,
     Json(input): Json<CreateStockLocationInput>,
 ) -> Result<(StatusCode, Json<GetResponse<StockLocationDTO>>), Response> {
-    let loc = ctx.stock_location_service.create_location(input).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("invalid_data", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let loc = ctx
+        .stock_location_service
+        .create_location(input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("invalid_data", &e.to_string())),
+            )
+                .into_response()
+        })?;
     Ok((StatusCode::CREATED, Json(GetResponse { data: loc })))
 }
 
@@ -109,13 +121,16 @@ pub async fn delete_stock_location(
     State(ctx): State<InventoryContext>,
     Path(id): Path<String>,
 ) -> Result<Json<DeleteResponse>, Response> {
-    ctx.stock_location_service.delete_location(&id).await.map_err(|e| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    ctx.stock_location_service
+        .delete_location(&id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new("not_found", &e.to_string())),
+            )
+                .into_response()
+        })?;
     Ok(Json(DeleteResponse {
         id,
         object: "stock_location".to_string(),

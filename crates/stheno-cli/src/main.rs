@@ -28,6 +28,15 @@ enum Commands {
         #[arg(long)]
         check: bool,
     },
+    /// Import a Medusa database into Stheno
+    ImportMedusa {
+        /// Source postgres connection string
+        #[arg(long)]
+        source: Option<String>,
+        /// Perform a dry-run without writing any changes
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -274,6 +283,10 @@ async fn test_{clean_name}_service_lifecycle() {{
             } else {
                 println!("Generating OpenAPI schema...");
             }
+        }
+        Commands::ImportMedusa { source, dry_run } => {
+            let report = stheno_cli::import::run_import(source.as_deref(), dry_run);
+            print!("{}", report.format_report());
         }
     }
 

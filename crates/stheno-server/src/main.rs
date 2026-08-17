@@ -1,8 +1,15 @@
 //! `stheno-server`: Production entrypoint and composition root.
 
 use clap::Parser;
+use std::time::Duration;
 use stheno_registry::AppContext;
-use stheno_server::AppServer;
+use stheno_server::db::DbConfig;
+use stheno_server::{load_entitlements, AppServer};
+
+/// How long boot waits for the database before giving up. Long enough to ride
+/// out a container starting alongside us, short enough to fail a broken
+/// deployment rather than hang in it.
+const DB_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Parser, Debug)]
 #[command(
@@ -16,6 +23,15 @@ struct Args {
     #[arg(long)]
     check_config: bool,
 
+    /// Runs pending database migrations on startup
+    #[arg(long)]
+    migrate: bool,
+
+    /// Reports whether the database schema matches the embedded migrations, then exits.
+    /// Exits non-zero on drift.
+    #[arg(long)]
+    check_migrations: bool,
+
     /// Bind address
     #[arg(short, long, default_value = "127.0.0.1:9000")]
     bind: String,
@@ -25,17 +41,60 @@ struct Args {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
+    // Every path needs a database, `--check-config` included: it exists to
+    // validate connectivity, and migrated services have no in-memory mode to
+    // fall back to.
+    let db_config = DbConfig::from_env()?;
+    let pool = db_config.build_pool()?;
+    stheno_server::db::check_connectivity(&pool, DB_CONNECT_TIMEOUT).await?;
+
     if args.check_config {
         println!("Checking configuration...");
         let ctx = AppContext::create_test_context();
-        let _server = AppServer::new(ctx);
-        println!("Configuration check PASSED: Composition root bootstrapped successfully.");
+        // A bad tier config must abort here rather than booting a deployment whose
+        // entitlements nobody can reason about (ENTITLEMENTS.md 5b).
+        let entitlements = load_entitlements()?;
+        let server = AppServer::new(ctx, entitlements, pool);
+        println!(
+            "Configuration check PASSED: composition root bootstrapped, database reachable, tier = {}.",
+            server.entitlements.tier().as_str()
+        );
         return Ok(());
     }
 
-    println!("Starting Stheno Commerce Engine on {}", args.bind);
+    if args.migrate {
+        let applied = stheno_db::migrations::run(&db_config.database_url).await?;
+        println!("Applied {} migration(s).", applied.len());
+        for name in &applied {
+            println!("  - {name}");
+        }
+    }
+
+    if args.check_migrations {
+        let pending = stheno_db::migrations::pending(&db_config.database_url).await?;
+        if pending.is_empty() {
+            println!("Schema is up to date; no pending migrations.");
+            return Ok(());
+        }
+        eprintln!(
+            "Schema drift: {} migration(s) have not been applied:",
+            pending.len()
+        );
+        for name in &pending {
+            eprintln!("  - {name}");
+        }
+        std::process::exit(1);
+    }
+
+    let entitlements = load_entitlements()?;
+    println!(
+        "Starting Stheno Commerce Engine on {} (tier: {}, pool: {})",
+        args.bind,
+        entitlements.tier().as_str(),
+        db_config.pool_size
+    );
     let ctx = AppContext::create_test_context();
-    let server = AppServer::new(ctx);
+    let server = AppServer::new(ctx, entitlements, pool);
 
     let listener = tokio::net::TcpListener::bind(&args.bind).await?;
     axum::serve(listener, server.router).await?;

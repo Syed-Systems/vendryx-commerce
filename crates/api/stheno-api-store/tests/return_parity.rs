@@ -5,13 +5,17 @@ use rust_decimal_macros::dec;
 use serde_json::Value;
 use std::sync::Arc;
 use stheno_api_store::store_return_routes;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::ReturnWorkflowEngine;
 use stheno_order::{CreateAddressInput, CreateLineItemInput, CreateOrderInput, OrderService};
 use tower::ServiceExt;
 
 #[tokio::test]
 async fn test_store_returns_endpoints_parity() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool.clone()));
     let return_flows = Arc::new(ReturnWorkflowEngine::new(order_service.clone(), None));
 
     // 1. Create base order
@@ -48,6 +52,15 @@ async fn test_store_returns_endpoints_parity() {
 
     let item_id = order.items[0].id.clone();
 
+    let reason = order_service
+        .create_return_reason(stheno_order::CreateReturnReasonInput {
+            value: "defective".to_string(),
+            label: "Defective Item".to_string(),
+            description: Some("Broken or defective item".to_string()),
+        })
+        .await
+        .unwrap();
+
     let app = store_return_routes(order_service.clone(), return_flows.clone());
 
     // ── Test 1: POST /store/returns ─────────────────────────────────────────
@@ -57,7 +70,7 @@ async fn test_store_returns_endpoints_parity() {
         "items": [{
             "id": item_id,
             "quantity": 1,
-            "reason_id": "reason_defective",
+            "reason_id": reason.id,
             "note": "Broken zipper"
         }]
     });
@@ -75,6 +88,7 @@ async fn test_store_returns_endpoints_parity() {
     let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
         .await
         .unwrap();
+
     let json: Value = serde_json::from_slice(&bytes).unwrap();
     assert!(json.get("return").is_some());
     let ret_id = json["return"]["id"].as_str().unwrap().to_string();
@@ -113,4 +127,6 @@ async fn test_store_returns_endpoints_parity() {
     let json: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(json["return"]["id"], ret_id);
     assert_eq!(json["return"]["items"].as_array().unwrap().len(), 1);
+
+    db.drop().await;
 }

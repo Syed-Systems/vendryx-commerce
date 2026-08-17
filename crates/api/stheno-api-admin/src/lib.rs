@@ -7,6 +7,7 @@ pub mod inventory;
 pub mod orders;
 pub mod pricing;
 pub mod promotions;
+pub mod reports;
 
 use axum::routing::{get, post};
 use axum::Router;
@@ -44,12 +45,16 @@ pub struct AdminApiContext {
     pub currency_service: Arc<CurrencyService>,
     pub tax_service: Arc<TaxService>,
     pub sales_channel_service: Arc<SalesChannelService>,
+    pub reporting_service: Option<Arc<stheno_reporting::ReportingService>>,
 }
 
 /// Mounts admin catalog API routes (products, categories, variants).
 pub fn admin_catalog_routes(product_service: Arc<ProductService>) -> Router {
     Router::new()
-        .route("/admin/products", get(catalog::list_products).post(catalog::create_product))
+        .route(
+            "/admin/products",
+            get(catalog::list_products).post(catalog::create_product),
+        )
         .route(
             "/admin/products/{id}",
             get(catalog::get_product)
@@ -64,7 +69,10 @@ pub fn admin_catalog_routes(product_service: Arc<ProductService>) -> Router {
             "/admin/product-categories/{id}",
             get(catalog::get_category).delete(catalog::delete_category),
         )
-        .route("/admin/products/{id}/variants", post(catalog::create_variant))
+        .route(
+            "/admin/products/{id}/variants",
+            post(catalog::create_variant),
+        )
         .with_state(product_service)
 }
 
@@ -100,7 +108,10 @@ pub fn admin_inventory_routes(
 /// Mounts admin pricing routes.
 pub fn admin_pricing_routes(pricing_service: Arc<PricingService>) -> Router {
     Router::new()
-        .route("/admin/price-lists", get(pricing::list_price_lists).post(pricing::create_price_list))
+        .route(
+            "/admin/price-lists",
+            get(pricing::list_price_lists).post(pricing::create_price_list),
+        )
         .route(
             "/admin/price-lists/{id}",
             get(pricing::get_price_list)
@@ -122,22 +133,38 @@ pub fn admin_order_routes(
         payment_service,
     };
     Router::new()
-        .route("/admin/orders", get(orders::list_orders).post(orders::create_order))
+        .route(
+            "/admin/orders",
+            get(orders::list_orders).post(orders::create_order),
+        )
         .route("/admin/orders/{id}", get(orders::get_order))
         .route("/admin/orders/{id}/cancel", post(orders::cancel_order))
-        .route("/admin/orders/{id}/fulfillments", post(orders::create_fulfillment))
+        .route("/admin/orders/{id}/archive", post(orders::archive_order))
+        .route(
+            "/admin/orders/{id}/fulfillments",
+            post(orders::create_fulfillment),
+        )
         .route("/admin/orders/{id}/captures", post(orders::capture_payment))
         .route("/admin/orders/{id}/refunds", post(orders::refund_payment))
-        .route("/admin/returns", get(orders::list_returns).post(orders::create_return))
+        .route(
+            "/admin/returns",
+            get(orders::list_returns).post(orders::create_return),
+        )
         .route("/admin/returns/{id}/receive", post(orders::receive_return))
-        .route("/admin/return-reasons", get(orders::list_return_reasons).post(orders::create_return_reason))
+        .route(
+            "/admin/return-reasons",
+            get(orders::list_return_reasons).post(orders::create_return_reason),
+        )
         .with_state(ctx)
 }
 
 /// Mounts admin customers and groups routes.
 pub fn admin_customer_routes(customer_service: Arc<CustomerService>) -> Router {
     Router::new()
-        .route("/admin/customers", get(customers::list_customers).post(customers::create_customer))
+        .route(
+            "/admin/customers",
+            get(customers::list_customers).post(customers::create_customer),
+        )
         .route(
             "/admin/customers/{id}",
             get(customers::get_customer)
@@ -158,14 +185,20 @@ pub fn admin_customer_routes(customer_service: Arc<CustomerService>) -> Router {
 /// Mounts admin promotions and campaigns routes.
 pub fn admin_promotion_routes(promotion_service: Arc<PromotionService>) -> Router {
     Router::new()
-        .route("/admin/promotions", get(promotions::list_promotions).post(promotions::create_promotion))
+        .route(
+            "/admin/promotions",
+            get(promotions::list_promotions).post(promotions::create_promotion),
+        )
         .route(
             "/admin/promotions/{id}",
             get(promotions::get_promotion)
                 .post(promotions::update_promotion)
                 .delete(promotions::delete_promotion),
         )
-        .route("/admin/campaigns", get(promotions::list_campaigns).post(promotions::create_campaign))
+        .route(
+            "/admin/campaigns",
+            get(promotions::list_campaigns).post(promotions::create_campaign),
+        )
         .route(
             "/admin/campaigns/{id}",
             get(promotions::get_campaign)
@@ -190,7 +223,10 @@ pub fn admin_config_routes(
     };
     Router::new()
         // Regions
-        .route("/admin/regions", get(config::list_regions).post(config::create_region))
+        .route(
+            "/admin/regions",
+            get(config::list_regions).post(config::create_region),
+        )
         .route(
             "/admin/regions/{id}",
             get(config::get_region)
@@ -217,18 +253,20 @@ pub fn admin_config_routes(
                 .delete(config::delete_tax_rate),
         )
         // Sales Channels
-        .route("/admin/sales-channels", get(config::list_sales_channels).post(config::create_sales_channel))
+        .route(
+            "/admin/sales-channels",
+            get(config::list_sales_channels).post(config::create_sales_channel),
+        )
         .route(
             "/admin/sales-channels/{id}",
-            get(config::get_sales_channel)
-                .delete(config::delete_sales_channel),
+            get(config::get_sales_channel).delete(config::delete_sales_channel),
         )
         .with_state(ctx)
 }
 
 /// Mounts all Admin API routes.
 pub fn admin_routes(ctx: AdminApiContext) -> Router {
-    Router::new()
+    let mut router = Router::new()
         .merge(admin_catalog_routes(ctx.product_service))
         .merge(admin_inventory_routes(
             ctx.inventory_service,
@@ -247,5 +285,34 @@ pub fn admin_routes(ctx: AdminApiContext) -> Router {
             ctx.currency_service,
             ctx.tax_service,
             ctx.sales_channel_service,
-        ))
+        ));
+
+    if let Some(reporting) = ctx.reporting_service {
+        router = router.merge(admin_reports_routes(reporting));
+    }
+
+    router
+}
+
+/// Mounts admin reporting routes (P16).
+pub fn admin_reports_routes(reporting_service: Arc<stheno_reporting::ReportingService>) -> Router {
+    let ctx = reports::AdminReportingContext { reporting_service };
+    Router::new()
+        .route(
+            "/admin/reports/revenue-over-time",
+            get(reports::revenue_over_time_handler),
+        )
+        .route(
+            "/admin/reports/orders-over-time",
+            get(reports::orders_over_time_handler),
+        )
+        .route(
+            "/admin/reports/top-products",
+            get(reports::top_products_handler),
+        )
+        .route(
+            "/admin/reports/average-order-value",
+            get(reports::average_order_value_handler),
+        )
+        .with_state(ctx)
 }

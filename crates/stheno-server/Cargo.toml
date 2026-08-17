@@ -19,9 +19,42 @@ tokio = { workspace = true }
 axum = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+stheno-api-core = { workspace = true }
+stheno-api-store = { workspace = true }
+stheno-api-admin = { workspace = true }
+stheno-api-admin-platform = { workspace = true }
+stheno-api-auth = { workspace = true }
+stheno-auth = { workspace = true }
+stheno-product = { workspace = true }
+stheno-region = { workspace = true }
+stheno-currency = { workspace = true }
+stheno-cart = { workspace = true }
+stheno-order = { workspace = true }
+stheno-payment = { workspace = true }
+stheno-fulfillment = { workspace = true }
+stheno-fulfillment-manual = { workspace = true }
+stheno-pricing = { workspace = true }
+stheno-promotion = { workspace = true }
+stheno-customer = { workspace = true }
+stheno-user = { workspace = true }
+stheno-inventory = { workspace = true }
+stheno-stock-location = { workspace = true }
+stheno-sales-channel = { workspace = true }
+stheno-tax = { workspace = true }
+stheno-translation = { workspace = true }
+stheno-reporting = { workspace = true }
+stheno-flows = { workspace = true }
+stheno-flows-order = { workspace = true }
+tower-http = { workspace = true }
+serde_json = { workspace = true }
 clap = { workspace = true }
 
+[features]
+# Enables TestApp. Never on for a release build.
+testing = ["stheno-db/testing"]
+
 [dev-dependencies]
+stheno-server = { path = ".", features = ["testing"] }
 wiremock = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }

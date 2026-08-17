@@ -14,9 +14,14 @@ stheno-api-store = { workspace = true }
 stheno-api-admin = { workspace = true }
 stheno-api-admin-platform = { workspace = true }
 stheno-api-auth = { workspace = true }
+stheno-api-core = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 garde = { workspace = true }
 tracing = { workspace = true }
 utoipa = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tower = { workspace = true }

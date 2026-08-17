@@ -6,9 +6,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use std::sync::Arc;
 use stheno_api_core::{DeleteResponse, ErrorResponse, GetResponse, ListResponse};
-use stheno_pricing::{
-    CreatePriceListInput, PriceListDTO, PricingService, UpdatePriceListInput,
-};
+use stheno_pricing::{CreatePriceListInput, PriceListDTO, PricingService, UpdatePriceListInput};
 
 // Price List Handlers
 pub async fn list_price_lists(
@@ -52,7 +50,10 @@ pub async fn get_price_list(
         Ok(list) => Ok(Json(GetResponse { data: list })),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &format!("Price list with id {} was not found", id))),
+            Json(ErrorResponse::new(
+                "not_found",
+                &format!("Price list with id {} was not found", id),
+            )),
         )
             .into_response()),
     }

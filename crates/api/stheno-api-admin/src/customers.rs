@@ -7,8 +7,8 @@ use axum::Json;
 use std::sync::Arc;
 use stheno_api_core::{DeleteResponse, ErrorResponse, GetResponse, ListResponse};
 use stheno_customer::{
-    CreateCustomerGroupInput, CreateCustomerInput, CustomerDTO, CustomerGroupDTO,
-    CustomerService, UpdateCustomerGroupInput, UpdateCustomerInput,
+    CreateCustomerGroupInput, CreateCustomerInput, CustomerDTO, CustomerGroupDTO, CustomerService,
+    UpdateCustomerGroupInput, UpdateCustomerInput,
 };
 
 // 1. Customer Handlers
@@ -53,7 +53,10 @@ pub async fn get_customer(
         Ok(customer) => Ok(Json(GetResponse { data: customer })),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &format!("Customer with id {} was not found", id))),
+            Json(ErrorResponse::new(
+                "not_found",
+                &format!("Customer with id {} was not found", id),
+            )),
         )
             .into_response()),
     }
@@ -131,12 +134,15 @@ pub async fn update_customer_group(
     Path(id): Path<String>,
     Json(input): Json<UpdateCustomerGroupInput>,
 ) -> Result<Json<GetResponse<CustomerGroupDTO>>, Response> {
-    let group = service.update_customer_group(&id, input).await.map_err(|e| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let group = service
+        .update_customer_group(&id, input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new("not_found", &e.to_string())),
+            )
+                .into_response()
+        })?;
     Ok(Json(GetResponse { data: group }))
 }

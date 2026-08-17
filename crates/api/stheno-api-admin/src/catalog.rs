@@ -71,7 +71,10 @@ pub async fn get_product(
         Ok(product) => Ok(Json(GetResponse { data: product })),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &format!("Product with id {} was not found", id))),
+            Json(ErrorResponse::new(
+                "not_found",
+                &format!("Product with id {} was not found", id),
+            )),
         )
             .into_response()),
     }
@@ -176,7 +179,10 @@ pub async fn get_category(
         Ok(cat) => Ok(Json(GetResponse { data: cat })),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &format!("Product category with id {} was not found", id))),
+            Json(ErrorResponse::new(
+                "not_found",
+                &format!("Product category with id {} was not found", id),
+            )),
         )
             .into_response()),
     }

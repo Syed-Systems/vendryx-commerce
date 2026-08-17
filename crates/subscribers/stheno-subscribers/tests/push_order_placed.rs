@@ -1,4 +1,6 @@
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_events::Event;
 use stheno_notification::NotificationService;
 use stheno_notification_webpush::{VapidConfig, WebPushNotificationProvider};
@@ -6,6 +8,8 @@ use stheno_subscribers::{EventSubscriber, PushOrderPlacedSubscriber};
 
 #[tokio::test]
 async fn test_push_order_placed_subscriber_social_suppression() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
     let vapid_config = VapidConfig {
         subject: "mailto:admin@stheno.store".to_string(),
         public_key: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA".to_string(),
@@ -13,7 +17,7 @@ async fn test_push_order_placed_subscriber_social_suppression() {
     };
 
     let push_provider = Arc::new(WebPushNotificationProvider::new(vapid_config));
-    let notif_service = Arc::new(NotificationService::new());
+    let notif_service = Arc::new(NotificationService::new(pool));
     notif_service.register_provider(push_provider.clone());
 
     let subscriber = PushOrderPlacedSubscriber::new(

@@ -2,19 +2,25 @@
 
 pub mod carts;
 pub mod categories;
+pub mod collections;
 pub mod currencies;
+pub mod customers;
+pub mod locales;
 pub mod orders;
 pub mod payment_collections;
 pub mod products;
 pub mod regions;
 pub mod returns;
 pub mod shipping_options;
+pub mod variants;
 
 use axum::routing::{get, post};
 use axum::Router;
 use std::sync::Arc;
+use stheno_auth::AuthService;
 use stheno_cart::CartService;
 use stheno_currency::CurrencyService;
+use stheno_customer::CustomerService;
 use stheno_flows::{OrderWorkflowEngine, ReturnWorkflowEngine};
 use stheno_fulfillment::FulfillmentService;
 use stheno_order::OrderService;
@@ -22,8 +28,10 @@ use stheno_payment::PaymentService;
 use stheno_pricing::PricingService;
 use stheno_product::ProductService;
 use stheno_region::RegionService;
+use stheno_translation::TranslationService;
 
 use carts::StoreCartContext;
+use customers::StoreCustomerContext;
 use orders::StoreOrderContext;
 use payment_collections::StorePaymentContext;
 use returns::StoreReturnContext;
@@ -36,11 +44,15 @@ pub struct StoreApiContext {
     pub currency_service: Arc<CurrencyService>,
     pub pricing_service: Arc<PricingService>,
     pub cart_service: Arc<CartService>,
+    pub promotion_service: Option<Arc<stheno_promotion::PromotionService>>,
     pub payment_service: Arc<PaymentService>,
     pub order_service: Arc<OrderService>,
     pub order_flows: Arc<OrderWorkflowEngine>,
     pub return_flows: Arc<ReturnWorkflowEngine>,
     pub fulfillment_service: Arc<FulfillmentService>,
+    pub customer_service: Arc<CustomerService>,
+    pub auth_service: Arc<AuthService>,
+    pub translation_service: Arc<TranslationService>,
 }
 
 /// Mounts all store catalog API routes (products & categories).
@@ -48,6 +60,9 @@ pub fn store_catalog_routes(product_service: Arc<ProductService>) -> Router {
     Router::new()
         .route("/store/products", get(products::list_products))
         .route("/store/products/{id}", get(products::get_product))
+        .route("/store/collections", get(collections::list_collections))
+        .route("/store/collections/{id}", get(collections::get_collection))
+        .route("/store/product-variants/{id}", get(variants::get_variant))
         .route(
             "/store/product-categories",
             get(categories::list_categories),
@@ -77,7 +92,18 @@ pub fn store_currency_routes(currency_service: Arc<CurrencyService>) -> Router {
 
 /// Mounts store cart and line-item API routes (TASKS P4-29).
 pub fn store_cart_routes(cart_service: Arc<CartService>) -> Router {
-    let ctx = StoreCartContext { cart_service };
+    store_cart_routes_with_promotions(cart_service, None)
+}
+
+/// Mounts store cart and line-item API routes with promotions (TASKS P13-10).
+pub fn store_cart_routes_with_promotions(
+    cart_service: Arc<CartService>,
+    promotion_service: Option<Arc<stheno_promotion::PromotionService>>,
+) -> Router {
+    let ctx = StoreCartContext {
+        cart_service,
+        promotion_service,
+    };
     Router::new()
         .route("/store/carts", post(carts::create_cart))
         .route(
@@ -92,6 +118,10 @@ pub fn store_cart_routes(cart_service: Arc<CartService>) -> Router {
         .route(
             "/store/carts/{id}/shipping-methods",
             post(carts::add_shipping_method),
+        )
+        .route(
+            "/store/carts/{id}/promotions",
+            post(carts::apply_promotions),
         )
         .with_state(ctx)
 }
@@ -174,13 +204,36 @@ pub fn store_return_routes(
         .with_state(ctx)
 }
 
+/// Mounts the store customer routes. `/store/customers/me` is authenticated by bearer JWT.
+pub fn store_customer_routes(
+    customer_service: Arc<CustomerService>,
+    auth_service: Arc<AuthService>,
+) -> Router {
+    Router::new()
+        .route("/store/customers/me", get(customers::get_current_customer))
+        .with_state(StoreCustomerContext {
+            customer_service,
+            auth_service,
+        })
+}
+
+/// Mounts the store locale routes (additive to Medusa's contract, ADR-002).
+pub fn store_locale_routes(translation_service: Arc<TranslationService>) -> Router {
+    Router::new()
+        .route("/store/locales", get(locales::list_locales))
+        .with_state(translation_service)
+}
+
 /// Mounts all Store API routes (catalog, regions, currencies, carts, payments, orders, shipping options, returns).
 pub fn store_routes(ctx: StoreApiContext) -> Router {
     Router::new()
         .merge(store_catalog_routes(ctx.product_service))
         .merge(store_region_routes(ctx.region_service))
         .merge(store_currency_routes(ctx.currency_service))
-        .merge(store_cart_routes(ctx.cart_service))
+        .merge(store_cart_routes_with_promotions(
+            ctx.cart_service,
+            ctx.promotion_service,
+        ))
         .merge(store_payment_routes(ctx.payment_service))
         .merge(store_order_routes(
             ctx.order_service.clone(),
@@ -188,6 +241,11 @@ pub fn store_routes(ctx: StoreApiContext) -> Router {
         ))
         .merge(store_shipping_option_routes(ctx.fulfillment_service))
         .merge(store_return_routes(ctx.order_service, ctx.return_flows))
+        .merge(store_customer_routes(
+            ctx.customer_service,
+            ctx.auth_service,
+        ))
+        .merge(store_locale_routes(ctx.translation_service))
 }
 
 /// Mounts Store API routes for Phase P3 (catalog, regions, currencies).

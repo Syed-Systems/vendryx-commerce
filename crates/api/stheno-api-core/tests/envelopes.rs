@@ -9,12 +9,10 @@ struct DummyProduct {
 
 #[test]
 fn test_medusa_list_envelopes_serialization() {
-    let products = vec![
-        DummyProduct {
-            id: "prod_1".to_string(),
-            title: "Classic Tee".to_string(),
-        },
-    ];
+    let products = vec![DummyProduct {
+        id: "prod_1".to_string(),
+        title: "Classic Tee".to_string(),
+    }];
 
     let envelope = ListResponse {
         data: products,

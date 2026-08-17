@@ -10,8 +10,10 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn test_store_cart_and_payment_endpoints_parity() {
-    let cart_service = Arc::new(CartService::new());
-    let payment_service = Arc::new(PaymentService::new());
+    let db = stheno_db::testing::TestDb::migrated().await;
+    let pool = stheno_db::create_pool(&db.url, 5).expect("pool");
+    let cart_service = Arc::new(CartService::new(pool.clone()));
+    let payment_service = Arc::new(PaymentService::new(pool.clone()));
     let offline_provider = Arc::new(OfflinePaymentProvider::new(Some("pp_system_default")));
     payment_service.register_provider(offline_provider);
 

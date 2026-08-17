@@ -1,4 +1,4 @@
-//! Store Cart & Line Item API handlers (Medusa v2 byte-compatible, TASKS P4-29).
+//! Store Cart & Line Item API handlers (Medusa v2 byte-compatible, TASKS P4-29, P13-10).
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -6,8 +6,10 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use stheno_cart::*;
+use stheno_promotion::PromotionService;
 use stheno_types::Error;
 
 use crate::products::ErrorResponse;
@@ -15,9 +17,10 @@ use crate::products::ErrorResponse;
 #[derive(Clone)]
 pub struct StoreCartContext {
     pub cart_service: Arc<CartService>,
+    pub promotion_service: Option<Arc<PromotionService>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CartResponse {
     pub cart: CartDTO,
 }
@@ -58,8 +61,8 @@ pub struct StoreUpdateCartRequest {
 pub struct StoreAddLineItemRequest {
     pub variant_id: Option<String>,
     pub quantity: i32,
-    pub title: Option<String>,
     pub unit_price: Option<Decimal>,
+    pub title: Option<String>,
     pub metadata: Option<serde_json::Value>,
 }
 
@@ -258,6 +261,129 @@ pub async fn add_shipping_method(
         .await
         .map_err(map_error)?;
     Ok(Json(CartResponse { cart }))
+}
+
+pub async fn apply_promotions(
+    State(ctx): State<StoreCartContext>,
+    Path(cart_id): Path<String>,
+    Json(body): Json<StoreApplyPromotionRequest>,
+) -> Result<Json<CartResponse>, Response> {
+    let promo_service = match &ctx.promotion_service {
+        Some(s) => s,
+        None => {
+            return Err(map_error(Error::Invalid {
+                code: "promotions_disabled",
+                message: "Promotions not configured".into(),
+                field: None,
+            }))
+        }
+    };
+
+    let cart = ctx
+        .cart_service
+        .get_cart(&cart_id)
+        .await
+        .map_err(map_error)?;
+
+    let mut promotions = Vec::new();
+    for code in &body.promo_codes {
+        match promo_service.get_promotion_by_code(code).await {
+            Ok(p) => promotions.push(p),
+            Err(_) => {
+                promo_service.record_failed_promo_attempt(&cart_id);
+                return Err(map_error(Error::NotFound {
+                    entity: "promotion",
+                    id: code.clone(),
+                }));
+            }
+        }
+    }
+
+    let mut item_contexts = Vec::new();
+    for item in &cart.items {
+        item_contexts.push(stheno_promotion::PromotionItemContext {
+            id: item.id.clone(),
+            product_id: item.product_id.clone(),
+            product_category_id: None,
+            product_collection_id: item.product_collection.clone(),
+            product_type_id: item.product_type.clone(),
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.unit_price * Decimal::from(item.quantity),
+            is_discountable: item.is_discountable,
+        });
+    }
+
+    let mut shipping_contexts = Vec::new();
+    for sm in &cart.shipping_methods {
+        shipping_contexts.push(stheno_promotion::PromotionShippingContext {
+            id: sm.id.clone(),
+            shipping_option_id: sm.shipping_option_id.clone(),
+            amount: sm.amount,
+        });
+    }
+
+    let mut attributes = HashMap::new();
+    attributes.insert("currency_code".to_string(), cart.currency_code.clone());
+    if let Some(cid) = &cart.customer_id {
+        attributes.insert("customer_id".to_string(), cid.clone());
+    }
+
+    let eval_context = stheno_promotion::PromotionEvaluationContext {
+        attributes,
+        items: item_contexts,
+        shipping_methods: shipping_contexts,
+    };
+
+    let adjustments = promo_service
+        .evaluate_promotions(&promotions, &eval_context)
+        .await;
+
+    for item in &cart.items {
+        let _ = ctx
+            .cart_service
+            .delete_line_item_adjustments(&item.id)
+            .await;
+    }
+
+    for adj in adjustments {
+        if let Some(item_id) = &adj.line_item_id {
+            let _ = ctx
+                .cart_service
+                .add_line_item_adjustment(
+                    item_id,
+                    CreateLineItemAdjustmentInput {
+                        amount: adj.amount,
+                        promotion_id: Some(adj.promotion_id),
+                        code: Some(adj.code),
+                        description: adj.description,
+                    },
+                )
+                .await
+                .map_err(map_error)?;
+        } else if let Some(sm_id) = &adj.shipping_method_id {
+            let _ = ctx
+                .cart_service
+                .add_shipping_method_adjustment(
+                    sm_id,
+                    CreateShippingMethodAdjustmentInput {
+                        amount: adj.amount,
+                        promotion_id: Some(adj.promotion_id),
+                        code: Some(adj.code),
+                        description: adj.description,
+                    },
+                )
+                .await
+                .map_err(map_error)?;
+        }
+    }
+
+    let updated_cart = ctx
+        .cart_service
+        .get_cart(&cart_id)
+        .await
+        .map_err(map_error)?;
+    Ok(Json(CartResponse { cart: updated_cart }))
 }
 
 fn map_error(e: Error) -> Response {

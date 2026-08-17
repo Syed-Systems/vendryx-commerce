@@ -4,6 +4,8 @@ use serde_json::Value;
 use std::sync::Arc;
 use stheno_api_store::{store_pricing_routes, StoreApiContext};
 use stheno_currency::CurrencyService;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_pricing::PricingService;
 use stheno_product::{CreateProductInput, ProductService};
 use stheno_region::{CreateRegionInput, RegionService};
@@ -11,10 +13,12 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn test_store_pricing_endpoints_parity() {
-    let product_service = Arc::new(ProductService::new());
-    let region_service = Arc::new(RegionService::new());
-    let currency_service = Arc::new(CurrencyService::new());
-    let pricing_service = Arc::new(PricingService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let product_service = Arc::new(ProductService::new(pool.clone()));
+    let region_service = Arc::new(RegionService::new(pool.clone()));
+    let currency_service = Arc::new(CurrencyService::new(pool.clone()));
+    let pricing_service = Arc::new(PricingService::new(pool.clone()));
 
     // 1. Seed Product
     let _prod = product_service
@@ -41,9 +45,9 @@ async fn test_store_pricing_endpoints_parity() {
 
     let reg_id = reg.id.to_string();
 
-    let cart_service = Arc::new(stheno_cart::CartService::new());
-    let payment_service = Arc::new(stheno_payment::PaymentService::new());
-    let order_service = Arc::new(stheno_order::OrderService::new());
+    let cart_service = Arc::new(stheno_cart::CartService::new(pool.clone()));
+    let payment_service = Arc::new(stheno_payment::PaymentService::new(pool.clone()));
+    let order_service = Arc::new(stheno_order::OrderService::new(pool.clone()));
     let order_flows = Arc::new(stheno_flows::OrderWorkflowEngine::new(
         order_service.clone(),
     ));
@@ -51,7 +55,10 @@ async fn test_store_pricing_endpoints_parity() {
         order_service.clone(),
         None,
     ));
-    let fulfillment_service = Arc::new(stheno_fulfillment::FulfillmentService::new());
+    let fulfillment_service = Arc::new(stheno_fulfillment::FulfillmentService::new(pool.clone()));
+    let customer_service = Arc::new(stheno_customer::CustomerService::new(pool.clone()));
+    let auth_service = Arc::new(stheno_auth::AuthService::new(pool.clone(), None));
+    let translation_service = Arc::new(stheno_translation::TranslationService::new(pool.clone()));
 
     let ctx = StoreApiContext {
         product_service,
@@ -64,6 +71,10 @@ async fn test_store_pricing_endpoints_parity() {
         order_flows,
         return_flows,
         fulfillment_service,
+        customer_service,
+        auth_service,
+        translation_service,
+        promotion_service: None,
     };
 
     let app = store_pricing_routes(ctx);
@@ -170,4 +181,6 @@ async fn test_store_pricing_endpoints_parity() {
         prods_body["products"][0]["handle"],
         "medusa-parity-silk-scarf"
     );
+
+    db.drop().await;
 }

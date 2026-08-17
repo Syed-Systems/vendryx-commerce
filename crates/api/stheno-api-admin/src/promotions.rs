@@ -7,8 +7,8 @@ use axum::Json;
 use std::sync::Arc;
 use stheno_api_core::{DeleteResponse, ErrorResponse, GetResponse, ListResponse};
 use stheno_promotion::{
-    CreateCampaignInput, CreatePromotionInput, CampaignDTO, PromotionDTO,
-    PromotionService, UpdateCampaignInput, UpdatePromotionInput,
+    CampaignDTO, CreateCampaignInput, CreatePromotionInput, PromotionDTO, PromotionService,
+    UpdateCampaignInput, UpdatePromotionInput,
 };
 
 // 1. Promotion Handlers
@@ -53,7 +53,10 @@ pub async fn get_promotion(
         Ok(promo) => Ok(Json(GetResponse { data: promo })),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &format!("Promotion with id {} was not found", id))),
+            Json(ErrorResponse::new(
+                "not_found",
+                &format!("Promotion with id {} was not found", id),
+            )),
         )
             .into_response()),
     }
@@ -134,7 +137,10 @@ pub async fn get_campaign(
         Ok(camp) => Ok(Json(GetResponse { data: camp })),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &format!("Campaign with id {} was not found", id))),
+            Json(ErrorResponse::new(
+                "not_found",
+                &format!("Campaign with id {} was not found", id),
+            )),
         )
             .into_response()),
     }
