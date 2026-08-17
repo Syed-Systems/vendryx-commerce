@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test (Postgres)
+    runs-on: ubuntu-latest
+
+    # Phase 2 rule: no module may pass green-in-memory. Every test job runs
+    # against a real Postgres (PHASE2_PLAN.md 1.3).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: stheno
+          POSTGRES_PASSWORD: stheno
+          POSTGRES_DB: stheno
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://stheno:stheno@localhost:5432/stheno
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Disk space
+        run: ./scripts/check-disk-space.sh
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Boundary checks
+        run: |
+          ./scripts/check-module-isolation.sh
+          ./scripts/check-sql-boundaries.sh
+          ./scripts/check-shared-kernel.sh
+          ./scripts/check-module-contracts.sh
+          ./scripts/check-dto-separation.sh
+          ./scripts/check-schema-drift.sh
+          ./scripts/check-no-domain-gates.sh

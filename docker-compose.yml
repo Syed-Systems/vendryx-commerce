@@ -1,0 +1,31 @@
+# Local development dependencies. CI provisions the same Postgres version as a
+# service container (.github/workflows/ci.yml).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: stheno
+      POSTGRES_PASSWORD: stheno
+      POSTGRES_DB: stheno
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stheno"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - stheno-pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  stheno-pgdata:

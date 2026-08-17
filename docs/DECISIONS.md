@@ -14,6 +14,8 @@ a stated cost is a preference wearing a suit.
 | [ADR-007](#adr-007) | Modular monolith with build-enforced boundaries | Accepted (expanded) |
 | [ADR-008](#adr-008) | RBAC and SSO are clean-room, not ported — they are Medusa Enterprise | Accepted |
 | [ADR-009](#adr-009) | Plan tiers by entitlements on single-tenant deployments, not multi-tenancy | Accepted |
+| [ADR-010](#adr-010) | `Id<T>` carries its Medusa prefix as a compile-time constant | Accepted |
+| [ADR-011](#adr-011) | `FilterSpec` stays single-entity; joins belong to the query engine | Accepted |
 
 ---
 
@@ -538,3 +540,151 @@ Moving to multi-tenancy later means adding `tenant_id` to 127 entities and scopi
 is a rewrite of the data layer, not a refactor. Treat this decision as effectively permanent, and
 if per-customer infrastructure cost ever becomes the binding constraint, revisit it as a new
 product rather than a migration.
+
+---
+
+<a id="adr-010"></a>
+
+## ADR-010 — `Id<T>` carries its prefix as a compile-time constant
+
+**Status:** Accepted · **Date:** 2026-08-16
+
+### Context
+
+`Id<T>` was introduced to model Medusa's prefixed identifiers (`prod_01J...`, `cart_01J...`).
+It did not. `Id::from_string` split on the first `_`, **discarded the prefix**, and kept only the
+ULID; `Display` and `Serialize` then emitted the bare ULID.
+
+The prefix was therefore destroyed at the first parse and never reconstructed. Two failures
+followed, both already in the tree:
+
+1. **Wire incompatibility.** A DTO built via `Id::from_string(&product.id)` serialised
+   `01J...` where Medusa serialises `prod_01J...`. Parity was preserved only where the model
+   kept a raw `String` id and bypassed `Id<T>` altogether — which is why id representation is
+   currently split between `String` and `Id<T>` across modules.
+2. **Suffix matching.** Because a caller's `prod_01J...` never equalled a stored `01J...`,
+   services compensated with `id.ends_with(caller_id)` — **55 sites** across cart, payment,
+   pricing, product, demo, and three API crates.
+
+Against a `HashMap` that is merely wrong-ish. Against an indexed Postgres column,
+`WHERE id LIKE '%' || $1` is a guaranteed full table scan on **every retrieve**, on every one of
+the 127 entities. Phase 2 migrates 25 modules onto real tables, so this must be settled before
+those migrations encode the workaround (PHASE2_PLAN.md P11 risk 2).
+
+### Options considered
+
+**A. Store the prefix in the value** — `Id { prefix: String, inner: Ulid }`. Round-trips
+correctly and needs no trait bounds, but costs a heap allocation per identifier on a struct
+that appears 127 times across every row of every list response, and `Id::new()` still cannot
+know which prefix to mint.
+
+**B. Drop `Id<T>` and use `String` everywhere.** Honest and cheap, and matches what the product
+module already does. Discards all type safety: nothing then stops an `Id<Cart>` being passed
+where an `Id<Order>` is expected, which is the entire reason the type exists.
+
+**C. Compile-time constant per entity.** A `Prefixed` trait carrying
+`const PREFIX: &'static str`, implemented once per entity type.
+
+### Decision
+
+**Option C.** `Id<T>` requires `T: Prefixed`, and:
+
+- `Display`/`Serialize` emit `{PREFIX}_{ULID}` — the Medusa wire form, always.
+- `FromStr`/`Deserialize`/`from_string` accept **only** `{PREFIX}_{ULID}` and reject any other
+  prefix.
+- The ULID remains the stored primary key representation; the prefix is derived, never a column.
+
+Cross-type rejection is deliberate. An id arriving on an HTTP path is untrusted input, and
+`GET /admin/products/cart_01J...` should be a 400, not a lookup that happens to miss. This
+costs one string comparison at the parse boundary and is the only place the check can be made
+once for all 127 entities.
+
+### Consequences
+
+**Good.** The prefix survives end to end, so the 55 `ends_with` scans delete. Retrieval becomes
+an equality match on an indexed column, which is what P12's index work assumes. Passing a
+`cart_` id to a product endpoint is now an error at the boundary rather than a silent miss.
+
+**Bad.** Every entity type needs a `Prefixed` impl — 127 of them. They are declared as a table
+via the `prefixed_id!` macro rather than hand-written, but the table must be **correct**: a
+wrong prefix here is a wire-compatibility bug that the parity suite catches only for endpoints
+it covers. The prefixes are therefore taken from Medusa's own model definitions, and
+`stheno-types` owns the table so no module can disagree with another about its own prefix.
+
+Modules currently holding raw `String` ids (product and its taxonomy) are **not** converted by
+this ADR — they already carry the correct prefixed form and are wire-correct today. They move
+to `Id<T>` as each is migrated in P11-19 and P12, not in a separate sweep.
+
+### Reversal condition
+
+If a future entity needs a prefix that is not known at compile time — a customer-defined
+extension type, say — Option A becomes necessary for that type alone. Nothing in this decision
+prevents a second id type existing alongside; it prevents 127 heap allocations to serve a case
+that does not currently exist.
+
+---
+
+<a id="adr-011"></a>
+
+## ADR-011 — `FilterSpec` stays single-entity; joins belong to the query engine
+
+**Status:** Accepted · **Date:** 2026-08-17
+
+### Context
+
+PRD risk R3 and PHASE2_PLAN P11 both name this as the largest schedule risk:
+`FilterSpec` was specified in P0 and **never executed** — `InMemoryCrudStore::list`
+ignores it entirely — so nothing was known about whether it could express the real list
+endpoints. P11-12 required running it against the 20 hardest, with a budgeted fallback of
+four weeks for hand-written per-module query builders if it could not.
+
+### Findings
+
+The spike ran all 20 against Postgres (`crates/core/stheno-db/tests/filter_hard_cases.rs`).
+
+**18 of 20 are expressible and correct.** The operator set — equality, comparison, null,
+set, prefix-`LIKE`, ordering, offset pagination — covers every single-entity filter in
+API_SPEC, including date ranges, price bands, multi-key sorts and deep pagination.
+
+**One real defect was found and fixed.** `FilterSpec.predicates` was a
+`HashMap<String, FilterOp>`, keyed by column. A range needs two operators on one column
+(`created_at >= x AND created_at <= y`), so the second bound silently replaced the first
+and every range filter returned a half-open set. `from_json` already parsed both bounds,
+which means the loss was invisible at the boundary. `predicates` is now an ordered
+`Vec<(String, FilterOp)>`.
+
+**Two cases are deliberately out of scope**, and both are recorded as tests rather than
+hidden: cross-module filters (`products?price_list_id=`), and infix free-text search.
+
+### Decision
+
+**`FilterSpec` is not extended with joins, and the hand-written fallback is not taken.**
+
+- Cross-module filtering is a **query engine** concern (P12-18, P14-20). Reaching from
+  `product` into `pricing` inside a filter would be exactly the cross-schema join ADR-007
+  forbids modules from writing.
+- Infix search stays refused. `Like` rejects a leading wildcard so every list remains
+  index-backed; free-text belongs to the search module and its own index, not to a
+  sequential scan wearing a filter's clothes.
+
+Values are bound through `json_populate_record(NULL::<table>, $1)`, which coerces each
+value to the column's own type using the table's row type. This is what keeps one generic
+translation for all 127 entities without a per-entity column-type table, and it keeps
+comparisons in the column's type — comparing as text would make `quantity > '9'` false
+for a quantity of 10.
+
+### Consequences
+
+**Good.** P12–P14 are execution rather than redesign, and the four-week fallback is not
+spent. One translation layer serves every entity.
+
+**Bad.** Column names cannot be parameterised by Postgres, so they are concatenated into
+SQL after a strict identifier check — that check, not a bind, is what prevents injection,
+and it is therefore load-bearing security code with its own tests. Any future operator
+must preserve it.
+
+### Reversal condition
+
+If a single-entity filter is found that the operator set cannot express, add the operator.
+If the *join* cases multiply beyond what the query engine absorbs, that is a signal to
+revisit the query engine's design — not to grow `FilterSpec` into a second one.

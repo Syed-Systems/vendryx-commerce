@@ -39,7 +39,7 @@ app/
         │   └── search/page.tsx            CC   · search results
         │
         ├── (checkout)/
-        │   ├── cart/page.tsx              CC   · cart review
+        │   ├── cart/page.tsx              CC   · cart review & line items
         │   └── checkout/
         │       ├── page.tsx               CC   · address → delivery → payment → review
         │       │                                 payment shows COD only unless Pro
@@ -62,40 +62,43 @@ app/
         │   └── orders/[id]/transfer/      CC   · accept/decline an order transfer
         │
         ├── (auth)/
-        │   ├── login/  register/  forgot-password/  reset-password/[token]/
+        │   ├── login/                     CC   · customer email/password login
+        │   ├── register/                  CC   · customer registration
+        │   ├── forgot-password/           CC   · password reset request
+        │   ├── reset-password/[token]/    CC   · password reset confirmation
         │   └── auth/callback/[provider]/  RSC  · OAuth/OIDC landing
         │
         └── (content)/
             ├── [handle]/page.tsx          RSC  · CMS-agnostic static page slot
-            └── not-found.tsx
+            └── not-found.tsx              RSC  · 404 page
 ```
 
 ### 1.3 Page data contracts
 
-| Page | Endpoints | Notes |
-|---|---|---|
-| Home | `GET /store/collections`, `GET /store/products?limit=8` | ISR 300 s |
-| Store listing | `GET /store/products?fields=*variants.calculated_price&limit&offset&order` | Facets from `product-tags`, `product-types`, `collections` |
-| Category | `GET /store/product-categories?handle=`, then products by `category_id` | Full ancestor chain for breadcrumbs |
-| Product detail | `GET /store/products?handle=&fields=*variants.calculated_price,*variants.options,*images` | ISR 60 s; `generateStaticParams` over published handles |
-| Search | `GET /store/products?q=` | Backed by the search provider |
-| Cart | `GET/POST /store/carts/:id`, line-item CRUD, `POST …/promotions` | Cart id in an httpOnly cookie |
-| Checkout — delivery | `GET /store/shipping-options?cart_id=`, `POST …/calculate` for calculated options | — |
-| Checkout — payment | `GET /store/payment-providers?region_id=`, `POST /store/payment-collections`, `POST …/payment-sessions` | Provider SDK mounts client-side |
-| Checkout — complete | `POST /store/carts/:id/complete` | Sends an idempotency key; safe to retry |
-| Order confirmation | `GET /store/orders/:id` | — |
-| Account orders | `GET /store/orders` | Requires customer JWT |
-| Return request | `GET /store/return-reasons`, `POST /store/returns` | — |
-| Auth | `POST /auth/customer/emailpass`, `/register`, `/reset-password`, `POST /store/customers` | — |
+| Page | Endpoints | Method & Parameters | Notes |
+|---|---|---|---|
+| **Home** | `GET /store/collections`<br>`GET /store/products` | `limit=8&fields=*variants.calculated_price` | ISR 300 s |
+| **Store listing** | `GET /store/products` | `fields=*variants.calculated_price&limit=20&offset=0&order=-created_at` | Facets from `product-tags`, `product-types`, `collections` |
+| **Category** | `GET /store/product-categories`<br>`GET /store/products` | `handle=:handle`<br>`category_id=:id` | Full ancestor chain for breadcrumbs |
+| **Product detail** | `GET /store/products` | `handle=:handle&fields=*variants.calculated_price,*variants.options,*images` | ISR 60 s; `generateStaticParams` over published handles |
+| **Search** | `GET /store/products` | `q=:query` | Backed by the search provider (`stheno-search`) |
+| **Cart** | `GET /store/carts/:id`<br>`POST /store/carts/:id/line-items`<br>`POST /store/carts/:id/promotions` | Line item CRUD, coupon codes | Cart ID stored in httpOnly cookie |
+| **Checkout — delivery** | `GET /store/shipping-options`<br>`POST /store/shipping-options/:id/calculate` | `cart_id=:id` | Shipping option selection |
+| **Checkout — payment** | `GET /store/payment-providers`<br>`POST /store/payment-collections`<br>`POST /store/payment-collections/:id/payment-sessions` | `region_id=:id`<br>`cart_id=:id` | Provider SDK mounts client-side in iframe |
+| **Checkout — complete** | `POST /store/carts/:id/complete` | Header: `Idempotency-Key` | Idempotent saga execution |
+| **Order confirmation** | `GET /store/orders/:id` | `id=:id` | Order receipt & fulfillment status |
+| **Account orders** | `GET /store/orders` | `limit=10&offset=0` | Requires customer JWT |
+| **Return request** | `GET /store/return-reasons`<br>`POST /store/returns` | Line items, quantities, return reasons | Return flow submission |
+| **Customer Auth** | `POST /auth/customer/emailpass`<br>`POST /auth/customer/emailpass/register`<br>`POST /auth/customer/emailpass/reset-password` | Email, password, credentials | Session issuance & token rotation |
 
 ### 1.4 Storefront non-functional gates
 
-- Lighthouse ≥ 95 (performance, a11y, SEO) on product detail.
-- LCP < 2.0 s, INP < 150 ms, CLS < 0.05 at p75.
-- Catalog browsing functional with JavaScript disabled.
-- `next/image` everywhere; no layout shift on product media.
-- JSON-LD `Product`, `BreadcrumbList`, `Organization` on the relevant pages.
-- `sitemap.xml` and `robots.txt` generated per country/locale pair.
+- **Lighthouse Score**: ≥ 95 on Performance, Accessibility, Best Practices, and SEO for product detail pages.
+- **Core Web Vitals**: LCP < 2.0 s, INP < 150 ms, CLS < 0.05 at p75.
+- **No-JS Catalog Browsing**: Catalog browsing and product pages remain completely functional with JavaScript disabled.
+- **Image Optimization**: `next/image` with explicit aspect ratios; zero layout shift on product media.
+- **Structured Data**: JSON-LD `Product`, `BreadcrumbList`, and `Organization` embedded on all relevant pages.
+- **SEO Assets**: Dynamic `sitemap.xml` and `robots.txt` generated per country/locale pair.
 
 ---
 
@@ -111,76 +114,88 @@ The route inventory below is therefore a description of what we inherit, not a d
 
 Exactly Medusa's, verified against `packages/admin/dashboard/src/routes` at `b733400`:
 
-```
-home                orders              draft-orders*       products
-product-variants    product-options     product-tags        product-types
-categories          collections         inventory           reservations
-customers           customer-groups     promotions          campaigns
-price-lists         regions             tax-regions         sales-channels
-locations           shipping-profiles   shipping-option-types
-return-reasons      refund-reasons      property-labels     translations
-store               users               invite              profile
-settings            api-key-management  workflow-executions
-policies ‡          roles ‡             login               reset-password
-no-match
-```
+| Route Group | Primary URL | Description | Domain Module |
+|---|---|---|---|
+| `home` | `/` | Store summary dashboard and quick actions | `stheno-store` |
+| `orders` | `/orders`, `/orders/:id` | Order processing, fulfillment, and refunds | `stheno-order`, `stheno-fulfillment` |
+| `draft-orders` | `/orders/drafts` | Draft order creation and customer send | `stheno-order` |
+| `products` | `/products`, `/products/:id` | Catalog management, media, options | `stheno-product` |
+| `product-variants` | `/products/:id/variants` | Variant inventory and pricing matrix | `stheno-product`, `stheno-pricing` |
+| `product-options` | `/products/:id/options` | Option attributes (Size, Color, Material) | `stheno-product` |
+| `product-tags` | `/products/tags` | Product classification tags | `stheno-product` |
+| `product-types` | `/products/types` | Product category types | `stheno-product` |
+| `categories` | `/categories` | Hierarchical product taxonomy tree | `stheno-product` |
+| `collections` | `/collections` | Marketing collections | `stheno-product` |
+| `inventory` | `/inventory` | Multi-location inventory item tracking | `stheno-inventory` |
+| `reservations` | `/reservations` | Stock reservations against orders/carts | `stheno-inventory` |
+| `customers` | `/customers` | Customer profiles and metadata | `stheno-customer` |
+| `customer-groups` | `/customer-groups` | Customer tiers and VIP segmentation | `stheno-customer` |
+| `promotions` | `/promotions` | Standard and code-based promotion rules | `stheno-promotion` |
+| `campaigns` | `/campaigns` | Multi-promotion budget campaigns | `stheno-promotion` |
+| `price-lists` | `/price-lists` | Custom price lists and overrides | `stheno-pricing` |
+| `regions` | `/settings/regions` | Regional currencies, taxes, payment methods | `stheno-region` |
+| `tax-regions` | `/settings/tax-regions` | Regional and postal tax rules | `stheno-tax` |
+| `sales-channels` | `/settings/sales-channels` | Channel-based catalog scoping | `stheno-sales-channel` |
+| `locations` | `/settings/locations` | Warehouses and stock locations | `stheno-stock-location` |
+| `shipping-profiles` | `/settings/shipping-profiles` | Default and custom shipping profiles | `stheno-fulfillment` |
+| `shipping-option-types` | `/settings/shipping-option-types` | Flat rate and calculated delivery types | `stheno-fulfillment` |
+| `return-reasons` | `/settings/return-reasons` | Merchant-defined return reasons | `stheno-order` |
+| `refund-reasons` | `/settings/refund-reasons` | Financial refund classification reasons | `stheno-payment` |
+| `property-labels` | `/settings/property-labels` | Custom attribute display names | `stheno-settings` |
+| `translations` | `/settings/translations` | Multilingual locale translation overrides | `stheno-translation` |
+| `store` | `/settings/store` | Store profile, default currencies, links | `stheno-store` |
+| `users` | `/settings/users` | Admin staff accounts and roles | `stheno-user` |
+| `invite` | `/settings/users/invites` | Team member email invitations | `stheno-user` |
+| `profile` | `/profile` | Current staff profile and password change | `stheno-user` |
+| `settings` | `/settings` | Global administration hub | `stheno-settings` |
+| `api-key-management` | `/settings/api-keys` | Publishable and Secret API tokens | `stheno-api-key` |
+| `workflow-executions` | `/settings/workflows` | Saga step inspection and retry console | `stheno-workflow` |
+| `policies` ‡ | `/settings/policies` | Clean-room RBAC policy editor | `stheno-rbac` |
+| `roles` ‡ | `/settings/roles` | Clean-room RBAC role and permission mapping | `stheno-rbac` |
+| `login` | `/login` | Admin authentication with MFA prompt | `stheno-auth` |
+| `reset-password` | `/reset-password` | Admin password recovery | `stheno-auth` |
 
 `‡` = **Enterprise. Removed from the fork and rebuilt clean-room** ([ADR-008](DECISIONS.md#adr-008)).
 
-*(`draft-orders` is reached through the orders routes in Medusa's tree rather than as a sibling
-group; listed here because it is a distinct operator surface.)*
-
 ### 2.1b New product routes added by the fork
 
-Medusa's screens cover products, orders, and inventory. These are ours
+Medusa's screens cover products, orders, and inventory. These are our dedicated product workflows
 ([PRODUCT.md](PRODUCT.md)):
 
-| Route | Purpose |
-|---|---|
-| `/onboarding` | Google sign-in → store name + WhatsApp → spreadsheet upload → column mapping → 5-row preview |
-| `/orders/social` | The Social queue — draft orders from chat handoff, matched by `Ref` code |
-| `/analytics` | Four aggregates; horizon bounded by the tier's window gate |
-| `/settings/billing` | Tier, trial countdown, quota usage, upgrade |
-| `/settings/notifications` | Web push subscription management (VAPID) |
+| Route | Purpose | Backend Endpoints |
+|---|---|---|
+| `/onboarding` | 5-minute initial setup: Google sign-in → store name + WhatsApp → spreadsheet upload → column mapping → 5-row preview | `POST /admin/products/batch`, `POST /admin/stores` |
+| `/orders/social` | The Social queue — draft orders from chat handoff (WhatsApp / Messenger / Instagram), matched by `Ref` code | `GET /admin/orders?status=draft&is_social=true` |
+| `/analytics` | Real-time analytics (Revenue, Orders, Conversion Rate, AOV); horizon bounded by plan tier | `GET /admin/reports/dashboard` |
+| `/settings/billing` | Subscription tier, trial countdown, quota usage progress bars (seats, products, monthly orders), upgrade button | `GET /admin/platform/usage`, `POST /admin/platform/upgrade` |
+| `/settings/notifications` | Web push subscription management (VAPID public keys and event trigger subscriptions) | `GET/POST /admin/notifications/subscriptions` |
 
 ### 2.2 What the fork changes
 
-Everything else is adopted as-is. This list plus §2.1b is the complete scope of admin UI work
-in 1.0.
+Everything else is adopted as-is. This list plus §2.1b is the complete scope of admin UI work:
 
-| # | Change | Effort |
+| # | Change | Implementation Details |
 |---|---|---|
-| 1 | **Strip Enterprise paths** — `routes/policies/`, `routes/roles/`, `hooks/api/rbac-policies.tsx`, `hooks/api/rbac-roles.tsx`, `hooks/use-require-rbac-feature.tsx`, `components/common/required-permissions-section/`, `lib/permissions/`, `providers/permissions-provider/`, `login/components/sso-login.tsx` | Mechanical |
-| 2 | **Rebuild those screens clean-room** — roles list/detail/create, policy editor, permissions provider, required-permissions sections, SSO login. No reference to the removed code | **The real work** |
-| 3 | **Point at Stheno** — base URL, and patch the API client to send `X-Stheno-CSRF` on mutations ([SECURITY §6](SECURITY.md)) | One interceptor |
-| 4 | **Rebrand** — name, logo, colour tokens | Small |
-| 5 | **Deepen the workflow-executions screen** — step timeline with inputs, outputs, compensation history, replay-from-step (FR-PLUS-1) | Medium |
-| 6 | **Fix WCAG gaps** found in the P9 audit | Unknown until audited |
-
-**Nothing else is redesigned in 1.0.** No new navigation model, no new list-view patterns, no new
-IA. Those were specified against a rebuild that is no longer happening, and re-adding them would
-forfeit the reason for forking.
+| 1 | **Strip Enterprise paths** | Remove `routes/policies/`, `routes/roles/`, `hooks/api/rbac-policies.tsx`, `hooks/api/rbac-roles.tsx`, `hooks/use-require-rbac-feature.tsx`, `components/common/required-permissions-section/`, `lib/permissions/`, `providers/permissions-provider/`, `login/components/sso-login.tsx`. |
+| 2 | **Rebuild those screens clean-room** | Rebuild roles list/detail/create, policy editor, permissions provider, required-permissions sections, SSO login without any reference to proprietary code. |
+| 3 | **Point at Stheno** | Configure base URL and API client interceptor to send `X-Stheno-CSRF` on state-mutating requests ([SECURITY §6](SECURITY.md)). |
+| 4 | **Rebrand** | Update branding tokens, logo SVGs, and typography to Stheno design system. |
+| 5 | **Deepen workflow-executions screen** | Step timeline with inputs, outputs, compensation history, and retry-from-step capability (FR-PLUS-1). |
+| 6 | **Fix WCAG gaps** | Enforce WCAG 2.2 Level AA compliance (ARIA landmarks, focus management, color contrast). |
 
 ### 2.3 The admin extension system comes along
 
 Because the dashboard is forked rather than rebuilt, Medusa's `admin-vite-plugin` extension system
 comes with it — build-time discovery of `src/admin/{widgets,routes,custom-fields,layouts,i18n}`.
-This was previously listed as a deliberate exclusion; it is now **inherited, and should be verified
-working in P9** rather than assumed.
 
 ### 2.4 Non-functional gates
 
-Revised, because a client-rendered SPA cannot meet the targets written for a server-rendered app:
-
-| Gate | Status |
-|---|---|
-| WCAG 2.2 AA | **Required** — EAA obligation is ours regardless of who wrote the code |
-| Functional parity with Medusa's dashboard | **Required**, verified by use |
-| Every list state encoded in the URL | Inherited |
-| Command palette | Inherited |
-| ~~Server-rendered first paint~~ | **Withdrawn** — SPA |
-| ~~≤ 200 KB initial JS~~ | **Withdrawn** — SPA |
-| ~~Interactive < 1.5 s on 4G~~ | **Withdrawn** — measure and record, do not gate |
+| Gate | Status | Details |
+|---|---|---|
+| **WCAG 2.2 AA** | **Required** | European Accessibility Act (EAA) compliance across all forms and navigation. |
+| **Functional Parity** | **Required** | 100% test coverage against Medusa v2 dashboard behavior. |
+| **URL State Encoding** | **Inherited** | Filter, sort, pagination, and active drawer states fully serialized to query parameters. |
+| **Command Palette** | **Inherited** | Global keyboard shortcut (`Cmd+K` / `Ctrl+K`) for rapid entity search and navigation. |
 
 ### 2.5 Upstream policy
 
@@ -193,12 +208,15 @@ Revised, because a client-rendered SPA cannot meet the targets written for a ser
 
 ## Part 3 — Public API surface map
 
-Not pages, but part of the site map. Full detail in [API_SPEC.md](API_SPEC.md).
+Full technical specification is documented in [API_SPEC.md](API_SPEC.md).
 
 ```
-/store/*      46 route files   Medusa v2 wire-compatible  — FROZEN
-/admin/*     ~278 route files  Medusa v2 wire-compatible — FROZEN
-/auth/*       actor_type × provider  Medusa-compatible shape
-/hooks/*      provider webhooks
-/health/live  /health/ready  /metrics  /openapi.json
+/store/*          Storefront Commerce APIs (Products, Collections, Carts, Orders, Payments, Shipping)
+/admin/*          Administration & Operational APIs (Catalog, Inventory, Pricing, Customers, Settings)
+/auth/*           Authentication Handlers (Email/Password, Google, GitHub, OIDC)
+/hooks/*          Provider Webhook Handlers (Stripe, SendGrid)
+/health/live      Liveness Probe (Worker status)
+/health/ready     Readiness Probe (DB & Redis connection status)
+/metrics          Prometheus Telemetry Metrics
+/openapi.json     OpenAPI v3 Specification Endpoint
 ```

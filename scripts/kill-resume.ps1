@@ -1,18 +1,16 @@
-param(
-    [int]$runs = 100
-)
+# P13-05: Kill-resume against real restarts and durable Postgres stores.
+$ErrorActionPreference = "Stop"
 
-Write-Host "==> Running Kill-and-Resume harness ($runs runs) (P1-14)..." -ForegroundColor Cyan
-
-$env:PATH = "C:\Users\Mahi\mingw64\bin;$env:USERPROFILE\.cargo\bin;" + $env:PATH
+$runs = if ($env:RUNS) { [int]$env:RUNS } else { 10 }
+Write-Host "==> Running Kill-and-Resume harness ($runs runs) (P13-05)..."
 
 for ($i = 1; $i -le $runs; $i++) {
-    & cargo test -p stheno-workflow --test idempotency_concurrent --test compensation_matrix --quiet *>$null
+    & cargo test -p stheno-workflow --test durable_store --test compensation_durability --test lease_contention --test idempotency_concurrent --test compensation_matrix --quiet
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Kill-and-Resume failed at run $i" -ForegroundColor Red
-        exit 1
+        Write-Error "Kill-and-Resume run $i failed with exit code $LASTEXITCODE"
+        exit $LASTEXITCODE
     }
 }
 
-Write-Host "Kill-and-Resume harness PASSED: $runs/$runs crash recovery runs completed successfully." -ForegroundColor Green
+Write-Host "Kill-and-Resume harness PASSED: $runs/$runs crash recovery and restart runs completed successfully."
 exit 0

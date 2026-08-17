@@ -1,0 +1,40 @@
+# Phase Gate P15: Quota counters and entitlement enforcement (PowerShell).
+$ErrorActionPreference = "Stop"
+
+Write-Host "========================================================"
+Write-Host "==> Verifying Phase Gate P15: Quota Counters & Entitlements"
+Write-Host "========================================================"
+
+if (-not $env:DATABASE_URL) {
+    $env:DATABASE_URL = "postgres://stheno:stheno@localhost:5432/stheno"
+}
+
+Write-Host "`n[1/6] Formatting and lints..."
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+
+Write-Host "`n[2/6] P15-01 to P15-03: Entitlement usage table, atomic increment, decrement..."
+cargo test -p stheno-db --test entitlement_usage_schema
+cargo test -p stheno-db --test quota_increment
+cargo test -p stheno-db --test quota_decrement
+
+Write-Host "`n[3/6] P15-04 to P15-06: CheckQuotaStep, product quota, seat quota..."
+cargo test -p stheno-flows --test check_quota_step
+cargo test -p stheno-flows --test product_quota
+cargo test -p stheno-flows --test seat_quota
+
+Write-Host "`n[4/6] P15-07 to P15-08: Exact quota boundary and 100-parallel concurrency..."
+cargo test -p stheno-flows --test quota_boundary
+cargo test -p stheno-flows --test quota_concurrency
+
+Write-Host "`n[5/6] P15-09 to P15-11: Over-quota error, grandfathering, and real entitlements usage..."
+cargo test -p stheno-api-admin --test over_quota_error
+cargo test -p stheno-flows --test grandfathering
+cargo test -p stheno-api-admin-platform --test entitlements
+
+Write-Host "`n[6/6] P15-12: Quota reconciliation..."
+cargo test -p stheno-flows --test quota_reconciliation
+
+Write-Host "========================================================"
+Write-Host "==> Phase Gate P15 PASSED"
+Write-Host "========================================================"

@@ -1,0 +1,7 @@
+Contact: mailto:security@stheno.io
+Expires: 2027-12-31T23:59:59.000Z
+Encryption: https://stheno.io/pgp-key.txt
+Preferred-Languages: en
+Policy: https://stheno.io/security/policy
+Acknowledgments: https://stheno.io/security/hall-of-fame
+Canonical: https://stheno.io/.well-known/security.txt
