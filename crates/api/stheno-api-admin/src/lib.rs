@@ -8,10 +8,12 @@ pub mod orders;
 pub mod pricing;
 pub mod promotions;
 pub mod reports;
+pub mod users;
 
 use axum::routing::{get, post};
 use axum::Router;
 use std::sync::Arc;
+use stheno_user::UserService;
 use stheno_currency::CurrencyService;
 use stheno_customer::CustomerService;
 use stheno_fulfillment::FulfillmentService;
@@ -313,6 +315,25 @@ pub fn admin_reports_routes(reporting_service: Arc<stheno_reporting::ReportingSe
         .route(
             "/admin/reports/average-order-value",
             get(reports::average_order_value_handler),
+        )
+        .with_state(ctx)
+}
+
+/// Mounts admin user and invite routes.
+pub fn admin_user_routes(user_service: Arc<UserService>) -> Router {
+    let ctx = users::AdminUserContext { user_service };
+    Router::new()
+        .route("/admin/users/me", get(users::get_me))
+        .route("/admin/users", get(users::list_users).post(users::create_user))
+        .route(
+            "/admin/users/{id}",
+            get(users::get_user)
+                .post(users::update_user)
+                .delete(users::delete_user),
+        )
+        .route(
+            "/admin/invites",
+            get(users::list_invites).post(users::create_invite),
         )
         .with_state(ctx)
 }

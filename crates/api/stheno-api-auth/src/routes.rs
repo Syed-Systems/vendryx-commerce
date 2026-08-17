@@ -3,7 +3,7 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -185,9 +185,28 @@ pub async fn confirm_reset_password(
     ))
 }
 
+/// GET /auth/{actor_type}/providers
+pub async fn list_providers(
+    State(_ctx): State<AuthApiContext>,
+    Path(actor_type): Path<String>,
+) -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "providers": [
+                {
+                    "id": "emailpass",
+                    "actor_type": actor_type,
+                }
+            ]
+        })),
+    ))
+}
+
 /// Mounts all Medusa v2 compatible Auth API routes.
 pub fn auth_routes(ctx: AuthApiContext) -> Router {
     Router::new()
+        .route("/auth/{actor_type}/providers", get(list_providers))
         .route("/auth/{actor_type}/{provider_id}", post(authenticate))
         .route("/auth/{actor_type}/{provider_id}/register", post(register))
         .route("/auth/token/refresh", post(refresh_token))
