@@ -10,6 +10,7 @@
 //!   because it is index-backed.
 
 use chrono::Utc;
+use sha2::Digest;
 use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
@@ -222,7 +223,13 @@ impl ProductService {
     // ---- variants -------------------------------------------------------
 
     pub async fn create_variant(&self, input: CreateVariantInput) -> Result<ProductVariantDTO> {
-        let hash = compute_variant_option_values_hash(input.option_value_ids);
+        let hash = if input.option_value_ids.is_empty() {
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(input.title.as_bytes());
+            hex::encode(hasher.finalize())
+        } else {
+            compute_variant_option_values_hash(input.option_value_ids)
+        };
 
         let now = Utc::now();
         let variant = ProductVariant {
@@ -270,6 +277,45 @@ impl ProductService {
             .retrieve(None, id)
             .await
             .map(|v| variant_dto(&v))
+    }
+
+    pub async fn list_all_options(&self) -> Result<Vec<(String, String, String)>> {
+        let filter = Self::live(LIST_LIMIT).with_order("title", OrderDirection::Asc);
+        Ok(self
+            .options
+            .list(None, &filter)
+            .await?
+            .into_iter()
+            .map(|o| (o.id, o.title, o.product_id))
+            .collect())
+    }
+
+    pub async fn update_variant(
+        &self,
+        id: &str,
+        title: Option<String>,
+        sku: Option<String>,
+        barcode: Option<String>,
+    ) -> Result<ProductVariantDTO> {
+        let mut v = self.variants.retrieve(None, id).await?;
+        if let Some(t) = title {
+            v.title = t;
+        }
+        if let Some(s) = sku {
+            v.sku = Some(s);
+        }
+        if let Some(b) = barcode {
+            v.barcode = Some(b);
+        }
+        v.updated_at = Utc::now();
+        self.variants
+            .update(None, id, v)
+            .await
+            .map(|v| variant_dto(&v))
+    }
+
+    pub async fn delete_variant(&self, id: &str) -> Result<()> {
+        self.variants.soft_delete(None, id).await
     }
 
     pub async fn list_variants(&self, product_id: &str) -> Result<Vec<ProductVariantDTO>> {
@@ -397,6 +443,32 @@ impl ProductService {
             .retrieve(None, id)
             .await
             .map(|c| collection_dto(&c))
+    }
+
+    pub async fn update_collection(
+        &self,
+        id: &str,
+        input: UpdateCollectionInput,
+    ) -> Result<ProductCollectionDTO> {
+        let mut collection = self.collections.retrieve(None, id).await?;
+        if let Some(t) = input.title {
+            collection.title = t;
+        }
+        if let Some(h) = input.handle {
+            collection.handle = h;
+        }
+        if let Some(m) = input.metadata {
+            collection.metadata = Some(m);
+        }
+        collection.updated_at = Utc::now();
+        self.collections
+            .update(None, id, collection)
+            .await
+            .map(|c| collection_dto(&c))
+    }
+
+    pub async fn delete_collection(&self, id: &str) -> Result<()> {
+        self.collections.soft_delete(None, id).await
     }
 
     pub async fn list_collections(&self) -> Result<Vec<ProductCollectionDTO>> {

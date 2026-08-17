@@ -4,14 +4,15 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use serde_json::json;
 use std::sync::Arc;
-use stheno_api_core::{DeleteResponse, ErrorResponse, GetResponse, ListResponse};
-use stheno_pricing::{CreatePriceListInput, PriceListDTO, PricingService, UpdatePriceListInput};
+use stheno_api_core::ErrorResponse;
+use stheno_pricing::{CreatePriceListInput, PricingService, UpdatePriceListInput};
 
 // Price List Handlers
 pub async fn list_price_lists(
     State(service): State<Arc<PricingService>>,
-) -> Result<Json<ListResponse<Vec<PriceListDTO>>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let all = service.list_price_lists().await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -20,18 +21,22 @@ pub async fn list_price_lists(
             .into_response()
     })?;
     let count = all.len();
-    Ok(Json(ListResponse {
-        data: all,
-        count,
-        offset: 0,
-        limit: 20,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "price_lists": all,
+            "data": all,
+            "count": count,
+            "offset": 0,
+            "limit": 20,
+        })),
+    ))
 }
 
 pub async fn create_price_list(
     State(service): State<Arc<PricingService>>,
     Json(input): Json<CreatePriceListInput>,
-) -> Result<(StatusCode, Json<GetResponse<PriceListDTO>>), Response> {
+) -> Result<impl IntoResponse, Response> {
     let list = service.create_price_list(input).await.map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
@@ -39,15 +44,27 @@ pub async fn create_price_list(
         )
             .into_response()
     })?;
-    Ok((StatusCode::CREATED, Json(GetResponse { data: list })))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "price_list": list,
+            "data": list,
+        })),
+    ))
 }
 
 pub async fn get_price_list(
     State(service): State<Arc<PricingService>>,
     Path(id): Path<String>,
-) -> Result<Json<GetResponse<PriceListDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     match service.get_price_list(&id).await {
-        Ok(list) => Ok(Json(GetResponse { data: list })),
+        Ok(list) => Ok((
+            StatusCode::OK,
+            Json(json!({
+                "price_list": list,
+                "data": list,
+            })),
+        )),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -63,7 +80,7 @@ pub async fn update_price_list(
     State(service): State<Arc<PricingService>>,
     Path(id): Path<String>,
     Json(input): Json<UpdatePriceListInput>,
-) -> Result<Json<GetResponse<PriceListDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let list = service.update_price_list(&id, input).await.map_err(|e| {
         (
             StatusCode::NOT_FOUND,
@@ -71,13 +88,19 @@ pub async fn update_price_list(
         )
             .into_response()
     })?;
-    Ok(Json(GetResponse { data: list }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "price_list": list,
+            "data": list,
+        })),
+    ))
 }
 
 pub async fn delete_price_list(
     State(service): State<Arc<PricingService>>,
     Path(id): Path<String>,
-) -> Result<Json<DeleteResponse>, Response> {
+) -> Result<impl IntoResponse, Response> {
     service.delete_price_list(&id).await.map_err(|e| {
         (
             StatusCode::NOT_FOUND,
@@ -85,9 +108,12 @@ pub async fn delete_price_list(
         )
             .into_response()
     })?;
-    Ok(Json(DeleteResponse {
-        id,
-        object: "price_list".to_string(),
-        deleted: true,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "id": id,
+            "object": "price_list",
+            "deleted": true
+        })),
+    ))
 }

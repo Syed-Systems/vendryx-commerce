@@ -4,17 +4,18 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use serde_json::json;
 use std::sync::Arc;
-use stheno_api_core::{DeleteResponse, ErrorResponse, GetResponse, ListResponse};
+use stheno_api_core::ErrorResponse;
 use stheno_customer::{
-    CreateCustomerGroupInput, CreateCustomerInput, CustomerDTO, CustomerGroupDTO, CustomerService,
+    CreateCustomerGroupInput, CreateCustomerInput, CustomerService,
     UpdateCustomerGroupInput, UpdateCustomerInput,
 };
 
 // 1. Customer Handlers
 pub async fn list_customers(
     State(service): State<Arc<CustomerService>>,
-) -> Result<Json<ListResponse<Vec<CustomerDTO>>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let all = service.list_customers().await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -23,18 +24,22 @@ pub async fn list_customers(
             .into_response()
     })?;
     let count = all.len();
-    Ok(Json(ListResponse {
-        data: all,
-        count,
-        offset: 0,
-        limit: 20,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "customers": all,
+            "data": all,
+            "count": count,
+            "offset": 0,
+            "limit": 20,
+        })),
+    ))
 }
 
 pub async fn create_customer(
     State(service): State<Arc<CustomerService>>,
     Json(input): Json<CreateCustomerInput>,
-) -> Result<(StatusCode, Json<GetResponse<CustomerDTO>>), Response> {
+) -> Result<impl IntoResponse, Response> {
     let customer = service.create_customer(input).await.map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
@@ -42,15 +47,27 @@ pub async fn create_customer(
         )
             .into_response()
     })?;
-    Ok((StatusCode::CREATED, Json(GetResponse { data: customer })))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "customer": customer,
+            "data": customer,
+        })),
+    ))
 }
 
 pub async fn get_customer(
     State(service): State<Arc<CustomerService>>,
     Path(id): Path<String>,
-) -> Result<Json<GetResponse<CustomerDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     match service.get_customer(&id).await {
-        Ok(customer) => Ok(Json(GetResponse { data: customer })),
+        Ok(customer) => Ok((
+            StatusCode::OK,
+            Json(json!({
+                "customer": customer,
+                "data": customer,
+            })),
+        )),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -66,7 +83,7 @@ pub async fn update_customer(
     State(service): State<Arc<CustomerService>>,
     Path(id): Path<String>,
     Json(input): Json<UpdateCustomerInput>,
-) -> Result<Json<GetResponse<CustomerDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let customer = service.update_customer(&id, input).await.map_err(|e| {
         (
             StatusCode::NOT_FOUND,
@@ -74,13 +91,19 @@ pub async fn update_customer(
         )
             .into_response()
     })?;
-    Ok(Json(GetResponse { data: customer }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "customer": customer,
+            "data": customer,
+        })),
+    ))
 }
 
 pub async fn delete_customer(
     State(service): State<Arc<CustomerService>>,
     Path(id): Path<String>,
-) -> Result<Json<DeleteResponse>, Response> {
+) -> Result<impl IntoResponse, Response> {
     service.delete_customer(&id).await.map_err(|e| {
         (
             StatusCode::NOT_FOUND,
@@ -88,17 +111,20 @@ pub async fn delete_customer(
         )
             .into_response()
     })?;
-    Ok(Json(DeleteResponse {
-        id,
-        object: "customer".to_string(),
-        deleted: true,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "id": id,
+            "object": "customer",
+            "deleted": true
+        })),
+    ))
 }
 
 // 2. Customer Groups Handlers
 pub async fn list_customer_groups(
     State(service): State<Arc<CustomerService>>,
-) -> Result<Json<ListResponse<Vec<CustomerGroupDTO>>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let all = service.list_customer_groups().await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -107,18 +133,22 @@ pub async fn list_customer_groups(
             .into_response()
     })?;
     let count = all.len();
-    Ok(Json(ListResponse {
-        data: all,
-        count,
-        offset: 0,
-        limit: 20,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "customer_groups": all,
+            "data": all,
+            "count": count,
+            "offset": 0,
+            "limit": 20,
+        })),
+    ))
 }
 
 pub async fn create_customer_group(
     State(service): State<Arc<CustomerService>>,
     Json(input): Json<CreateCustomerGroupInput>,
-) -> Result<(StatusCode, Json<GetResponse<CustomerGroupDTO>>), Response> {
+) -> Result<impl IntoResponse, Response> {
     let group = service.create_customer_group(input).await.map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
@@ -126,14 +156,20 @@ pub async fn create_customer_group(
         )
             .into_response()
     })?;
-    Ok((StatusCode::CREATED, Json(GetResponse { data: group })))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "customer_group": group,
+            "data": group,
+        })),
+    ))
 }
 
 pub async fn update_customer_group(
     State(service): State<Arc<CustomerService>>,
     Path(id): Path<String>,
     Json(input): Json<UpdateCustomerGroupInput>,
-) -> Result<Json<GetResponse<CustomerGroupDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let group = service
         .update_customer_group(&id, input)
         .await
@@ -144,5 +180,11 @@ pub async fn update_customer_group(
             )
                 .into_response()
         })?;
-    Ok(Json(GetResponse { data: group }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "customer_group": group,
+            "data": group,
+        })),
+    ))
 }

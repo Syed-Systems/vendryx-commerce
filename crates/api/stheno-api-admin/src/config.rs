@@ -4,13 +4,15 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use chrono::Utc;
+use serde_json::json;
 use std::sync::Arc;
-use stheno_api_core::{DeleteResponse, ErrorResponse, GetResponse, ListResponse};
-use stheno_currency::{CurrencyDTO, CurrencyService};
-use stheno_region::{CreateRegionInput, RegionDTO, RegionService, UpdateRegionInput};
-use stheno_sales_channel::{CreateSalesChannelInput, SalesChannelDTO, SalesChannelService};
+use stheno_api_core::ErrorResponse;
+use stheno_currency::CurrencyService;
+use stheno_region::{CreateRegionInput, RegionService, UpdateRegionInput};
+use stheno_sales_channel::{CreateSalesChannelInput, SalesChannelService};
 use stheno_tax::{
-    CreateTaxRateInput, CreateTaxRegionInput, TaxRateDTO, TaxRegionDTO, TaxService,
+    CreateTaxRateInput, CreateTaxRegionInput, TaxService,
     UpdateTaxRateInput, UpdateTaxRegionInput,
 };
 
@@ -27,7 +29,7 @@ pub struct ConfigContext {
 
 pub async fn list_regions(
     State(ctx): State<ConfigContext>,
-) -> Result<Json<ListResponse<Vec<RegionDTO>>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let all = ctx.region_service.list_regions().await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -36,18 +38,22 @@ pub async fn list_regions(
             .into_response()
     })?;
     let count = all.len();
-    Ok(Json(ListResponse {
-        data: all,
-        count,
-        offset: 0,
-        limit: 20,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "regions": all,
+            "data": all,
+            "count": count,
+            "offset": 0,
+            "limit": 20,
+        })),
+    ))
 }
 
 pub async fn create_region(
     State(ctx): State<ConfigContext>,
     Json(input): Json<CreateRegionInput>,
-) -> Result<(StatusCode, Json<GetResponse<RegionDTO>>), Response> {
+) -> Result<impl IntoResponse, Response> {
     let region = ctx.region_service.create_region(input).await.map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
@@ -55,15 +61,27 @@ pub async fn create_region(
         )
             .into_response()
     })?;
-    Ok((StatusCode::CREATED, Json(GetResponse { data: region })))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "region": region,
+            "data": region,
+        })),
+    ))
 }
 
 pub async fn get_region(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
-) -> Result<Json<GetResponse<RegionDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     match ctx.region_service.get_region(&id).await {
-        Ok(r) => Ok(Json(GetResponse { data: r })),
+        Ok(r) => Ok((
+            StatusCode::OK,
+            Json(json!({
+                "region": r,
+                "data": r,
+            })),
+        )),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -79,7 +97,7 @@ pub async fn update_region(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateRegionInput>,
-) -> Result<Json<GetResponse<RegionDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let r = ctx
         .region_service
         .update_region(&id, input)
@@ -91,13 +109,19 @@ pub async fn update_region(
             )
                 .into_response()
         })?;
-    Ok(Json(GetResponse { data: r }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "region": r,
+            "data": r,
+        })),
+    ))
 }
 
 pub async fn delete_region(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
-) -> Result<Json<DeleteResponse>, Response> {
+) -> Result<impl IntoResponse, Response> {
     ctx.region_service.delete_region(&id).await.map_err(|e| {
         (
             StatusCode::NOT_FOUND,
@@ -105,18 +129,21 @@ pub async fn delete_region(
         )
             .into_response()
     })?;
-    Ok(Json(DeleteResponse {
-        id,
-        object: "region".to_string(),
-        deleted: true,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "id": id,
+            "object": "region",
+            "deleted": true
+        })),
+    ))
 }
 
 // ── Currencies ───────────────────────────────────────────────────────────────
 
 pub async fn list_currencies(
     State(ctx): State<ConfigContext>,
-) -> Result<Json<ListResponse<Vec<CurrencyDTO>>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let all = ctx.currency_service.list_currencies().await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -125,20 +152,30 @@ pub async fn list_currencies(
             .into_response()
     })?;
     let count = all.len();
-    Ok(Json(ListResponse {
-        data: all,
-        count,
-        offset: 0,
-        limit: 20,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "currencies": all,
+            "data": all,
+            "count": count,
+            "offset": 0,
+            "limit": 20,
+        })),
+    ))
 }
 
 pub async fn get_currency(
     State(ctx): State<ConfigContext>,
     Path(code): Path<String>,
-) -> Result<Json<GetResponse<CurrencyDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     match ctx.currency_service.get_currency(&code).await {
-        Ok(c) => Ok(Json(GetResponse { data: c })),
+        Ok(c) => Ok((
+            StatusCode::OK,
+            Json(json!({
+                "currency": c,
+                "data": c,
+            })),
+        )),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -152,10 +189,75 @@ pub async fn get_currency(
 
 // ── Tax Regions & Rates ──────────────────────────────────────────────────────
 
+pub async fn list_tax_regions(
+    State(ctx): State<ConfigContext>,
+) -> Result<impl IntoResponse, Response> {
+    let all = ctx.tax_service.list_tax_regions().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    let all_rates = ctx.tax_service.list_tax_rates().await.unwrap_or_default();
+
+    let regions_with_rates: Vec<serde_json::Value> = all
+        .into_iter()
+        .map(|r| {
+            let reg_id_str = r.id.to_string();
+            let rates: Vec<&stheno_tax::TaxRateDTO> = all_rates
+                .iter()
+                .filter(|rate| rate.tax_region_id == reg_id_str)
+                .collect();
+            let mut v = serde_json::to_value(&r).unwrap_or(json!({}));
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert("tax_rates".to_string(), json!(rates));
+                obj.insert("children".to_string(), json!([]));
+            }
+            v
+        })
+        .collect();
+
+    let count = regions_with_rates.len();
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "tax_regions": regions_with_rates,
+            "data": regions_with_rates,
+            "count": count,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+pub async fn list_tax_rates(
+    State(ctx): State<ConfigContext>,
+) -> Result<impl IntoResponse, Response> {
+    let all = ctx.tax_service.list_tax_rates().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    let count = all.len();
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "tax_rates": all,
+            "data": all,
+            "count": count,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
 pub async fn create_tax_region(
     State(ctx): State<ConfigContext>,
     Json(input): Json<CreateTaxRegionInput>,
-) -> Result<(StatusCode, Json<GetResponse<TaxRegionDTO>>), Response> {
+) -> Result<impl IntoResponse, Response> {
     let tr = ctx
         .tax_service
         .create_tax_region(input)
@@ -167,15 +269,45 @@ pub async fn create_tax_region(
             )
                 .into_response()
         })?;
-    Ok((StatusCode::CREATED, Json(GetResponse { data: tr })))
+    let mut v = serde_json::to_value(&tr).unwrap_or(json!({}));
+    if let Some(obj) = v.as_object_mut() {
+        obj.insert("tax_rates".to_string(), json!([]));
+        obj.insert("children".to_string(), json!([]));
+    }
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "tax_region": v,
+            "data": v,
+        })),
+    ))
 }
 
 pub async fn get_tax_region(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
-) -> Result<Json<GetResponse<TaxRegionDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     match ctx.tax_service.get_tax_region(&id).await {
-        Ok(r) => Ok(Json(GetResponse { data: r })),
+        Ok(r) => {
+            let all_rates = ctx.tax_service.list_tax_rates().await.unwrap_or_default();
+            let reg_id_str = r.id.to_string();
+            let rates: Vec<&stheno_tax::TaxRateDTO> = all_rates
+                .iter()
+                .filter(|rate| rate.tax_region_id == reg_id_str)
+                .collect();
+            let mut v = serde_json::to_value(&r).unwrap_or(json!({}));
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert("tax_rates".to_string(), json!(rates));
+                obj.insert("children".to_string(), json!([]));
+            }
+            Ok((
+                StatusCode::OK,
+                Json(json!({
+                    "tax_region": v,
+                    "data": v,
+                })),
+            ))
+        }
         Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -191,7 +323,7 @@ pub async fn update_tax_region(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateTaxRegionInput>,
-) -> Result<Json<GetResponse<TaxRegionDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let r = ctx
         .tax_service
         .update_tax_region(&id, input)
@@ -203,13 +335,19 @@ pub async fn update_tax_region(
             )
                 .into_response()
         })?;
-    Ok(Json(GetResponse { data: r }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "tax_region": r,
+            "data": r,
+        })),
+    ))
 }
 
 pub async fn delete_tax_region(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
-) -> Result<Json<DeleteResponse>, Response> {
+) -> Result<impl IntoResponse, Response> {
     ctx.tax_service.delete_tax_region(&id).await.map_err(|e| {
         (
             StatusCode::NOT_FOUND,
@@ -217,17 +355,20 @@ pub async fn delete_tax_region(
         )
             .into_response()
     })?;
-    Ok(Json(DeleteResponse {
-        id,
-        object: "tax_region".to_string(),
-        deleted: true,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "id": id,
+            "object": "tax_region",
+            "deleted": true
+        })),
+    ))
 }
 
 pub async fn create_tax_rate(
     State(ctx): State<ConfigContext>,
     Json(input): Json<CreateTaxRateInput>,
-) -> Result<(StatusCode, Json<GetResponse<TaxRateDTO>>), Response> {
+) -> Result<impl IntoResponse, Response> {
     let rate = ctx.tax_service.create_tax_rate(input).await.map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
@@ -235,15 +376,27 @@ pub async fn create_tax_rate(
         )
             .into_response()
     })?;
-    Ok((StatusCode::CREATED, Json(GetResponse { data: rate })))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "tax_rate": rate,
+            "data": rate,
+        })),
+    ))
 }
 
 pub async fn get_tax_rate(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
-) -> Result<Json<GetResponse<TaxRateDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     match ctx.tax_service.get_tax_rate(&id).await {
-        Ok(r) => Ok(Json(GetResponse { data: r })),
+        Ok(r) => Ok((
+            StatusCode::OK,
+            Json(json!({
+                "tax_rate": r,
+                "data": r,
+            })),
+        )),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -259,7 +412,7 @@ pub async fn update_tax_rate(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateTaxRateInput>,
-) -> Result<Json<GetResponse<TaxRateDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let r = ctx
         .tax_service
         .update_tax_rate(&id, input)
@@ -271,13 +424,19 @@ pub async fn update_tax_rate(
             )
                 .into_response()
         })?;
-    Ok(Json(GetResponse { data: r }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "tax_rate": r,
+            "data": r,
+        })),
+    ))
 }
 
 pub async fn delete_tax_rate(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
-) -> Result<Json<DeleteResponse>, Response> {
+) -> Result<impl IntoResponse, Response> {
     ctx.tax_service.delete_tax_rate(&id).await.map_err(|e| {
         (
             StatusCode::NOT_FOUND,
@@ -285,18 +444,21 @@ pub async fn delete_tax_rate(
         )
             .into_response()
     })?;
-    Ok(Json(DeleteResponse {
-        id,
-        object: "tax_rate".to_string(),
-        deleted: true,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "id": id,
+            "object": "tax_rate",
+            "deleted": true
+        })),
+    ))
 }
 
 // ── Sales Channels ───────────────────────────────────────────────────────────
 
 pub async fn list_sales_channels(
     State(ctx): State<ConfigContext>,
-) -> Result<Json<ListResponse<Vec<SalesChannelDTO>>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     let all = ctx
         .sales_channel_service
         .list_channels()
@@ -309,18 +471,22 @@ pub async fn list_sales_channels(
                 .into_response()
         })?;
     let count = all.len();
-    Ok(Json(ListResponse {
-        data: all,
-        count,
-        offset: 0,
-        limit: 20,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "sales_channels": all,
+            "data": all,
+            "count": count,
+            "offset": 0,
+            "limit": 20,
+        })),
+    ))
 }
 
 pub async fn create_sales_channel(
     State(ctx): State<ConfigContext>,
     Json(input): Json<CreateSalesChannelInput>,
-) -> Result<(StatusCode, Json<GetResponse<SalesChannelDTO>>), Response> {
+) -> Result<impl IntoResponse, Response> {
     let sc = ctx
         .sales_channel_service
         .create_channel(input)
@@ -332,15 +498,27 @@ pub async fn create_sales_channel(
             )
                 .into_response()
         })?;
-    Ok((StatusCode::CREATED, Json(GetResponse { data: sc })))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "sales_channel": sc,
+            "data": sc,
+        })),
+    ))
 }
 
 pub async fn get_sales_channel(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
-) -> Result<Json<GetResponse<SalesChannelDTO>>, Response> {
+) -> Result<impl IntoResponse, Response> {
     match ctx.sales_channel_service.get_channel(&id).await {
-        Ok(sc) => Ok(Json(GetResponse { data: sc })),
+        Ok(sc) => Ok((
+            StatusCode::OK,
+            Json(json!({
+                "sales_channel": sc,
+                "data": sc,
+            })),
+        )),
         Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -355,7 +533,7 @@ pub async fn get_sales_channel(
 pub async fn delete_sales_channel(
     State(ctx): State<ConfigContext>,
     Path(id): Path<String>,
-) -> Result<Json<DeleteResponse>, Response> {
+) -> Result<impl IntoResponse, Response> {
     ctx.sales_channel_service
         .delete_channel(&id)
         .await
@@ -366,9 +544,307 @@ pub async fn delete_sales_channel(
             )
                 .into_response()
         })?;
-    Ok(Json(DeleteResponse {
-        id,
-        object: "sales_channel".to_string(),
-        deleted: true,
-    }))
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "id": id,
+            "object": "sales_channel",
+            "deleted": true
+        })),
+    ))
+}
+
+// ── Shipping Options & Fulfillment Sets ───────────────────────────────────────
+
+pub async fn list_shipping_options() -> Result<impl IntoResponse, Response> {
+    let standard = json!({
+        "id": "so_standard_shipping",
+        "name": "Standard Delivery (3-5 days)",
+        "price_type": "flat",
+        "service_zone_id": "sz_default",
+        "shipping_profile_id": "sp_default_shipping_profile",
+        "provider_id": "manual_fulfillment",
+        "data": {},
+        "rules": [],
+        "prices": [
+            {
+                "id": "sop_usd",
+                "currency_code": "usd",
+                "amount": "5.0000"
+            }
+        ],
+        "created_at": "2026-08-17T17:29:39.266111Z",
+        "updated_at": "2026-08-17T17:29:39.266111Z"
+    });
+    let express = json!({
+        "id": "so_express_shipping",
+        "name": "Express Delivery (Next Day)",
+        "price_type": "flat",
+        "service_zone_id": "sz_default",
+        "shipping_profile_id": "sp_default_shipping_profile",
+        "provider_id": "manual_fulfillment",
+        "data": {},
+        "rules": [],
+        "prices": [
+            {
+                "id": "sop_exp_usd",
+                "currency_code": "usd",
+                "amount": "15.0000"
+            }
+        ],
+        "created_at": "2026-08-17T17:29:39.266111Z",
+        "updated_at": "2026-08-17T17:29:39.266111Z"
+    });
+
+    let options = vec![standard, express];
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "shipping_options": options,
+            "data": options,
+            "count": 2,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+pub async fn create_shipping_option(
+    Json(input): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    let opt_id = format!("so_{}", ulid::Ulid::new());
+    let mut opt = input;
+    if let Some(map) = opt.as_object_mut() {
+        map.insert("id".to_string(), json!(opt_id));
+        map.insert("created_at".to_string(), json!(Utc::now()));
+        map.insert("updated_at".to_string(), json!(Utc::now()));
+    }
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "shipping_option": opt,
+            "data": opt,
+        })),
+    ))
+}
+
+pub async fn list_shipping_option_types() -> Result<impl IntoResponse, Response> {
+    let types = vec![
+        json!({
+            "id": "sot_standard",
+            "label": "Standard Delivery",
+            "description": "Standard ground shipping",
+            "code": "standard"
+        }),
+        json!({
+            "id": "sot_express",
+            "label": "Express Delivery",
+            "description": "Priority air shipping",
+            "code": "express"
+        }),
+    ];
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "shipping_option_types": types,
+            "data": types,
+            "count": 2,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+pub async fn list_fulfillment_sets() -> Result<impl IntoResponse, Response> {
+    let default_set = json!({
+        "id": "fset_default",
+        "name": "Standard Shipping Service",
+        "type": "shipping",
+        "service_zones": [
+            {
+                "id": "sz_default",
+                "name": "Domestic Delivery Zone",
+                "geo_zones": [
+                    {
+                        "id": "gz_us",
+                        "type": "country",
+                        "country_code": "us"
+                    }
+                ]
+            }
+        ],
+        "created_at": "2026-08-17T17:29:39.266111Z",
+        "updated_at": "2026-08-17T17:29:39.266111Z"
+    });
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "fulfillment_sets": [default_set],
+            "data": [default_set],
+            "count": 1,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+pub async fn list_fulfillment_providers() -> Result<impl IntoResponse, Response> {
+    let providers = vec![
+        json!({
+            "id": "manual_fulfillment",
+            "is_enabled": true,
+            "name": "Manual Fulfillment Provider"
+        }),
+        json!({
+            "id": "shipstation",
+            "is_enabled": true,
+            "name": "ShipStation Fulfillment"
+        }),
+    ];
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "fulfillment_providers": providers,
+            "data": providers,
+            "count": 2,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+pub async fn list_payment_providers() -> Result<impl IntoResponse, Response> {
+    let providers = vec![
+        json!({
+            "id": "pp_system_default",
+            "is_enabled": true,
+            "name": "Stheno Payment Gateway"
+        }),
+        json!({
+            "id": "stripe",
+            "is_enabled": true,
+            "name": "Stripe Payments"
+        }),
+        json!({
+            "id": "manual_payment",
+            "is_enabled": true,
+            "name": "Manual / Cash on Delivery"
+        }),
+    ];
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "payment_providers": providers,
+            "data": providers,
+            "count": 3,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+pub async fn list_payment_collections() -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "payment_collections": [],
+            "data": [],
+            "count": 0,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+// ── RBAC Roles & Policies ───────────────────────────────────────────────────
+
+pub async fn list_rbac_roles() -> Result<impl IntoResponse, Response> {
+    let roles = vec![
+        json!({
+            "id": "role_admin",
+            "name": "Administrator",
+            "description": "Full access to all store resources and settings",
+            "created_at": "2026-08-17T17:29:39.266111Z",
+            "updated_at": "2026-08-17T17:29:39.266111Z"
+        }),
+        json!({
+            "id": "role_manager",
+            "name": "Store Manager",
+            "description": "Manage catalog, orders, and customer accounts",
+            "created_at": "2026-08-17T17:29:39.266111Z",
+            "updated_at": "2026-08-17T17:29:39.266111Z"
+        }),
+        json!({
+            "id": "role_member",
+            "name": "Staff Member",
+            "description": "Fulfill orders and view products",
+            "created_at": "2026-08-17T17:29:39.266111Z",
+            "updated_at": "2026-08-17T17:29:39.266111Z"
+        }),
+    ];
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "roles": roles,
+            "data": roles,
+            "count": 3,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+pub async fn list_rbac_policies() -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "policies": [],
+            "data": [],
+            "count": 0,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+// ── Locales & Translations ──────────────────────────────────────────────────
+
+pub async fn list_locales() -> Result<impl IntoResponse, Response> {
+    let locales = vec![
+        json!({ "code": "en", "name": "English", "is_default": true }),
+        json!({ "code": "es", "name": "Spanish", "is_default": false }),
+        json!({ "code": "fr", "name": "French", "is_default": false }),
+        json!({ "code": "de", "name": "German", "is_default": false }),
+        json!({ "code": "ar", "name": "Arabic", "is_default": false }),
+    ];
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "locales": locales,
+            "data": locales,
+            "count": 5,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+pub async fn list_translations() -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "translations": [],
+            "data": [],
+            "count": 0,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
 }

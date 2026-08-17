@@ -85,6 +85,44 @@ impl TaxService {
         })
     }
 
+    pub async fn list_tax_regions(&self) -> Result<Vec<TaxRegionDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
+        let list = self.regions.list(None, &filter).await?;
+        Ok(list
+            .into_iter()
+            .map(|r| TaxRegionDTO {
+                id: Id::from_string(r.id.to_string()).unwrap_or_default(),
+                country_code: r.country_code,
+                province_code: r.province_code,
+                parent_id: r.parent_id,
+                provider_id: r.provider_id,
+                created_at: r.created_at,
+            })
+            .collect())
+    }
+
+    pub async fn list_tax_rates(&self) -> Result<Vec<TaxRateDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
+        let list = self.rates.list(None, &filter).await?;
+        Ok(list
+            .into_iter()
+            .map(|r| TaxRateDTO {
+                id: Id::from_string(r.id.to_string()).unwrap_or_default(),
+                tax_region_id: r.tax_region_id,
+                rate: r.rate,
+                code: r.code,
+                name: r.name,
+                is_default: r.is_default,
+                is_combinable: r.is_combinable,
+                created_at: r.created_at,
+            })
+            .collect())
+    }
+
     pub async fn create_tax_rate(&self, input: CreateTaxRateInput) -> Result<TaxRateDTO> {
         let id: Id<TaxRate> = Id::new();
         let id_str = id.to_string();

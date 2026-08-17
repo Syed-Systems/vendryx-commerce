@@ -8,9 +8,9 @@ use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 
 use stheno_api_admin::{
-    admin_catalog_routes, admin_config_routes, admin_customer_routes, admin_inventory_routes,
-    admin_order_routes, admin_pricing_routes, admin_promotion_routes, admin_reports_routes,
-    admin_user_routes,
+    admin_api_key_routes, admin_catalog_routes, admin_config_routes, admin_customer_routes,
+    admin_inventory_routes, admin_order_routes, admin_pricing_routes, admin_promotion_routes,
+    admin_reports_routes, admin_store_routes, admin_user_routes,
 };
 use stheno_api_admin_platform::{admin_platform_routes, AdminPlatformContext, UsageSnapshot};
 use stheno_api_auth::{auth_routes, AuthApiContext};
@@ -31,9 +31,10 @@ use stheno_product::{CreateCollectionInput, CreateProductInput, ProductService};
 use stheno_promotion::PromotionService;
 use stheno_region::{CreateRegionInput, RegionService};
 use stheno_registry::AppContext;
-use stheno_sales_channel::SalesChannelService;
-use stheno_stock_location::StockLocationService;
-use stheno_tax::TaxService;
+use stheno_sales_channel::{CreateSalesChannelInput, SalesChannelService};
+use stheno_stock_location::{CreateStockLocationInput, StockLocationService};
+use stheno_store::{CreateStoreInput, StoreService};
+use stheno_tax::{CreateTaxRateInput, CreateTaxRegionInput, TaxService};
 use stheno_translation::{CreateLocaleInput, TranslationService};
 use stheno_user::{CreateUserInput, UserService};
 use stheno_workflow::WorkflowStore;
@@ -89,6 +90,7 @@ impl AppServer {
         let inventory_service = Arc::new(InventoryService::new(pool.clone()));
         let stock_location_service = Arc::new(StockLocationService::new(pool.clone()));
         let sales_channel_service = Arc::new(SalesChannelService::new(pool.clone()));
+        let store_service = Arc::new(StoreService::new(pool.clone()));
         let promotion_service = Arc::new(PromotionService::new(pool.clone()));
         let auth_service = Arc::new(AuthService::new(pool.clone(), None));
         let translation_service = Arc::new(TranslationService::new(pool.clone()));
@@ -106,8 +108,27 @@ impl AppServer {
         let rs = region_service.clone();
         let us = user_service.clone();
         let ts = translation_service.clone();
+        let sc = sales_channel_service.clone();
+        let sl = stock_location_service.clone();
+        let ss = store_service.clone();
+        let tax_s = tax_service.clone();
         tokio::spawn(async move {
-            let _ = rs
+            let sc_res = sc
+                .create_channel(CreateSalesChannelInput {
+                    name: "Default Web Channel".to_string(),
+                    description: Some("Main online storefront".to_string()),
+                    is_disabled: Some(false),
+                })
+                .await;
+
+            let sl_res = sl
+                .create_location(CreateStockLocationInput {
+                    name: "Main Fulfillment Center".to_string(),
+                    address_id: None,
+                })
+                .await;
+
+            let reg_na = rs
                 .create_region(CreateRegionInput {
                     name: "North America".to_string(),
                     currency_code: "USD".to_string(),
@@ -115,12 +136,49 @@ impl AppServer {
                     countries: vec!["us".to_string(), "ca".to_string()],
                 })
                 .await;
+
             let _ = rs
                 .create_region(CreateRegionInput {
                     name: "Europe".to_string(),
                     currency_code: "EUR".to_string(),
                     automatic_taxes: Some(true),
                     countries: vec!["de".to_string(), "fr".to_string(), "gb".to_string()],
+                })
+                .await;
+
+            let tr_res = tax_s
+                .create_tax_region(CreateTaxRegionInput {
+                    country_code: "us".to_string(),
+                    province_code: None,
+                    parent_id: None,
+                    provider_id: None,
+                })
+                .await;
+
+            if let Ok(tr) = tr_res {
+                let _ = tax_s
+                    .create_tax_rate(CreateTaxRateInput {
+                        tax_region_id: tr.id.to_string(),
+                        rate: rust_decimal_macros::dec!(0.10),
+                        code: "STANDARD_VAT".to_string(),
+                        name: "Standard Sales Tax (10%)".to_string(),
+                        is_default: Some(true),
+                        is_combinable: Some(false),
+                        rules: None,
+                    })
+                    .await;
+            }
+
+            let _ = ss
+                .create_store(CreateStoreInput {
+                    name: "Stheno Store".to_string(),
+                    default_sales_channel_id: sc_res.ok().map(|s| s.id.to_string()),
+                    default_region_id: reg_na.ok().map(|r| r.id.to_string()),
+                    default_location_id: sl_res.ok().map(|l| l.id.to_string()),
+                    supported_currencies: Some(vec!["usd".to_string(), "eur".to_string()]),
+                    default_currency_code: Some("usd".to_string()),
+                    supported_locales: Some(vec!["en".to_string()]),
+                    default_locale: Some("en".to_string()),
                 })
                 .await;
 
@@ -244,8 +302,10 @@ impl AppServer {
             .merge(admin_pricing_routes(pricing_service.clone()))
             .merge(admin_promotion_routes(promotion_service.clone()))
             .merge(admin_user_routes(user_service.clone()))
+            .merge(admin_store_routes(store_service.clone()))
             .merge(admin_config_routes(region_service.clone(), currency_service.clone(), tax_service.clone(), sales_channel_service.clone()))
             .merge(admin_reports_routes(reporting_service.clone()))
+            .merge(admin_api_key_routes())
             .merge(auth_routes(AuthApiContext { auth_flows }))
             .merge(admin_platform_routes(AdminPlatformContext {
                 entitlements: entitlements.clone(),

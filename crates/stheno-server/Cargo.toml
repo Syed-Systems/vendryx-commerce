@@ -41,12 +41,15 @@ stheno-inventory = { workspace = true }
 stheno-stock-location = { workspace = true }
 stheno-sales-channel = { workspace = true }
 stheno-tax = { workspace = true }
+stheno-store = { workspace = true }
 stheno-translation = { workspace = true }
 stheno-reporting = { workspace = true }
 stheno-flows = { workspace = true }
 stheno-flows-order = { workspace = true }
 tower-http = { workspace = true }
 serde_json = { workspace = true }
+rust_decimal = { workspace = true }
+rust_decimal_macros = { workspace = true }
 clap = { workspace = true }
 
 [features]

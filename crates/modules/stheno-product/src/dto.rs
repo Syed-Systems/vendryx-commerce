@@ -96,6 +96,13 @@ pub struct CreateCollectionInput {
     pub metadata: Option<serde_json::Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdateCollectionInput {
+    pub title: Option<String>,
+    pub handle: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}
+
 // Medusa id prefixes for this module's entities (ADR-010).
 stheno_types::prefixed_id! {
     ProductCategoryDTO => "pcat",

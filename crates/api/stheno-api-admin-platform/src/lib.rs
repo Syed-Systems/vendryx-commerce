@@ -149,6 +149,7 @@ pub async fn get_entitlements(
 #[derive(Debug, Serialize)]
 pub struct ListWorkflowExecutionsResponse {
     pub workflow_executions: Vec<WorkflowExecution>,
+    pub data: Vec<WorkflowExecution>,
     pub count: usize,
     pub offset: usize,
     pub limit: usize,
@@ -157,6 +158,7 @@ pub struct ListWorkflowExecutionsResponse {
 #[derive(Debug, Serialize)]
 pub struct GetWorkflowExecutionResponse {
     pub workflow_execution: WorkflowExecution,
+    pub data: WorkflowExecution,
 }
 
 /// `GET /admin/workflows-executions` — SAGA observability for the dashboard.
@@ -166,7 +168,8 @@ pub async fn list_workflow_executions(
     let executions = ctx.workflows.list_executions();
     let count = executions.len();
     Json(ListWorkflowExecutionsResponse {
-        workflow_executions: executions,
+        workflow_executions: executions.clone(),
+        data: executions,
         count,
         offset: 0,
         limit: 50,
@@ -178,7 +181,10 @@ pub async fn get_workflow_execution(
     Path(id): Path<String>,
 ) -> Result<Json<GetWorkflowExecutionResponse>, Response> {
     match ctx.workflows.get_execution(&id) {
-        Some(workflow_execution) => Ok(Json(GetWorkflowExecutionResponse { workflow_execution })),
+        Some(workflow_execution) => Ok(Json(GetWorkflowExecutionResponse {
+            workflow_execution: workflow_execution.clone(),
+            data: workflow_execution,
+        })),
         None => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -199,6 +205,11 @@ pub fn admin_platform_routes(ctx: AdminPlatformContext) -> Router {
         .route("/admin/workflows-executions", get(list_workflow_executions))
         .route(
             "/admin/workflows-executions/{id}",
+            get(get_workflow_execution),
+        )
+        .route("/admin/workflow-executions", get(list_workflow_executions))
+        .route(
+            "/admin/workflow-executions/{id}",
             get(get_workflow_execution),
         )
         .with_state(ctx)

@@ -81,9 +81,17 @@ impl RegionService {
 
     /// Loads a live region by id, or `NotFound`.
     async fn live_region(&self, id: &str) -> Result<Region> {
-        // `retrieve` already excludes soft-deleted rows and matches the id
-        // exactly -- the prefix survives now, so no suffix scan is needed.
-        self.regions.retrieve(None, id).await
+        match self.regions.retrieve(None, id).await {
+            Ok(r) => Ok(r),
+            Err(_) => {
+                let alt_id = if let Some(stripped) = id.strip_prefix("reg_") {
+                    stripped.to_string()
+                } else {
+                    format!("reg_{}", id)
+                };
+                self.regions.retrieve(None, &alt_id).await
+            }
+        }
     }
 
     pub async fn create_region(&self, input: CreateRegionInput) -> Result<RegionDTO> {

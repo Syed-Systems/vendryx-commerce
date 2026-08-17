@@ -1,5 +1,6 @@
 //! `stheno-api-admin`: Medusa v2 wire-compatible Admin API routes.
 
+pub mod api_keys;
 pub mod catalog;
 pub mod config;
 pub mod customers;
@@ -8,11 +9,13 @@ pub mod orders;
 pub mod pricing;
 pub mod promotions;
 pub mod reports;
+pub mod store;
 pub mod users;
 
 use axum::routing::{get, post};
 use axum::Router;
 use std::sync::Arc;
+use stheno_store::StoreService;
 use stheno_user::UserService;
 use stheno_currency::CurrencyService;
 use stheno_customer::CustomerService;
@@ -64,6 +67,28 @@ pub fn admin_catalog_routes(product_service: Arc<ProductService>) -> Router {
                 .delete(catalog::delete_product),
         )
         .route(
+            "/admin/products/{id}/variants",
+            get(catalog::list_product_variants).post(catalog::create_variant),
+        )
+        .route(
+            "/admin/products/{id}/variants/{variant_id}",
+            get(catalog::get_variant)
+                .post(catalog::update_variant)
+                .delete(catalog::delete_variant),
+        )
+        .route(
+            "/admin/products/{id}/options",
+            get(catalog::list_product_options).post(catalog::create_product_option),
+        )
+        .route(
+            "/admin/products/{id}/options/{option_id}",
+            get(catalog::get_product_option).delete(catalog::delete_product_option),
+        )
+        .route(
+            "/admin/product-options",
+            get(catalog::list_global_product_options).post(catalog::create_global_product_option),
+        )
+        .route(
             "/admin/product-categories",
             get(catalog::list_categories).post(catalog::create_category),
         )
@@ -72,9 +97,18 @@ pub fn admin_catalog_routes(product_service: Arc<ProductService>) -> Router {
             get(catalog::get_category).delete(catalog::delete_category),
         )
         .route(
-            "/admin/products/{id}/variants",
-            post(catalog::create_variant),
+            "/admin/collections",
+            get(catalog::list_collections).post(catalog::create_collection),
         )
+        .route(
+            "/admin/collections/{id}",
+            get(catalog::get_collection)
+                .post(catalog::update_collection)
+                .delete(catalog::delete_collection),
+        )
+        .route("/admin/product-types", get(catalog::list_product_types))
+        .route("/admin/product-tags", get(catalog::list_product_tags))
+        .route("/admin/shipping-profiles", get(catalog::list_shipping_profiles))
         .with_state(product_service)
 }
 
@@ -93,6 +127,14 @@ pub fn admin_inventory_routes(
             get(inventory::list_inventory_items).post(inventory::create_inventory_item),
         )
         .route(
+            "/admin/inventory-items/{id}",
+            get(inventory::get_inventory_item),
+        )
+        .route(
+            "/admin/inventory-items/{id}/location-levels",
+            post(inventory::create_location_level),
+        )
+        .route(
             "/admin/reservations",
             get(inventory::list_reservations).post(inventory::create_reservation),
         )
@@ -102,7 +144,9 @@ pub fn admin_inventory_routes(
         )
         .route(
             "/admin/stock-locations/{id}",
-            axum::routing::delete(inventory::delete_stock_location),
+            get(inventory::get_stock_location)
+                .post(inventory::update_stock_location)
+                .delete(inventory::delete_stock_location),
         )
         .with_state(ctx)
 }
@@ -157,6 +201,21 @@ pub fn admin_order_routes(
             "/admin/return-reasons",
             get(orders::list_return_reasons).post(orders::create_return_reason),
         )
+        .route(
+            "/admin/return-reasons/{id}",
+            get(orders::get_return_reason).delete(orders::delete_return_reason),
+        )
+        .route(
+            "/admin/refund-reasons",
+            get(orders::list_refund_reasons).post(orders::create_refund_reason),
+        )
+        .route(
+            "/admin/refund-reasons/{id}",
+            get(orders::get_refund_reason).delete(orders::delete_refund_reason),
+        )
+        .route("/admin/order-edits", get(orders::list_order_edits))
+        .route("/admin/claims", get(orders::list_claims))
+        .route("/admin/exchanges", get(orders::list_exchanges))
         .with_state(ctx)
 }
 
@@ -210,7 +269,7 @@ pub fn admin_promotion_routes(promotion_service: Arc<PromotionService>) -> Route
         .with_state(promotion_service)
 }
 
-/// Mounts admin configuration routes — regions, currencies, tax, sales channels.
+/// Mounts admin configuration routes — regions, currencies, tax, sales channels, shipping, payments, rbac.
 pub fn admin_config_routes(
     region_service: Arc<RegionService>,
     currency_service: Arc<CurrencyService>,
@@ -239,7 +298,10 @@ pub fn admin_config_routes(
         .route("/admin/currencies", get(config::list_currencies))
         .route("/admin/currencies/{code}", get(config::get_currency))
         // Tax Regions
-        .route("/admin/tax-regions", post(config::create_tax_region))
+        .route(
+            "/admin/tax-regions",
+            get(config::list_tax_regions).post(config::create_tax_region),
+        )
         .route(
             "/admin/tax-regions/{id}",
             get(config::get_tax_region)
@@ -247,7 +309,10 @@ pub fn admin_config_routes(
                 .delete(config::delete_tax_region),
         )
         // Tax Rates
-        .route("/admin/tax-rates", post(config::create_tax_rate))
+        .route(
+            "/admin/tax-rates",
+            get(config::list_tax_rates).post(config::create_tax_rate),
+        )
         .route(
             "/admin/tax-rates/{id}",
             get(config::get_tax_rate)
@@ -263,6 +328,39 @@ pub fn admin_config_routes(
             "/admin/sales-channels/{id}",
             get(config::get_sales_channel).delete(config::delete_sales_channel),
         )
+        // Shipping Options & Types
+        .route(
+            "/admin/shipping-options",
+            get(config::list_shipping_options).post(config::create_shipping_option),
+        )
+        .route(
+            "/admin/shipping-option-types",
+            get(config::list_shipping_option_types),
+        )
+        // Fulfillment Sets & Providers
+        .route(
+            "/admin/fulfillment-sets",
+            get(config::list_fulfillment_sets),
+        )
+        .route(
+            "/admin/fulfillment-providers",
+            get(config::list_fulfillment_providers),
+        )
+        // Payment Providers & Collections
+        .route(
+            "/admin/payment-providers",
+            get(config::list_payment_providers),
+        )
+        .route(
+            "/admin/payment-collections",
+            get(config::list_payment_collections),
+        )
+        // RBAC Roles & Policies
+        .route("/admin/rbac/roles", get(config::list_rbac_roles))
+        .route("/admin/rbac/policies", get(config::list_rbac_policies))
+        // Locales & Translations
+        .route("/admin/locales", get(config::list_locales))
+        .route("/admin/translations", get(config::list_translations))
         .with_state(ctx)
 }
 
@@ -334,6 +432,52 @@ pub fn admin_user_routes(user_service: Arc<UserService>) -> Router {
         .route(
             "/admin/invites",
             get(users::list_invites).post(users::create_invite),
+        )
+        .with_state(ctx)
+}
+
+/// Mounts admin store and price preferences routes.
+pub fn admin_store_routes(store_service: Arc<StoreService>) -> Router {
+    let ctx = store::AdminStoreContext { store_service };
+    Router::new()
+        .route("/admin/stores", get(store::list_stores))
+        .route("/admin/store", get(store::list_stores))
+        .route(
+            "/admin/stores/{id}",
+            get(store::get_store).post(store::update_store),
+        )
+        .route("/admin/price-preferences", get(store::list_price_preferences))
+        .route("/admin/notifications", get(store::list_notifications))
+        .with_state(ctx)
+}
+
+/// Mounts admin API key routes.
+pub fn admin_api_key_routes() -> Router {
+    let ctx = api_keys::AdminApiKeyContext;
+    Router::new()
+        .route(
+            "/admin/api-keys",
+            get(api_keys::list_api_keys).post(api_keys::create_api_key),
+        )
+        .route(
+            "/admin/api-keys/{id}",
+            axum::routing::delete(api_keys::delete_api_key),
+        )
+        .route(
+            "/admin/api-keys/{id}/revoke",
+            post(api_keys::revoke_api_key),
+        )
+        .route(
+            "/admin/publishable-api-keys",
+            get(api_keys::list_publishable_api_keys).post(api_keys::create_publishable_api_key),
+        )
+        .route(
+            "/admin/publishable-api-keys/{id}",
+            axum::routing::delete(api_keys::delete_api_key),
+        )
+        .route(
+            "/admin/publishable-api-keys/{id}/revoke",
+            post(api_keys::revoke_api_key),
         )
         .with_state(ctx)
 }
