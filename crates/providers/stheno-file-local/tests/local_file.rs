@@ -1,4 +1,6 @@
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_file::{FileService, UploadFileInput, UploadPipeline};
 use stheno_file_local::LocalFileProvider;
 
@@ -26,11 +28,14 @@ async fn test_magic_byte_sniffing_and_svg_rejection() {
 
 #[tokio::test]
 async fn test_local_file_provider_upload_and_presigned() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+
     let provider = Arc::new(LocalFileProvider::new(
         "./uploads",
         "https://cdn.example.com",
     ));
-    let service = FileService::new(provider);
+    let service = FileService::new(provider, pool);
 
     // Upload PNG file
     let png_bytes = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01, 0x02];
@@ -70,4 +75,6 @@ async fn test_local_file_provider_upload_and_presigned() {
     service.delete_file(&file.id).await.unwrap();
     let deleted_res = service.get_file(&file.id).await;
     assert!(deleted_res.is_err());
+
+    db.drop().await;
 }

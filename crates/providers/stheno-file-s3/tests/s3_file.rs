@@ -1,9 +1,13 @@
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_file::{FileService, UploadFileInput};
 use stheno_file_s3::{S3Config, S3FileProvider};
 
 #[tokio::test]
 async fn test_s3_file_provider_upload_and_presigned_urls() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
     let config = S3Config {
         bucket: "stheno-media".to_string(),
         region: "us-east-1".to_string(),
@@ -14,7 +18,7 @@ async fn test_s3_file_provider_upload_and_presigned_urls() {
     };
 
     let provider = Arc::new(S3FileProvider::new(config));
-    let service = FileService::new(provider);
+    let service = FileService::new(provider, pool);
 
     // Upload WebP file
     // RIFF (4 bytes) + len (4 bytes) + WEBP (4 bytes)

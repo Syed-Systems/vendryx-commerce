@@ -149,10 +149,10 @@ impl SearchProvider for LocalSearchProvider {
         // 3. Sorting
         match query.sort_by.as_deref() {
             Some("price_asc") => {
-                hits.sort_by(|a, b| a.document.price_cents.cmp(&b.document.price_cents));
+                hits.sort_by_key(|a| a.document.price_cents);
             }
             Some("price_desc") => {
-                hits.sort_by(|a, b| b.document.price_cents.cmp(&a.document.price_cents));
+                hits.sort_by_key(|b| std::cmp::Reverse(b.document.price_cents));
             }
             _ => {
                 // Default by relevance score descending

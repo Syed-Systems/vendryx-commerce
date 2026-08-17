@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use stheno_search::{SearchDocument, SearchFilter, SearchQuery, SearchService};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
+use stheno_search::{SearchDocument, SearchFilter, SearchProvider, SearchQuery, SearchService};
 use stheno_search_local::LocalSearchProvider;
 
 #[tokio::test]
@@ -212,4 +214,69 @@ async fn test_search_convergence_after_bulk_update() {
         "1,000-product indexing and search took {:?}, expected < 5s",
         elapsed
     );
+}
+
+#[tokio::test]
+async fn test_search_persistence_and_full_rebuild() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+
+    let provider = Arc::new(LocalSearchProvider::new());
+    let service = SearchService::with_pool(provider.clone(), pool);
+
+    let doc = SearchDocument {
+        id: "prod_persisted_1".to_string(),
+        title: "Durable Leather Boots".to_string(),
+        description: Some("Handcrafted full-grain leather boots".to_string()),
+        handle: Some("leather-boots".to_string()),
+        sales_channel_ids: vec!["sc_web".to_string()],
+        category_ids: vec!["cat_footwear".to_string()],
+        tags: vec!["boots".to_string(), "leather".to_string()],
+        price_cents: Some(25000),
+        attributes: HashMap::new(),
+    };
+
+    service
+        .index_documents("products", vec![doc])
+        .await
+        .unwrap();
+
+    // Clear provider index directly to simulate empty/crashed search node
+    provider.clear_index("products").await.unwrap();
+    let empty_res = service
+        .search(
+            "products",
+            SearchQuery {
+                q: "leather".to_string(),
+                filter: None,
+                limit: 10,
+                offset: 0,
+                sort_by: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(empty_res.total_hits, 0);
+
+    // Rebuild index from Postgres storage (P14-13)
+    let rebuilt_count = service.rebuild_from_storage("products").await.unwrap();
+    assert_eq!(rebuilt_count, 1);
+
+    let search_res = service
+        .search(
+            "products",
+            SearchQuery {
+                q: "leather".to_string(),
+                filter: None,
+                limit: 10,
+                offset: 0,
+                sort_by: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(search_res.total_hits, 1);
+    assert_eq!(search_res.hits[0].document.id, "prod_persisted_1");
+
+    db.drop().await;
 }

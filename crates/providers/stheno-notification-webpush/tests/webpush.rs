@@ -1,9 +1,13 @@
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_notification::{NotificationService, SendNotificationInput};
 use stheno_notification_webpush::{VapidConfig, WebPushNotificationProvider};
 
 #[tokio::test]
 async fn test_vapid_web_push_provider() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
     let config = VapidConfig {
         subject: "mailto:admin@stheno.store".to_string(),
         public_key: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1Xbjhazmc3wh-MbZpb30u380".to_string(),
@@ -11,7 +15,7 @@ async fn test_vapid_web_push_provider() {
     };
 
     let provider = Arc::new(WebPushNotificationProvider::new(config));
-    let service = NotificationService::new();
+    let service = NotificationService::new(pool);
     service.register_provider(provider.clone());
 
     // Send push notification using subscription JSON

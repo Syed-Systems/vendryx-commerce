@@ -4,10 +4,14 @@ use serde_json::json;
 use std::sync::Arc;
 use stheno_auth::{AuthProviderService, AuthService};
 use stheno_auth_github::GitHubAuthProvider;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_github_oauth_provider_flow() {
-    let auth_service = Arc::new(AuthService::new(None));
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let auth_service = Arc::new(AuthService::new(pool, None));
     let provider =
         GitHubAuthProvider::new(auth_service, "github_client_id_999", "github_secret_888");
 

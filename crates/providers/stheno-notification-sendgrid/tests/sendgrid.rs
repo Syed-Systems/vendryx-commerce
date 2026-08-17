@@ -1,9 +1,13 @@
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_notification::{NotificationService, SendNotificationInput};
 use stheno_notification_sendgrid::{SendGridConfig, SendGridNotificationProvider};
 
 #[tokio::test]
 async fn test_sendgrid_notification_provider() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
     let config = SendGridConfig {
         api_key: "SG.dummy_api_key_test".to_string(),
         from_email: "orders@sthenostore.com".to_string(),
@@ -11,7 +15,7 @@ async fn test_sendgrid_notification_provider() {
     };
 
     let provider = Arc::new(SendGridNotificationProvider::new(config));
-    let service = NotificationService::new();
+    let service = NotificationService::new(pool);
     service.register_provider(provider.clone());
 
     let notif = service

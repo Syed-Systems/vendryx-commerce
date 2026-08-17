@@ -4,10 +4,14 @@ use serde_json::json;
 use std::sync::Arc;
 use stheno_auth::{AuthProviderService, AuthService};
 use stheno_auth_oidc::{OidcAuthProvider, OidcConfig};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_oidc_auth_provider_discovery_and_token_validation() {
-    let auth_service = Arc::new(AuthService::new(None));
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let auth_service = Arc::new(AuthService::new(pool, None));
     let config = OidcConfig {
         issuer: "https://auth.enterprise.org".to_string(),
         client_id: "stheno_oidc_client_app".to_string(),

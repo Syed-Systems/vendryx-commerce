@@ -4,10 +4,14 @@ use serde_json::json;
 use std::sync::Arc;
 use stheno_auth::{AuthProviderService, AuthService};
 use stheno_auth_emailpass::EmailPassAuthProvider;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_emailpass_provider_register_and_authenticate() {
-    let auth_service = Arc::new(AuthService::new(None));
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let auth_service = Arc::new(AuthService::new(pool, None));
     let provider = EmailPassAuthProvider::new(auth_service);
 
     assert_eq!(provider.provider_id(), "emailpass");
