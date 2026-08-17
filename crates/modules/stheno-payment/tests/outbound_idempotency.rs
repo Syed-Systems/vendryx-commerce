@@ -1,10 +1,14 @@
 use serde_json::json;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_payment::PaymentService;
 use stheno_types::Result;
 
 #[tokio::test]
 async fn test_outbound_idempotency_caching_and_payload_mismatch() {
-    let service = PaymentService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PaymentService::new(pool);
 
     let key = "idem_key_unique_123";
     let payload = json!({

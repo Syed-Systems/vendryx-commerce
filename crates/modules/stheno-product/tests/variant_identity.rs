@@ -1,8 +1,11 @@
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_product::{CreateProductInput, CreateVariantInput, ProductService};
 
 #[tokio::test]
 async fn test_variant_identity_unique_hash_enforcement() {
-    let service = ProductService::new();
+    let db = TestDb::migrated().await;
+    let service = ProductService::new(create_pool(&db.url, 5).expect("pool"));
     let product = service
         .create_product(CreateProductInput {
             title: "Sneakers".to_string(),
@@ -43,4 +46,6 @@ async fn test_variant_identity_unique_hash_enforcement() {
     assert!(v2_duplicate.is_err());
     let err_str = v2_duplicate.unwrap_err().to_string();
     assert!(err_str.contains("variant_option_combination_exists"));
+
+    db.drop().await;
 }

@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -29,19 +29,22 @@ pub struct TrackedEvent {
 }
 
 #[derive(Default)]
+struct EventList(Vec<TrackedEvent>);
+
+#[derive(Default)]
 pub struct LocalAnalyticsProvider {
-    events: Arc<RwLock<Vec<TrackedEvent>>>,
+    events: Arc<Mutex<EventList>>,
 }
 
 impl LocalAnalyticsProvider {
     pub fn new() -> Self {
         Self {
-            events: Arc::new(RwLock::new(Vec::new())),
+            events: Arc::new(Mutex::new(EventList(Vec::new()))),
         }
     }
 
     pub fn get_events(&self) -> Vec<TrackedEvent> {
-        self.events.read().unwrap().clone()
+        self.events.lock().unwrap().0.clone()
     }
 }
 
@@ -57,8 +60,8 @@ impl AnalyticsProvider for LocalAnalyticsProvider {
         distinct_id: &str,
         properties: &serde_json::Value,
     ) -> Result<()> {
-        let mut list = self.events.write().unwrap();
-        list.push(TrackedEvent {
+        let mut list = self.events.lock().unwrap();
+        list.0.push(TrackedEvent {
             event_name: event_name.to_string(),
             distinct_id: distinct_id.to_string(),
             properties: properties.clone(),
@@ -68,8 +71,8 @@ impl AnalyticsProvider for LocalAnalyticsProvider {
     }
 
     async fn identify(&self, distinct_id: &str, traits: &serde_json::Value) -> Result<()> {
-        let mut list = self.events.write().unwrap();
-        list.push(TrackedEvent {
+        let mut list = self.events.lock().unwrap();
+        list.0.push(TrackedEvent {
             event_name: "$identify".to_string(),
             distinct_id: distinct_id.to_string(),
             properties: traits.clone(),
@@ -91,19 +94,19 @@ pub struct PostHogConfig {
 
 pub struct PostHogAnalyticsProvider {
     config: PostHogConfig,
-    sent_events: Arc<RwLock<Vec<TrackedEvent>>>,
+    sent_events: Arc<Mutex<EventList>>,
 }
 
 impl PostHogAnalyticsProvider {
     pub fn new(config: PostHogConfig) -> Self {
         Self {
             config,
-            sent_events: Arc::new(RwLock::new(Vec::new())),
+            sent_events: Arc::new(Mutex::new(EventList(Vec::new()))),
         }
     }
 
     pub fn get_sent_events(&self) -> Vec<TrackedEvent> {
-        self.sent_events.read().unwrap().clone()
+        self.sent_events.lock().unwrap().0.clone()
     }
 
     pub fn config(&self) -> &PostHogConfig {
@@ -126,7 +129,6 @@ impl PostHogAnalyticsProvider {
                         sanitized.insert(k.clone(), serde_json::json!("[REDACTED]"));
                     } else if k_lower.contains("email") {
                         if let serde_json::Value::String(email) = v {
-                            // Pseudonymize email: e***@domain.com or hash
                             let parts: Vec<&str> = email.split('@').collect();
                             if parts.len() == 2 {
                                 let pseudo = format!(
@@ -168,8 +170,8 @@ impl AnalyticsProvider for PostHogAnalyticsProvider {
         properties: &serde_json::Value,
     ) -> Result<()> {
         let sanitized = Self::sanitize_properties(properties);
-        let mut list = self.sent_events.write().unwrap();
-        list.push(TrackedEvent {
+        let mut list = self.sent_events.lock().unwrap();
+        list.0.push(TrackedEvent {
             event_name: event_name.to_string(),
             distinct_id: distinct_id.to_string(),
             properties: sanitized,
@@ -180,8 +182,8 @@ impl AnalyticsProvider for PostHogAnalyticsProvider {
 
     async fn identify(&self, distinct_id: &str, traits: &serde_json::Value) -> Result<()> {
         let sanitized = Self::sanitize_properties(traits);
-        let mut list = self.sent_events.write().unwrap();
-        list.push(TrackedEvent {
+        let mut list = self.sent_events.lock().unwrap();
+        list.0.push(TrackedEvent {
             event_name: "$identify".to_string(),
             distinct_id: distinct_id.to_string(),
             properties: sanitized,

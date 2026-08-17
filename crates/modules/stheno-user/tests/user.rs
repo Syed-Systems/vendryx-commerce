@@ -1,12 +1,16 @@
-//! Test P7-15: User management and team invite acceptance.
+//! Test P7-15, P14-04: User management and team invite acceptance on Postgres.
 
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_user::{
     AcceptInviteInput, CreateInviteInput, CreateUserInput, UpdateUserInput, UserService,
 };
 
 #[tokio::test]
 async fn test_user_and_invite_lifecycle() {
-    let service = UserService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = UserService::new(pool);
 
     // 1. Create User
     let admin = service
@@ -76,4 +80,6 @@ async fn test_user_and_invite_lifecycle() {
     // 5. List users
     let users = service.list_users().await.unwrap();
     assert_eq!(users.len(), 2);
+
+    db.drop().await;
 }

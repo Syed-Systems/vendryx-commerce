@@ -1,8 +1,11 @@
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_product::{CreateProductInput, CreateVariantInput, ProductService, UpdateProductInput};
 
 #[tokio::test]
 async fn test_product_service_lifecycle_and_domain_methods() {
-    let service = ProductService::new();
+    let db = TestDb::migrated().await;
+    let service = ProductService::new(create_pool(&db.url, 5).expect("pool"));
 
     // 1. Create Product
     let product = service
@@ -69,4 +72,6 @@ async fn test_product_service_lifecycle_and_domain_methods() {
         get_deleted.is_err(),
         "Deleted product must not be retrievable"
     );
+
+    db.drop().await;
 }

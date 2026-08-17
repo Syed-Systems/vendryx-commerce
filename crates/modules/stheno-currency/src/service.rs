@@ -1,87 +1,32 @@
-//! Service layer for `stheno-currency` with ISO 4217 precision lookup table (TASKS.md P3-01).
+//! Service layer for `stheno-currency`, backed by Postgres (P11-18).
+//!
+//! The ISO 4217 table is seeded by the migration rather than by this service, so
+//! the precision a deployment rounds money with is part of the schema and
+//! survives a restart.
 
-use chrono::Utc;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
 use stheno_types::{Error, Result};
 
 use crate::dto::CurrencyDTO;
 use crate::models::Currency;
 
+/// ISO 4217 defines fewer than 200 active codes, so one page holds all of them.
+const MAX_CURRENCIES: usize = 100;
+
 #[derive(Clone)]
 pub struct CurrencyService {
-    currencies: Arc<RwLock<HashMap<String, Currency>>>,
-}
-
-impl Default for CurrencyService {
-    fn default() -> Self {
-        let mut map = HashMap::new();
-        let now = Utc::now();
-
-        // Standard ISO 4217 currencies and their precision
-        let standard_currencies = vec![
-            ("usd", "$", "$", "US Dollar", 2),
-            ("eur", "€", "€", "Euro", 2),
-            ("gbp", "£", "£", "British Pound", 2),
-            ("jpy", "¥", "￥", "Japanese Yen", 0),
-            ("cad", "CA$", "$", "Canadian Dollar", 2),
-            ("aud", "AU$", "$", "Australian Dollar", 2),
-            ("chf", "CHF", "CHF", "Swiss Franc", 2),
-            ("cny", "CN¥", "¥", "Chinese Yuan", 2),
-            ("inr", "₹", "₹", "Indian Rupee", 2),
-            ("krw", "₩", "₩", "South Korean Won", 0),
-            ("bhd", "BD", "د.ب", "Bahraini Dinar", 3),
-            ("kwd", "KD", "د.ك", "Kuwaiti Dinar", 3),
-            ("omr", "OMR", "ر.ع.", "Omani Rial", 3),
-            ("sek", "kr", "kr", "Swedish Krona", 2),
-            ("nok", "kr", "kr", "Norwegian Krone", 2),
-            ("dkk", "kr", "kr", "Danish Krone", 2),
-            ("sgd", "S$", "$", "Singapore Dollar", 2),
-            ("hkd", "HK$", "$", "Hong Kong Dollar", 2),
-            ("nzd", "NZ$", "$", "New Zealand Dollar", 2),
-            ("aed", "AED", "د.إ", "United Arab Emirates Dirham", 2),
-        ];
-
-        for (code, symbol, symbol_native, name, digits) in standard_currencies {
-            map.insert(
-                code.to_string(),
-                Currency {
-                    code: code.to_string(),
-                    symbol: symbol.to_string(),
-                    symbol_native: symbol_native.to_string(),
-                    name: name.to_string(),
-                    decimal_digits: digits,
-                    rounding: 0,
-                    created_at: now,
-                    updated_at: now,
-                    deleted_at: None,
-                },
-            );
-        }
-
-        Self {
-            currencies: Arc::new(RwLock::new(map)),
-        }
-    }
+    currencies: PgCrudRepository<Currency>,
 }
 
 impl CurrencyService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            currencies: PgCrudRepository::new(pool),
+        }
     }
 
-    pub async fn get_currency(&self, code: &str) -> Result<CurrencyDTO> {
-        let code_lower = code.to_lowercase();
-        let map = self.currencies.read().unwrap();
-        let c = map
-            .get(&code_lower)
-            .filter(|c| c.deleted_at.is_none())
-            .ok_or_else(|| Error::NotFound {
-                entity: "currency",
-                id: code.to_string(),
-            })?;
-
-        Ok(CurrencyDTO {
+    fn dto(c: &Currency) -> CurrencyDTO {
+        CurrencyDTO {
             code: c.code.clone(),
             symbol: c.symbol.clone(),
             symbol_native: c.symbol_native.clone(),
@@ -90,32 +35,44 @@ impl CurrencyService {
             rounding: c.rounding,
             created_at: c.created_at,
             updated_at: c.updated_at,
-        })
+        }
+    }
+
+    async fn load(&self, code: &str) -> Result<Currency> {
+        self.currencies
+            .retrieve(None, &code.to_lowercase())
+            .await
+            .map_err(|_| Error::NotFound {
+                entity: "currency",
+                id: code.to_string(),
+            })
+    }
+
+    pub async fn get_currency(&self, code: &str) -> Result<CurrencyDTO> {
+        self.load(code).await.map(|c| Self::dto(&c))
     }
 
     pub async fn list_currencies(&self) -> Result<Vec<CurrencyDTO>> {
-        let map = self.currencies.read().unwrap();
-        let list = map
-            .values()
-            .filter(|c| c.deleted_at.is_none())
-            .map(|c| CurrencyDTO {
-                code: c.code.clone(),
-                symbol: c.symbol.clone(),
-                symbol_native: c.symbol_native.clone(),
-                name: c.name.clone(),
-                decimal_digits: c.decimal_digits,
-                rounding: c.rounding,
-                created_at: c.created_at,
-                updated_at: c.updated_at,
-            })
-            .collect();
-        Ok(list)
+        let all = self
+            .currencies
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_order("code", OrderDirection::Asc)
+                    .with_pagination(0, MAX_CURRENCIES),
+            )
+            .await?;
+        Ok(all.iter().map(Self::dto).collect())
     }
 
-    /// Resolves the decimal digits (precision) for a currency code according to ISO 4217.
-    pub fn decimal_digits(&self, code: &str) -> i16 {
-        let code_lower = code.to_lowercase();
-        let map = self.currencies.read().unwrap();
-        map.get(&code_lower).map(|c| c.decimal_digits).unwrap_or(2)
+    /// Decimal digits for a currency code, per ISO 4217.
+    ///
+    /// Returns an error for an unknown code rather than assuming 2. Silently
+    /// defaulting would round JPY (0 digits) and KWD (3) to cents, which is a
+    /// financial error of exactly the kind PRD risk R6 names -- and it would do
+    /// so invisibly.
+    pub async fn decimal_digits(&self, code: &str) -> Result<i16> {
+        self.load(code).await.map(|c| c.decimal_digits)
     }
 }

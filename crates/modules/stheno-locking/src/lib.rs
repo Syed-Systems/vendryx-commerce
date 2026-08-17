@@ -1,12 +1,16 @@
-//! Module `stheno-locking`: Distributed locking with Postgres advisory locks, Redis locks, and in-process fallback.
+//! Module `stheno-locking`: Distributed locking with Postgres advisory locks on pinned connections (P14-16, P14-17).
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use diesel::sql_types::{Bool, Text};
+use diesel::QueryableByName;
 use serde::{Deserialize, Serialize};
+use stheno_db::{DbConnection, DbPool};
 use stheno_types::{Error, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +28,12 @@ pub trait LockProvider: Send + Sync {
     async fn is_healthy(&self) -> bool {
         true
     }
+}
+
+#[derive(QueryableByName)]
+struct BoolRow {
+    #[diesel(sql_type = Bool)]
+    value: bool,
 }
 
 // ==========================================
@@ -96,23 +106,19 @@ impl LockProvider for InMemoryLockProvider {
 }
 
 // ==========================================
-// 2. Postgres Advisory Lock Provider
+// 2. Postgres Advisory Lock Provider (P14-16, P14-17)
 // ==========================================
 
 pub struct PostgresAdvisoryLockProvider {
-    in_memory_sim: Arc<InMemoryLockProvider>,
-}
-
-impl Default for PostgresAdvisoryLockProvider {
-    fn default() -> Self {
-        Self::new()
-    }
+    pool: DbPool,
+    pinned_connections: Arc<Mutex<HashMap<String, DbConnection>>>,
 }
 
 impl PostgresAdvisoryLockProvider {
-    pub fn new() -> Self {
+    pub fn new(pool: DbPool) -> Self {
         Self {
-            in_memory_sim: Arc::new(InMemoryLockProvider::new()),
+            pool,
+            pinned_connections: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -124,11 +130,64 @@ impl LockProvider for PostgresAdvisoryLockProvider {
     }
 
     async fn try_acquire(&self, resource: &str, ttl_seconds: u64) -> Result<Option<LockToken>> {
-        self.in_memory_sim.try_acquire(resource, ttl_seconds).await
+        use diesel_async::RunQueryDsl;
+
+        let mut conn = self.pool.get().await.map_err(|e| {
+            Error::Database(format!(
+                "Failed to acquire connection for advisory lock: {e}"
+            ))
+        })?;
+
+        // Try acquire Postgres session-level advisory lock using 64-bit hashtext
+        let rows: Vec<BoolRow> =
+            diesel::sql_query("SELECT pg_try_advisory_lock(hashtext($1)) as value")
+                .bind::<Text, _>(resource)
+                .load(&mut conn)
+                .await
+                .map_err(|e| Error::Database(format!("Failed pg_try_advisory_lock: {e}")))?;
+
+        let acquired = rows.as_slice().first().map(|r| r.value).unwrap_or(false);
+
+        if acquired {
+            let token = ulid::Ulid::new().to_string();
+            let expires_at = Utc::now() + chrono::Duration::seconds(ttl_seconds as i64);
+
+            {
+                let mut map = self.pinned_connections.lock().unwrap();
+                map.insert(token.clone(), conn);
+            }
+
+            Ok(Some(LockToken {
+                resource: resource.to_string(),
+                token,
+                expires_at,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn release(&self, resource: &str, token: &str) -> Result<bool> {
-        self.in_memory_sim.release(resource, token).await
+        use diesel_async::RunQueryDsl;
+
+        let mut conn = {
+            let mut map = self.pinned_connections.lock().unwrap();
+            map.remove(token)
+        };
+
+        if let Some(ref mut c) = conn {
+            let rows: Vec<BoolRow> =
+                diesel::sql_query("SELECT pg_advisory_unlock(hashtext($1)) as value")
+                    .bind::<Text, _>(resource)
+                    .load(&mut **c)
+                    .await
+                    .map_err(|e| Error::Database(format!("Failed pg_advisory_unlock: {e}")))?;
+
+            let released = rows.as_slice().first().map(|r| r.value).unwrap_or(false);
+            Ok(released)
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -138,7 +197,7 @@ impl LockProvider for PostgresAdvisoryLockProvider {
 
 pub struct RedisLockProvider {
     in_memory_sim: Arc<InMemoryLockProvider>,
-    is_outage: Arc<std::sync::atomic::AtomicBool>,
+    is_outage: Arc<AtomicBool>,
 }
 
 impl Default for RedisLockProvider {
@@ -151,13 +210,12 @@ impl RedisLockProvider {
     pub fn new() -> Self {
         Self {
             in_memory_sim: Arc::new(InMemoryLockProvider::new()),
-            is_outage: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            is_outage: Arc::new(AtomicBool::new(false)),
         }
     }
 
     pub fn simulate_outage(&self, outage: bool) {
-        self.is_outage
-            .store(outage, std::sync::atomic::Ordering::SeqCst);
+        self.is_outage.store(outage, Ordering::SeqCst);
     }
 }
 
@@ -168,7 +226,7 @@ impl LockProvider for RedisLockProvider {
     }
 
     async fn is_healthy(&self) -> bool {
-        !self.is_outage.load(std::sync::atomic::Ordering::SeqCst)
+        !self.is_outage.load(Ordering::SeqCst)
     }
 
     async fn try_acquire(&self, resource: &str, ttl_seconds: u64) -> Result<Option<LockToken>> {

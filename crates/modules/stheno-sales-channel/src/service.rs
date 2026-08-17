@@ -1,37 +1,50 @@
-//! SalesChannelService domain service.
+//! SalesChannelService domain service, backed by Postgres (P12-10).
 
 use chrono::Utc;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use stheno_types::{Error, Id, Result};
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
+use stheno_types::{Id, Result};
 
 use crate::dto::*;
 use crate::models::SalesChannel;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SalesChannelService {
-    channels: Arc<RwLock<HashMap<String, SalesChannel>>>,
+    channels: PgCrudRepository<SalesChannel>,
 }
 
 impl SalesChannelService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            channels: PgCrudRepository::new(pool),
+        }
     }
 
     pub async fn create_channel(&self, input: CreateSalesChannelInput) -> Result<SalesChannelDTO> {
         let sc_id = Id::new();
+        let now = Utc::now();
         let sc = SalesChannel {
             id: sc_id,
             name: input.name,
             description: input.description,
             is_disabled: input.is_disabled.unwrap_or(false),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
 
-        let mut map = self.channels.write().unwrap();
-        map.insert(sc.id.to_string(), sc.clone());
+        let created = self.channels.create(None, sc).await?;
+
+        Ok(SalesChannelDTO {
+            id: Id::from_string(created.id.to_string()).unwrap_or_default(),
+            name: created.name,
+            description: created.description,
+            is_disabled: created.is_disabled,
+            created_at: created.created_at,
+        })
+    }
+
+    pub async fn get_channel(&self, id: &str) -> Result<SalesChannelDTO> {
+        let sc = self.channels.retrieve(None, id).await?;
 
         Ok(SalesChannelDTO {
             id: Id::from_string(sc.id.to_string()).unwrap_or_default(),
@@ -42,37 +55,19 @@ impl SalesChannelService {
         })
     }
 
-    pub async fn get_channel(&self, id: &str) -> Result<SalesChannelDTO> {
-        let map = self.channels.read().unwrap();
-        let sc = map
-            .values()
-            .find(|c| {
-                (c.id.to_string() == id || c.id.to_string().ends_with(id)) && c.deleted_at.is_none()
-            })
-            .or_else(|| map.get(id).filter(|c| c.deleted_at.is_none()))
-            .ok_or_else(|| Error::NotFound {
-                entity: "sales_channel",
-                id: id.to_string(),
-            })?;
-
-        Ok(SalesChannelDTO {
-            id: Id::from_string(sc.id.to_string()).unwrap_or_default(),
-            name: sc.name.clone(),
-            description: sc.description.clone(),
-            is_disabled: sc.is_disabled,
-            created_at: sc.created_at,
-        })
-    }
-
     pub async fn list_channels(&self) -> Result<Vec<SalesChannelDTO>> {
-        let map = self.channels.read().unwrap();
-        Ok(map
-            .values()
-            .filter(|c| c.deleted_at.is_none())
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        let list = self.channels.list(None, &filter).await?;
+        Ok(list
+            .into_iter()
             .map(|sc| SalesChannelDTO {
                 id: Id::from_string(sc.id.to_string()).unwrap_or_default(),
-                name: sc.name.clone(),
-                description: sc.description.clone(),
+                name: sc.name,
+                description: sc.description,
                 is_disabled: sc.is_disabled,
                 created_at: sc.created_at,
             })
@@ -80,17 +75,7 @@ impl SalesChannelService {
     }
 
     pub async fn delete_channel(&self, id: &str) -> Result<()> {
-        let mut map = self.channels.write().unwrap();
-        let sc = map
-            .values_mut()
-            .find(|c| {
-                (c.id.to_string() == id || c.id.to_string().ends_with(id)) && c.deleted_at.is_none()
-            })
-            .ok_or_else(|| Error::NotFound {
-                entity: "sales_channel",
-                id: id.to_string(),
-            })?;
-        sc.deleted_at = Some(Utc::now());
-        Ok(())
+        let sc = self.channels.retrieve(None, id).await?;
+        self.channels.soft_delete(None, &sc.id.to_string()).await
     }
 }

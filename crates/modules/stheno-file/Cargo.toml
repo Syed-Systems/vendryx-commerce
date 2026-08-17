@@ -18,3 +18,5 @@ tokio = { workspace = true }
 ulid = { workspace = true }
 chrono = { workspace = true }
 
+[dev-dependencies]
+stheno-db = { workspace = true, features = ["testing"] }

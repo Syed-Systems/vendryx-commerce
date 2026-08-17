@@ -1,10 +1,12 @@
-//! Service layer and evaluation engine for `stheno-promotion` (P4-08 through P4-15).
+//! Service layer and evaluation engine for `stheno-promotion` (P4-08 through P4-15, P13-08, P13-09).
 
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
+use diesel::QueryableByName;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
@@ -13,22 +15,40 @@ use crate::models::{
     PromotionRuleValue,
 };
 
-#[derive(Clone, Default)]
+#[derive(QueryableByName)]
+struct JsonRow {
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    value: String,
+}
+
+#[derive(Clone)]
 pub struct PromotionService {
-    promotions: Arc<RwLock<HashMap<String, Promotion>>>,
-    app_methods: Arc<RwLock<HashMap<String, ApplicationMethod>>>,
-    rules: Arc<RwLock<HashMap<String, Vec<PromotionRule>>>>,
-    rule_values: Arc<RwLock<HashMap<String, Vec<PromotionRuleValue>>>>,
-    campaigns: Arc<RwLock<HashMap<String, Campaign>>>,
-    budgets: Arc<Mutex<HashMap<String, CampaignBudget>>>, // Mutex for atomic budget consumption (P4-13, P4-14)
-    budget_usages: Arc<RwLock<HashMap<String, Vec<CampaignBudgetUsage>>>>,
-    failed_cart_attempts: Arc<RwLock<HashMap<String, Vec<chrono::DateTime<Utc>>>>>,
-    ip_attempts: Arc<RwLock<HashMap<String, Vec<chrono::DateTime<Utc>>>>>,
+    pool: DbPool,
+    promotions: PgCrudRepository<Promotion>,
+    app_methods: PgCrudRepository<ApplicationMethod>,
+    rules: PgCrudRepository<PromotionRule>,
+    rule_values: PgCrudRepository<PromotionRuleValue>,
+    campaigns: PgCrudRepository<Campaign>,
+    budgets: PgCrudRepository<CampaignBudget>,
+    budget_usages: PgCrudRepository<CampaignBudgetUsage>,
+    failed_cart_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
+    ip_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
 }
 
 impl PromotionService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            pool: pool.clone(),
+            promotions: PgCrudRepository::new(pool.clone()),
+            app_methods: PgCrudRepository::new(pool.clone()),
+            rules: PgCrudRepository::new(pool.clone()),
+            rule_values: PgCrudRepository::new(pool.clone()),
+            campaigns: PgCrudRepository::new(pool.clone()),
+            budgets: PgCrudRepository::new(pool.clone()),
+            budget_usages: PgCrudRepository::new(pool),
+            failed_cart_attempts: Arc::new(RwLock::new(HashMap::new())),
+            ip_attempts: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
 
     // ── Promotion CRUD ───────────────────────────────────────────────────────
@@ -51,11 +71,8 @@ impl PromotionService {
             deleted_at: None,
         };
 
-        let promo_id_str = promo.id.to_string();
-        {
-            let mut map = self.promotions.write().unwrap();
-            map.insert(promo_id_str.clone(), promo);
-        }
+        let created = self.promotions.create(None, promo).await?;
+        let promo_id_str = created.id.to_string();
 
         if let Some(app_input) = input.application_method {
             self.create_application_method(&promo_id_str, app_input)
@@ -73,46 +90,43 @@ impl PromotionService {
     }
 
     pub async fn get_promotion(&self, id: &str) -> Result<PromotionDTO> {
-        let promo = {
-            let map = self.promotions.read().unwrap();
-            map.values()
-                .find(|p| {
-                    (p.id.to_string() == id || p.id.to_string().ends_with(id))
-                        && p.deleted_at.is_none()
-                })
-                .cloned()
-                .or_else(|| map.get(id).filter(|p| p.deleted_at.is_none()).cloned())
-                .ok_or_else(|| Error::NotFound {
+        let promo = self
+            .promotions
+            .retrieve(None, id)
+            .await
+            .map_err(|e| match e {
+                Error::NotFound { .. } => Error::NotFound {
                     entity: "promotion",
                     id: id.to_string(),
-                })?
-        };
+                },
+                other => other,
+            })?;
 
         self.hydrate_promotion_dto(&promo).await
     }
 
     pub async fn get_promotion_by_code(&self, code: &str) -> Result<PromotionDTO> {
         let normalized = code.trim().to_uppercase();
-        let promo = {
-            let map = self.promotions.read().unwrap();
-            map.values()
-                .find(|p| constant_time_eq_str(&p.code, &normalized) && p.deleted_at.is_none())
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "promotion",
-                    id: code.to_string(),
-                })?
-        };
+        let spec = FilterSpec::new()
+            .with_predicate("code", FilterOp::Eq(normalized))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let list = self.promotions.list(None, &spec).await?;
+        let promo = list.into_iter().next().ok_or_else(|| Error::NotFound {
+            entity: "promotion",
+            id: code.to_string(),
+        })?;
 
         self.hydrate_promotion_dto(&promo).await
     }
 
     pub async fn list_promotions(&self) -> Result<Vec<PromotionDTO>> {
-        let promos: Vec<Promotion> = {
-            let map = self.promotions.read().unwrap();
-            map.values().filter(|p| p.deleted_at.is_none()).cloned().collect()
-        };
+        let spec = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1000);
 
+        let promos = self.promotions.list(None, &spec).await?;
         let mut list = Vec::new();
         for promo in promos {
             list.push(self.hydrate_promotion_dto(&promo).await?);
@@ -125,57 +139,44 @@ impl PromotionService {
         id: &str,
         input: UpdatePromotionInput,
     ) -> Result<PromotionDTO> {
-        let promo_id_str = {
-            let mut map = self.promotions.write().unwrap();
-            let p = map
-                .values_mut()
-                .find(|p| {
-                    (p.id.to_string() == id || p.id.to_string().ends_with(id))
-                        && p.deleted_at.is_none()
-                })
-                .ok_or_else(|| Error::NotFound {
+        let mut promo = self
+            .promotions
+            .retrieve(None, id)
+            .await
+            .map_err(|e| match e {
+                Error::NotFound { .. } => Error::NotFound {
                     entity: "promotion",
                     id: id.to_string(),
-                })?;
+                },
+                other => other,
+            })?;
 
-            if let Some(code) = input.code {
-                p.code = code.trim().to_uppercase();
-            }
-            if let Some(ptype) = input.promotion_type {
-                p.promotion_type = ptype;
-            }
-            if let Some(is_auto) = input.is_automatic {
-                p.is_automatic = is_auto;
-            }
-            if let Some(camp_id) = input.campaign_id {
-                p.campaign_id = Some(camp_id);
-            }
-            if let Some(status) = input.status {
-                p.status = status;
-            }
-            if let Some(metadata) = input.metadata {
-                p.metadata = Some(metadata);
-            }
-            p.updated_at = Utc::now();
-            p.id.to_string()
-        };
+        if let Some(code) = input.code {
+            promo.code = code.trim().to_uppercase();
+        }
+        if let Some(ptype) = input.promotion_type {
+            promo.promotion_type = ptype;
+        }
+        if let Some(is_auto) = input.is_automatic {
+            promo.is_automatic = is_auto;
+        }
+        if let Some(camp_id) = input.campaign_id {
+            promo.campaign_id = Some(camp_id);
+        }
+        if let Some(status) = input.status {
+            promo.status = status;
+        }
+        if let Some(metadata) = input.metadata {
+            promo.metadata = Some(metadata);
+        }
+        promo.updated_at = Utc::now();
 
-        self.get_promotion(&promo_id_str).await
+        let updated = self.promotions.update(None, id, promo).await?;
+        self.hydrate_promotion_dto(&updated).await
     }
 
     pub async fn delete_promotion(&self, id: &str) -> Result<()> {
-        let mut map = self.promotions.write().unwrap();
-        let p = map
-            .values_mut()
-            .find(|p| {
-                (p.id.to_string() == id || p.id.to_string().ends_with(id)) && p.deleted_at.is_none()
-            })
-            .ok_or_else(|| Error::NotFound {
-                entity: "promotion",
-                id: id.to_string(),
-            })?;
-        p.deleted_at = Some(Utc::now());
-        Ok(())
+        self.promotions.soft_delete(None, id).await.map(|_| ())
     }
 
     // ── Application Method CRUD ──────────────────────────────────────────────
@@ -200,13 +201,11 @@ impl PromotionService {
             metadata: input.metadata,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let app_id_str = app.id.to_string();
-        {
-            let mut map = self.app_methods.write().unwrap();
-            map.insert(promotion_id.to_string(), app);
-        }
+        let created = self.app_methods.create(None, app).await?;
+        let app_id_str = created.id.to_string();
 
         if let Some(target_rules) = input.target_rules {
             for mut r in target_rules {
@@ -228,19 +227,22 @@ impl PromotionService {
     }
 
     pub async fn get_application_method(&self, promotion_id: &str) -> Result<ApplicationMethodDTO> {
-        let app = {
-            let map = self.app_methods.read().unwrap();
-            map.get(promotion_id)
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "application_method",
-                    id: promotion_id.to_string(),
-                })?
-        };
+        let spec = FilterSpec::new()
+            .with_predicate("promotion_id", FilterOp::Eq(promotion_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let list = self.app_methods.list(None, &spec).await?;
+        let app = list.into_iter().next().ok_or_else(|| Error::NotFound {
+            entity: "application_method",
+            id: promotion_id.to_string(),
+        })?;
 
         let app_id_str = app.id.to_string();
-        let target_rules = self.get_rules_for_target(&app_id_str, "target_rules");
-        let buy_rules = self.get_rules_for_target(&app_id_str, "buy_rules");
+        let target_rules = self
+            .get_rules_for_target(&app_id_str, "target_rules")
+            .await?;
+        let buy_rules = self.get_rules_for_target(&app_id_str, "buy_rules").await?;
 
         Ok(ApplicationMethodDTO {
             id: app.id.to_string(),
@@ -280,47 +282,37 @@ impl PromotionService {
             description: input.description,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let rule_id_str = rule.id.to_string();
-        let target_key = promotion_id
-            .or(application_method_id)
-            .unwrap_or_default()
-            .to_string();
-
-        {
-            let mut map = self.rules.write().unwrap();
-            map.entry(target_key).or_default().push(rule.clone());
-        }
+        let created_rule = self.rules.create(None, rule).await?;
+        let rule_id_str = created_rule.id.to_string();
 
         let mut val_dtos = Vec::new();
-        {
-            let mut val_map = self.rule_values.write().unwrap();
-            let list = val_map.entry(rule_id_str.clone()).or_default();
-            for val in input.values {
-                let v = PromotionRuleValue {
-                    id: Id::new(),
-                    promotion_rule_id: rule_id_str.clone(),
-                    value: val.clone(),
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                };
-                list.push(v);
-                val_dtos.push(val);
-            }
+        for val in input.values {
+            let v = PromotionRuleValue {
+                id: Id::new(),
+                promotion_rule_id: rule_id_str.clone(),
+                value: val.clone(),
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                deleted_at: None,
+            };
+            self.rule_values.create(None, v).await?;
+            val_dtos.push(val);
         }
 
         Ok(PromotionRuleDTO {
-            id: rule.id.to_string(),
-            promotion_id: rule.promotion_id,
-            application_method_id: rule.application_method_id,
-            rule_type: rule.rule_type,
-            attribute: rule.attribute,
-            operator: rule.operator,
-            description: rule.description,
+            id: created_rule.id.to_string(),
+            promotion_id: created_rule.promotion_id,
+            application_method_id: created_rule.application_method_id,
+            rule_type: created_rule.rule_type,
+            attribute: created_rule.attribute,
+            operator: created_rule.operator,
+            description: created_rule.description,
             values: val_dtos,
-            created_at: rule.created_at,
-            updated_at: rule.updated_at,
+            created_at: created_rule.created_at,
+            updated_at: created_rule.updated_at,
         })
     }
 
@@ -342,11 +334,8 @@ impl PromotionService {
             deleted_at: None,
         };
 
-        let camp_id_str = camp.id.to_string();
-        {
-            let mut map = self.campaigns.write().unwrap();
-            map.insert(camp_id_str.clone(), camp);
-        }
+        let created = self.campaigns.create(None, camp).await?;
+        let camp_id_str = created.id.to_string();
 
         if let Some(b_input) = input.budget {
             self.create_campaign_budget(&camp_id_str, b_input).await?;
@@ -356,35 +345,42 @@ impl PromotionService {
     }
 
     pub async fn get_campaign(&self, id: &str) -> Result<CampaignDTO> {
-        let camp = {
-            let map = self.campaigns.read().unwrap();
-            map.values()
-                .find(|c| {
-                    (c.id.to_string() == id || c.id.to_string().ends_with(id))
-                        && c.deleted_at.is_none()
-                })
-                .cloned()
-                .or_else(|| map.get(id).filter(|c| c.deleted_at.is_none()).cloned())
-                .ok_or_else(|| Error::NotFound {
+        let camp = match self.campaigns.retrieve(None, id).await {
+            Ok(c) => c,
+            Err(_) => {
+                let spec = FilterSpec::new()
+                    .with_predicate("campaign_identifier", FilterOp::Eq(id.to_uppercase()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 1);
+                let list = self.campaigns.list(None, &spec).await?;
+                list.into_iter().next().ok_or_else(|| Error::NotFound {
                     entity: "campaign",
                     id: id.to_string(),
                 })?
+            }
         };
 
         let camp_id_str = camp.id.to_string();
-        let budget = {
-            let map = self.budgets.lock().unwrap();
-            map.get(&camp_id_str).map(|b| CampaignBudgetDTO {
+        let budget_spec = FilterSpec::new()
+            .with_predicate("campaign_id", FilterOp::Eq(camp_id_str.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+        let budget = self
+            .budgets
+            .list(None, &budget_spec)
+            .await?
+            .into_iter()
+            .next()
+            .map(|b| CampaignBudgetDTO {
                 id: b.id.to_string(),
-                campaign_id: b.campaign_id.clone(),
-                budget_type: b.budget_type.clone(),
+                campaign_id: b.campaign_id,
+                budget_type: b.budget_type,
                 limit: b.limit,
                 used: b.used,
-                currency_code: b.currency_code.clone(),
+                currency_code: b.currency_code,
                 created_at: b.created_at,
                 updated_at: b.updated_at,
-            })
-        };
+            });
 
         Ok(CampaignDTO {
             id: camp.id.to_string(),
@@ -401,17 +397,14 @@ impl PromotionService {
     }
 
     pub async fn list_campaigns(&self) -> Result<Vec<CampaignDTO>> {
-        let ids: Vec<String> = {
-            let map = self.campaigns.read().unwrap();
-            map.values()
-                .filter(|c| c.deleted_at.is_none())
-                .map(|c| c.id.to_string())
-                .collect()
-        };
+        let spec = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1000);
 
+        let campaigns = self.campaigns.list(None, &spec).await?;
         let mut list = Vec::new();
-        for id in ids {
-            list.push(self.get_campaign(&id).await?);
+        for camp in campaigns {
+            list.push(self.get_campaign(&camp.id.to_string()).await?);
         }
         Ok(list)
     }
@@ -421,58 +414,44 @@ impl PromotionService {
         id: &str,
         input: UpdateCampaignInput,
     ) -> Result<CampaignDTO> {
-        let camp_id_str = {
-            let mut map = self.campaigns.write().unwrap();
-            let c = map
-                .values_mut()
-                .find(|c| {
-                    (c.id.to_string() == id || c.id.to_string().ends_with(id))
-                        && c.deleted_at.is_none()
-                })
-                .ok_or_else(|| Error::NotFound {
+        let mut camp = self
+            .campaigns
+            .retrieve(None, id)
+            .await
+            .map_err(|e| match e {
+                Error::NotFound { .. } => Error::NotFound {
                     entity: "campaign",
                     id: id.to_string(),
-                })?;
+                },
+                other => other,
+            })?;
 
-            if let Some(name) = input.name {
-                c.name = name;
-            }
-            if let Some(ci) = input.campaign_identifier {
-                c.campaign_identifier = ci.trim().to_uppercase();
-            }
-            if let Some(s) = input.starts_at {
-                c.starts_at = Some(s);
-            }
-            if let Some(e) = input.ends_at {
-                c.ends_at = Some(e);
-            }
-            if let Some(cur) = input.currency {
-                c.currency = Some(cur.to_lowercase());
-            }
-            if let Some(metadata) = input.metadata {
-                c.metadata = Some(metadata);
-            }
-            c.updated_at = Utc::now();
-            c.id.to_string()
-        };
+        if let Some(name) = input.name {
+            camp.name = name;
+        }
+        if let Some(ci) = input.campaign_identifier {
+            camp.campaign_identifier = ci.trim().to_uppercase();
+        }
+        if let Some(s) = input.starts_at {
+            camp.starts_at = Some(s);
+        }
+        if let Some(e) = input.ends_at {
+            camp.ends_at = Some(e);
+        }
+        if let Some(cur) = input.currency {
+            camp.currency = Some(cur.to_lowercase());
+        }
+        if let Some(metadata) = input.metadata {
+            camp.metadata = Some(metadata);
+        }
+        camp.updated_at = Utc::now();
 
-        self.get_campaign(&camp_id_str).await
+        let updated = self.campaigns.update(None, id, camp).await?;
+        self.get_campaign(&updated.id.to_string()).await
     }
 
     pub async fn delete_campaign(&self, id: &str) -> Result<()> {
-        let mut map = self.campaigns.write().unwrap();
-        let c = map
-            .values_mut()
-            .find(|c| {
-                (c.id.to_string() == id || c.id.to_string().ends_with(id))
-                    && c.deleted_at.is_none()
-            })
-            .ok_or_else(|| Error::NotFound {
-                entity: "campaign",
-                id: id.to_string(),
-            })?;
-        c.deleted_at = Some(Utc::now());
-        Ok(())
+        self.campaigns.soft_delete(None, id).await.map(|_| ())
     }
 
     pub async fn create_campaign_budget(
@@ -490,26 +469,25 @@ impl PromotionService {
             currency_code: input.currency_code.map(|c| c.to_lowercase()),
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = CampaignBudgetDTO {
-            id: budget.id.to_string(),
-            campaign_id: budget.campaign_id.clone(),
-            budget_type: budget.budget_type.clone(),
-            limit: budget.limit,
-            used: budget.used,
-            currency_code: budget.currency_code.clone(),
-            created_at: budget.created_at,
-            updated_at: budget.updated_at,
-        };
+        let created = self.budgets.create(None, budget).await?;
 
-        let mut map = self.budgets.lock().unwrap();
-        map.insert(campaign_id.to_string(), budget);
-        Ok(dto)
+        Ok(CampaignBudgetDTO {
+            id: created.id.to_string(),
+            campaign_id: created.campaign_id,
+            budget_type: created.budget_type,
+            limit: created.limit,
+            used: created.used,
+            currency_code: created.currency_code,
+            created_at: created.created_at,
+            updated_at: created.updated_at,
+        })
     }
 
     /// Atomic campaign budget consumption (P4-13, P4-14, DATA_MODEL §2.5).
-    /// Prevents over-spend/over-use under heavy concurrency.
+    /// Prevents over-spend/over-use under heavy concurrency using atomic SQL UPDATE.
     pub async fn consume_campaign_budget(
         &self,
         campaign_id: &str,
@@ -517,53 +495,83 @@ impl PromotionService {
         order_id: Option<&str>,
         cart_id: Option<&str>,
     ) -> Result<CampaignBudgetUsageDTO> {
-        let mut map = self.budgets.lock().unwrap();
-        let budget = map.get_mut(campaign_id).ok_or_else(|| Error::NotFound {
-            entity: "campaign_budget",
-            id: campaign_id.to_string(),
-        })?;
+        use diesel_async::RunQueryDsl;
 
-        // Atomic check and increment
-        if let Some(limit) = budget.limit {
-            if budget.used + amount > limit {
-                return Err(Error::Conflict {
-                    code: "budget_exhausted",
-                    message: format!(
-                        "Campaign budget exhausted: used {} + requested {} > limit {}",
-                        budget.used, amount, limit
-                    ),
-                });
+        let amount_str = amount.to_string();
+        let cid = campaign_id.to_string();
+        let sql = "UPDATE promotion.campaign_budget AS t \
+                   SET used = used + $1::numeric, updated_at = now() \
+                   WHERE campaign_id = $2 \
+                     AND (\"limit\" IS NULL OR used + $1::numeric <= \"limit\") \
+                     AND deleted_at IS NULL \
+                   RETURNING row_to_json(t)::text AS value";
+
+        let result: std::result::Result<JsonRow, diesel::result::Error> = {
+            let mut conn = self
+                .pool
+                .get()
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+
+            diesel::sql_query(sql)
+                .bind::<diesel::sql_types::Text, _>(&amount_str)
+                .bind::<diesel::sql_types::Text, _>(&cid)
+                .get_result(&mut conn)
+                .await
+        };
+
+        let row = match result {
+            Ok(r) => r,
+            Err(diesel::result::Error::NotFound) => {
+                // Determine if budget is exhausted or does not exist
+                let spec = FilterSpec::new()
+                    .with_predicate("campaign_id", FilterOp::Eq(cid.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 1);
+                let list = self.budgets.list(None, &spec).await?;
+                if let Some(b) = list.into_iter().next() {
+                    return Err(Error::Conflict {
+                        code: "budget_exhausted",
+                        message: format!(
+                            "Campaign budget exhausted: used {} + requested {} > limit {:?}",
+                            b.used, amount, b.limit
+                        ),
+                    });
+                } else {
+                    return Err(Error::NotFound {
+                        entity: "campaign_budget",
+                        id: cid,
+                    });
+                }
             }
-        }
+            Err(other) => return Err(Error::Database(other.to_string())),
+        };
 
-        budget.used += amount;
-        budget.updated_at = Utc::now();
-        let budget_id = budget.id.to_string();
+        let budget: CampaignBudget = serde_json::from_str(&row.value)
+            .map_err(|e| Error::Database(format!("Failed to deserialise budget: {e}")))?;
 
         let usage = CampaignBudgetUsage {
             id: Id::new(),
-            campaign_budget_id: budget_id.clone(),
+            campaign_budget_id: budget.id.to_string(),
             order_id: order_id.map(|s| s.to_string()),
             cart_id: cart_id.map(|s| s.to_string()),
             amount,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = CampaignBudgetUsageDTO {
-            id: usage.id.to_string(),
-            campaign_budget_id: usage.campaign_budget_id.clone(),
-            order_id: usage.order_id.clone(),
-            cart_id: usage.cart_id.clone(),
-            amount: usage.amount,
-            created_at: usage.created_at,
-            updated_at: usage.updated_at,
-        };
+        let created_usage = self.budget_usages.create(None, usage).await?;
 
-        let mut usage_map = self.budget_usages.write().unwrap();
-        usage_map.entry(budget_id).or_default().push(usage);
-
-        Ok(dto)
+        Ok(CampaignBudgetUsageDTO {
+            id: created_usage.id.to_string(),
+            campaign_budget_id: created_usage.campaign_budget_id,
+            order_id: created_usage.order_id,
+            cart_id: created_usage.cart_id,
+            amount: created_usage.amount,
+            created_at: created_usage.created_at,
+            updated_at: created_usage.updated_at,
+        })
     }
 
     // ── Rule Engine (P4-09: 8 Operators) ─────────────────────────────────────
@@ -586,7 +594,10 @@ impl PromotionService {
             "gt" => {
                 if let (Ok(curr), Some(first_target)) = (
                     attr_val.parse::<Decimal>(),
-                    rule.values.first().and_then(|v| v.parse::<Decimal>().ok()),
+                    rule.values
+                        .as_slice()
+                        .first()
+                        .and_then(|v| v.parse::<Decimal>().ok()),
                 ) {
                     curr > first_target
                 } else {
@@ -596,7 +607,10 @@ impl PromotionService {
             "gte" => {
                 if let (Ok(curr), Some(first_target)) = (
                     attr_val.parse::<Decimal>(),
-                    rule.values.first().and_then(|v| v.parse::<Decimal>().ok()),
+                    rule.values
+                        .as_slice()
+                        .first()
+                        .and_then(|v| v.parse::<Decimal>().ok()),
                 ) {
                     curr >= first_target
                 } else {
@@ -606,7 +620,10 @@ impl PromotionService {
             "lt" => {
                 if let (Ok(curr), Some(first_target)) = (
                     attr_val.parse::<Decimal>(),
-                    rule.values.first().and_then(|v| v.parse::<Decimal>().ok()),
+                    rule.values
+                        .as_slice()
+                        .first()
+                        .and_then(|v| v.parse::<Decimal>().ok()),
                 ) {
                     curr < first_target
                 } else {
@@ -616,7 +633,10 @@ impl PromotionService {
             "lte" => {
                 if let (Ok(curr), Some(first_target)) = (
                     attr_val.parse::<Decimal>(),
-                    rule.values.first().and_then(|v| v.parse::<Decimal>().ok()),
+                    rule.values
+                        .as_slice()
+                        .first()
+                        .and_then(|v| v.parse::<Decimal>().ok()),
                 ) {
                     curr <= first_target
                 } else {
@@ -1024,45 +1044,67 @@ impl PromotionService {
 
     // ── Internal Helpers ─────────────────────────────────────────────────────
 
-    fn get_rules_for_target(&self, target_id: &str, rule_type: &str) -> Vec<PromotionRuleDTO> {
-        let map = self.rules.read().unwrap();
-        let val_map = self.rule_values.read().unwrap();
+    async fn get_rules_for_target(
+        &self,
+        target_id: &str,
+        rule_type: &str,
+    ) -> Result<Vec<PromotionRuleDTO>> {
+        let promo_spec = FilterSpec::new()
+            .with_predicate("promotion_id", FilterOp::Eq(target_id.to_string()))
+            .with_predicate("rule_type", FilterOp::Eq(rule_type.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
 
-        map.get(target_id)
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|r| r.rule_type == rule_type)
-            .map(|r| {
-                let rule_id_str = r.id.to_string();
-                let values: Vec<String> = val_map
-                    .get(&rule_id_str)
-                    .cloned()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|v| v.value)
-                    .collect();
+        let app_spec = FilterSpec::new()
+            .with_predicate("application_method_id", FilterOp::Eq(target_id.to_string()))
+            .with_predicate("rule_type", FilterOp::Eq(rule_type.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
 
-                PromotionRuleDTO {
-                    id: rule_id_str,
-                    promotion_id: r.promotion_id,
-                    application_method_id: r.application_method_id,
-                    rule_type: r.rule_type,
-                    attribute: r.attribute,
-                    operator: r.operator,
-                    description: r.description,
-                    values,
-                    created_at: r.created_at,
-                    updated_at: r.updated_at,
-                }
-            })
-            .collect()
+        let mut matched_rules = self.rules.list(None, &promo_spec).await?;
+        let app_matched = self.rules.list(None, &app_spec).await?;
+        matched_rules.extend(app_matched);
+
+        let mut dtos = Vec::new();
+        for r in matched_rules {
+            let rule_id_str = r.id.to_string();
+            let val_spec = FilterSpec::new()
+                .with_predicate("promotion_rule_id", FilterOp::Eq(rule_id_str.clone()))
+                .with_predicate("deleted_at", FilterOp::IsNull)
+                .with_pagination(0, 100);
+
+            let values = self
+                .rule_values
+                .list(None, &val_spec)
+                .await?
+                .into_iter()
+                .map(|v| v.value)
+                .collect();
+
+            dtos.push(PromotionRuleDTO {
+                id: rule_id_str,
+                promotion_id: r.promotion_id,
+                application_method_id: r.application_method_id,
+                rule_type: r.rule_type,
+                attribute: r.attribute,
+                operator: r.operator,
+                description: r.description,
+                values,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+            });
+        }
+
+        Ok(dtos)
     }
 
     async fn hydrate_promotion_dto(&self, promo: &Promotion) -> Result<PromotionDTO> {
         let promo_id_str = promo.id.to_string();
         let application_method = self.get_application_method(&promo_id_str).await.ok();
-        let rules = self.get_rules_for_target(&promo_id_str, "rules");
+        let rules = self
+            .get_rules_for_target(&promo_id_str, "rules")
+            .await
+            .unwrap_or_default();
 
         Ok(PromotionDTO {
             id: promo.id.to_string(),

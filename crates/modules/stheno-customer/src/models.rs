@@ -1,12 +1,13 @@
 //! Internal entity models for stheno-customer.
 //!
-//! Rule 2.9: Entities are strictly pub(crate) and never derive deserialization.
+//! Rule 2.9: Entities are strictly pub(crate).
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use stheno_db::CrudEntity;
 use stheno_types::Id;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Customer {
     pub id: Id<Customer>,
     pub email: String,
@@ -23,7 +24,24 @@ pub(crate) struct Customer {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+impl CrudEntity for Customer {
+    const TABLE: &'static str = "customer.customer";
+    const ENTITY: &'static str = "customer";
+
+    fn id(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CustomerGroup {
     pub id: Id<CustomerGroup>,
     pub name: String,
@@ -33,15 +51,24 @@ pub(crate) struct CustomerGroup {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub(crate) struct CustomerGroupCustomer {
-    pub customer_id: String,
-    pub customer_group_id: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+impl CrudEntity for CustomerGroup {
+    const TABLE: &'static str = "customer.customer_group";
+    const ENTITY: &'static str = "customer_group";
+
+    fn id(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CustomerAddress {
     pub id: Id<CustomerAddress>,
     pub customer_id: String,
@@ -61,4 +88,28 @@ pub(crate) struct CustomerAddress {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
+}
+
+impl CrudEntity for CustomerAddress {
+    const TABLE: &'static str = "customer.customer_address";
+    const ENTITY: &'static str = "customer_address";
+
+    fn id(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    Customer => "cus",
+    CustomerAddress => "cuaddr",
+    CustomerGroup => "cusgroup",
 }

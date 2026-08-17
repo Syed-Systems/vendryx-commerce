@@ -28,5 +28,4 @@ rand = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
-
-
+stheno-db = { workspace = true, features = ["testing"] }

@@ -1,10 +1,14 @@
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_payment::PaymentService;
 use stheno_payment_offline::OfflinePaymentProvider;
 
 #[tokio::test]
 async fn test_webhook_store_and_replay_guard() {
-    let service = PaymentService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PaymentService::new(pool);
     let offline = Arc::new(OfflinePaymentProvider::new(Some("pp_offline_wh")));
     service.register_provider(offline);
 

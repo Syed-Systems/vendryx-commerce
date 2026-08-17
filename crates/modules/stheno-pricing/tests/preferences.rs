@@ -1,9 +1,12 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_pricing::{CreatePriceInput, CreatePriceSetInput, PricingContext, PricingService};
 
 #[tokio::test]
 async fn test_price_preferences_tax_inclusive_resolution() {
-    let service = PricingService::new();
+    let db = TestDb::migrated().await;
+    let service = PricingService::new(create_pool(&db.url, 5).expect("pool"));
 
     // 1. Set EUR in EU region to be tax-inclusive
     service
@@ -79,4 +82,6 @@ async fn test_price_preferences_tax_inclusive_resolution() {
         .expect("must calculate US price");
 
     assert!(!calc_us.is_tax_inclusive, "US price must be tax-exclusive");
+
+    db.drop().await;
 }

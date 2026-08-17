@@ -1,9 +1,13 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_promotion::{CreateCampaignBudgetInput, CreateCampaignInput, PromotionService};
 
 #[tokio::test]
 async fn test_campaign_atomic_budget_consumption() {
-    let service = PromotionService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PromotionService::new(pool);
 
     let camp = service
         .create_campaign(CreateCampaignInput {

@@ -1,5 +1,7 @@
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_payment::{
     AuthorizePaymentSessionInput, CapturePaymentInput, CreatePaymentCollectionInput,
     CreatePaymentSessionInput, PaymentService, RefundPaymentInput,
@@ -8,7 +10,9 @@ use stheno_payment_offline::OfflinePaymentProvider;
 
 #[tokio::test]
 async fn test_payment_all_entities_lifecycle() {
-    let service = PaymentService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PaymentService::new(pool);
     let offline = Arc::new(OfflinePaymentProvider::new(Some("pp_system_default")));
     service.register_provider(offline);
 
@@ -66,12 +70,21 @@ async fn test_payment_all_entities_lifecycle() {
         .expect("capture succeeds");
     assert_eq!(cap1.amount, dec!(100.00));
 
-    // 5. Refund (Partial: $30)
+    // 5. RefundReason & Refund (Partial: $30)
+    let reason_id = service
+        .create_refund_reason(
+            "customer_request",
+            Some("Customer requested return".to_string()),
+            None,
+        )
+        .await
+        .expect("refund reason created");
+
     let ref1 = service
         .refund_payment(RefundPaymentInput {
             payment_id: payment.id.clone(),
             amount: dec!(30.00),
-            refund_reason_id: Some("customer_request".to_string()),
+            refund_reason_id: Some(reason_id),
             note: Some("partial return".to_string()),
             created_by: Some("admin_1".to_string()),
             metadata: None,

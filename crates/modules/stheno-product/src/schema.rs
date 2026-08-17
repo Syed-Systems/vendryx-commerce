@@ -40,6 +40,7 @@ diesel::table! {
         allow_backorder -> Bool,
         manage_inventory -> Bool,
         variant_rank -> Integer,
+        option_values_hash -> Text,
         weight -> Nullable<Numeric>,
         length -> Nullable<Numeric>,
         height -> Nullable<Numeric>,

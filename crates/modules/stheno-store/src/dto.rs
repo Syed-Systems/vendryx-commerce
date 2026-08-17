@@ -42,3 +42,8 @@ pub struct UpdateStoreInput {
     pub supported_locales: Option<Vec<String>>,
     pub default_locale: Option<String>,
 }
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    StoreDTO => "store",
+}

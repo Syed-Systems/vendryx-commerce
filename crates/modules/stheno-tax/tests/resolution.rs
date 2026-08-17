@@ -1,11 +1,15 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_tax::{
     CreateTaxRateInput, CreateTaxRateRuleInput, CreateTaxRegionInput, TaxContext, TaxService,
 };
 
 #[tokio::test]
 async fn test_tax_rate_resolution_hierarchy_rules_combinable() {
-    let service = TaxService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = TaxService::new(pool);
 
     // 1. Create US country-level region
     let us = service
@@ -117,11 +121,15 @@ async fn test_tax_rate_resolution_hierarchy_rules_combinable() {
     assert_eq!(lines_us_generic.len(), 1);
     assert_eq!(lines_us_generic[0].rate, dec!(0));
     assert_eq!(lines_us_generic[0].code, "US_FED");
+
+    db.drop().await;
 }
 
 #[tokio::test]
 async fn test_tax_rate_combinable_rates() {
-    let service = TaxService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = TaxService::new(pool);
 
     // Create region
     let de = service
@@ -174,4 +182,6 @@ async fn test_tax_rate_combinable_rates() {
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0].rate, dec!(0.19));
     assert_eq!(lines[1].rate, dec!(0.005));
+
+    db.drop().await;
 }

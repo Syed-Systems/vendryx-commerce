@@ -5,4 +5,4 @@ pub mod models;
 pub mod service;
 
 pub use dto::*;
-pub use service::{SystemTaxProvider, TaxProviderTrait, TaxService};
+pub use service::{compute_tax_inclusive_reverse, SystemTaxProvider, TaxProviderTrait, TaxService};

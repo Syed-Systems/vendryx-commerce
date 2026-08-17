@@ -1,8 +1,12 @@
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_promotion::{constant_time_eq_str, PromotionService};
 
 #[tokio::test]
 async fn test_promo_code_abuse_limits_and_constant_time_compare() {
-    let service = PromotionService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PromotionService::new(pool);
 
     // 1. Per-cart failed attempts limit (F10, F31): max 5 failed attempts per cart per hour
     let cart_id = "cart_test_abuse";

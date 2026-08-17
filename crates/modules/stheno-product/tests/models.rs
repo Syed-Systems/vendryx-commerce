@@ -54,6 +54,7 @@ fn test_all_12_product_entity_models_instantiation_and_serialization() {
         allow_backorder: false,
         manage_inventory: true,
         variant_rank: 0,
+        option_values_hash: String::new(),
         weight: Some(dec!(520.0)),
         length: None,
         height: None,

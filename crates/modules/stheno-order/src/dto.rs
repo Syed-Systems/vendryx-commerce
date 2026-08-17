@@ -33,7 +33,7 @@ pub struct OrderDTO {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CreateOrderInput {
     pub region_id: Option<String>,
     pub customer_id: Option<String>,

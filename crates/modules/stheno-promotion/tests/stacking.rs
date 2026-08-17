@@ -1,5 +1,7 @@
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_promotion::{
     ApplicationMethodDTO, PromotionDTO, PromotionEvaluationContext, PromotionItemContext,
     PromotionService,
@@ -7,7 +9,9 @@ use stheno_promotion::{
 
 #[tokio::test]
 async fn test_deterministic_stacking_order() {
-    let service = PromotionService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PromotionService::new(pool);
 
     // Item: $100 subtotal
     let context = PromotionEvaluationContext {

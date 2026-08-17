@@ -4,10 +4,14 @@ use stheno_auth::{
     AuthService, AuthenticateInput, CreateIdentityInput, PasswordResetConfirmInput,
     PasswordResetRequestInput,
 };
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_password_reset_token_lifecycle() {
-    let service = AuthService::new(None);
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = AuthService::new(pool, None);
 
     let _identity = service
         .create_identity(CreateIdentityInput {
@@ -66,4 +70,6 @@ async fn test_password_reset_token_lifecycle() {
         .await;
 
     assert!(replay_attempt.is_err());
+
+    db.drop().await;
 }

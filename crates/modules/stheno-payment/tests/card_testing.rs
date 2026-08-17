@@ -1,11 +1,15 @@
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_payment::{CreatePaymentCollectionInput, CreatePaymentSessionInput, PaymentService};
 use stheno_payment_offline::OfflinePaymentProvider;
 
 #[tokio::test]
 async fn test_card_testing_abuse_limits() {
-    let service = PaymentService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PaymentService::new(pool);
     let offline = Arc::new(OfflinePaymentProvider::new(Some("pp_system_default")));
     service.register_provider(offline);
 

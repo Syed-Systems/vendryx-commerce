@@ -1,10 +1,13 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_product::{CreateProductInput, CreateVariantInput, ProductService};
 
 #[tokio::test]
 async fn test_variant_identity_concurrent_creation_no_duplicates() {
-    let service = Arc::new(ProductService::new());
+    let db = TestDb::migrated().await;
+    let service = Arc::new(ProductService::new(create_pool(&db.url, 10).expect("pool")));
     let product = service
         .create_product(CreateProductInput {
             title: "Running Shoe".to_string(),
@@ -47,4 +50,6 @@ async fn test_variant_identity_concurrent_creation_no_duplicates() {
 
     // Verified: Exactly 1 concurrent creation succeeds, preventing duplicate variant option identity
     assert_eq!(success_count.load(Ordering::SeqCst), 1);
+
+    db.drop().await;
 }

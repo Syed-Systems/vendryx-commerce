@@ -126,3 +126,9 @@ impl OrderChange {
         self.confirmed_at = Some(Utc::now());
     }
 }
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    OrderAction => "ordchact",
+    OrderChange => "ordch",
+}

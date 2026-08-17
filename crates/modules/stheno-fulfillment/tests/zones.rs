@@ -1,9 +1,13 @@
 use serde_json::json;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_fulfillment::*;
 
 #[tokio::test]
 async fn test_fulfillment_sets_service_zones_and_geo_zones() {
-    let service = FulfillmentService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = FulfillmentService::new(pool);
 
     // 1. Create fulfillment set
     let set = service
@@ -85,4 +89,6 @@ async fn test_fulfillment_sets_service_zones_and_geo_zones() {
         .expect("set loaded");
     assert_eq!(retrieved_set.service_zones.len(), 1);
     assert_eq!(retrieved_set.service_zones[0].geo_zones.len(), 4);
+
+    db.drop().await;
 }

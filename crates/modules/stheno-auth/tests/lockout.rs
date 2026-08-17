@@ -1,10 +1,14 @@
 //! Test P7-13: Auth brute-force limits and account lockout.
 
 use stheno_auth::{AuthService, AuthenticateInput, CreateIdentityInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_auth_brute_force_lockout_and_unlock() {
-    let service = AuthService::new(None);
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = AuthService::new(pool, None);
 
     let identity = service
         .create_identity(CreateIdentityInput {
@@ -62,4 +66,6 @@ async fn test_auth_brute_force_lockout_and_unlock() {
         .unwrap_err()
         .to_string()
         .contains("Account is temporarily locked"));
+
+    db.drop().await;
 }

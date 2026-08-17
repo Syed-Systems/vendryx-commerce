@@ -1,5 +1,7 @@
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_promotion::{
     ApplicationMethodDTO, PromotionDTO, PromotionEvaluationContext, PromotionItemContext,
     PromotionRuleDTO, PromotionService,
@@ -7,7 +9,9 @@ use stheno_promotion::{
 
 #[tokio::test]
 async fn test_buyget_promotion_evaluation() {
-    let service = PromotionService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PromotionService::new(pool);
 
     // Buy 2 Coffee Bags (cat_coffee), Get 1 Mug (cat_mug) at 100% off (free)
     let promo_buyget = PromotionDTO {

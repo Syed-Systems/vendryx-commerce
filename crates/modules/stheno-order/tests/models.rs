@@ -1,9 +1,13 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_order::*;
 
 #[tokio::test]
 async fn test_order_all_23_entities_lifecycle() {
-    let service = OrderService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = OrderService::new(pool);
 
     // 1. Create order with shipping address, billing address, line items, and shipping methods (version 1)
     let order = service

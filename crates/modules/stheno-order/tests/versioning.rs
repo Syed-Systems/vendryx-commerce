@@ -1,10 +1,14 @@
 use rust_decimal_macros::dec;
 use serde_json::json;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_order::*;
 
 #[tokio::test]
 async fn test_order_versioning_and_historical_snapshot_load() {
-    let service = OrderService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = OrderService::new(pool);
 
     // 1. Create Order at version 1 with 3 units of Item A (total: 150.00)
     let order = service

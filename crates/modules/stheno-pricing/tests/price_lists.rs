@@ -1,12 +1,15 @@
 use chrono::{Duration, Utc};
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_pricing::{
     CreatePriceInput, CreatePriceListInput, CreatePriceSetInput, PricingContext, PricingService,
 };
 
 #[tokio::test]
 async fn test_price_lists_sale_and_override_precedence_and_date_windows() {
-    let service = PricingService::new();
+    let db = TestDb::migrated().await;
+    let service = PricingService::new(create_pool(&db.url, 5).expect("pool"));
     let now = Utc::now();
 
     // 1. Create Active Sale List
@@ -87,4 +90,6 @@ async fn test_price_lists_sale_and_override_precedence_and_date_windows() {
     assert_eq!(calc.calculated_amount, dec!(60.00));
     assert_eq!(calc.original_amount, dec!(100.00));
     assert_eq!(calc.price_list_type.as_deref(), Some("override"));
+
+    db.drop().await;
 }

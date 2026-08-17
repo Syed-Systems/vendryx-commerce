@@ -1,5 +1,7 @@
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_payment::{
     AuthorizePaymentSessionInput, CapturePaymentInput, CreatePaymentCollectionInput,
     CreatePaymentSessionInput, PaymentService, PspReportItem,
@@ -8,7 +10,9 @@ use stheno_payment_offline::OfflinePaymentProvider;
 
 #[tokio::test]
 async fn test_payment_reconciliation_drift_never_auto_corrects() {
-    let service = PaymentService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PaymentService::new(pool);
     let offline = Arc::new(OfflinePaymentProvider::new(Some("stripe")));
     service.register_provider(offline);
 

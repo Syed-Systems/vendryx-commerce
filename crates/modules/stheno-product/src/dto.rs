@@ -78,3 +78,27 @@ pub struct CreateCategoryInput {
     pub parent_category_id: Option<String>,
     pub rank: Option<i32>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProductCollectionDTO {
+    pub id: String,
+    pub title: String,
+    pub handle: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CreateCollectionInput {
+    pub title: String,
+    pub handle: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    ProductCategoryDTO => "pcat",
+    ProductDTO => "prod",
+    ProductVariantDTO => "variant",
+}

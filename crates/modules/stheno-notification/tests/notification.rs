@@ -1,14 +1,18 @@
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_notification::{
     CreateTemplateInput, NotificationProvider, NotificationProviderResult, NotificationService,
     SendNotificationInput,
 };
 use stheno_types::Result;
 
+type SentNotificationRecord = (String, String, Option<String>, String);
+
 struct MockNotificationProvider {
-    sent: Arc<RwLock<Vec<(String, String, Option<String>, String)>>>,
+    sent: Arc<RwLock<Vec<SentNotificationRecord>>>,
 }
 
 #[async_trait]
@@ -44,7 +48,9 @@ impl NotificationProvider for MockNotificationProvider {
 
 #[tokio::test]
 async fn test_notification_template_rendering_and_routing() {
-    let service = NotificationService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = NotificationService::new(pool);
     let sent_log = Arc::new(RwLock::new(Vec::new()));
     let provider = Arc::new(MockNotificationProvider {
         sent: sent_log.clone(),
@@ -97,11 +103,15 @@ async fn test_notification_template_rendering_and_routing() {
     assert!(deliveries[0].delivered_at.is_some());
 
     // 4. Verify sent log
-    let sent = sent_log.read().unwrap();
-    assert_eq!(sent.len(), 1);
-    assert_eq!(sent[0].2.as_deref(), Some("Order #ord_1001 Confirmed"));
-    assert_eq!(
-        sent[0].3,
-        "Hi Alice, thank you for your order #ord_1001 of $49.99!"
-    );
+    {
+        let sent = sent_log.read().unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].2.as_deref(), Some("Order #ord_1001 Confirmed"));
+        assert_eq!(
+            sent[0].3,
+            "Hi Alice, thank you for your order #ord_1001 of $49.99!"
+        );
+    }
+
+    db.drop().await;
 }

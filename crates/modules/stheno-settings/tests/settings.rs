@@ -1,3 +1,5 @@
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_settings::{
     SaveLayoutPreferenceInput, SaveViewConfigInput, SetPropertyLabelInput, SetStoreSettingInput,
     SettingsService,
@@ -5,7 +7,9 @@ use stheno_settings::{
 
 #[tokio::test]
 async fn test_store_settings_view_configs_and_property_labels() {
-    let service = SettingsService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = SettingsService::new(pool);
 
     // 1. Store settings
     let setting = service
@@ -70,4 +74,6 @@ async fn test_store_settings_view_configs_and_property_labels() {
         .unwrap();
 
     assert_eq!(layout.layout_key, "dashboard_widgets");
+
+    db.drop().await;
 }

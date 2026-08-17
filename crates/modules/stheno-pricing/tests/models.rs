@@ -1,9 +1,12 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_pricing::{CreatePriceInput, CreatePriceSetInput, PricingService};
 
 #[tokio::test]
 async fn test_pricing_entity_models_lifecycle() {
-    let service = PricingService::new();
+    let db = TestDb::migrated().await;
+    let service = PricingService::new(create_pool(&db.url, 5).expect("pool"));
 
     let price_set = service
         .create_price_set(CreatePriceSetInput {
@@ -30,4 +33,6 @@ async fn test_pricing_entity_models_lifecycle() {
         .expect("must create price set");
 
     assert!(!price_set.id.to_string().is_empty());
+
+    db.drop().await;
 }

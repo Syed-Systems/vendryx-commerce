@@ -19,3 +19,8 @@ pub struct CreateSalesChannelInput {
     pub description: Option<String>,
     pub is_disabled: Option<bool>,
 }
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    SalesChannelDTO => "sc",
+}

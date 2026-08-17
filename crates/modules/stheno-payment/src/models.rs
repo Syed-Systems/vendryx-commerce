@@ -1,14 +1,15 @@
 //! Payment entity models (DATA_MODEL §2.7, PAYMENTS §2).
 //! 8 core entities + 3 Stheno safety tables.
-//! Strictly `pub(crate)` and serialize-only (AGENTS.md §2.9).
+//! Strictly `pub(crate)` (AGENTS.md §2.9).
 #![allow(dead_code)]
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use stheno_db::CrudEntity;
 use stheno_types::Id;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PaymentCollection {
     pub id: Id<PaymentCollection>,
     pub currency_code: String,
@@ -23,15 +24,16 @@ pub(crate) struct PaymentCollection {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PaymentProvider {
     pub id: String, // e.g. "pp_stripe_stripe"
     pub is_enabled: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PaymentSession {
     pub id: Id<PaymentSession>,
     pub payment_collection_id: String,
@@ -48,7 +50,7 @@ pub(crate) struct PaymentSession {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Payment {
     pub id: Id<Payment>,
     pub payment_collection_id: String,
@@ -65,7 +67,7 @@ pub(crate) struct Payment {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct RefundReason {
     pub id: Id<RefundReason>,
     pub label: String,
@@ -73,9 +75,10 @@ pub(crate) struct RefundReason {
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Capture {
     pub id: Id<Capture>,
     pub payment_id: String,
@@ -83,9 +86,10 @@ pub(crate) struct Capture {
     pub created_by: Option<String>,
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Refund {
     pub id: Id<Refund>,
     pub payment_id: String,
@@ -95,9 +99,10 @@ pub(crate) struct Refund {
     pub created_by: Option<String>,
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct AccountHolder {
     pub id: Id<AccountHolder>,
     pub provider_id: String,
@@ -112,7 +117,7 @@ pub(crate) struct AccountHolder {
 
 // ── 3 Stheno Safety Models (PAYMENTS §2.1, §6, §7, §9) ──────────────────────
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PaymentProviderRequest {
     pub id: Id<PaymentProviderRequest>,
     pub idempotency_key: String,
@@ -127,9 +132,10 @@ pub(crate) struct PaymentProviderRequest {
     pub attempts: i32,
     pub first_sent_at: DateTime<Utc>,
     pub settled_at: Option<DateTime<Utc>>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PaymentWebhookEvent {
     pub id: Id<PaymentWebhookEvent>,
     pub provider_id: String,
@@ -142,9 +148,10 @@ pub(crate) struct PaymentWebhookEvent {
     pub processed_at: Option<DateTime<Utc>>,
     pub error: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PaymentReconciliationRun {
     pub id: Id<PaymentReconciliationRun>,
     pub provider_id: String,
@@ -156,4 +163,80 @@ pub(crate) struct PaymentReconciliationRun {
     pub state: String, // "running", "clean", "drift_found", "failed"
     pub created_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    AccountHolder => "acch",
+    Capture => "capt",
+    Payment => "pay",
+    PaymentCollection => "pay_col",
+    PaymentProviderRequest => "ppreq",
+    PaymentReconciliationRun => "prec",
+    PaymentSession => "payses",
+    PaymentWebhookEvent => "pwhevt",
+    Refund => "ref",
+    RefundReason => "refr",
+}
+
+macro_rules! impl_crud_entity {
+    ($t:ident, $table:literal, $entity:literal) => {
+        impl CrudEntity for $t {
+            const TABLE: &'static str = $table;
+            const ENTITY: &'static str = $entity;
+
+            fn id(&self) -> String {
+                self.id.to_string()
+            }
+            fn is_deleted(&self) -> bool {
+                self.deleted_at.is_some()
+            }
+            fn set_deleted(&mut self, deleted: bool) {
+                self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+            }
+        }
+    };
+}
+
+impl_crud_entity!(
+    PaymentCollection,
+    "payment.payment_collection",
+    "payment_collection"
+);
+impl_crud_entity!(PaymentSession, "payment.payment_session", "payment_session");
+impl_crud_entity!(Payment, "payment.payment", "payment");
+impl_crud_entity!(RefundReason, "payment.refund_reason", "refund_reason");
+impl_crud_entity!(Capture, "payment.capture", "capture");
+impl_crud_entity!(Refund, "payment.refund", "refund");
+impl_crud_entity!(AccountHolder, "payment.account_holder", "account_holder");
+impl_crud_entity!(
+    PaymentProviderRequest,
+    "payment.payment_provider_request",
+    "payment_provider_request"
+);
+impl_crud_entity!(
+    PaymentWebhookEvent,
+    "payment.payment_webhook_event",
+    "payment_webhook_event"
+);
+impl_crud_entity!(
+    PaymentReconciliationRun,
+    "payment.payment_reconciliation_run",
+    "payment_reconciliation_run"
+);
+
+impl CrudEntity for PaymentProvider {
+    const TABLE: &'static str = "payment.payment_provider";
+    const ENTITY: &'static str = "payment_provider";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
 }

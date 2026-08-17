@@ -1,8 +1,8 @@
-//! RBAC Policy Engine: roles, inheritance graph closure, deny-beats-allow & sensitive permissions (P7-18, P7-19).
+//! RBAC Policy Engine: roles, inheritance graph closure, deny-beats-allow & sensitive permissions (P7-18, P7-19, P14-06).
 
 use chrono::Utc;
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, RwLock};
+use std::collections::HashSet;
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::{
@@ -13,36 +13,30 @@ use crate::models::{AuditRecord, Policy, Role, RoleInheritance};
 
 #[derive(Clone)]
 pub struct RbacService {
-    roles: Arc<RwLock<HashMap<String, Role>>>,
-    inheritances: Arc<RwLock<Vec<RoleInheritance>>>,
-    policies: Arc<RwLock<HashMap<String, Policy>>>,
-    audit_log: Arc<RwLock<Vec<AuditRecord>>>,
-}
-
-impl Default for RbacService {
-    fn default() -> Self {
-        let service = Self {
-            roles: Arc::new(RwLock::new(HashMap::new())),
-            inheritances: Arc::new(RwLock::new(Vec::new())),
-            policies: Arc::new(RwLock::new(HashMap::new())),
-            audit_log: Arc::new(RwLock::new(Vec::new())),
-        };
-
-        // Seed default system roles
-        service.seed_default_roles();
-        service
-    }
+    roles: PgCrudRepository<Role>,
+    inheritances: PgCrudRepository<RoleInheritance>,
+    policies: PgCrudRepository<Policy>,
+    audit_log: PgCrudRepository<AuditRecord>,
 }
 
 impl RbacService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            roles: PgCrudRepository::new(pool.clone()),
+            inheritances: PgCrudRepository::new(pool.clone()),
+            policies: PgCrudRepository::new(pool.clone()),
+            audit_log: PgCrudRepository::new(pool),
+        }
     }
 
-    fn seed_default_roles(&self) {
-        let mut r_map = self.roles.write().unwrap();
-        let mut p_map = self.policies.write().unwrap();
-        let mut inh = self.inheritances.write().unwrap();
+    pub async fn seed_default_roles(&self) -> Result<()> {
+        let filter = FilterSpec::new().with_pagination(0, 100);
+        let existing = self.roles.list(None, &filter).await?;
+        if !existing.is_empty() {
+            return Ok(());
+        }
+
+        let now = Utc::now();
 
         // 1. superadmin
         let superadmin = Role {
@@ -51,13 +45,12 @@ impl RbacService {
             description: Some("Full platform super-administrator".to_string()),
             is_system_role: true,
             metadata: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
-        r_map.insert("superadmin".to_string(), superadmin);
+        self.roles.create(None, superadmin).await?;
 
-        // Policy: superadmin allows everything
         let pol_super = Policy {
             id: Id::new(),
             role: "superadmin".to_string(),
@@ -66,36 +59,37 @@ impl RbacService {
             effect: "allow".to_string(),
             is_sensitive: false,
             metadata: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
         };
-        p_map.insert(pol_super.id.to_string(), pol_super);
+        self.policies.create(None, pol_super).await?;
 
-        // 2. admin inherits manager
+        // 2. admin
         let admin = Role {
             id: Id::new(),
             name: "admin".to_string(),
             description: Some("Store administrator".to_string()),
             is_system_role: true,
             metadata: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
-        r_map.insert("admin".to_string(), admin);
+        self.roles.create(None, admin).await?;
 
-        // 3. manager inherits member
+        // 3. manager
         let manager = Role {
             id: Id::new(),
             name: "manager".to_string(),
             description: Some("Store manager".to_string()),
             is_system_role: true,
             metadata: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
-        r_map.insert("manager".to_string(), manager);
+        self.roles.create(None, manager).await?;
 
         // 4. member
         let member = Role {
@@ -104,28 +98,48 @@ impl RbacService {
             description: Some("Store team member".to_string()),
             is_system_role: true,
             metadata: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
-        r_map.insert("member".to_string(), member);
+        self.roles.create(None, member).await?;
 
         // Set inheritance: superadmin -> admin -> manager -> member
-        inh.push(RoleInheritance {
-            parent_role: "admin".to_string(),
-            child_role: "superadmin".to_string(),
-            created_at: Utc::now(),
-        });
-        inh.push(RoleInheritance {
-            parent_role: "manager".to_string(),
-            child_role: "admin".to_string(),
-            created_at: Utc::now(),
-        });
-        inh.push(RoleInheritance {
-            parent_role: "member".to_string(),
-            child_role: "manager".to_string(),
-            created_at: Utc::now(),
-        });
+        self.inheritances
+            .create(
+                None,
+                RoleInheritance {
+                    parent_role: "admin".to_string(),
+                    child_role: "superadmin".to_string(),
+                    created_at: now,
+                    deleted_at: None,
+                },
+            )
+            .await?;
+        self.inheritances
+            .create(
+                None,
+                RoleInheritance {
+                    parent_role: "manager".to_string(),
+                    child_role: "admin".to_string(),
+                    created_at: now,
+                    deleted_at: None,
+                },
+            )
+            .await?;
+        self.inheritances
+            .create(
+                None,
+                RoleInheritance {
+                    parent_role: "member".to_string(),
+                    child_role: "manager".to_string(),
+                    created_at: now,
+                    deleted_at: None,
+                },
+            )
+            .await?;
+
+        Ok(())
     }
 
     // ==========================================
@@ -133,40 +147,48 @@ impl RbacService {
     // ==========================================
 
     pub async fn create_role(&self, input: CreateRoleInput) -> Result<RoleDTO> {
+        let filter = FilterSpec::new()
+            .with_predicate("name", FilterOp::Eq(input.name.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let existing = self.roles.list(None, &filter).await?;
+        if !existing.is_empty() {
+            return Err(Error::Conflict {
+                code: "role_exists",
+                message: format!("Role '{}' already exists", input.name),
+            });
+        }
+
         let id = Id::new();
         let now = Utc::now();
 
-        {
-            let mut r_map = self.roles.write().unwrap();
-            if r_map.contains_key(&input.name) {
-                return Err(Error::Conflict {
-                    code: "role_exists",
-                    message: format!("Role '{}' already exists", input.name),
-                });
-            }
+        let role = Role {
+            id,
+            name: input.name.clone(),
+            description: input.description,
+            is_system_role: input.is_system_role.unwrap_or(false),
+            metadata: input.metadata,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        };
 
-            let role = Role {
-                id,
-                name: input.name.clone(),
-                description: input.description,
-                is_system_role: input.is_system_role.unwrap_or(false),
-                metadata: input.metadata,
-                created_at: now,
-                updated_at: now,
-                deleted_at: None,
-            };
-
-            r_map.insert(input.name.clone(), role);
-        }
+        self.roles.create(None, role).await?;
 
         if let Some(parents) = input.parent_roles {
-            let mut inh = self.inheritances.write().unwrap();
             for parent in &parents {
-                inh.push(RoleInheritance {
-                    parent_role: parent.clone(),
-                    child_role: input.name.clone(),
-                    created_at: now,
-                });
+                self.inheritances
+                    .create(
+                        None,
+                        RoleInheritance {
+                            parent_role: parent.clone(),
+                            child_role: input.name.clone(),
+                            created_at: now,
+                            deleted_at: None,
+                        },
+                    )
+                    .await?;
             }
         }
 
@@ -174,25 +196,23 @@ impl RbacService {
     }
 
     pub async fn get_role(&self, name: &str) -> Result<RoleDTO> {
-        let role = {
-            let r_map = self.roles.read().unwrap();
-            r_map
-                .get(name)
-                .filter(|r| r.deleted_at.is_none())
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "role",
-                    id: name.to_string(),
-                })?
-        };
+        let filter = FilterSpec::new()
+            .with_predicate("name", FilterOp::Eq(name.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
 
-        let parent_roles = {
-            let inh = self.inheritances.read().unwrap();
-            inh.iter()
-                .filter(|i| i.child_role == name)
-                .map(|i| i.parent_role.clone())
-                .collect()
-        };
+        let list = self.roles.list(None, &filter).await?;
+        let role = list.into_iter().next().ok_or_else(|| Error::NotFound {
+            entity: "role",
+            id: name.to_string(),
+        })?;
+
+        let inh_filter = FilterSpec::new()
+            .with_predicate("child_role", FilterOp::Eq(name.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
+        let inheritances = self.inheritances.list(None, &inh_filter).await?;
+        let parent_roles = inheritances.into_iter().map(|i| i.parent_role).collect();
 
         Ok(RoleDTO {
             id: role.id.to_string(),
@@ -207,15 +227,18 @@ impl RbacService {
     }
 
     /// Computes the transitive closure of all roles inherited by the given roles (P7-18).
-    pub fn get_effective_roles(&self, direct_roles: &[String]) -> HashSet<String> {
-        let inh = self.inheritances.read().unwrap();
+    pub async fn get_effective_roles(&self, direct_roles: &[String]) -> Result<HashSet<String>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        let inh = self.inheritances.list(None, &filter).await?;
+
         let mut effective = HashSet::new();
         let mut queue: Vec<String> = direct_roles.to_vec();
 
         while let Some(current) = queue.pop() {
             if effective.insert(current.clone()) {
-                // Find all parent roles inherited by current
-                for edge in inh.iter() {
+                for edge in &inh {
                     if edge.child_role == current && !effective.contains(&edge.parent_role) {
                         queue.push(edge.parent_role.clone());
                     }
@@ -223,7 +246,7 @@ impl RbacService {
             }
         }
 
-        effective
+        Ok(effective)
     }
 
     // ==========================================
@@ -244,35 +267,37 @@ impl RbacService {
             metadata: input.metadata,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         };
 
-        let dto = PolicyDTO {
-            id: id.to_string(),
-            role: policy.role.clone(),
-            resource: policy.resource.clone(),
-            action: policy.action.clone(),
-            effect: policy.effect.clone(),
-            is_sensitive: policy.is_sensitive,
-            metadata: policy.metadata.clone(),
-            created_at: policy.created_at,
-            updated_at: policy.updated_at,
-        };
+        let created = self.policies.create(None, policy).await?;
 
-        let mut p_map = self.policies.write().unwrap();
-        p_map.insert(id.to_string(), policy);
-
-        Ok(dto)
+        Ok(PolicyDTO {
+            id: created.id.to_string(),
+            role: created.role,
+            resource: created.resource,
+            action: created.action,
+            effect: created.effect,
+            is_sensitive: created.is_sensitive,
+            metadata: created.metadata,
+            created_at: created.created_at,
+            updated_at: created.updated_at,
+        })
     }
 
-    pub fn evaluate(&self, input: EvaluatePermissionInput) -> PermissionDecision {
-        let effective_roles = self.get_effective_roles(&input.roles);
-        let p_map = self.policies.read().unwrap();
+    pub async fn evaluate(&self, input: EvaluatePermissionInput) -> Result<PermissionDecision> {
+        let effective_roles = self.get_effective_roles(&input.roles).await?;
+
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        let policies = self.policies.list(None, &filter).await?;
 
         let mut has_explicit_allow = false;
         let mut has_explicit_deny = false;
         let mut requires_mfa = false;
 
-        for policy in p_map.values() {
+        for policy in policies {
             if effective_roles.contains(&policy.role)
                 && self.matches_pattern(&policy.resource, &input.resource)
                 && self.matches_pattern(&policy.action, &input.action)
@@ -322,34 +347,43 @@ impl RbacService {
                     "denied".to_string()
                 },
                 timestamp: Utc::now(),
+                deleted_at: None,
             };
 
-            let mut log = self.audit_log.write().unwrap();
-            log.push(record);
+            let _ = self.audit_log.create(None, record).await;
         }
 
-        PermissionDecision {
+        Ok(PermissionDecision {
             is_allowed,
             reason,
             requires_mfa,
-        }
+        })
     }
 
-    pub fn get_audit_records(&self, actor_id: Option<&str>) -> Vec<AuditRecordDTO> {
-        let log = self.audit_log.read().unwrap();
-        log.iter()
-            .filter(|r| actor_id.map(|a| r.actor_id == a).unwrap_or(true))
+    pub async fn get_audit_records(&self, actor_id: Option<&str>) -> Result<Vec<AuditRecordDTO>> {
+        let mut filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("timestamp", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        if let Some(actor) = actor_id {
+            filter = filter.with_predicate("actor_id", FilterOp::Eq(actor.to_string()));
+        }
+
+        let list = self.audit_log.list(None, &filter).await?;
+        Ok(list
+            .into_iter()
             .map(|r| AuditRecordDTO {
                 id: r.id.to_string(),
-                actor_id: r.actor_id.clone(),
-                role: r.role.clone(),
-                action: r.action.clone(),
-                resource: r.resource.clone(),
+                actor_id: r.actor_id,
+                role: r.role,
+                action: r.action,
+                resource: r.resource,
                 mfa_verified: r.mfa_verified,
-                decision: r.decision.clone(),
+                decision: r.decision,
                 timestamp: r.timestamp,
             })
-            .collect()
+            .collect())
     }
 
     fn matches_pattern(&self, pattern: &str, target: &str) -> bool {

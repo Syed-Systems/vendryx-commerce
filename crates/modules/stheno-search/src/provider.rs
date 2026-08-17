@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use stheno_types::Result;
 
-use crate::models::{SearchDocument, SearchQuery, SearchResult};
+use crate::dto::{SearchDocument, SearchQuery, SearchResult};
 
 #[async_trait]
 pub trait SearchProvider: Send + Sync {

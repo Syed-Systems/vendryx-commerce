@@ -52,3 +52,10 @@ pub struct CreateReservationInput {
     pub quantity: i32,
     pub description: Option<String>,
 }
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    InventoryItemDTO => "iitem",
+    InventoryLevelDTO => "ilev",
+    ReservationItemDTO => "res",
+}

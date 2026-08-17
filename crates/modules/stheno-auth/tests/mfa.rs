@@ -1,10 +1,14 @@
 //! Test P7-09: MFA TOTP factor enrollment, recovery codes, and verification.
 
 use stheno_auth::{AuthService, CreateIdentityInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_mfa_totp_enrollment_and_recovery_codes() {
-    let service = AuthService::new(None);
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = AuthService::new(pool, None);
 
     let identity = service
         .create_identity(CreateIdentityInput {
@@ -52,4 +56,6 @@ async fn test_mfa_totp_enrollment_and_recovery_codes() {
         .await
         .unwrap();
     assert!(second_verified);
+
+    db.drop().await;
 }

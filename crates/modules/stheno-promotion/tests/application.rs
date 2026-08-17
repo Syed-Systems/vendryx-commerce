@@ -1,5 +1,7 @@
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_promotion::{
     ApplicationMethodDTO, PromotionDTO, PromotionEvaluationContext, PromotionItemContext,
     PromotionService, PromotionShippingContext,
@@ -7,7 +9,9 @@ use stheno_promotion::{
 
 #[tokio::test]
 async fn test_application_methods_fixed_and_percentage_across_targets() {
-    let service = PromotionService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PromotionService::new(pool);
 
     let context = PromotionEvaluationContext {
         attributes: HashMap::new(),

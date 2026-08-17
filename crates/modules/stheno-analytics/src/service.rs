@@ -2,34 +2,33 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use chrono::Utc;
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
 use stheno_types::{Id, Result};
 
 use crate::dto::{AnalyticsEventDTO, IdentifyUserInput, TrackEventInput};
 use crate::models::AnalyticsEvent;
 use crate::provider::AnalyticsProvider;
 
-pub struct AnalyticsService {
-    providers: RwLock<HashMap<String, Arc<dyn AnalyticsProvider>>>,
-    events: RwLock<HashMap<String, AnalyticsEvent>>,
-}
+#[derive(Default)]
+struct ProviderRegistry(HashMap<String, Arc<dyn AnalyticsProvider>>);
 
-impl Default for AnalyticsService {
-    fn default() -> Self {
-        Self::new()
-    }
+#[derive(Clone)]
+pub struct AnalyticsService {
+    providers: Arc<RwLock<ProviderRegistry>>,
+    events: PgCrudRepository<AnalyticsEvent>,
 }
 
 impl AnalyticsService {
-    pub fn new() -> Self {
+    pub fn new(pool: DbPool) -> Self {
         Self {
-            providers: RwLock::new(HashMap::new()),
-            events: RwLock::new(HashMap::new()),
+            providers: Arc::new(RwLock::new(ProviderRegistry(HashMap::new()))),
+            events: PgCrudRepository::new(pool),
         }
     }
 
     pub fn register_provider(&self, provider: Arc<dyn AnalyticsProvider>) {
-        let mut map = self.providers.write().unwrap();
-        map.insert(provider.provider_id().to_string(), provider);
+        let mut reg = self.providers.write().unwrap();
+        reg.0.insert(provider.provider_id().to_string(), provider);
     }
 
     pub async fn track_event(&self, input: TrackEventInput) -> Result<AnalyticsEventDTO> {
@@ -42,6 +41,7 @@ impl AnalyticsService {
             distinct_id: input.distinct_id.clone(),
             properties: input.properties.clone(),
             timestamp: now,
+            deleted_at: None,
         };
 
         let dto = AnalyticsEventDTO {
@@ -53,24 +53,27 @@ impl AnalyticsService {
         };
 
         // Broadcast to all registered analytics providers
-        let map = self.providers.read().unwrap();
-        for provider in map.values() {
+        let providers: Vec<Arc<dyn AnalyticsProvider>> = {
+            let reg = self.providers.read().unwrap();
+            reg.0.values().cloned().collect()
+        };
+        for provider in &providers {
             let _ = provider
                 .track(&input.event_name, &input.distinct_id, &input.properties)
                 .await;
         }
 
-        {
-            let mut ev_map = self.events.write().unwrap();
-            ev_map.insert(id.to_string(), event);
-        }
+        self.events.create(None, event).await?;
 
         Ok(dto)
     }
 
     pub async fn identify_user(&self, input: IdentifyUserInput) -> Result<()> {
-        let map = self.providers.read().unwrap();
-        for provider in map.values() {
+        let providers: Vec<Arc<dyn AnalyticsProvider>> = {
+            let reg = self.providers.read().unwrap();
+            reg.0.values().cloned().collect()
+        };
+        for provider in &providers {
             let _ = provider.identify(&input.distinct_id, &input.traits).await;
         }
         Ok(())
@@ -80,18 +83,22 @@ impl AnalyticsService {
         &self,
         distinct_id: &str,
     ) -> Result<Vec<AnalyticsEventDTO>> {
-        let map = self.events.read().unwrap();
-        let list: Vec<AnalyticsEventDTO> = map
-            .values()
-            .filter(|e| e.distinct_id == distinct_id)
+        let filter = FilterSpec::new()
+            .with_predicate("distinct_id", FilterOp::Eq(distinct_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("timestamp", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        let list = self.events.list(None, &filter).await?;
+        Ok(list
+            .into_iter()
             .map(|e| AnalyticsEventDTO {
                 id: e.id.to_string(),
-                event_name: e.event_name.clone(),
-                distinct_id: e.distinct_id.clone(),
-                properties: e.properties.clone(),
+                event_name: e.event_name,
+                distinct_id: e.distinct_id,
+                properties: e.properties,
                 timestamp: e.timestamp,
             })
-            .collect();
-        Ok(list)
+            .collect())
     }
 }

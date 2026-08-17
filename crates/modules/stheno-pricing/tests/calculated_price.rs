@@ -1,10 +1,13 @@
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_pricing::{CreatePriceInput, CreatePriceSetInput, PricingContext, PricingService};
 
 #[tokio::test]
 async fn test_calculated_price_ranking_and_batch_evaluation() {
-    let service = PricingService::new();
+    let db = TestDb::migrated().await;
+    let service = PricingService::new(create_pool(&db.url, 5).expect("pool"));
 
     // 1. Create Price Set 1 (T-Shirt) with Base ($25) and US Region ($20)
     let mut us_rule = HashMap::new();
@@ -72,4 +75,6 @@ async fn test_calculated_price_ranking_and_batch_evaluation() {
 
     // Set 2 gets base price ($60)
     assert_eq!(batch.get(&set2_id).unwrap().calculated_amount, dec!(60.00));
+
+    db.drop().await;
 }

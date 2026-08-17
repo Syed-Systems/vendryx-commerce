@@ -1,10 +1,14 @@
 //! Test P7-11: Anti-enumeration identical responses and timings (F14).
 
 use stheno_auth::{AuthService, AuthenticateInput, PasswordResetRequestInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_anti_enumeration_responses_and_timing() {
-    let service = AuthService::new(None);
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = AuthService::new(pool, None);
 
     // 1. Password reset request for non-existent account returns Ok(None) without leaking account presence
     let res = service
@@ -31,4 +35,6 @@ async fn test_anti_enumeration_responses_and_timing() {
         .to_string()
         .to_lowercase()
         .contains("invalid credentials"));
+
+    db.drop().await;
 }

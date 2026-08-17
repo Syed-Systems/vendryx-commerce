@@ -1,10 +1,14 @@
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_translation::{
     CreateLocaleInput, SetTranslationInput, SetTranslationOverrideInput, TranslationService,
 };
 
 #[tokio::test]
 async fn test_locale_and_scoped_translation_overrides() {
-    let service = TranslationService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = TranslationService::new(pool);
 
     // 1. Create Locale
     let fr = service
@@ -88,4 +92,6 @@ async fn test_locale_and_scoped_translation_overrides() {
         .await;
 
     assert_eq!(fallback, "Black Hoodie Default");
+
+    db.drop().await;
 }

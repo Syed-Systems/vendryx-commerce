@@ -1,27 +1,38 @@
-//! InventoryService with atomic reservations and oversell prevention.
+//! InventoryService with atomic reservations and oversell prevention, backed by Postgres (P12-07, P12-08).
 
 use chrono::Utc;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use stheno_db::diesel::{self, sql_query};
+use stheno_db::diesel_async::RunQueryDsl;
+use stheno_db::{
+    with_transaction, CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection,
+    PgCrudRepository,
+};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
 use crate::models::{InventoryItem, InventoryLevel, ReservationItem};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct InventoryService {
-    items: Arc<Mutex<HashMap<String, InventoryItem>>>,
-    levels: Arc<Mutex<HashMap<String, InventoryLevel>>>, // key: item_id::location_id
-    reservations: Arc<Mutex<HashMap<String, ReservationItem>>>,
+    pool: DbPool,
+    items: PgCrudRepository<InventoryItem>,
+    levels: PgCrudRepository<InventoryLevel>,
+    reservations: PgCrudRepository<ReservationItem>,
 }
 
 impl InventoryService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            items: PgCrudRepository::new(pool.clone()),
+            levels: PgCrudRepository::new(pool.clone()),
+            reservations: PgCrudRepository::new(pool.clone()),
+            pool,
+        }
     }
 
     pub async fn create_item(&self, input: CreateInventoryItemInput) -> Result<InventoryItemDTO> {
         let item_id = Id::new();
+        let now = Utc::now();
         let item = InventoryItem {
             id: item_id,
             sku: input.sku,
@@ -30,19 +41,18 @@ impl InventoryService {
             mid_code: None,
             material: None,
             requires_shipping: input.requires_shipping.unwrap_or(true),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
 
-        let mut map = self.items.lock().unwrap();
-        map.insert(item.id.to_string(), item.clone());
+        let created = self.items.create(None, item).await?;
 
         Ok(InventoryItemDTO {
-            id: Id::from_string(item.id.to_string()).unwrap_or_default(),
-            sku: item.sku,
-            requires_shipping: item.requires_shipping,
-            created_at: item.created_at,
+            id: Id::from_string(created.id.to_string()).unwrap_or_default(),
+            sku: created.sku,
+            requires_shipping: created.requires_shipping,
+            created_at: created.created_at,
         })
     }
 
@@ -51,7 +61,7 @@ impl InventoryService {
         input: CreateInventoryLevelInput,
     ) -> Result<InventoryLevelDTO> {
         let level_id = Id::new();
-        let level_key = format!("{}::{}", input.inventory_item_id, input.location_id);
+        let now = Utc::now();
 
         let level = InventoryLevel {
             id: level_id,
@@ -60,13 +70,42 @@ impl InventoryService {
             stocked_quantity: input.stocked_quantity,
             reserved_quantity: 0,
             incoming_quantity: 0,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
 
-        let mut map = self.levels.lock().unwrap();
-        map.insert(level_key, level.clone());
+        let created = self.levels.create(None, level).await?;
+
+        Ok(InventoryLevelDTO {
+            id: Id::from_string(created.id.to_string()).unwrap_or_default(),
+            inventory_item_id: created.inventory_item_id,
+            location_id: created.location_id,
+            stocked_quantity: created.stocked_quantity,
+            reserved_quantity: created.reserved_quantity,
+            available_quantity: created.stocked_quantity - created.reserved_quantity,
+        })
+    }
+
+    pub async fn get_level(
+        &self,
+        inventory_item_id: &str,
+        location_id: &str,
+    ) -> Result<InventoryLevelDTO> {
+        let filter = FilterSpec::new()
+            .with_predicate(
+                "inventory_item_id",
+                FilterOp::Eq(inventory_item_id.to_string()),
+            )
+            .with_predicate("location_id", FilterOp::Eq(location_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let levels = self.levels.list(None, &filter).await?;
+        let level = levels.into_iter().next().ok_or_else(|| Error::NotFound {
+            entity: "inventory_level",
+            id: format!("{}::{}", inventory_item_id, location_id),
+        })?;
 
         Ok(InventoryLevelDTO {
             id: Id::from_string(level.id.to_string()).unwrap_or_default(),
@@ -78,110 +117,166 @@ impl InventoryService {
         })
     }
 
-    /// Atomically reserves quantity against an inventory level (P2-12, P2-13)
+    /// Atomically reserves quantity against an inventory level (P12-07, P12-08).
+    /// Uses Postgres atomic conditional update to guarantee no overselling under concurrency.
     pub async fn reserve(&self, input: CreateReservationInput) -> Result<ReservationItemDTO> {
-        let level_key = format!("{}::{}", input.inventory_item_id, input.location_id);
-
-        let mut levels = self.levels.lock().unwrap();
-        let level = levels.get_mut(&level_key).ok_or_else(|| Error::NotFound {
-            entity: "inventory_level",
-            id: level_key.clone(),
-        })?;
-
-        let available = level.stocked_quantity - level.reserved_quantity;
-        if available < input.quantity {
-            return Err(Error::Conflict {
-                code: "insufficient_inventory",
-                message: format!(
-                    "Insufficient inventory: requested {}, available {}",
-                    input.quantity, available
-                ),
-            });
-        }
-
-        // Atomically increment reserved quantity
-        level.reserved_quantity += input.quantity;
-        level.updated_at = Utc::now();
+        let mut conn = self
+            .pool
+            .get()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
 
         let res_id = Id::new();
+        let now = Utc::now();
         let reservation = ReservationItem {
             id: res_id,
             line_item_id: input.line_item_id.clone(),
             inventory_item_id: input.inventory_item_id.clone(),
             location_id: input.location_id.clone(),
             quantity: input.quantity,
-            description: input.description,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            description: input.description.clone(),
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
 
-        let mut res_map = self.reservations.lock().unwrap();
-        res_map.insert(reservation.id.to_string(), reservation.clone());
+        let reservations = self.reservations.clone();
+        let item_id = input.inventory_item_id.clone();
+        let loc_id = input.location_id.clone();
+        let qty = input.quantity;
 
-        Ok(ReservationItemDTO {
-            id: Id::from_string(reservation.id.to_string()).unwrap_or_default(),
-            line_item_id: reservation.line_item_id,
-            inventory_item_id: reservation.inventory_item_id,
-            location_id: reservation.location_id,
-            quantity: reservation.quantity,
+        with_transaction(&mut conn, move |mut c| {
+            Box::pin(async move {
+                // Atomic conditional update on inventory_level
+                let update_query = sql_query(
+                    "UPDATE inventory.inventory_level \
+                     SET reserved_quantity = reserved_quantity + $1, updated_at = now() \
+                     WHERE inventory_item_id = $2 AND location_id = $3 AND deleted_at IS NULL \
+                     AND (stocked_quantity - reserved_quantity) >= $1",
+                )
+                .bind::<diesel::sql_types::Integer, _>(qty)
+                .bind::<diesel::sql_types::Text, _>(&item_id)
+                .bind::<diesel::sql_types::Text, _>(&loc_id);
+
+                let updated_rows = update_query
+                    .execute(&mut c)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+
+                if updated_rows == 0 {
+                    return Err(Error::Conflict {
+                        code: "insufficient_inventory",
+                        message: format!("Insufficient inventory: requested {}", qty),
+                    });
+                }
+
+                let created_res = reservations.create(Some(&mut c), reservation).await?;
+                Ok(ReservationItemDTO {
+                    id: Id::from_string(created_res.id.to_string()).unwrap_or_default(),
+                    line_item_id: created_res.line_item_id,
+                    inventory_item_id: created_res.inventory_item_id,
+                    location_id: created_res.location_id,
+                    quantity: created_res.quantity,
+                })
+            })
         })
+        .await
     }
 
     /// Releases a reservation upon cancellation
     pub async fn release_reservation(&self, reservation_id: &str) -> Result<()> {
-        let mut res_map = self.reservations.lock().unwrap();
-        let reservation = res_map
-            .remove(reservation_id)
-            .ok_or_else(|| Error::NotFound {
-                entity: "reservation_item",
-                id: reservation_id.to_string(),
-            })?;
+        let reservation = self.reservations.retrieve(None, reservation_id).await?;
+        let mut conn = self
+            .pool
+            .get()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
 
-        let level_key = format!(
-            "{}::{}",
-            reservation.inventory_item_id, reservation.location_id
-        );
-        let mut levels = self.levels.lock().unwrap();
-        if let Some(level) = levels.get_mut(&level_key) {
-            level.reserved_quantity -= reservation.quantity;
-            level.updated_at = Utc::now();
-        }
+        let reservations = self.reservations.clone();
+        let resid = reservation.id.to_string();
+        let item_id = reservation.inventory_item_id.clone();
+        let loc_id = reservation.location_id.clone();
+        let qty = reservation.quantity;
 
-        Ok(())
+        with_transaction(&mut conn, move |mut c| {
+            Box::pin(async move {
+                sql_query(
+                    "UPDATE inventory.inventory_level \
+                     SET reserved_quantity = GREATEST(0, reserved_quantity - $1), updated_at = now() \
+                     WHERE inventory_item_id = $2 AND location_id = $3",
+                )
+                .bind::<diesel::sql_types::Integer, _>(qty)
+                .bind::<diesel::sql_types::Text, _>(&item_id)
+                .bind::<diesel::sql_types::Text, _>(&loc_id)
+                .execute(&mut c)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+
+                reservations.delete(Some(&mut c), &resid).await?;
+                Ok(())
+            })
+        })
+        .await
     }
 
     /// Fulfills a reservation by decrementing both stocked and reserved quantities
     pub async fn fulfill_reservation(&self, reservation_id: &str) -> Result<()> {
-        let mut res_map = self.reservations.lock().unwrap();
-        let reservation = res_map
-            .remove(reservation_id)
-            .ok_or_else(|| Error::NotFound {
-                entity: "reservation_item",
-                id: reservation_id.to_string(),
-            })?;
+        let reservation = self.reservations.retrieve(None, reservation_id).await?;
+        let mut conn = self
+            .pool
+            .get()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
 
-        let level_key = format!(
-            "{}::{}",
-            reservation.inventory_item_id, reservation.location_id
-        );
-        let mut levels = self.levels.lock().unwrap();
-        if let Some(level) = levels.get_mut(&level_key) {
-            level.stocked_quantity -= reservation.quantity;
-            level.reserved_quantity -= reservation.quantity;
-            level.updated_at = Utc::now();
-        }
+        let reservations = self.reservations.clone();
+        let resid = reservation.id.to_string();
+        let item_id = reservation.inventory_item_id.clone();
+        let loc_id = reservation.location_id.clone();
+        let qty = reservation.quantity;
 
-        Ok(())
+        with_transaction(&mut conn, move |mut c| {
+            Box::pin(async move {
+                sql_query(
+                    "UPDATE inventory.inventory_level \
+                     SET stocked_quantity = GREATEST(0, stocked_quantity - $1), \
+                         reserved_quantity = GREATEST(0, reserved_quantity - $1), \
+                         updated_at = now() \
+                     WHERE inventory_item_id = $2 AND location_id = $3",
+                )
+                .bind::<diesel::sql_types::Integer, _>(qty)
+                .bind::<diesel::sql_types::Text, _>(&item_id)
+                .bind::<diesel::sql_types::Text, _>(&loc_id)
+                .execute(&mut c)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+
+                reservations.delete(Some(&mut c), &resid).await?;
+                Ok(())
+            })
+        })
+        .await
     }
 
     pub async fn get_available_quantity(&self, item_id: &str, location_id: &str) -> Result<i32> {
-        let level_key = format!("{}::{}", item_id, location_id);
-        let levels = self.levels.lock().unwrap();
-        let level = levels.get(&level_key).ok_or_else(|| Error::NotFound {
-            entity: "inventory_level",
-            id: level_key,
-        })?;
-        Ok(level.stocked_quantity - level.reserved_quantity)
+        let level = self.get_level(item_id, location_id).await?;
+        Ok(level.available_quantity)
+    }
+
+    pub async fn list_items(&self) -> Result<Vec<InventoryItemDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        let items = self.items.list(None, &filter).await?;
+        Ok(items
+            .into_iter()
+            .map(|i| InventoryItemDTO {
+                id: Id::from_string(i.id.to_string()).unwrap_or_default(),
+                sku: i.sku,
+                requires_shipping: i.requires_shipping,
+                created_at: i.created_at,
+            })
+            .collect())
     }
 }

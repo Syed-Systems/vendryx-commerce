@@ -1,9 +1,13 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_order::*;
 
 #[tokio::test]
 async fn test_transaction_ledger_and_status_independence() {
-    let service = OrderService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = OrderService::new(pool);
 
     // 1. Create order
     let order = service

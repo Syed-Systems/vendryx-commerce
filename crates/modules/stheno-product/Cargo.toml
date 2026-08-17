@@ -23,4 +23,7 @@ tracing = { workspace = true }
 diesel = { workspace = true, features = ["32-column-tables", "64-column-tables"] }
 
 [dev-dependencies]
+diesel-async = { workspace = true }
+diesel = { workspace = true }
+stheno-db = { workspace = true, features = ["testing"] }
 rust_decimal_macros = { workspace = true }

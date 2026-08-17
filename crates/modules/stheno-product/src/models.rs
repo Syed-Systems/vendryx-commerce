@@ -3,9 +3,11 @@
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use rust_decimal::Decimal;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+
+use stheno_db::CrudEntity;
 
 use crate::schema::{
     product, product_category, product_collection, product_image, product_option,
@@ -54,7 +56,7 @@ impl ProductStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product)]
 pub struct Product {
     pub id: String,
@@ -82,7 +84,7 @@ pub struct Product {
     pub metadata: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_variant)]
 pub struct ProductVariant {
     pub id: String,
@@ -95,6 +97,7 @@ pub struct ProductVariant {
     pub allow_backorder: bool,
     pub manage_inventory: bool,
     pub variant_rank: i32,
+    pub option_values_hash: String,
     pub weight: Option<Decimal>,
     pub length: Option<Decimal>,
     pub height: Option<Decimal>,
@@ -109,7 +112,7 @@ pub struct ProductVariant {
     pub metadata: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_option)]
 pub struct ProductOption {
     pub id: String,
@@ -121,7 +124,7 @@ pub struct ProductOption {
     pub metadata: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_option_value)]
 pub struct ProductOptionValue {
     pub id: String,
@@ -133,7 +136,7 @@ pub struct ProductOptionValue {
     pub metadata: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_product_option)]
 pub struct ProductProductOption {
     pub id: String,
@@ -144,7 +147,7 @@ pub struct ProductProductOption {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_product_option_value)]
 pub struct ProductProductOptionValue {
     pub id: String,
@@ -155,7 +158,7 @@ pub struct ProductProductOptionValue {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_image)]
 pub struct ProductImage {
     pub id: String,
@@ -167,7 +170,7 @@ pub struct ProductImage {
     pub metadata: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_variant_product_image)]
 pub struct ProductVariantProductImage {
     pub id: String,
@@ -178,7 +181,7 @@ pub struct ProductVariantProductImage {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_category)]
 pub struct ProductCategory {
     pub id: String,
@@ -195,7 +198,7 @@ pub struct ProductCategory {
     pub metadata: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_collection)]
 pub struct ProductCollection {
     pub id: String,
@@ -207,7 +210,7 @@ pub struct ProductCollection {
     pub metadata: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_tag)]
 pub struct ProductTag {
     pub id: String,
@@ -218,7 +221,7 @@ pub struct ProductTag {
     pub metadata: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Identifiable)]
 #[diesel(table_name = product_type)]
 pub struct ProductType {
     pub id: String,
@@ -227,4 +230,141 @@ pub struct ProductType {
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
     pub metadata: Option<Value>,
+}
+
+// Repository bindings for every persisted entity (P11-19, P11-20).
+impl CrudEntity for Product {
+    const TABLE: &'static str = "product.product";
+    const ENTITY: &'static str = "product";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+impl CrudEntity for ProductVariant {
+    const TABLE: &'static str = "product.product_variant";
+    const ENTITY: &'static str = "product_variant";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+impl CrudEntity for ProductOption {
+    const TABLE: &'static str = "product.product_option";
+    const ENTITY: &'static str = "product_option";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+impl CrudEntity for ProductOptionValue {
+    const TABLE: &'static str = "product.product_option_value";
+    const ENTITY: &'static str = "product_option_value";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+impl CrudEntity for ProductCategory {
+    const TABLE: &'static str = "product.product_category";
+    const ENTITY: &'static str = "product_category";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+impl CrudEntity for ProductCollection {
+    const TABLE: &'static str = "product.product_collection";
+    const ENTITY: &'static str = "product_collection";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+impl CrudEntity for ProductTag {
+    const TABLE: &'static str = "product.product_tag";
+    const ENTITY: &'static str = "product_tag";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+impl CrudEntity for ProductType {
+    const TABLE: &'static str = "product.product_type";
+    const ENTITY: &'static str = "product_type";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
 }

@@ -1,10 +1,11 @@
-//! Fulfillment service implementation (DATA_MODEL §2.6, TASKS P5-07..P5-13).
+//! Fulfillment service implementation (DATA_MODEL §2.6, TASKS P5-07..P5-13, P13-19, P13-20).
 #![allow(dead_code)]
 
 use chrono::Utc;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
@@ -14,25 +15,40 @@ use crate::models::{
 };
 use crate::provider::FulfillmentProvider;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct FulfillmentService {
     providers: Arc<RwLock<HashMap<String, Arc<dyn FulfillmentProvider>>>>,
-    fulfillment_sets: Arc<RwLock<HashMap<String, FulfillmentSet>>>,
-    service_zones: Arc<RwLock<HashMap<String, ServiceZone>>>,
-    geo_zones: Arc<RwLock<HashMap<String, Vec<GeoZone>>>>, // key: service_zone_id
-    shipping_profiles: Arc<RwLock<HashMap<String, ShippingProfile>>>,
-    shipping_option_types: Arc<RwLock<HashMap<String, ShippingOptionType>>>,
-    shipping_options: Arc<RwLock<HashMap<String, ShippingOption>>>,
-    shipping_option_rules: Arc<RwLock<HashMap<String, Vec<ShippingOptionRule>>>>, // key: shipping_option_id
-    fulfillments: Arc<RwLock<HashMap<String, Fulfillment>>>,
-    fulfillment_items: Arc<RwLock<HashMap<String, Vec<FulfillmentItem>>>>, // key: fulfillment_id
-    fulfillment_labels: Arc<RwLock<HashMap<String, Vec<FulfillmentLabel>>>>, // key: fulfillment_id
-    addresses: Arc<RwLock<HashMap<String, Address>>>,
+    fulfillment_sets: Arc<PgCrudRepository<FulfillmentSet>>,
+    service_zones: Arc<PgCrudRepository<ServiceZone>>,
+    geo_zones: Arc<PgCrudRepository<GeoZone>>,
+    shipping_profiles: Arc<PgCrudRepository<ShippingProfile>>,
+    shipping_option_types: Arc<PgCrudRepository<ShippingOptionType>>,
+    shipping_options: Arc<PgCrudRepository<ShippingOption>>,
+    shipping_option_rules: Arc<PgCrudRepository<ShippingOptionRule>>,
+    fulfillments: Arc<PgCrudRepository<Fulfillment>>,
+    fulfillment_items: Arc<PgCrudRepository<FulfillmentItem>>,
+    fulfillment_labels: Arc<PgCrudRepository<FulfillmentLabel>>,
+    addresses: Arc<PgCrudRepository<Address>>,
+    pool: DbPool,
 }
 
 impl FulfillmentService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            providers: Arc::new(RwLock::new(HashMap::new())),
+            fulfillment_sets: Arc::new(PgCrudRepository::new(pool.clone())),
+            service_zones: Arc::new(PgCrudRepository::new(pool.clone())),
+            geo_zones: Arc::new(PgCrudRepository::new(pool.clone())),
+            shipping_profiles: Arc::new(PgCrudRepository::new(pool.clone())),
+            shipping_option_types: Arc::new(PgCrudRepository::new(pool.clone())),
+            shipping_options: Arc::new(PgCrudRepository::new(pool.clone())),
+            shipping_option_rules: Arc::new(PgCrudRepository::new(pool.clone())),
+            fulfillments: Arc::new(PgCrudRepository::new(pool.clone())),
+            fulfillment_items: Arc::new(PgCrudRepository::new(pool.clone())),
+            fulfillment_labels: Arc::new(PgCrudRepository::new(pool.clone())),
+            addresses: Arc::new(PgCrudRepository::new(pool.clone())),
+            pool,
+        }
     }
 
     // ── Provider Registration (P5-11) ───────────────────────────────────────
@@ -66,24 +82,12 @@ impl FulfillmentService {
             deleted_at: None,
         };
 
-        let dto = Self::to_set_dto(&set, vec![]);
-        {
-            let mut map = self.fulfillment_sets.write().unwrap();
-            map.insert(set.id.to_string(), set);
-        }
-
-        Ok(dto)
+        let created = self.fulfillment_sets.create(None, set).await?;
+        Ok(Self::to_set_dto(&created, vec![]))
     }
 
     pub async fn get_fulfillment_set(&self, id: &str) -> Result<FulfillmentSetDTO> {
-        let set = {
-            let map = self.fulfillment_sets.read().unwrap();
-            map.get(id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "fulfillment_set",
-                id: id.to_string(),
-            })?
-        };
-
+        let set = self.fulfillment_sets.retrieve(None, id).await?;
         let zones = self.list_service_zones_for_set(id).await?;
         Ok(Self::to_set_dto(&set, zones))
     }
@@ -102,19 +106,14 @@ impl FulfillmentService {
             deleted_at: None,
         };
 
-        let dto = Self::to_zone_dto(&zone, vec![], vec![]);
-        {
-            let mut map = self.service_zones.write().unwrap();
-            map.insert(zone.id.to_string(), zone);
-        }
-
-        Ok(dto)
+        let created = self.service_zones.create(None, zone).await?;
+        Ok(Self::to_zone_dto(&created, vec![], vec![]))
     }
 
     pub async fn create_geo_zone(&self, input: CreateGeoZoneInput) -> Result<GeoZoneDTO> {
         let gz = GeoZone {
             id: Id::new(),
-            service_zone_id: input.service_zone_id.clone(),
+            service_zone_id: input.service_zone_id,
             r#type: input.r#type,
             country_code: input.country_code.to_lowercase(),
             province_code: input.province_code.map(|p| p.to_lowercase()),
@@ -123,38 +122,41 @@ impl FulfillmentService {
             metadata: input.metadata,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = Self::to_geo_zone_dto(&gz);
-        {
-            let mut map = self.geo_zones.write().unwrap();
-            map.entry(input.service_zone_id).or_default().push(gz);
-        }
-
-        Ok(dto)
+        let created = self.geo_zones.create(None, gz).await?;
+        Ok(Self::to_geo_zone_dto(&created))
     }
 
     async fn list_service_zones_for_set(&self, set_id: &str) -> Result<Vec<ServiceZoneDTO>> {
-        let zones = {
-            let map = self.service_zones.read().unwrap();
-            map.values()
-                .filter(|z| z.fulfillment_set_id == set_id && z.deleted_at.is_none())
-                .cloned()
-                .collect::<Vec<_>>()
-        };
+        let zones = self
+            .service_zones
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("fulfillment_set_id", FilterOp::Eq(set_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
         let mut res = Vec::new();
         for z in zones {
             let zone_id = z.id.to_string();
-            let geo_zones = {
-                let map = self.geo_zones.read().unwrap();
-                map.get(&zone_id)
-                    .cloned()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|gz| Self::to_geo_zone_dto(&gz))
-                    .collect()
-            };
+            let geo_zones = self
+                .geo_zones
+                .list(
+                    None,
+                    &FilterSpec::new()
+                        .with_predicate("service_zone_id", FilterOp::Eq(zone_id.clone()))
+                        .with_predicate("deleted_at", FilterOp::IsNull)
+                        .with_pagination(0, 100),
+                )
+                .await?
+                .into_iter()
+                .map(|gz| Self::to_geo_zone_dto(&gz))
+                .collect();
             let shipping_options = self.list_shipping_options_for_zone(&zone_id).await?;
             res.push(Self::to_zone_dto(&z, geo_zones, shipping_options));
         }
@@ -178,13 +180,8 @@ impl FulfillmentService {
             deleted_at: None,
         };
 
-        let dto = Self::to_profile_dto(&sp);
-        {
-            let mut map = self.shipping_profiles.write().unwrap();
-            map.insert(sp.id.to_string(), sp);
-        }
-
-        Ok(dto)
+        let created = self.shipping_profiles.create(None, sp).await?;
+        Ok(Self::to_profile_dto(&created))
     }
 
     pub async fn create_shipping_option_type(
@@ -202,13 +199,8 @@ impl FulfillmentService {
             deleted_at: None,
         };
 
-        let dto = Self::to_type_dto(&sot);
-        {
-            let mut map = self.shipping_option_types.write().unwrap();
-            map.insert(sot.id.to_string(), sot);
-        }
-
-        Ok(dto)
+        let created = self.shipping_option_types.create(None, sot).await?;
+        Ok(Self::to_type_dto(&created))
     }
 
     pub async fn create_shipping_option(
@@ -230,13 +222,8 @@ impl FulfillmentService {
             deleted_at: None,
         };
 
-        let dto = Self::to_shipping_option_dto(&so, vec![]);
-        {
-            let mut map = self.shipping_options.write().unwrap();
-            map.insert(so.id.to_string(), so);
-        }
-
-        Ok(dto)
+        let created = self.shipping_options.create(None, so).await?;
+        Ok(Self::to_shipping_option_dto(&created, vec![]))
     }
 
     pub async fn add_shipping_option_rule(
@@ -245,48 +232,51 @@ impl FulfillmentService {
     ) -> Result<ShippingOptionRuleDTO> {
         let rule = ShippingOptionRule {
             id: Id::new(),
-            shipping_option_id: input.shipping_option_id.clone(),
+            shipping_option_id: input.shipping_option_id,
             attribute: input.attribute,
             operator: input.operator,
             value: input.value,
             metadata: input.metadata,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = Self::to_rule_dto(&rule);
-        {
-            let mut map = self.shipping_option_rules.write().unwrap();
-            map.entry(input.shipping_option_id).or_default().push(rule);
-        }
-
-        Ok(dto)
+        let created = self.shipping_option_rules.create(None, rule).await?;
+        Ok(Self::to_rule_dto(&created))
     }
 
     async fn list_shipping_options_for_zone(
         &self,
         zone_id: &str,
     ) -> Result<Vec<ShippingOptionDTO>> {
-        let options = {
-            let map = self.shipping_options.read().unwrap();
-            map.values()
-                .filter(|so| so.service_zone_id == zone_id && so.deleted_at.is_none())
-                .cloned()
-                .collect::<Vec<_>>()
-        };
+        let options = self
+            .shipping_options
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("service_zone_id", FilterOp::Eq(zone_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
         let mut res = Vec::new();
         for so in options {
             let so_id = so.id.to_string();
-            let rules = {
-                let map = self.shipping_option_rules.read().unwrap();
-                map.get(&so_id)
-                    .cloned()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|r| Self::to_rule_dto(&r))
-                    .collect()
-            };
+            let rules = self
+                .shipping_option_rules
+                .list(
+                    None,
+                    &FilterSpec::new()
+                        .with_predicate("shipping_option_id", FilterOp::Eq(so_id.clone()))
+                        .with_predicate("deleted_at", FilterOp::IsNull)
+                        .with_pagination(0, 100),
+                )
+                .await?
+                .into_iter()
+                .map(|r| Self::to_rule_dto(&r))
+                .collect();
             res.push(Self::to_shipping_option_dto(&so, rules));
         }
 
@@ -297,53 +287,40 @@ impl FulfillmentService {
         &self,
         filter: ShippingOptionFilter,
     ) -> Result<(Vec<ShippingOptionDTO>, usize)> {
-        let options = {
-            let map = self.shipping_options.read().unwrap();
-            let mut list: Vec<_> = map
-                .values()
-                .filter(|so| {
-                    if so.deleted_at.is_some() {
-                        return false;
-                    }
-                    if let Some(ref zid) = filter.service_zone_id {
-                        if &so.service_zone_id != zid {
-                            return false;
-                        }
-                    }
-                    if let Some(ref pid) = filter.shipping_profile_id {
-                        if &so.shipping_profile_id != pid {
-                            return false;
-                        }
-                    }
-                    true
-                })
-                .cloned()
-                .collect();
-            list.sort_by_key(|b| std::cmp::Reverse(b.created_at));
-            list
-        };
+        let mut spec = FilterSpec::new().with_predicate("deleted_at", FilterOp::IsNull);
+        if let Some(zid) = filter.service_zone_id {
+            spec = spec.with_predicate("service_zone_id", FilterOp::Eq(zid));
+        }
+        if let Some(pid) = filter.shipping_profile_id {
+            spec = spec.with_predicate("shipping_profile_id", FilterOp::Eq(pid));
+        }
 
-        let total = options.len();
         let offset = filter.offset.unwrap_or(0);
         let limit = filter.limit.unwrap_or(20);
+        spec = spec.with_pagination(offset, limit);
 
-        let paged: Vec<_> = options.into_iter().skip(offset).take(limit).collect();
+        let (options, total) = self.shipping_options.list_and_count(None, &spec).await?;
+
         let mut dtos = Vec::new();
-        for so in paged {
+        for so in options {
             let so_id = so.id.to_string();
-            let rules = {
-                let map = self.shipping_option_rules.read().unwrap();
-                map.get(&so_id)
-                    .cloned()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|r| Self::to_rule_dto(&r))
-                    .collect()
-            };
+            let rules = self
+                .shipping_option_rules
+                .list(
+                    None,
+                    &FilterSpec::new()
+                        .with_predicate("shipping_option_id", FilterOp::Eq(so_id.clone()))
+                        .with_predicate("deleted_at", FilterOp::IsNull)
+                        .with_pagination(0, 100),
+                )
+                .await?
+                .into_iter()
+                .map(|r| Self::to_rule_dto(&r))
+                .collect();
             dtos.push(Self::to_shipping_option_dto(&so, rules));
         }
 
-        Ok((dtos, total))
+        Ok((dtos, total as usize))
     }
 
     // ── 3. Eligible Option Resolution (P5-10) ────────────────────────────────
@@ -357,23 +334,27 @@ impl FulfillmentService {
         // 1. Match Geo Zones
         if let Some(target_country) = &ctx.country_code {
             let target_country = target_country.to_lowercase();
-            let gz_map = self.geo_zones.read().unwrap();
+            let geo_list = self
+                .geo_zones
+                .list(
+                    None,
+                    &FilterSpec::new()
+                        .with_predicate("country_code", FilterOp::Eq(target_country.clone()))
+                        .with_predicate("deleted_at", FilterOp::IsNull)
+                        .with_pagination(0, 100),
+                )
+                .await?;
 
-            for (zone_id, geo_list) in gz_map.iter() {
-                for gz in geo_list {
-                    if gz.country_code == target_country {
-                        if let (Some(target_prov), Some(gz_prov)) =
-                            (&ctx.province_code, &gz.province_code)
-                        {
-                            if target_prov.to_lowercase() == gz_prov.to_lowercase() {
-                                eligible_zone_ids.push(zone_id.clone());
-                                break;
-                            }
-                        } else {
-                            eligible_zone_ids.push(zone_id.clone());
-                            break;
-                        }
+            for gz in geo_list {
+                if let (Some(target_prov), Some(gz_prov)) = (&ctx.province_code, &gz.province_code)
+                {
+                    if target_prov.to_lowercase() == gz_prov.to_lowercase()
+                        && !eligible_zone_ids.contains(&gz.service_zone_id)
+                    {
+                        eligible_zone_ids.push(gz.service_zone_id.clone());
                     }
+                } else if !eligible_zone_ids.contains(&gz.service_zone_id) {
+                    eligible_zone_ids.push(gz.service_zone_id.clone());
                 }
             }
         }
@@ -430,18 +411,12 @@ impl FulfillmentService {
         shipping_option_id: &str,
         calc_ctx: Option<&CalculatePriceContext>,
     ) -> Result<Decimal> {
-        let so = {
-            let map = self.shipping_options.read().unwrap();
-            map.get(shipping_option_id)
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "shipping_option",
-                    id: shipping_option_id.to_string(),
-                })?
-        };
+        let so = self
+            .shipping_options
+            .retrieve(None, shipping_option_id)
+            .await?;
 
         if so.price_type == "flat" {
-            // Flat rate default from data or zero
             return Ok(so
                 .data
                 .as_ref()
@@ -475,7 +450,7 @@ impl FulfillmentService {
 
         let mut delivery_address_id = None;
         if let Some(addr_input) = input.delivery_address {
-            let addr = self.create_address_internal(addr_input);
+            let addr = self.create_address_internal(addr_input).await?;
             delivery_address_id = Some(addr.id.to_string());
         }
 
@@ -497,120 +472,89 @@ impl FulfillmentService {
         };
 
         let ful_id_str = ful.id.to_string();
+        let created_ful = self.fulfillments.create(None, ful).await?;
 
         // Add items
         let mut items = Vec::new();
-        {
-            let mut map = self.fulfillment_items.write().unwrap();
-            let list = map.entry(ful_id_str.clone()).or_default();
-
-            for item_input in input.items {
-                let fi = FulfillmentItem {
-                    id: Id::new(),
-                    fulfillment_id: ful_id_str.clone(),
-                    title: item_input.title,
-                    sku: item_input.sku,
-                    barcode: item_input.barcode,
-                    line_item_id: item_input.line_item_id,
-                    inventory_item_id: item_input.inventory_item_id,
-                    quantity: item_input.quantity,
-                    metadata: item_input.metadata,
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                };
-                items.push(Self::to_item_dto(&fi));
-                list.push(fi);
-            }
+        for item_input in input.items {
+            let fi = FulfillmentItem {
+                id: Id::new(),
+                fulfillment_id: ful_id_str.clone(),
+                title: item_input.title,
+                sku: item_input.sku,
+                barcode: item_input.barcode,
+                line_item_id: item_input.line_item_id,
+                inventory_item_id: item_input.inventory_item_id,
+                quantity: item_input.quantity,
+                metadata: item_input.metadata,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                deleted_at: None,
+            };
+            let created_item = self.fulfillment_items.create(None, fi).await?;
+            items.push(Self::to_item_dto(&created_item));
         }
 
         // Add labels
         let mut labels = Vec::new();
-        {
-            let mut map = self.fulfillment_labels.write().unwrap();
-            let list = map.entry(ful_id_str.clone()).or_default();
+        let all_labels = if !response.labels.is_empty() {
+            response.labels
+        } else {
+            input.labels.unwrap_or_default()
+        };
 
-            // From provider response or input
-            let all_labels = if !response.labels.is_empty() {
-                response.labels
-            } else {
-                input.labels.unwrap_or_default()
+        for l_input in all_labels {
+            let fl = FulfillmentLabel {
+                id: Id::new(),
+                fulfillment_id: ful_id_str.clone(),
+                tracking_number: l_input.tracking_number,
+                tracking_url: l_input.tracking_url,
+                label_url: l_input.label_url,
+                metadata: l_input.metadata,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                deleted_at: None,
             };
-
-            for l_input in all_labels {
-                let fl = FulfillmentLabel {
-                    id: Id::new(),
-                    fulfillment_id: ful_id_str.clone(),
-                    tracking_number: l_input.tracking_number,
-                    tracking_url: l_input.tracking_url,
-                    label_url: l_input.label_url,
-                    metadata: l_input.metadata,
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                    deleted_at: None,
-                };
-                labels.push(Self::to_label_dto(&fl));
-                list.push(fl);
-            }
+            let created_label = self.fulfillment_labels.create(None, fl).await?;
+            labels.push(Self::to_label_dto(&created_label));
         }
 
-        let dto = Self::to_fulfillment_dto(&ful, None, items, labels);
+        let address = if let Some(addr_id) = &created_ful.delivery_address_id {
+            self.addresses
+                .retrieve(None, addr_id)
+                .await
+                .ok()
+                .map(|a| Self::to_address_dto(&a))
+        } else {
+            None
+        };
 
-        {
-            let mut map = self.fulfillments.write().unwrap();
-            map.insert(ful_id_str, ful);
-        }
-
-        Ok(dto)
+        Ok(Self::to_fulfillment_dto(
+            &created_ful,
+            address,
+            items,
+            labels,
+        ))
     }
 
     pub async fn mark_as_shipped(&self, id: &str) -> Result<FulfillmentDTO> {
-        let mut ful = {
-            let map = self.fulfillments.read().unwrap();
-            map.get(id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "fulfillment",
-                id: id.to_string(),
-            })?
-        };
-
+        let mut ful = self.fulfillments.retrieve(None, id).await?;
         ful.shipped_at = Some(Utc::now());
         ful.updated_at = Utc::now();
-
-        {
-            let mut map = self.fulfillments.write().unwrap();
-            map.insert(id.to_string(), ful);
-        }
-
+        self.fulfillments.update(None, id, ful).await?;
         self.get_fulfillment(id).await
     }
 
     pub async fn mark_as_delivered(&self, id: &str) -> Result<FulfillmentDTO> {
-        let mut ful = {
-            let map = self.fulfillments.read().unwrap();
-            map.get(id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "fulfillment",
-                id: id.to_string(),
-            })?
-        };
-
+        let mut ful = self.fulfillments.retrieve(None, id).await?;
         ful.delivered_at = Some(Utc::now());
         ful.updated_at = Utc::now();
-
-        {
-            let mut map = self.fulfillments.write().unwrap();
-            map.insert(id.to_string(), ful);
-        }
-
+        self.fulfillments.update(None, id, ful).await?;
         self.get_fulfillment(id).await
     }
 
     pub async fn cancel_fulfillment(&self, id: &str) -> Result<FulfillmentDTO> {
-        let mut ful = {
-            let map = self.fulfillments.read().unwrap();
-            map.get(id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "fulfillment",
-                id: id.to_string(),
-            })?
-        };
+        let mut ful = self.fulfillments.retrieve(None, id).await?;
 
         if ful.canceled_at.is_some() {
             return Err(Error::Conflict {
@@ -624,47 +568,47 @@ impl FulfillmentService {
 
         ful.canceled_at = Some(Utc::now());
         ful.updated_at = Utc::now();
-
-        {
-            let mut map = self.fulfillments.write().unwrap();
-            map.insert(id.to_string(), ful);
-        }
-
+        self.fulfillments.update(None, id, ful).await?;
         self.get_fulfillment(id).await
     }
 
     pub async fn get_fulfillment(&self, id: &str) -> Result<FulfillmentDTO> {
-        let ful = {
-            let map = self.fulfillments.read().unwrap();
-            map.get(id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "fulfillment",
-                id: id.to_string(),
-            })?
-        };
+        let ful = self.fulfillments.retrieve(None, id).await?;
 
-        let items = {
-            let map = self.fulfillment_items.read().unwrap();
-            map.get(id)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|i| Self::to_item_dto(&i))
-                .collect()
-        };
+        let items = self
+            .fulfillment_items
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("fulfillment_id", FilterOp::Eq(id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?
+            .into_iter()
+            .map(|i| Self::to_item_dto(&i))
+            .collect();
 
-        let labels = {
-            let map = self.fulfillment_labels.read().unwrap();
-            map.get(id)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|l| Self::to_label_dto(&l))
-                .collect()
-        };
+        let labels = self
+            .fulfillment_labels
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("fulfillment_id", FilterOp::Eq(id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?
+            .into_iter()
+            .map(|l| Self::to_label_dto(&l))
+            .collect();
 
         let address = if let Some(addr_id) = &ful.delivery_address_id {
-            let map = self.addresses.read().unwrap();
-            map.get(addr_id).map(Self::to_address_dto)
+            self.addresses
+                .retrieve(None, addr_id)
+                .await
+                .ok()
+                .map(|a| Self::to_address_dto(&a))
         } else {
             None
         };
@@ -674,7 +618,7 @@ impl FulfillmentService {
 
     // ── Internal Helpers ────────────────────────────────────────────────────
 
-    fn create_address_internal(&self, input: CreateAddressInput) -> Address {
+    async fn create_address_internal(&self, input: CreateAddressInput) -> Result<Address> {
         let addr = Address {
             id: Id::new(),
             customer_id: input.customer_id,
@@ -694,9 +638,7 @@ impl FulfillmentService {
             deleted_at: None,
         };
 
-        let mut map = self.addresses.write().unwrap();
-        map.insert(addr.id.to_string(), addr.clone());
-        addr
+        self.addresses.create(None, addr).await
     }
 
     fn to_set_dto(s: &FulfillmentSet, zones: Vec<ServiceZoneDTO>) -> FulfillmentSetDTO {

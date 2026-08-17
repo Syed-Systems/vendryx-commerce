@@ -1,10 +1,13 @@
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_pricing::{CreatePriceInput, CreatePriceSetInput, PricingContext, PricingService};
 
 #[tokio::test]
 async fn test_price_rules_count_and_specificity_ranking() {
-    let service = PricingService::new();
+    let db = TestDb::migrated().await;
+    let service = PricingService::new(create_pool(&db.url, 5).expect("pool"));
 
     let mut general_rules = HashMap::new();
     general_rules.insert("region_id".to_string(), "reg_us".to_string());
@@ -85,4 +88,6 @@ async fn test_price_rules_count_and_specificity_ranking() {
 
     assert_eq!(regular_calc.calculated_amount, dec!(90.00));
     assert_eq!(regular_calc.matched_rules_count, 1);
+
+    db.drop().await;
 }

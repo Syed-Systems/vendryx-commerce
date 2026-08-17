@@ -1,9 +1,13 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_order::*;
 
 #[tokio::test]
 async fn test_order_summary_computation_from_transactions_and_items() {
-    let service = OrderService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = OrderService::new(pool);
 
     // 1. Create order with 1 item of $100 and $10 shipping -> total $110
     let order = service

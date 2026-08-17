@@ -1,4 +1,6 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_tax::{
     CreateTaxRateInput, CreateTaxRegionInput, SystemTaxProvider, TaxContext, TaxProviderTrait,
     TaxService,
@@ -6,7 +8,9 @@ use stheno_tax::{
 
 #[tokio::test]
 async fn test_system_tax_provider_trait() {
-    let service = TaxService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = TaxService::new(pool);
 
     // Setup: UK region with 20% VAT
     let uk = service
@@ -54,4 +58,6 @@ async fn test_system_tax_provider_trait() {
 
     assert_eq!(results[1].len(), 1);
     assert_eq!(results[1][0].rate, dec!(0.20));
+
+    db.drop().await;
 }

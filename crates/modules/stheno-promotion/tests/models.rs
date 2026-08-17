@@ -1,4 +1,6 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_promotion::{
     CreateApplicationMethodInput, CreateCampaignBudgetInput, CreateCampaignInput,
     CreatePromotionInput, CreatePromotionRuleInput, PromotionService,
@@ -6,7 +8,9 @@ use stheno_promotion::{
 
 #[tokio::test]
 async fn test_promotion_all_7_entities_lifecycle() {
-    let service = PromotionService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PromotionService::new(pool);
 
     // 1. Campaign & 2. CampaignBudget
     let campaign = service

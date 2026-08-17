@@ -1,13 +1,16 @@
 use chrono::{Duration, Utc};
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_pricing::{
     CreatePriceInput, CreatePriceListInput, CreatePriceSetInput, PricingContext, PricingService,
 };
 
 #[tokio::test]
 async fn test_pricing_fixture_corpus_medusa_v2_parity() {
-    let service = PricingService::new();
+    let db = TestDb::migrated().await;
+    let service = PricingService::new(create_pool(&db.url, 5).expect("pool"));
     let now = Utc::now();
 
     // 1. Create Sale List & Override List
@@ -140,4 +143,6 @@ async fn test_pricing_fixture_corpus_medusa_v2_parity() {
         .await
         .unwrap();
     assert_eq!(calc_tier.calculated_amount, dec!(90.00));
+
+    db.drop().await;
 }

@@ -1,11 +1,10 @@
-//! Service layer for `stheno-tax` (P3-12 through P3-15).
+//! Service layer for `stheno-tax`, backed by Postgres (P12-11).
 //! Hierarchical regions, rate resolution, tax-inclusive reverse computation, TaxProvider trait.
 
 use chrono::Utc;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
@@ -44,33 +43,100 @@ impl TaxProviderTrait for SystemTaxProvider {
 
 // ── TaxService ───────────────────────────────────────────────────────────────
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct TaxService {
-    regions: Arc<RwLock<HashMap<String, TaxRegion>>>,
-    rates: Arc<RwLock<HashMap<String, TaxRate>>>,
-    rules: Arc<RwLock<HashMap<String, Vec<TaxRateRule>>>>, // tax_rate_id -> rules
+    regions: PgCrudRepository<TaxRegion>,
+    rates: PgCrudRepository<TaxRate>,
+    rules: PgCrudRepository<TaxRateRule>,
 }
 
 impl TaxService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            regions: PgCrudRepository::new(pool.clone()),
+            rates: PgCrudRepository::new(pool.clone()),
+            rules: PgCrudRepository::new(pool),
+        }
     }
 
     pub async fn create_tax_region(&self, input: CreateTaxRegionInput) -> Result<TaxRegionDTO> {
         let id: Id<TaxRegion> = Id::new();
+        let now = Utc::now();
         let region = TaxRegion {
             id,
             country_code: input.country_code.to_lowercase(),
             province_code: input.province_code.map(|s| s.to_lowercase()),
             parent_id: input.parent_id,
             provider_id: input.provider_id,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
 
-        let mut map = self.regions.write().unwrap();
-        map.insert(region.id.to_string(), region.clone());
+        let created = self.regions.create(None, region).await?;
+
+        Ok(TaxRegionDTO {
+            id: Id::from_string(created.id.to_string()).unwrap_or_default(),
+            country_code: created.country_code,
+            province_code: created.province_code,
+            parent_id: created.parent_id,
+            provider_id: created.provider_id,
+            created_at: created.created_at,
+        })
+    }
+
+    pub async fn create_tax_rate(&self, input: CreateTaxRateInput) -> Result<TaxRateDTO> {
+        let id: Id<TaxRate> = Id::new();
+        let id_str = id.to_string();
+        let now = Utc::now();
+
+        let rate = TaxRate {
+            id,
+            tax_region_id: input.tax_region_id.clone(),
+            rate: input.rate,
+            code: input.code.clone(),
+            name: input.name.clone(),
+            is_default: input.is_default.unwrap_or(false),
+            is_combinable: input.is_combinable.unwrap_or(false),
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        };
+
+        let created = self.rates.create(None, rate).await?;
+
+        if let Some(input_rules) = &input.rules {
+            let mut rule_entities = Vec::new();
+            for r in input_rules {
+                rule_entities.push(TaxRateRule {
+                    id: Id::new(),
+                    tax_rate_id: id_str.clone(),
+                    reference: r.reference.clone(),
+                    reference_id: r.reference_id.clone(),
+                    created_at: now,
+                    updated_at: now,
+                    deleted_at: None,
+                });
+            }
+            if !rule_entities.is_empty() {
+                self.rules.create_many(None, rule_entities).await?;
+            }
+        }
+
+        Ok(TaxRateDTO {
+            id: Id::from_string(created.id.to_string()).unwrap_or_default(),
+            tax_region_id: created.tax_region_id,
+            rate: created.rate,
+            code: created.code,
+            name: created.name,
+            is_default: created.is_default,
+            is_combinable: created.is_combinable,
+            created_at: created.created_at,
+        })
+    }
+
+    pub async fn get_tax_region(&self, id: &str) -> Result<TaxRegionDTO> {
+        let region = self.regions.retrieve(None, id).await?;
 
         Ok(TaxRegionDTO {
             id: Id::from_string(region.id.to_string()).unwrap_or_default(),
@@ -82,42 +148,49 @@ impl TaxService {
         })
     }
 
-    pub async fn create_tax_rate(&self, input: CreateTaxRateInput) -> Result<TaxRateDTO> {
-        let id: Id<TaxRate> = Id::new();
-        let id_str = id.to_string();
+    pub async fn update_tax_region(
+        &self,
+        id: &str,
+        input: UpdateTaxRegionInput,
+    ) -> Result<TaxRegionDTO> {
+        let mut region = self.regions.retrieve(None, id).await?;
 
-        let rate = TaxRate {
-            id,
-            tax_region_id: input.tax_region_id.clone(),
-            rate: input.rate,
-            code: input.code.clone(),
-            name: input.name.clone(),
-            is_default: input.is_default.unwrap_or(false),
-            is_combinable: input.is_combinable.unwrap_or(false),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            deleted_at: None,
-        };
-
-        if let Some(input_rules) = &input.rules {
-            let mut rule_entities = Vec::new();
-            for r in input_rules {
-                rule_entities.push(TaxRateRule {
-                    id: Id::new(),
-                    tax_rate_id: id_str.clone(),
-                    reference: r.reference.clone(),
-                    reference_id: r.reference_id.clone(),
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                    deleted_at: None,
-                });
-            }
-            let mut rules_map = self.rules.write().unwrap();
-            rules_map.insert(id_str.clone(), rule_entities);
+        if let Some(c) = input.country_code {
+            region.country_code = c.to_lowercase();
         }
+        if input.province_code.is_some() {
+            region.province_code = input.province_code.map(|s| s.to_lowercase());
+        }
+        if input.parent_id.is_some() {
+            region.parent_id = input.parent_id;
+        }
+        if input.provider_id.is_some() {
+            region.provider_id = input.provider_id;
+        }
+        region.updated_at = Utc::now();
 
-        let mut map = self.rates.write().unwrap();
-        map.insert(id_str, rate.clone());
+        let updated = self
+            .regions
+            .update(None, &region.id.to_string(), region)
+            .await?;
+
+        Ok(TaxRegionDTO {
+            id: Id::from_string(updated.id.to_string()).unwrap_or_default(),
+            country_code: updated.country_code,
+            province_code: updated.province_code,
+            parent_id: updated.parent_id,
+            provider_id: updated.provider_id,
+            created_at: updated.created_at,
+        })
+    }
+
+    pub async fn delete_tax_region(&self, id: &str) -> Result<()> {
+        let region = self.regions.retrieve(None, id).await?;
+        self.regions.soft_delete(None, &region.id.to_string()).await
+    }
+
+    pub async fn get_tax_rate(&self, id: &str) -> Result<TaxRateDTO> {
+        let rate = self.rates.retrieve(None, id).await?;
 
         Ok(TaxRateDTO {
             id: Id::from_string(rate.id.to_string()).unwrap_or_default(),
@@ -131,157 +204,43 @@ impl TaxService {
         })
     }
 
-    pub async fn get_tax_region(&self, id: &str) -> Result<TaxRegionDTO> {
-        let map = self.regions.read().unwrap();
-        let region = map
-            .values()
-            .find(|r| {
-                (r.id.to_string() == id || r.id.to_string().ends_with(id)) && r.deleted_at.is_none()
-            })
-            .or_else(|| map.get(id).filter(|r| r.deleted_at.is_none()))
-            .ok_or_else(|| Error::NotFound {
-                entity: "tax_region",
-                id: id.to_string(),
-            })?;
+    pub async fn update_tax_rate(&self, id: &str, input: UpdateTaxRateInput) -> Result<TaxRateDTO> {
+        let mut rate = self.rates.retrieve(None, id).await?;
 
-        Ok(TaxRegionDTO {
-            id: Id::from_string(region.id.to_string()).unwrap_or_default(),
-            country_code: region.country_code.clone(),
-            province_code: region.province_code.clone(),
-            parent_id: region.parent_id.clone(),
-            provider_id: region.provider_id.clone(),
-            created_at: region.created_at,
-        })
-    }
+        if let Some(r) = input.rate {
+            rate.rate = r;
+        }
+        if let Some(c) = input.code {
+            rate.code = c;
+        }
+        if let Some(n) = input.name {
+            rate.name = n;
+        }
+        if let Some(d) = input.is_default {
+            rate.is_default = d;
+        }
+        if let Some(comb) = input.is_combinable {
+            rate.is_combinable = comb;
+        }
+        rate.updated_at = Utc::now();
 
-    pub async fn update_tax_region(
-        &self,
-        id: &str,
-        input: UpdateTaxRegionInput,
-    ) -> Result<TaxRegionDTO> {
-        let reg_id_str = {
-            let mut map = self.regions.write().unwrap();
-            let region = map
-                .values_mut()
-                .find(|r| {
-                    (r.id.to_string() == id || r.id.to_string().ends_with(id))
-                        && r.deleted_at.is_none()
-                })
-                .ok_or_else(|| Error::NotFound {
-                    entity: "tax_region",
-                    id: id.to_string(),
-                })?;
-
-            if let Some(c) = input.country_code {
-                region.country_code = c.to_lowercase();
-            }
-            if input.province_code.is_some() {
-                region.province_code = input.province_code.map(|s| s.to_lowercase());
-            }
-            if input.parent_id.is_some() {
-                region.parent_id = input.parent_id;
-            }
-            if input.provider_id.is_some() {
-                region.provider_id = input.provider_id;
-            }
-            region.updated_at = Utc::now();
-            region.id.to_string()
-        };
-
-        self.get_tax_region(&reg_id_str).await
-    }
-
-    pub async fn delete_tax_region(&self, id: &str) -> Result<()> {
-        let mut map = self.regions.write().unwrap();
-        let region = map
-            .values_mut()
-            .find(|r| {
-                (r.id.to_string() == id || r.id.to_string().ends_with(id)) && r.deleted_at.is_none()
-            })
-            .ok_or_else(|| Error::NotFound {
-                entity: "tax_region",
-                id: id.to_string(),
-            })?;
-
-        region.deleted_at = Some(Utc::now());
-        Ok(())
-    }
-
-    pub async fn get_tax_rate(&self, id: &str) -> Result<TaxRateDTO> {
-        let map = self.rates.read().unwrap();
-        let rate = map
-            .values()
-            .find(|r| {
-                (r.id.to_string() == id || r.id.to_string().ends_with(id)) && r.deleted_at.is_none()
-            })
-            .or_else(|| map.get(id).filter(|r| r.deleted_at.is_none()))
-            .ok_or_else(|| Error::NotFound {
-                entity: "tax_rate",
-                id: id.to_string(),
-            })?;
+        let updated = self.rates.update(None, &rate.id.to_string(), rate).await?;
 
         Ok(TaxRateDTO {
-            id: Id::from_string(rate.id.to_string()).unwrap_or_default(),
-            tax_region_id: rate.tax_region_id.clone(),
-            rate: rate.rate,
-            code: rate.code.clone(),
-            name: rate.name.clone(),
-            is_default: rate.is_default,
-            is_combinable: rate.is_combinable,
-            created_at: rate.created_at,
+            id: Id::from_string(updated.id.to_string()).unwrap_or_default(),
+            tax_region_id: updated.tax_region_id,
+            rate: updated.rate,
+            code: updated.code,
+            name: updated.name,
+            is_default: updated.is_default,
+            is_combinable: updated.is_combinable,
+            created_at: updated.created_at,
         })
-    }
-
-    pub async fn update_tax_rate(&self, id: &str, input: UpdateTaxRateInput) -> Result<TaxRateDTO> {
-        let rate_id_str = {
-            let mut map = self.rates.write().unwrap();
-            let rate = map
-                .values_mut()
-                .find(|r| {
-                    (r.id.to_string() == id || r.id.to_string().ends_with(id))
-                        && r.deleted_at.is_none()
-                })
-                .ok_or_else(|| Error::NotFound {
-                    entity: "tax_rate",
-                    id: id.to_string(),
-                })?;
-
-            if let Some(r) = input.rate {
-                rate.rate = r;
-            }
-            if let Some(c) = input.code {
-                rate.code = c;
-            }
-            if let Some(n) = input.name {
-                rate.name = n;
-            }
-            if let Some(d) = input.is_default {
-                rate.is_default = d;
-            }
-            if let Some(comb) = input.is_combinable {
-                rate.is_combinable = comb;
-            }
-            rate.updated_at = Utc::now();
-            rate.id.to_string()
-        };
-
-        self.get_tax_rate(&rate_id_str).await
     }
 
     pub async fn delete_tax_rate(&self, id: &str) -> Result<()> {
-        let mut map = self.rates.write().unwrap();
-        let rate = map
-            .values_mut()
-            .find(|r| {
-                (r.id.to_string() == id || r.id.to_string().ends_with(id)) && r.deleted_at.is_none()
-            })
-            .ok_or_else(|| Error::NotFound {
-                entity: "tax_rate",
-                id: id.to_string(),
-            })?;
-
-        rate.deleted_at = Some(Utc::now());
-        Ok(())
+        let rate = self.rates.retrieve(None, id).await?;
+        self.rates.soft_delete(None, &rate.id.to_string()).await
     }
 
     pub async fn create_tax_rate_rule(
@@ -290,63 +249,58 @@ impl TaxService {
         input: CreateTaxRateRuleInput,
     ) -> Result<TaxRateRuleDTO> {
         let id: Id<TaxRateRule> = Id::new();
+        let now = Utc::now();
         let rule = TaxRateRule {
             id,
             tax_rate_id: tax_rate_id.to_string(),
             reference: input.reference.clone(),
             reference_id: input.reference_id.clone(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
 
-        let mut rules_map = self.rules.write().unwrap();
-        rules_map
-            .entry(tax_rate_id.to_string())
-            .or_default()
-            .push(rule.clone());
+        let created = self.rules.create(None, rule).await?;
 
         Ok(TaxRateRuleDTO {
-            id: Id::from_string(rule.id.to_string()).unwrap_or_default(),
-            tax_rate_id: rule.tax_rate_id,
-            reference: rule.reference,
-            reference_id: rule.reference_id,
+            id: Id::from_string(created.id.to_string()).unwrap_or_default(),
+            tax_rate_id: created.tax_rate_id,
+            reference: created.reference,
+            reference_id: created.reference_id,
         })
     }
 
-    pub async fn delete_tax_rate_rule(&self, tax_rate_id: &str, rule_id: &str) -> Result<()> {
-        let mut rules_map = self.rules.write().unwrap();
-        if let Some(list) = rules_map.get_mut(tax_rate_id) {
-            list.retain(|r| r.id.to_string() != rule_id);
-        }
-        Ok(())
+    pub async fn delete_tax_rate_rule(&self, _tax_rate_id: &str, rule_id: &str) -> Result<()> {
+        self.rules.delete(None, rule_id).await
     }
 
-    /// Rate resolution (P3-13):
+    /// Rate resolution (P3-13, P12-11):
     /// 1. Find the most specific region (province > country).
     /// 2. Check for specific rules matching the item (product_id, product_type_id, etc.).
     /// 3. Fall back to the default rate for the region.
     /// 4. If `is_combinable`, return all combinable rates + the matched rate.
     pub async fn resolve_tax_lines(&self, ctx: &TaxContext) -> Result<Vec<TaxLine>> {
-        let regions_map = self.regions.read().unwrap();
-        let rates_map = self.rates.read().unwrap();
-        let rules_map = self.rules.read().unwrap();
+        let country_lower = ctx.country_code.to_lowercase();
+        let prov_lower = ctx.province_code.as_ref().map(|s| s.to_lowercase());
 
-        // Step 1: Find the most specific region (province first, then country)
-        let mut best_region: Option<&TaxRegion> = None;
+        // Find candidate regions
+        let filter = FilterSpec::new()
+            .with_predicate("country_code", FilterOp::Eq(country_lower.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
 
-        for r in regions_map.values().filter(|r| r.deleted_at.is_none()) {
-            if r.country_code == ctx.country_code.to_lowercase() {
-                if let Some(prov) = &ctx.province_code {
-                    if r.province_code.as_deref() == Some(&prov.to_lowercase()) {
-                        best_region = Some(r);
-                        break; // Province match is most specific
-                    }
-                }
-                // Country-level match (no province on region)
-                if r.province_code.is_none() && best_region.is_none() {
+        let candidate_regions = self.regions.list(None, &filter).await?;
+
+        let mut best_region: Option<TaxRegion> = None;
+        for r in candidate_regions {
+            if let Some(p) = &prov_lower {
+                if r.province_code.as_deref() == Some(p) {
                     best_region = Some(r);
+                    break;
                 }
+            }
+            if r.province_code.is_none() && best_region.is_none() {
+                best_region = Some(r);
             }
         }
 
@@ -357,21 +311,36 @@ impl TaxService {
 
         let region_id = region.id.to_string();
 
-        // Step 2: Collect all rates for this region
-        let region_rates: Vec<&TaxRate> = rates_map
-            .values()
-            .filter(|r| r.tax_region_id == region_id && r.deleted_at.is_none())
-            .collect();
+        // Load rates for this region
+        let rate_filter = FilterSpec::new()
+            .with_predicate("tax_region_id", FilterOp::Eq(region_id.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
 
-        // Step 3: Find the best matching rate
+        let region_rates = self.rates.list(None, &rate_filter).await?;
+        let rate_ids: Vec<String> = region_rates.iter().map(|r| r.id.to_string()).collect();
+
+        // Load rules for these rates
+        let rules = if !rate_ids.is_empty() {
+            let rule_filter = FilterSpec::new()
+                .with_predicate("tax_rate_id", FilterOp::In(rate_ids))
+                .with_predicate("deleted_at", FilterOp::IsNull)
+                .with_pagination(0, 100);
+            self.rules.list(None, &rule_filter).await?
+        } else {
+            Vec::new()
+        };
+
+        // Step 3: Find best matching rate
         let mut matched_rate: Option<&TaxRate> = None;
         let mut combinable_rates: Vec<&TaxRate> = Vec::new();
 
         for rate in &region_rates {
             let rate_id = rate.id.to_string();
+            let rate_rules: Vec<&TaxRateRule> =
+                rules.iter().filter(|r| r.tax_rate_id == rate_id).collect();
 
-            // Check if rate has rules that match the context
-            if let Some(rate_rules) = rules_map.get(&rate_id) {
+            if !rate_rules.is_empty() {
                 let mut any_match = false;
                 for rule in rate_rules {
                     let matches = match rule.reference.as_str() {
@@ -413,7 +382,6 @@ impl TaxService {
                 provider_id: region.provider_id.clone(),
             });
 
-            // Add combinable rates that are different from the matched one
             for cr in &combinable_rates {
                 if cr.id.to_string() != rate.id.to_string() {
                     lines.push(TaxLine {
@@ -430,13 +398,13 @@ impl TaxService {
         // If no rate matched, check parent region
         if lines.is_empty() {
             if let Some(parent_id) = &region.parent_id {
-                let parent_rates: Vec<&TaxRate> = rates_map
-                    .values()
-                    .filter(|r| {
-                        r.tax_region_id == *parent_id && r.deleted_at.is_none() && r.is_default
-                    })
-                    .collect();
+                let parent_rate_filter = FilterSpec::new()
+                    .with_predicate("tax_region_id", FilterOp::Eq(parent_id.clone()))
+                    .with_predicate("is_default", FilterOp::Eq(true.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 10);
 
+                let parent_rates = self.rates.list(None, &parent_rate_filter).await?;
                 if let Some(parent_rate) = parent_rates.first() {
                     lines.push(TaxLine {
                         rate: parent_rate.rate,
@@ -462,17 +430,24 @@ impl TaxService {
         rate: Decimal,
         precision: u32,
     ) -> TaxInclusiveBreakdown {
-        let one = dec!(1);
-        let divisor = one + rate;
-        // ponytail: Decimal division is exact to 28 significant digits.
-        // For any reasonable money amount this is precise.
-        let subtotal = (total_inclusive / divisor).round_dp(precision);
-        let tax_total = total_inclusive - subtotal;
-        TaxInclusiveBreakdown {
-            subtotal,
-            tax_total,
-            total: total_inclusive,
-            rate,
-        }
+        compute_tax_inclusive_reverse(total_inclusive, rate, precision)
+    }
+}
+
+/// Standalone Tax-inclusive reverse computation (P3-14).
+pub fn compute_tax_inclusive_reverse(
+    total_inclusive: Decimal,
+    rate: Decimal,
+    precision: u32,
+) -> TaxInclusiveBreakdown {
+    let one = dec!(1);
+    let divisor = one + rate;
+    let subtotal = (total_inclusive / divisor).round_dp(precision);
+    let tax_total = total_inclusive - subtotal;
+    TaxInclusiveBreakdown {
+        subtotal,
+        tax_total,
+        total: total_inclusive,
+        rate,
     }
 }

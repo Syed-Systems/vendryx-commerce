@@ -18,7 +18,10 @@ rust_decimal = { workspace = true }
 rust_decimal_macros = { workspace = true }
 chrono = { workspace = true }
 ulid = { workspace = true }
+diesel = { workspace = true }
+diesel-async = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
+stheno-db = { workspace = true, features = ["testing"] }
 

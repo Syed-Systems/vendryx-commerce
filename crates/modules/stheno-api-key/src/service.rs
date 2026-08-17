@@ -1,25 +1,26 @@
-//! API Key Service managing publishable and secret keys, scoping and validation (P7-16).
+//! API Key Service managing publishable and secret keys, scoping and validation (P7-16, P14-05).
 
 use chrono::Utc;
 use rand::Rng;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use stheno_types::{Error, Id, Result};
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
+use stheno_types::{Id, Result};
 
 use crate::dto::{
     ApiKeyDTO, CreateApiKeyInput, CreatedApiKeyResponse, UpdateApiKeyInput, ValidateKeyResult,
 };
 use crate::models::ApiKey;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ApiKeyService {
-    keys: Arc<RwLock<HashMap<String, ApiKey>>>,
+    keys: PgCrudRepository<ApiKey>,
 }
 
 impl ApiKeyService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            keys: PgCrudRepository::new(pool),
+        }
     }
 
     pub async fn create_api_key(&self, input: CreateApiKeyInput) -> Result<CreatedApiKeyResponse> {
@@ -59,9 +60,8 @@ impl ApiKeyService {
             deleted_at: None,
         };
 
-        let dto = self.to_dto(&api_key);
-        let mut map = self.keys.write().unwrap();
-        map.insert(id.to_string(), api_key);
+        let created = self.keys.create(None, api_key).await?;
+        let dto = self.to_dto(&created);
 
         Ok(CreatedApiKeyResponse {
             api_key: dto,
@@ -72,29 +72,33 @@ impl ApiKeyService {
     pub async fn validate_key(&self, plain_token: &str) -> Result<ValidateKeyResult> {
         let token_hash = self.hash_token(plain_token);
 
-        let mut map = self.keys.write().unwrap();
-        let found = map
-            .values_mut()
-            .find(|k| k.token_hash == token_hash && k.deleted_at.is_none());
+        let filter = FilterSpec::new()
+            .with_predicate("token_hash", FilterOp::Eq(token_hash))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
 
-        if let Some(key) = found {
+        let list = self.keys.list(None, &filter).await?;
+
+        if let Some(mut key) = list.into_iter().next() {
             if key.revoked_at.is_some() {
                 return Ok(ValidateKeyResult {
                     is_valid: false,
-                    key: Some(self.to_dto(key)),
+                    key: Some(self.to_dto(&key)),
                     sales_channel_ids: Vec::new(),
                     permissions: Vec::new(),
                 });
             }
 
             key.last_used_at = Some(Utc::now());
-            let dto = self.to_dto(key);
+            key.updated_at = Utc::now();
+            let updated = self.keys.update(None, &key.id.to_string(), key).await?;
+            let dto = self.to_dto(&updated);
 
             Ok(ValidateKeyResult {
                 is_valid: true,
                 key: Some(dto),
-                sales_channel_ids: key.sales_channel_ids.clone(),
-                permissions: key.permissions.clone(),
+                sales_channel_ids: updated.sales_channel_ids.clone(),
+                permissions: updated.permissions.clone(),
             })
         } else {
             Ok(ValidateKeyResult {
@@ -107,25 +111,18 @@ impl ApiKeyService {
     }
 
     pub async fn revoke_key(&self, id: &str, revoked_by: Option<&str>) -> Result<ApiKeyDTO> {
-        let mut map = self.keys.write().unwrap();
-        let key = map.get_mut(id).ok_or_else(|| Error::NotFound {
-            entity: "api_key",
-            id: id.to_string(),
-        })?;
+        let mut key = self.keys.retrieve(None, id).await?;
 
         key.revoked_at = Some(Utc::now());
         key.revoked_by = revoked_by.map(|s| s.to_string());
         key.updated_at = Utc::now();
 
-        Ok(self.to_dto(key))
+        let updated = self.keys.update(None, &key.id.to_string(), key).await?;
+        Ok(self.to_dto(&updated))
     }
 
     pub async fn update_key(&self, id: &str, input: UpdateApiKeyInput) -> Result<ApiKeyDTO> {
-        let mut map = self.keys.write().unwrap();
-        let key = map.get_mut(id).ok_or_else(|| Error::NotFound {
-            entity: "api_key",
-            id: id.to_string(),
-        })?;
+        let mut key = self.keys.retrieve(None, id).await?;
 
         if let Some(title) = input.title {
             key.title = title;
@@ -141,39 +138,30 @@ impl ApiKeyService {
         }
         key.updated_at = Utc::now();
 
-        Ok(self.to_dto(key))
+        let updated = self.keys.update(None, &key.id.to_string(), key).await?;
+        Ok(self.to_dto(&updated))
     }
 
     pub async fn get_api_key(&self, id: &str) -> Result<ApiKeyDTO> {
-        let map = self.keys.read().unwrap();
-        let key = map
-            .get(id)
-            .filter(|k| k.deleted_at.is_none())
-            .ok_or_else(|| Error::NotFound {
-                entity: "api_key",
-                id: id.to_string(),
-            })?;
-        Ok(self.to_dto(key))
+        let key = self.keys.retrieve(None, id).await?;
+        Ok(self.to_dto(&key))
     }
 
     pub async fn list_api_keys(&self) -> Result<Vec<ApiKeyDTO>> {
-        let map = self.keys.read().unwrap();
-        Ok(map
-            .values()
-            .filter(|k| k.deleted_at.is_none())
-            .map(|k| self.to_dto(k))
-            .collect())
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        let list = self.keys.list(None, &filter).await?;
+        Ok(list.iter().map(|k| self.to_dto(k)).collect())
     }
 
     pub async fn delete_key(&self, id: &str) -> Result<ApiKeyDTO> {
-        let mut map = self.keys.write().unwrap();
-        let key = map.get_mut(id).ok_or_else(|| Error::NotFound {
-            entity: "api_key",
-            id: id.to_string(),
-        })?;
-
-        key.deleted_at = Some(Utc::now());
-        Ok(self.to_dto(key))
+        let key = self.keys.retrieve(None, id).await?;
+        let dto = self.to_dto(&key);
+        self.keys.soft_delete(None, &key.id.to_string()).await?;
+        Ok(dto)
     }
 
     fn hash_token(&self, token: &str) -> String {

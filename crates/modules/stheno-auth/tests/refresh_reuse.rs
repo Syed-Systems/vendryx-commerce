@@ -1,10 +1,14 @@
 //! Test P7-07: Refresh token rotation with automated reuse detection.
 
 use stheno_auth::{AuthService, AuthenticateInput, CreateIdentityInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_refresh_token_rotation_and_reuse_revocation() {
-    let service = AuthService::new(None);
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = AuthService::new(pool, None);
 
     let _identity = service
         .create_identity(CreateIdentityInput {
@@ -53,4 +57,6 @@ async fn test_refresh_token_rotation_and_reuse_revocation() {
     // 5. Subsequent legitimate use of refresh_g2 also fails because the ENTIRE family was revoked!
     let subsequent_attempt = service.refresh_tokens(&tokens_g2.refresh_token).await;
     assert!(subsequent_attempt.is_err());
+
+    db.drop().await;
 }

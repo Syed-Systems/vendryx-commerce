@@ -1,10 +1,14 @@
 use rust_decimal_macros::dec;
 use serde_json::json;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_order::*;
 
 #[tokio::test]
 async fn test_order_change_integration_preview_and_confirmation() {
-    let service = OrderService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = OrderService::new(pool);
 
     // 1. Create base order at version 1 (total: 200.00)
     let order = service

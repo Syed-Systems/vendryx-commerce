@@ -2,6 +2,8 @@ use async_trait::async_trait;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_fulfillment::*;
 use stheno_types::Result;
 
@@ -67,7 +69,14 @@ impl FulfillmentProvider for MockDynamicCarrier {
 
 #[tokio::test]
 async fn test_calculated_shipping_pricing_through_provider() {
-    let service = FulfillmentService::new();
+    let db = TestDb::migrated().await;
+    TestDb::execute(
+        &db,
+        "INSERT INTO fulfillment.fulfillment_provider (id, name) VALUES ('dynamic-carrier', 'Dynamic Carrier') ON CONFLICT DO NOTHING",
+    )
+    .await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = FulfillmentService::new(pool);
     service.register_provider(Arc::new(MockDynamicCarrier));
 
     let set = service
@@ -98,9 +107,9 @@ async fn test_calculated_shipping_pricing_through_provider() {
         .expect("profile created");
 
     // Calculated shipping option
-    let opt = service
+    let calc_option = service
         .create_shipping_option(CreateShippingOptionInput {
-            name: "Dynamic Freight Option".to_string(),
+            name: "Dynamic Freight".to_string(),
             price_type: "calculated".to_string(),
             service_zone_id: zone.id.clone(),
             shipping_profile_id: profile.id.clone(),
@@ -110,20 +119,45 @@ async fn test_calculated_shipping_pricing_through_provider() {
             metadata: None,
         })
         .await
-        .expect("option created");
+        .expect("calculated option created");
 
-    // Calculate with 4.5 kg weight
-    let calc_ctx = CalculatePriceContext {
-        items_count: 2,
-        total_weight: Some(dec!(4.5)),
-        currency_code: "usd".to_string(),
-    };
-
-    let calculated_price = service
-        .calculate_shipping_price(&opt.id, Some(&calc_ctx))
+    // Flat shipping option
+    let flat_option = service
+        .create_shipping_option(CreateShippingOptionInput {
+            name: "Flat Rate Standard".to_string(),
+            price_type: "flat".to_string(),
+            service_zone_id: zone.id.clone(),
+            shipping_profile_id: profile.id.clone(),
+            provider_id: "manual".to_string(),
+            shipping_option_type_id: None,
+            data: Some(serde_json::json!({ "amount": "15.50" })),
+            metadata: None,
+        })
         .await
-        .expect("price calculated");
+        .expect("flat option created");
 
-    // 12.00 + (4.5 * 3.00) = 12.00 + 13.50 = 25.50
-    assert_eq!(calculated_price, dec!(25.50));
+    // 1. Calculate price with 5kg -> $12 + (5 * $3) = $27.00
+    let price_5kg = service
+        .calculate_shipping_price(
+            &calc_option.id,
+            Some(&CalculatePriceContext {
+                currency_code: "usd".to_string(),
+                total_weight: Some(dec!(5.0)),
+                items_count: 2,
+            }),
+        )
+        .await
+        .expect("price calculated for 5kg");
+
+    assert_eq!(price_5kg, dec!(27.00));
+
+    // 2. Calculate flat rate price -> $15.50
+    let flat_price = service
+        .calculate_shipping_price(&flat_option.id, None)
+        .await
+        .expect("flat price calculated");
+
+    assert_eq!(flat_price, dec!(15.50));
+
+    db.drop().await;
 }

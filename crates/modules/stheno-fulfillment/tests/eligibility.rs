@@ -1,9 +1,13 @@
 use serde_json::json;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_fulfillment::*;
 
 #[tokio::test]
 async fn test_eligible_shipping_options_resolution_by_geo_and_rules() {
-    let service = FulfillmentService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = FulfillmentService::new(pool);
 
     // 1. Setup US East Service Zone
     let set = service
@@ -98,43 +102,86 @@ async fn test_eligible_shipping_options_resolution_by_geo_and_rules() {
         .await
         .expect("rule added");
 
-    // 2. Query standard checkout order in US (is_return = false) -> must match opt_ground ONLY
-    let checkout_ctx = EligibilityContext {
-        country_code: Some("us".to_string()),
-        is_return: Some(false),
-        ..Default::default()
-    };
-    let resolved_checkout = service
-        .resolve_eligible_shipping_options(&checkout_ctx)
+    // Option 3: VIP Member Express (Available only for customer_id == "cus_vip")
+    let opt_vip = service
+        .create_shipping_option(CreateShippingOptionInput {
+            name: "VIP Free Overnight".to_string(),
+            price_type: "flat".to_string(),
+            service_zone_id: zone_us.id.clone(),
+            shipping_profile_id: profile.id.clone(),
+            provider_id: "manual".to_string(),
+            shipping_option_type_id: None,
+            data: Some(json!({ "rate": "0.00" })),
+            metadata: None,
+        })
         .await
-        .expect("eligible options resolved");
+        .expect("opt vip created");
 
-    assert_eq!(resolved_checkout.len(), 1);
-    assert_eq!(resolved_checkout[0].name, "Standard US Ground");
-
-    // 3. Query return order in US (is_return = true) -> must match opt_return ONLY
-    let return_ctx = EligibilityContext {
-        country_code: Some("us".to_string()),
-        is_return: Some(true),
-        ..Default::default()
-    };
-    let resolved_return = service
-        .resolve_eligible_shipping_options(&return_ctx)
+    service
+        .add_shipping_option_rule(CreateShippingOptionRuleInput {
+            shipping_option_id: opt_vip.id.clone(),
+            attribute: "customer_id".to_string(),
+            operator: "eq".to_string(),
+            value: json!("cus_vip"),
+            metadata: None,
+        })
         .await
-        .expect("return options resolved");
+        .expect("rule added");
 
-    assert_eq!(resolved_return.len(), 1);
-    assert_eq!(resolved_return[0].name, "Prepaid Return Drop-Off");
-
-    // 4. Query from unsupported country (e.g. "ca") -> must return 0 options
-    let ca_ctx = EligibilityContext {
-        country_code: Some("ca".to_string()),
-        ..Default::default()
-    };
-    let resolved_ca = service
-        .resolve_eligible_shipping_options(&ca_ctx)
+    // ── Test 1: Standard Checkout in US (Regular order) ─────────────────────
+    let regular_eligible = service
+        .resolve_eligible_shipping_options(&EligibilityContext {
+            country_code: Some("us".to_string()),
+            customer_id: Some("cus_regular".to_string()),
+            is_return: Some(false),
+            ..Default::default()
+        })
         .await
-        .expect("ca options resolved");
+        .expect("resolved regular");
 
-    assert_eq!(resolved_ca.len(), 0);
+    assert_eq!(regular_eligible.len(), 1);
+    assert_eq!(regular_eligible[0].name, "Standard US Ground");
+
+    // ── Test 2: Return Flow in US ──────────────────────────────────────────
+    let return_eligible = service
+        .resolve_eligible_shipping_options(&EligibilityContext {
+            country_code: Some("us".to_string()),
+            customer_id: Some("cus_regular".to_string()),
+            is_return: Some(true),
+            ..Default::default()
+        })
+        .await
+        .expect("resolved return");
+
+    assert_eq!(return_eligible.len(), 1);
+    assert_eq!(return_eligible[0].name, "Prepaid Return Drop-Off");
+
+    // ── Test 3: VIP Customer Regular Checkout in US ────────────────────────
+    let vip_eligible = service
+        .resolve_eligible_shipping_options(&EligibilityContext {
+            country_code: Some("us".to_string()),
+            customer_id: Some("cus_vip".to_string()),
+            is_return: Some(false),
+            ..Default::default()
+        })
+        .await
+        .expect("resolved vip");
+
+    assert_eq!(vip_eligible.len(), 2);
+    let names: Vec<_> = vip_eligible.iter().map(|o| o.name.as_str()).collect();
+    assert!(names.contains(&"Standard US Ground"));
+    assert!(names.contains(&"VIP Free Overnight"));
+
+    // ── Test 4: Destination outside US (e.g., Canada) ──────────────────────
+    let ca_eligible = service
+        .resolve_eligible_shipping_options(&EligibilityContext {
+            country_code: Some("ca".to_string()),
+            ..Default::default()
+        })
+        .await
+        .expect("resolved ca");
+
+    assert_eq!(ca_eligible.len(), 0);
+
+    db.drop().await;
 }

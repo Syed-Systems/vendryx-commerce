@@ -1,9 +1,13 @@
 use serde_json::json;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_fulfillment::*;
 
 #[tokio::test]
 async fn test_shipping_options_rules_types_and_profiles() {
-    let service = FulfillmentService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = FulfillmentService::new(pool);
 
     // 1. Setup profile and service zone
     let profile = service
@@ -72,4 +76,6 @@ async fn test_shipping_options_rules_types_and_profiles() {
 
     assert_eq!(option.name, "Same-Day Courier Delivery");
     assert_eq!(rule.attribute, "is_return");
+
+    db.drop().await;
 }

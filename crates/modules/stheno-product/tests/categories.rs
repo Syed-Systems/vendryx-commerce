@@ -1,8 +1,11 @@
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_product::{CreateCategoryInput, ProductService};
 
 #[tokio::test]
 async fn test_category_tree_materialized_path_descendants() {
-    let service = ProductService::new();
+    let db = TestDb::migrated().await;
+    let service = ProductService::new(create_pool(&db.url, 5).expect("pool"));
 
     // 1. Root category: Apparel
     let apparel = service
@@ -47,4 +50,6 @@ async fn test_category_tree_materialized_path_descendants() {
     let names: Vec<String> = descendants.into_iter().map(|d| d.name).collect();
     assert!(names.contains(&"Menswear".to_string()));
     assert!(names.contains(&"Shoes".to_string()));
+
+    db.drop().await;
 }

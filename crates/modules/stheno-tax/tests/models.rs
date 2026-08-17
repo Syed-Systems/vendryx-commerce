@@ -1,9 +1,13 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_tax::{CreateTaxRateInput, CreateTaxRateRuleInput, CreateTaxRegionInput, TaxService};
 
 #[tokio::test]
 async fn test_all_4_tax_entities_via_service() {
-    let service = TaxService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = TaxService::new(pool);
 
     // 1. TaxRegion — country level
     let us = service
@@ -53,4 +57,32 @@ async fn test_all_4_tax_entities_via_service() {
     assert_eq!(rate.rate, dec!(0.0725));
     assert_eq!(rate.code, "CA_STATE");
     assert!(rate.is_default);
+
+    db.drop().await;
+}
+
+#[tokio::test]
+async fn rows_outlive_the_service_instance() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+
+    let region_id = {
+        let first = TaxService::new(pool.clone());
+        let reg = first
+            .create_tax_region(CreateTaxRegionInput {
+                country_code: "fr".to_string(),
+                province_code: None,
+                parent_id: None,
+                provider_id: None,
+            })
+            .await
+            .expect("create");
+        reg.id.to_string()
+    };
+
+    let second = TaxService::new(pool);
+    let found = second.get_tax_region(&region_id).await.expect("found");
+    assert_eq!(found.country_code, "fr");
+
+    db.drop().await;
 }

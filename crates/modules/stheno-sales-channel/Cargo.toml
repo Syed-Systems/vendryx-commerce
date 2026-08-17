@@ -17,3 +17,6 @@ ulid = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+stheno-db = { workspace = true, features = ["testing"] }

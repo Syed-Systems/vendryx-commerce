@@ -1,10 +1,14 @@
 //! Test P7-06: JWT issuance, verification, claims validation.
 
 use stheno_auth::{AuthService, AuthenticateInput, CreateIdentityInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_jwt_issuance_and_claims_verification() {
-    let service = AuthService::new(None);
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = AuthService::new(pool, None);
 
     let identity = service
         .create_identity(CreateIdentityInput {
@@ -39,4 +43,6 @@ async fn test_jwt_issuance_and_claims_verification() {
     assert_eq!(claims.actor_type, Some("user".to_string()));
     assert_eq!(claims.token_version, 1);
     assert!(claims.exp > claims.iat);
+
+    db.drop().await;
 }

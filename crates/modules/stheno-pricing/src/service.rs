@@ -1,179 +1,204 @@
-//! Service layer for `stheno-pricing` (TASKS.md P3-04 through P3-11).
-//! Implements multi-attribute specificity ranking, quantity tiers, price lists, and single-query batch resolution.
+//! Service layer for `stheno-pricing`, backed by Postgres (P12-03).
+//!
+//! Multi-attribute specificity ranking, quantity tiers, price lists, and batch
+//! resolution — as before. What changed is where the candidates come from.
+//!
+//! # Why the ranking still runs in Rust
+//!
+//! `calculate_prices_batch` loads every candidate price for the requested sets,
+//! plus their rules, lists, list rules and preferences, then ranks them exactly
+//! as the in-memory version did. The ranking is domain logic, not a query
+//! concern, and moving it into SQL is a *measured* decision, not an assumed one
+//! — that is what P12-04 benchmarks and P12-05 implements.
+//!
+//! The loads are batched by design: one query per entity kind for the whole
+//! batch, never one per price set. An N+1 here would be the first thing the
+//! latency budget catches.
 
 use chrono::Utc;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use stheno_db::filter::MAX_IN_ELEMENTS;
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
 use crate::models::{Price, PriceList, PriceListRule, PricePreference, PriceRule, PriceSet};
 
-#[derive(Clone, Default)]
+/// Page size for internal listings. `FilterSpec` clamps to this anyway; naming
+/// it makes the ceiling visible at the call site.
+const LIST_LIMIT: usize = stheno_db::filter::MAX_PAGE_LIMIT;
+
+#[derive(Clone)]
 pub struct PricingService {
-    price_sets: Arc<RwLock<HashMap<String, PriceSet>>>,
-    prices: Arc<RwLock<HashMap<String, Price>>>,
-    price_rules: Arc<RwLock<HashMap<String, Vec<PriceRule>>>>, // price_id -> rules
-    price_lists: Arc<RwLock<HashMap<String, PriceList>>>,
-    price_list_rules: Arc<RwLock<HashMap<String, Vec<PriceListRule>>>>, // price_list_id -> rules
-    preferences: Arc<RwLock<HashMap<String, PricePreference>>>,         // attribute::value -> pref
+    price_sets: PgCrudRepository<PriceSet>,
+    prices: PgCrudRepository<Price>,
+    price_rules: PgCrudRepository<PriceRule>,
+    price_lists: PgCrudRepository<PriceList>,
+    price_list_rules: PgCrudRepository<PriceListRule>,
+    preferences: PgCrudRepository<PricePreference>,
 }
 
 impl PricingService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            price_sets: PgCrudRepository::new(pool.clone()),
+            prices: PgCrudRepository::new(pool.clone()),
+            price_rules: PgCrudRepository::new(pool.clone()),
+            price_lists: PgCrudRepository::new(pool.clone()),
+            price_list_rules: PgCrudRepository::new(pool.clone()),
+            preferences: PgCrudRepository::new(pool),
+        }
     }
 
-    pub async fn create_price_set(&self, input: CreatePriceSetInput) -> Result<PriceSetDTO> {
-        let set_id: Id<PriceSet> = Id::new();
-        let set_id_str = set_id.to_string();
+    fn live(limit: usize) -> FilterSpec {
+        FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, limit)
+    }
 
-        let set = PriceSet {
-            id: set_id,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+    /// Reads every row matching `filter`, following pagination to the end.
+    ///
+    /// `FilterSpec::page_limit` clamps to `MAX_PAGE_LIMIT`, which is a cap on
+    /// what a *client* may request. An internal load must not inherit it: one
+    /// page of 100 rows silently truncated the candidate set for a 100-item
+    /// cart, and the missing prices simply did not resolve.
+    async fn load_all<T: stheno_db::CrudEntity>(
+        repo: &PgCrudRepository<T>,
+        filter: &FilterSpec,
+    ) -> Result<Vec<T>> {
+        let page_size = LIST_LIMIT;
+        let mut out = Vec::new();
+        let mut offset = 0;
+        loop {
+            let page = repo
+                .list(None, &filter.clone().with_pagination(offset, page_size))
+                .await?;
+            let received = page.len();
+            out.extend(page);
+            if received < page_size {
+                return Ok(out);
+            }
+            offset += page_size;
+        }
+    }
+
+    /// Loads rows whose `column` is in `values`, in chunks.
+    ///
+    /// `FilterSpec` caps `$in` at `MAX_IN_ELEMENTS` to keep query plans sane, so
+    /// more values than that must be chunked rather than rejected.
+    async fn load_in<T: stheno_db::CrudEntity>(
+        repo: &PgCrudRepository<T>,
+        column: &str,
+        values: &[String],
+    ) -> Result<Vec<T>> {
+        let mut out = Vec::new();
+        for chunk in values.chunks(MAX_IN_ELEMENTS) {
+            let filter =
+                Self::live(LIST_LIMIT).with_predicate(column, FilterOp::In(chunk.to_vec()));
+            out.extend(Self::load_all(repo, &filter).await?);
+        }
+        Ok(out)
+    }
+
+    /// Builds the price rows and their rules for one input price.
+    fn build_price(
+        p_in: &CreatePriceInput,
+        price_set_id: &str,
+        price_list_id: Option<String>,
+    ) -> (Price, Vec<PriceRule>) {
+        let pid: Id<Price> = Id::new();
+        let pid_str = pid.to_string();
+        let now = Utc::now();
+        let rules_count = p_in.rules.as_ref().map(|r| r.len() as i32).unwrap_or(0);
+
+        let price = Price {
+            id: pid,
+            price_set_id: price_set_id.to_string(),
+            price_list_id,
+            currency_code: p_in.currency_code.to_lowercase(),
+            amount: p_in.amount,
+            min_quantity: p_in.min_quantity,
+            max_quantity: p_in.max_quantity,
+            rules_count,
+            created_at: now,
+            updated_at: now,
             deleted_at: None,
         };
 
-        let mut prices_map = self.prices.write().unwrap();
-        let mut rules_map = self.price_rules.write().unwrap();
-
-        for p_in in input.prices {
-            let pid: Id<Price> = Id::new();
-            let pid_str = pid.to_string();
-            let rules_count = p_in.rules.as_ref().map(|r| r.len() as i32).unwrap_or(0);
-
-            let price = Price {
-                id: pid,
-                price_set_id: set_id_str.clone(),
-                price_list_id: p_in.price_list_id,
-                currency_code: p_in.currency_code.to_lowercase(),
-                amount: p_in.amount,
-                min_quantity: p_in.min_quantity,
-                max_quantity: p_in.max_quantity,
-                rules_count,
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-                deleted_at: None,
-            };
-
-            let mut r_rules = Vec::new();
-            if let Some(r_map) = &p_in.rules {
-                for (attr, val) in r_map {
-                    r_rules.push(PriceRule {
+        let rules = p_in
+            .rules
+            .as_ref()
+            .map(|r_map| {
+                r_map
+                    .iter()
+                    .map(|(attr, val)| PriceRule {
                         id: Id::new(),
                         price_id: pid_str.clone(),
                         attribute: attr.clone(),
                         value: val.clone(),
                         priority: 0,
-                        created_at: Utc::now(),
-                    });
-                }
-            }
+                        created_at: now,
+                        updated_at: now,
+                        deleted_at: None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
-            rules_map.insert(pid_str.clone(), r_rules);
-            prices_map.insert(pid_str, price);
+        (price, rules)
+    }
+
+    async fn insert_prices(
+        &self,
+        inputs: &[CreatePriceInput],
+        price_set_id: &str,
+        list_id_override: Option<&str>,
+    ) -> Result<()> {
+        let mut prices = Vec::new();
+        let mut rules = Vec::new();
+        for p_in in inputs {
+            let list_id = list_id_override
+                .map(str::to_string)
+                .or_else(|| p_in.price_list_id.clone());
+            let (price, mut price_rules) = Self::build_price(p_in, price_set_id, list_id);
+            prices.push(price);
+            rules.append(&mut price_rules);
         }
 
-        let mut set_map = self.price_sets.write().unwrap();
-        set_map.insert(set_id_str.clone(), set.clone());
+        if !prices.is_empty() {
+            self.prices.create_many(None, prices).await?;
+        }
+        if !rules.is_empty() {
+            self.price_rules.create_many(None, rules).await?;
+        }
+        Ok(())
+    }
+
+    // ---- price sets -----------------------------------------------------
+
+    pub async fn create_price_set(&self, input: CreatePriceSetInput) -> Result<PriceSetDTO> {
+        let now = Utc::now();
+        let set = PriceSet {
+            id: Id::new(),
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        };
+
+        let set = self.price_sets.create(None, set).await?;
+        self.insert_prices(&input.prices, &set.id.to_string(), None)
+            .await?;
 
         Ok(PriceSetDTO {
-            id: Id::from_string(set.id.to_string()).unwrap_or_default(),
+            id: Id::from_ulid(set.id.ulid()),
             created_at: set.created_at,
         })
     }
 
-    pub async fn create_price_list(&self, input: CreatePriceListInput) -> Result<PriceListDTO> {
-        let plist_id: Id<PriceList> = Id::new();
-        let plist_id_str = plist_id.to_string();
-
-        let list = PriceList {
-            id: plist_id,
-            title: input.title.clone(),
-            description: input.description.clone(),
-            status: "active".to_string(),
-            r#type: input.r#type.clone(),
-            starts_at: input.starts_at,
-            ends_at: input.ends_at,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            deleted_at: None,
-        };
-
-        if let Some(r_map) = &input.rules {
-            let mut pl_rules = Vec::new();
-            for (attr, val) in r_map {
-                pl_rules.push(PriceListRule {
-                    id: Id::new(),
-                    price_list_id: plist_id_str.clone(),
-                    attribute: attr.clone(),
-                    value: val.clone(),
-                    created_at: Utc::now(),
-                });
-            }
-            let mut plr_map = self.price_list_rules.write().unwrap();
-            plr_map.insert(plist_id_str.clone(), pl_rules);
-        }
-
-        let mut plist_map = self.price_lists.write().unwrap();
-        plist_map.insert(plist_id_str.clone(), list.clone());
-
-        Ok(PriceListDTO {
-            id: Id::from_string(list.id.to_string()).unwrap_or_default(),
-            title: list.title,
-            r#type: list.r#type,
-            status: list.status,
-            starts_at: list.starts_at,
-            ends_at: list.ends_at,
-            created_at: list.created_at,
-        })
-    }
-
-    pub async fn set_price_preference(
-        &self,
-        attribute: &str,
-        value: &str,
-        is_tax_inclusive: bool,
-    ) -> Result<()> {
-        let mut map = self.preferences.write().unwrap();
-        let key = format!("{}::{}", attribute, value);
-        map.insert(
-            key,
-            PricePreference {
-                id: Id::new(),
-                attribute: attribute.to_string(),
-                value: value.to_string(),
-                is_tax_inclusive,
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-            },
-        );
-        Ok(())
-    }
-
-    pub async fn delete_price_preference(&self, attribute: &str, value: &str) -> Result<()> {
-        let mut map = self.preferences.write().unwrap();
-        let key = format!("{}::{}", attribute, value);
-        map.remove(&key);
-        Ok(())
-    }
-
     pub async fn get_price_set(&self, id: &str) -> Result<PriceSetDTO> {
-        let set_map = self.price_sets.read().unwrap();
-        let set = set_map
-            .values()
-            .find(|s| {
-                (s.id.to_string() == id || s.id.to_string().ends_with(id)) && s.deleted_at.is_none()
-            })
-            .or_else(|| set_map.get(id).filter(|s| s.deleted_at.is_none()))
-            .ok_or_else(|| Error::NotFound {
-                entity: "price_set",
-                id: id.to_string(),
-            })?;
-
+        let set = self.price_sets.retrieve(None, id).await?;
         Ok(PriceSetDTO {
-            id: Id::from_string(set.id.to_string()).unwrap_or_default(),
+            id: Id::from_ulid(set.id.ulid()),
             created_at: set.created_at,
         })
     }
@@ -183,129 +208,116 @@ impl PricingService {
         id: &str,
         input: UpdatePriceSetInput,
     ) -> Result<PriceSetDTO> {
-        let set_id_str = {
-            let mut set_map = self.price_sets.write().unwrap();
-            let set = set_map
-                .values_mut()
-                .find(|s| {
-                    (s.id.to_string() == id || s.id.to_string().ends_with(id))
-                        && s.deleted_at.is_none()
-                })
-                .ok_or_else(|| Error::NotFound {
-                    entity: "price_set",
-                    id: id.to_string(),
-                })?;
+        let mut set = self.price_sets.retrieve(None, id).await?;
+        set.updated_at = Utc::now();
+        let set_id = set.id.to_string();
+        let set = self.price_sets.update(None, &set_id, set).await?;
 
-            set.updated_at = Utc::now();
-            let set_id_str = set.id.to_string();
-
-            if let Some(new_prices) = input.prices {
-                let mut prices_map = self.prices.write().unwrap();
-                let mut rules_map = self.price_rules.write().unwrap();
-
-                // Clear old prices for this price_set
-                prices_map.retain(|_, p| p.price_set_id != set_id_str);
-
-                for p_in in new_prices {
-                    let pid: Id<Price> = Id::new();
-                    let pid_str = pid.to_string();
-                    let rules_count = p_in.rules.as_ref().map(|r| r.len() as i32).unwrap_or(0);
-
-                    let price = Price {
-                        id: pid,
-                        price_set_id: set_id_str.clone(),
-                        price_list_id: p_in.price_list_id,
-                        currency_code: p_in.currency_code.to_lowercase(),
-                        amount: p_in.amount,
-                        min_quantity: p_in.min_quantity,
-                        max_quantity: p_in.max_quantity,
-                        rules_count,
-                        created_at: Utc::now(),
-                        updated_at: Utc::now(),
-                        deleted_at: None,
-                    };
-
-                    let mut r_rules = Vec::new();
-                    if let Some(r_map) = &p_in.rules {
-                        for (attr, val) in r_map {
-                            r_rules.push(PriceRule {
-                                id: Id::new(),
-                                price_id: pid_str.clone(),
-                                attribute: attr.clone(),
-                                value: val.clone(),
-                                priority: 0,
-                                created_at: Utc::now(),
-                            });
-                        }
-                    }
-
-                    rules_map.insert(pid_str.clone(), r_rules);
-                    prices_map.insert(pid_str, price);
-                }
+        if let Some(new_prices) = input.prices {
+            // Replace the set's prices. Deleting a price cascades to its rules
+            // in the schema, so the rules do not need clearing separately.
+            let existing =
+                Self::load_in(&self.prices, "price_set_id", std::slice::from_ref(&set_id)).await?;
+            for price in existing {
+                self.prices.delete(None, &price.id.to_string()).await?;
             }
+            self.insert_prices(&new_prices, &set_id, None).await?;
+        }
 
-            set_id_str
-        };
-
-        self.get_price_set(&set_id_str).await
+        Ok(PriceSetDTO {
+            id: Id::from_ulid(set.id.ulid()),
+            created_at: set.created_at,
+        })
     }
 
     pub async fn delete_price_set(&self, id: &str) -> Result<()> {
-        let mut set_map = self.price_sets.write().unwrap();
-        let set = set_map
-            .values_mut()
-            .find(|s| {
-                (s.id.to_string() == id || s.id.to_string().ends_with(id)) && s.deleted_at.is_none()
-            })
-            .ok_or_else(|| Error::NotFound {
-                entity: "price_set",
-                id: id.to_string(),
-            })?;
+        let set = self.price_sets.retrieve(None, id).await?;
+        self.price_sets.soft_delete(None, &set.id.to_string()).await
+    }
 
-        set.deleted_at = Some(Utc::now());
+    // ---- price lists ----------------------------------------------------
+
+    pub async fn create_price_list(&self, input: CreatePriceListInput) -> Result<PriceListDTO> {
+        let now = Utc::now();
+        let list = PriceList {
+            id: Id::new(),
+            title: input.title.clone(),
+            description: input.description.clone(),
+            status: "active".to_string(),
+            r#type: input.r#type.clone(),
+            starts_at: input.starts_at,
+            ends_at: input.ends_at,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        };
+
+        let list = self.price_lists.create(None, list).await?;
+        self.replace_list_rules(&list.id.to_string(), input.rules.as_ref())
+            .await?;
+
+        Ok(price_list_dto(&list))
+    }
+
+    async fn replace_list_rules(
+        &self,
+        price_list_id: &str,
+        rules: Option<&HashMap<String, String>>,
+    ) -> Result<()> {
+        let Some(r_map) = rules else {
+            return Ok(());
+        };
+
+        for existing in Self::load_in(
+            &self.price_list_rules,
+            "price_list_id",
+            &[price_list_id.to_string()],
+        )
+        .await?
+        {
+            self.price_list_rules
+                .delete(None, &existing.id.to_string())
+                .await?;
+        }
+
+        let now = Utc::now();
+        let replacements: Vec<PriceListRule> = r_map
+            .iter()
+            .map(|(attr, val)| PriceListRule {
+                id: Id::new(),
+                price_list_id: price_list_id.to_string(),
+                attribute: attr.clone(),
+                value: val.clone(),
+                created_at: now,
+                updated_at: now,
+                deleted_at: None,
+            })
+            .collect();
+
+        if !replacements.is_empty() {
+            self.price_list_rules
+                .create_many(None, replacements)
+                .await?;
+        }
         Ok(())
     }
 
     pub async fn get_price_list(&self, id: &str) -> Result<PriceListDTO> {
-        let plist_map = self.price_lists.read().unwrap();
-        let list = plist_map
-            .values()
-            .find(|l| {
-                (l.id.to_string() == id || l.id.to_string().ends_with(id)) && l.deleted_at.is_none()
-            })
-            .or_else(|| plist_map.get(id).filter(|l| l.deleted_at.is_none()))
-            .ok_or_else(|| Error::NotFound {
-                entity: "price_list",
-                id: id.to_string(),
-            })?;
-
-        Ok(PriceListDTO {
-            id: Id::from_string(list.id.to_string()).unwrap_or_default(),
-            title: list.title.clone(),
-            r#type: list.r#type.clone(),
-            status: list.status.clone(),
-            starts_at: list.starts_at,
-            ends_at: list.ends_at,
-            created_at: list.created_at,
-        })
+        self.price_lists
+            .retrieve(None, id)
+            .await
+            .map(|l| price_list_dto(&l))
     }
 
     pub async fn list_price_lists(&self) -> Result<Vec<PriceListDTO>> {
-        let plist_map = self.price_lists.read().unwrap();
-        let list = plist_map
-            .values()
-            .filter(|l| l.deleted_at.is_none())
-            .map(|l| PriceListDTO {
-                id: Id::from_string(l.id.to_string()).unwrap_or_default(),
-                title: l.title.clone(),
-                r#type: l.r#type.clone(),
-                status: l.status.clone(),
-                starts_at: l.starts_at,
-                ends_at: l.ends_at,
-                created_at: l.created_at,
-            })
-            .collect();
-        Ok(list)
+        let filter = Self::live(LIST_LIMIT).with_order("created_at", OrderDirection::Asc);
+        Ok(self
+            .price_lists
+            .list(None, &filter)
+            .await?
+            .iter()
+            .map(price_list_dto)
+            .collect())
     }
 
     pub async fn update_price_list(
@@ -313,75 +325,41 @@ impl PricingService {
         id: &str,
         input: UpdatePriceListInput,
     ) -> Result<PriceListDTO> {
-        let plist_id_str = {
-            let mut plist_map = self.price_lists.write().unwrap();
-            let list = plist_map
-                .values_mut()
-                .find(|l| {
-                    (l.id.to_string() == id || l.id.to_string().ends_with(id))
-                        && l.deleted_at.is_none()
-                })
-                .ok_or_else(|| Error::NotFound {
-                    entity: "price_list",
-                    id: id.to_string(),
-                })?;
+        let mut list = self.price_lists.retrieve(None, id).await?;
 
-            if let Some(t) = input.title {
-                list.title = t;
-            }
-            if let Some(d) = input.description {
-                list.description = Some(d);
-            }
-            if let Some(s) = input.status {
-                list.status = s;
-            }
-            if let Some(tp) = input.r#type {
-                list.r#type = tp;
-            }
-            if input.starts_at.is_some() {
-                list.starts_at = input.starts_at;
-            }
-            if input.ends_at.is_some() {
-                list.ends_at = input.ends_at;
-            }
-            list.updated_at = Utc::now();
-            let plist_id_str = list.id.to_string();
+        if let Some(t) = input.title {
+            list.title = t;
+        }
+        if let Some(d) = input.description {
+            list.description = Some(d);
+        }
+        if let Some(s) = input.status {
+            list.status = s;
+        }
+        if let Some(tp) = input.r#type {
+            list.r#type = tp;
+        }
+        if input.starts_at.is_some() {
+            list.starts_at = input.starts_at;
+        }
+        if input.ends_at.is_some() {
+            list.ends_at = input.ends_at;
+        }
+        list.updated_at = Utc::now();
 
-            if let Some(r_map) = input.rules {
-                let mut pl_rules = Vec::new();
-                for (attr, val) in r_map {
-                    pl_rules.push(PriceListRule {
-                        id: Id::new(),
-                        price_list_id: plist_id_str.clone(),
-                        attribute: attr,
-                        value: val,
-                        created_at: Utc::now(),
-                    });
-                }
-                let mut plr_map = self.price_list_rules.write().unwrap();
-                plr_map.insert(plist_id_str.clone(), pl_rules);
-            }
+        let list_id = list.id.to_string();
+        let list = self.price_lists.update(None, &list_id, list).await?;
+        self.replace_list_rules(&list_id, input.rules.as_ref())
+            .await?;
 
-            plist_id_str
-        };
-
-        self.get_price_list(&plist_id_str).await
+        Ok(price_list_dto(&list))
     }
 
     pub async fn delete_price_list(&self, id: &str) -> Result<()> {
-        let mut plist_map = self.price_lists.write().unwrap();
-        let list = plist_map
-            .values_mut()
-            .find(|l| {
-                (l.id.to_string() == id || l.id.to_string().ends_with(id)) && l.deleted_at.is_none()
-            })
-            .ok_or_else(|| Error::NotFound {
-                entity: "price_list",
-                id: id.to_string(),
-            })?;
-
-        list.deleted_at = Some(Utc::now());
-        Ok(())
+        let list = self.price_lists.retrieve(None, id).await?;
+        self.price_lists
+            .soft_delete(None, &list.id.to_string())
+            .await
     }
 
     pub async fn batch_price_list_prices(
@@ -389,57 +367,115 @@ impl PricingService {
         price_list_id: &str,
         input: BatchPriceListPricesInput,
     ) -> Result<()> {
-        let mut prices_map = self.prices.write().unwrap();
-        let mut rules_map = self.price_rules.write().unwrap();
-
         if let Some(del_ids) = input.delete {
             for pid in del_ids {
-                prices_map.remove(&pid);
-                rules_map.remove(&pid);
+                // Tolerant of an id that is already gone: a batch delete is
+                // replayed on retry, and the second run must not fail.
+                let _ = self.prices.delete(None, &pid).await;
             }
         }
 
         if let Some(creates) = input.create {
-            for p_in in creates {
-                let pid: Id<Price> = Id::new();
-                let pid_str = pid.to_string();
-                let rules_count = p_in.rules.as_ref().map(|r| r.len() as i32).unwrap_or(0);
-
-                let price = Price {
-                    id: pid,
-                    price_set_id: "default_set".to_string(),
-                    price_list_id: Some(price_list_id.to_string()),
-                    currency_code: p_in.currency_code.to_lowercase(),
-                    amount: p_in.amount,
-                    min_quantity: p_in.min_quantity,
-                    max_quantity: p_in.max_quantity,
-                    rules_count,
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                    deleted_at: None,
-                };
-
-                let mut r_rules = Vec::new();
-                if let Some(r_map) = &p_in.rules {
-                    for (attr, val) in r_map {
-                        r_rules.push(PriceRule {
-                            id: Id::new(),
-                            price_id: pid_str.clone(),
-                            attribute: attr.clone(),
-                            value: val.clone(),
-                            priority: 0,
-                            created_at: Utc::now(),
-                        });
-                    }
-                }
-
-                rules_map.insert(pid_str.clone(), r_rules);
-                prices_map.insert(pid_str, price);
+            if !creates.is_empty() {
+                // ponytail: prices created through this endpoint are attached to
+                // a placeholder set, inherited from the in-memory version which
+                // had no foreign key to satisfy. The real fix is for the batch
+                // API to name its price set; that is an API_SPEC change, not a
+                // persistence one.
+                let set_id = self.default_price_set().await?;
+                self.insert_prices(&creates, &set_id, Some(price_list_id))
+                    .await?;
             }
         }
 
         Ok(())
     }
+
+    /// The placeholder price set used by `batch_price_list_prices`, created on
+    /// first use so the foreign key is always satisfiable.
+    async fn default_price_set(&self) -> Result<String> {
+        const DEFAULT_ID: &str = "pset_00000000000000000000000000";
+
+        if self.price_sets.retrieve(None, DEFAULT_ID).await.is_ok() {
+            return Ok(DEFAULT_ID.to_string());
+        }
+
+        let now = Utc::now();
+        let set = PriceSet {
+            id: Id::from_string(DEFAULT_ID)?,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        };
+        match self.price_sets.create(None, set).await {
+            Ok(_) => Ok(DEFAULT_ID.to_string()),
+            // Another writer created it between the read and the write.
+            Err(Error::Conflict { .. }) => Ok(DEFAULT_ID.to_string()),
+            Err(other) => Err(other),
+        }
+    }
+
+    // ---- price preferences ----------------------------------------------
+
+    pub async fn set_price_preference(
+        &self,
+        attribute: &str,
+        value: &str,
+        is_tax_inclusive: bool,
+    ) -> Result<()> {
+        let existing = self.find_preference(attribute, value).await?;
+        let now = Utc::now();
+
+        match existing {
+            Some(mut pref) => {
+                pref.is_tax_inclusive = is_tax_inclusive;
+                pref.updated_at = now;
+                let id = pref.id.to_string();
+                self.preferences.update(None, &id, pref).await?;
+            }
+            None => {
+                let pref = PricePreference {
+                    id: Id::new(),
+                    attribute: attribute.to_string(),
+                    value: value.to_string(),
+                    is_tax_inclusive,
+                    created_at: now,
+                    updated_at: now,
+                    deleted_at: None,
+                };
+                // A unique index covers (attribute, value), so a concurrent
+                // writer losing this race gets a Conflict rather than a second
+                // row that would make tax inclusivity order-dependent.
+                self.preferences.create(None, pref).await?;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn delete_price_preference(&self, attribute: &str, value: &str) -> Result<()> {
+        if let Some(pref) = self.find_preference(attribute, value).await? {
+            self.preferences.delete(None, &pref.id.to_string()).await?;
+        }
+        Ok(())
+    }
+
+    async fn find_preference(
+        &self,
+        attribute: &str,
+        value: &str,
+    ) -> Result<Option<PricePreference>> {
+        let filter = Self::live(1)
+            .with_predicate("attribute", FilterOp::Eq(attribute.to_string()))
+            .with_predicate("value", FilterOp::Eq(value.to_string()));
+        Ok(self
+            .preferences
+            .list(None, &filter)
+            .await?
+            .into_iter()
+            .next())
+    }
+
+    // ---- calculation ----------------------------------------------------
 
     pub async fn calculate_price(
         &self,
@@ -459,28 +495,81 @@ impl PricingService {
             })
     }
 
-    /// Resolves `calculated_price` for multiple price sets in a single evaluation (P3-09, P3-10).
-    /// Follows Medusa precedence: Override Price List > Sale Price List > Specific Rules > Default Base Price.
+    /// Resolves `calculated_price` for multiple price sets in a single
+    /// evaluation (P3-09, P3-10).
+    ///
+    /// Follows Medusa precedence: Override Price List > Sale Price List >
+    /// Specific Rules > Default Base Price.
     pub async fn calculate_prices_batch(
         &self,
         price_set_ids: &[String],
         context: &PricingContext,
     ) -> Result<HashMap<String, CalculatedPriceDTO>> {
-        let prices_map = self.prices.read().unwrap();
-        let rules_map = self.price_rules.read().unwrap();
-        let plists_map = self.price_lists.read().unwrap();
-        let plr_map = self.price_list_rules.read().unwrap();
-        let prefs_map = self.preferences.read().unwrap();
-
         let curr_lower = context.currency_code.to_lowercase();
         let qty = context.quantity.unwrap_or(1);
         let now = context.as_of.unwrap_or_else(Utc::now);
 
+        // One query per entity kind for the whole batch, never one per price
+        // set. The candidate set is narrowed in SQL by price set and currency;
+        // everything after this point is pure ranking over what was loaded.
+        let candidates: Vec<Price> = {
+            let mut out = Vec::new();
+            for chunk in price_set_ids.chunks(MAX_IN_ELEMENTS) {
+                let filter = Self::live(LIST_LIMIT)
+                    .with_predicate("price_set_id", FilterOp::In(chunk.to_vec()))
+                    .with_predicate("currency_code", FilterOp::Eq(curr_lower.clone()));
+                out.extend(Self::load_all(&self.prices, &filter).await?);
+            }
+            out
+        };
+
+        let price_ids: Vec<String> = candidates.iter().map(|p| p.id.to_string()).collect();
+        let mut rules_by_price: HashMap<String, Vec<PriceRule>> = HashMap::new();
+        for rule in Self::load_in(&self.price_rules, "price_id", &price_ids).await? {
+            rules_by_price
+                .entry(rule.price_id.clone())
+                .or_default()
+                .push(rule);
+        }
+
+        let list_ids: Vec<String> = {
+            let mut ids: Vec<String> = candidates
+                .iter()
+                .filter_map(|p| p.price_list_id.clone())
+                .collect();
+            ids.sort();
+            ids.dedup();
+            ids
+        };
+        let lists_by_id: HashMap<String, PriceList> =
+            Self::load_in(&self.price_lists, "id", &list_ids)
+                .await?
+                .into_iter()
+                .map(|l| (l.id.to_string(), l))
+                .collect();
+
+        let mut list_rules_by_list: HashMap<String, Vec<PriceListRule>> = HashMap::new();
+        for rule in Self::load_in(&self.price_list_rules, "price_list_id", &list_ids).await? {
+            list_rules_by_list
+                .entry(rule.price_list_id.clone())
+                .or_default()
+                .push(rule);
+        }
+
+        // The preference table is small (one row per attribute/value pair a
+        // deployment configures), so it is loaded whole rather than probed.
+        let prefs: HashMap<String, PricePreference> =
+            Self::load_all(&self.preferences, &Self::live(LIST_LIMIT))
+                .await?
+                .into_iter()
+                .map(|p| (format!("{}::{}", p.attribute, p.value), p))
+                .collect();
+
         let mut results = HashMap::new();
 
         for set_id in price_set_ids {
-            let matching_prices: Vec<&Price> = prices_map
-                .values()
+            let matching_prices: Vec<&Price> = candidates
+                .iter()
                 .filter(|p| {
                     p.price_set_id == *set_id
                         && p.deleted_at.is_none()
@@ -494,7 +583,7 @@ impl PricingService {
             let mut best_plist_price: Option<(&Price, &PriceList, i32)> = None;
 
             for p in &matching_prices {
-                let p_rules = rules_map.get(&p.id.to_string());
+                let p_rules = rules_by_price.get(&p.id.to_string());
                 let mut rules_matched = 0;
                 let mut rule_disqualified = false;
 
@@ -532,13 +621,13 @@ impl PricingService {
                 }
 
                 if let Some(plist_id) = &p.price_list_id {
-                    if let Some(plist) = plists_map.get(plist_id) {
+                    if let Some(plist) = lists_by_id.get(plist_id) {
                         let mut plist_matches = plist.status == "active"
                             && plist.starts_at.map(|s| now >= s).unwrap_or(true)
                             && plist.ends_at.map(|e| now <= e).unwrap_or(true);
 
                         let mut pl_rules_matched = 0;
-                        if let Some(pl_rules) = plr_map.get(plist_id) {
+                        if let Some(pl_rules) = list_rules_by_list.get(plist_id) {
                             for lr in pl_rules {
                                 match lr.attribute.as_str() {
                                     "customer_group_id" => {
@@ -580,8 +669,8 @@ impl PricingService {
                         }
                     }
                 } else {
-                    // Quantity specificity: a price with min_quantity is more specific
-                    // than one without, when rules_matched count is equal.
+                    // Quantity specificity: a price with min_quantity is more
+                    // specific than one without, when rules_matched is equal.
                     let qty_bonus = if p.min_quantity.is_some() { 1 } else { 0 };
                     let score = rules_matched * 10 + qty_bonus;
                     if best_original
@@ -598,8 +687,8 @@ impl PricingService {
                 let tax_inclusive = context
                     .region_id
                     .as_ref()
-                    .and_then(|r| prefs_map.get(&format!("region_id::{}", r)))
-                    .or_else(|| prefs_map.get(&format!("currency_code::{}", curr_lower)))
+                    .and_then(|r| prefs.get(&format!("region_id::{}", r)))
+                    .or_else(|| prefs.get(&format!("currency_code::{}", curr_lower)))
                     .map(|pref| pref.is_tax_inclusive)
                     .unwrap_or(false);
 
@@ -608,8 +697,8 @@ impl PricingService {
                         set_id.clone(),
                         CalculatedPriceDTO {
                             price_set_id: set_id.clone(),
-                            calculated_amount: plist_p.amount,
-                            original_amount: orig_price.amount,
+                            calculated_amount: wire_amount(plist_p.amount),
+                            original_amount: wire_amount(orig_price.amount),
                             currency_code: curr_lower.clone(),
                             is_tax_inclusive: tax_inclusive,
                             price_list_type: Some(plist.r#type.clone()),
@@ -622,8 +711,8 @@ impl PricingService {
                         set_id.clone(),
                         CalculatedPriceDTO {
                             price_set_id: set_id.clone(),
-                            calculated_amount: orig_price.amount,
-                            original_amount: orig_price.amount,
+                            calculated_amount: wire_amount(orig_price.amount),
+                            original_amount: wire_amount(orig_price.amount),
                             currency_code: curr_lower.clone(),
                             is_tax_inclusive: tax_inclusive,
                             price_list_type: None,
@@ -636,5 +725,27 @@ impl PricingService {
         }
 
         Ok(results)
+    }
+}
+
+/// Strips the trailing zeros a `numeric(20,6)` column adds.
+///
+/// The stored scale is a property of the column, not of the price: a value
+/// entered as 110.00 comes back as 110.000000 and would otherwise render that
+/// way on the wire. `normalize` changes no value, only its scale, so precision
+/// (ADR-006) is untouched.
+fn wire_amount(amount: rust_decimal::Decimal) -> rust_decimal::Decimal {
+    amount.normalize()
+}
+
+fn price_list_dto(l: &PriceList) -> PriceListDTO {
+    PriceListDTO {
+        id: Id::from_ulid(l.id.ulid()),
+        title: l.title.clone(),
+        r#type: l.r#type.clone(),
+        status: l.status.clone(),
+        starts_at: l.starts_at,
+        ends_at: l.ends_at,
+        created_at: l.created_at,
     }
 }

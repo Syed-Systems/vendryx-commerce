@@ -1,8 +1,12 @@
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_fulfillment::*;
 
 #[tokio::test]
 async fn test_fulfillment_all_12_entities_lifecycle() {
-    let service = FulfillmentService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = FulfillmentService::new(pool);
 
     // 1. Create Shipping Profile
     let profile = service
@@ -62,4 +66,6 @@ async fn test_fulfillment_all_12_entities_lifecycle() {
     assert_eq!(geo.country_code, "us");
     assert_eq!(profile.name, "Default Profile");
     assert_eq!(opt_type.code, "express");
+
+    db.drop().await;
 }

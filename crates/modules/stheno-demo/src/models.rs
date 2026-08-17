@@ -13,3 +13,8 @@ pub(crate) struct DemoItem {
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
 }
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    DemoItem => "demo",
+}

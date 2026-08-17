@@ -37,3 +37,9 @@ pub struct UpdateRegionInput {
     pub automatic_taxes: Option<bool>,
     pub countries: Option<Vec<String>>,
 }
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    CountryDTO => "country",
+    RegionDTO => "reg",
+}

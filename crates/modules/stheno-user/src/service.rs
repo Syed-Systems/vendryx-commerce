@@ -1,8 +1,7 @@
-//! User & Invite Service managing administrative users, team invites and token acceptance (P7-15).
+//! User & Invite Service managing administrative users, team invites and token acceptance (P7-15, P14-04).
 
 use chrono::{Duration, Utc};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::{
@@ -10,15 +9,18 @@ use crate::dto::{
 };
 use crate::models::{Invite, User};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct UserService {
-    users: Arc<RwLock<HashMap<String, User>>>,
-    invites: Arc<RwLock<HashMap<String, Invite>>>,
+    users: PgCrudRepository<User>,
+    invites: PgCrudRepository<Invite>,
 }
 
 impl UserService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            users: PgCrudRepository::new(pool.clone()),
+            invites: PgCrudRepository::new(pool),
+        }
     }
 
     // ==========================================
@@ -26,12 +28,13 @@ impl UserService {
     // ==========================================
 
     pub async fn create_user(&self, input: CreateUserInput) -> Result<UserDTO> {
-        let mut map = self.users.write().unwrap();
+        let filter = FilterSpec::new()
+            .with_predicate("email", FilterOp::Eq(input.email.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
 
-        if map
-            .values()
-            .any(|u| u.email == input.email && u.deleted_at.is_none())
-        {
+        let existing = self.users.list(None, &filter).await?;
+        if !existing.is_empty() {
             return Err(Error::Conflict {
                 code: "user_email_exists",
                 message: format!("User with email {} already exists", input.email),
@@ -54,24 +57,12 @@ impl UserService {
             deleted_at: None,
         };
 
-        let dto = self.to_user_dto(&user);
-        map.insert(id.to_string(), user);
-        Ok(dto)
+        let created = self.users.create(None, user).await?;
+        Ok(self.to_user_dto(&created))
     }
 
     pub async fn update_user(&self, id: &str, input: UpdateUserInput) -> Result<UserDTO> {
-        let mut map = self.users.write().unwrap();
-        let user = map.get_mut(id).ok_or_else(|| Error::NotFound {
-            entity: "user",
-            id: id.to_string(),
-        })?;
-
-        if user.deleted_at.is_some() {
-            return Err(Error::NotFound {
-                entity: "user",
-                id: id.to_string(),
-            });
-        }
+        let mut user = self.users.retrieve(None, id).await?;
 
         if let Some(email) = input.email {
             user.email = email;
@@ -93,39 +84,30 @@ impl UserService {
         }
         user.updated_at = Utc::now();
 
-        Ok(self.to_user_dto(user))
+        let updated = self.users.update(None, &user.id.to_string(), user).await?;
+        Ok(self.to_user_dto(&updated))
     }
 
     pub async fn get_user(&self, id: &str) -> Result<UserDTO> {
-        let map = self.users.read().unwrap();
-        let user = map
-            .get(id)
-            .filter(|u| u.deleted_at.is_none())
-            .ok_or_else(|| Error::NotFound {
-                entity: "user",
-                id: id.to_string(),
-            })?;
-        Ok(self.to_user_dto(user))
+        let user = self.users.retrieve(None, id).await?;
+        Ok(self.to_user_dto(&user))
     }
 
     pub async fn list_users(&self) -> Result<Vec<UserDTO>> {
-        let map = self.users.read().unwrap();
-        Ok(map
-            .values()
-            .filter(|u| u.deleted_at.is_none())
-            .map(|u| self.to_user_dto(u))
-            .collect())
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        let list = self.users.list(None, &filter).await?;
+        Ok(list.iter().map(|u| self.to_user_dto(u)).collect())
     }
 
     pub async fn delete_user(&self, id: &str) -> Result<UserDTO> {
-        let mut map = self.users.write().unwrap();
-        let user = map.get_mut(id).ok_or_else(|| Error::NotFound {
-            entity: "user",
-            id: id.to_string(),
-        })?;
-
-        user.deleted_at = Some(Utc::now());
-        Ok(self.to_user_dto(user))
+        let user = self.users.retrieve(None, id).await?;
+        let dto = self.to_user_dto(&user);
+        self.users.soft_delete(None, &user.id.to_string()).await?;
+        Ok(dto)
     }
 
     // ==========================================
@@ -133,15 +115,14 @@ impl UserService {
     // ==========================================
 
     pub async fn create_invite(&self, input: CreateInviteInput) -> Result<InviteDTO> {
-        let mut map = self.invites.write().unwrap();
+        let filter = FilterSpec::new()
+            .with_predicate("email", FilterOp::Eq(input.email.clone()))
+            .with_predicate("accepted_at", FilterOp::IsNull)
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 10);
 
-        // Check active invite
-        if map.values().any(|i| {
-            i.email == input.email
-                && i.accepted_at.is_none()
-                && i.deleted_at.is_none()
-                && i.expires_at > Utc::now()
-        }) {
+        let existing = self.invites.list(None, &filter).await?;
+        if existing.iter().any(|i| i.expires_at > Utc::now()) {
             return Err(Error::Conflict {
                 code: "invite_exists",
                 message: format!("Active invite for email {} already exists", input.email),
@@ -165,58 +146,50 @@ impl UserService {
             deleted_at: None,
         };
 
-        let dto = self.to_invite_dto(&invite);
-        map.insert(id.to_string(), invite);
-        Ok(dto)
+        let created = self.invites.create(None, invite).await?;
+        Ok(self.to_invite_dto(&created))
     }
 
     pub async fn resend_invite(&self, invite_id: &str) -> Result<InviteDTO> {
-        let mut map = self.invites.write().unwrap();
-        let invite = map.get_mut(invite_id).ok_or_else(|| Error::NotFound {
-            entity: "invite",
-            id: invite_id.to_string(),
-        })?;
+        let mut invite = self.invites.retrieve(None, invite_id).await?;
 
         let now = Utc::now();
         invite.token = Id::<Invite>::new().to_string();
         invite.expires_at = now + Duration::days(7);
         invite.updated_at = now;
 
-        Ok(self.to_invite_dto(invite))
+        let updated = self
+            .invites
+            .update(None, &invite.id.to_string(), invite)
+            .await?;
+        Ok(self.to_invite_dto(&updated))
     }
 
     pub async fn revoke_invite(&self, invite_id: &str) -> Result<InviteDTO> {
-        let mut map = self.invites.write().unwrap();
-        let invite = map.get_mut(invite_id).ok_or_else(|| Error::NotFound {
-            entity: "invite",
-            id: invite_id.to_string(),
-        })?;
-
-        invite.deleted_at = Some(Utc::now());
-        Ok(self.to_invite_dto(invite))
+        let invite = self.invites.retrieve(None, invite_id).await?;
+        let dto = self.to_invite_dto(&invite);
+        self.invites
+            .soft_delete(None, &invite.id.to_string())
+            .await?;
+        Ok(dto)
     }
 
     pub async fn accept_invite(&self, input: AcceptInviteInput) -> Result<UserDTO> {
-        let (mut invite, invite_id) = {
-            let map = self.invites.read().unwrap();
-            let found = map
-                .values()
-                .find(|i| {
-                    i.token == input.token && i.accepted_at.is_none() && i.deleted_at.is_none()
-                })
-                .cloned();
+        let filter = FilterSpec::new()
+            .with_predicate("token", FilterOp::Eq(input.token.clone()))
+            .with_predicate("accepted_at", FilterOp::IsNull)
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
 
-            let inv = found.ok_or_else(|| Error::NotFound {
-                entity: "invite_token",
-                id: input.token.clone(),
-            })?;
+        let list = self.invites.list(None, &filter).await?;
+        let mut invite = list.into_iter().next().ok_or_else(|| Error::NotFound {
+            entity: "invite_token",
+            id: input.token.clone(),
+        })?;
 
-            if inv.expires_at < Utc::now() {
-                return Err(Error::Unauthorized("Invite token has expired".to_string()));
-            }
-
-            (inv.clone(), inv.id.to_string())
-        };
+        if invite.expires_at < Utc::now() {
+            return Err(Error::Unauthorized("Invite token has expired".to_string()));
+        }
 
         // Create user
         let user = self
@@ -233,10 +206,9 @@ impl UserService {
         // Mark invite accepted
         invite.accepted_at = Some(Utc::now());
         invite.updated_at = Utc::now();
-        {
-            let mut map = self.invites.write().unwrap();
-            map.insert(invite_id, invite);
-        }
+        self.invites
+            .update(None, &invite.id.to_string(), invite)
+            .await?;
 
         Ok(user)
     }

@@ -1,8 +1,16 @@
 use stheno_cart::{CartService, CreateCartInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
+
+async fn service() -> (TestDb, CartService) {
+    let db = TestDb::migrated().await;
+    let svc = CartService::new(create_pool(&db.url, 5).expect("pool"));
+    (db, svc)
+}
 
 #[tokio::test]
 async fn test_cart_secret_cookie_binding_and_claim_on_login() {
-    let service = CartService::new();
+    let (db, service) = service().await;
 
     // 1. Create anonymous cart
     let cart = service
@@ -60,4 +68,6 @@ async fn test_cart_secret_cookie_binding_and_claim_on_login() {
         stheno_types::Error::Conflict { .. } => {}
         _ => panic!("expected Conflict error when stealing claimed cart"),
     }
+
+    db.drop().await;
 }

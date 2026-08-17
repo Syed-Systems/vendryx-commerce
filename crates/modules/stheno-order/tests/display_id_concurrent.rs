@@ -1,11 +1,15 @@
 use std::collections::HashSet;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_order::OrderService;
 use tokio::task;
 
 #[tokio::test]
 async fn test_sequential_gap_free_display_id_under_50_way_concurrency() {
-    let service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = Arc::new(OrderService::new(pool));
     let mut handles = Vec::new();
 
     // Spawn 50 parallel concurrent tasks acquiring display_ids

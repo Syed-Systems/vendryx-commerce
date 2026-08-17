@@ -17,3 +17,8 @@ pub struct CreateStockLocationInput {
     pub name: String,
     pub address_id: Option<String>,
 }
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    StockLocationDTO => "sloc",
+}

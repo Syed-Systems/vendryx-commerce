@@ -1,9 +1,17 @@
 use rust_decimal_macros::dec;
 use stheno_cart::{CartService, CreateCartInput, CreateCreditLineInput, CreateLineItemInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
+
+async fn service() -> (TestDb, CartService) {
+    let db = TestDb::migrated().await;
+    let svc = CartService::new(create_pool(&db.url, 5).expect("pool"));
+    (db, svc)
+}
 
 #[tokio::test]
 async fn test_credit_lines_deduction_and_balance_due() {
-    let service = CartService::new();
+    let (db, service) = service().await;
 
     let cart = service
         .create_cart(CreateCartInput {
@@ -77,4 +85,6 @@ async fn test_credit_lines_deduction_and_balance_due() {
     let cart_final = service.get_cart(&cart.id).await.expect("cart fetched");
     assert_eq!(cart_final.totals.credit_total, dec!(80.00));
     assert_eq!(cart_final.totals.balance_due, dec!(20.00));
+
+    db.drop().await;
 }

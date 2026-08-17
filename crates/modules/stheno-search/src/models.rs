@@ -1,5 +1,10 @@
+#![allow(dead_code)]
+
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use stheno_db::CrudEntity;
+use stheno_types::Id;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchDocument {
@@ -15,24 +20,6 @@ pub struct SearchDocument {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SearchFilter {
-    pub category_ids: Option<Vec<String>>,
-    pub tags: Option<Vec<String>>,
-    pub min_price_cents: Option<i64>,
-    pub max_price_cents: Option<i64>,
-    pub sales_channel_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SearchQuery {
-    pub q: String,
-    pub filter: Option<SearchFilter>,
-    pub limit: usize,
-    pub offset: usize,
-    pub sort_by: Option<String>, // "price_asc", "price_desc", "relevance"
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchHit {
     pub document: SearchDocument,
     pub score: f32,
@@ -45,4 +32,34 @@ pub struct SearchResult {
     pub limit: usize,
     pub offset: usize,
     pub processing_time_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchDocumentEntity {
+    pub id: Id<SearchDocumentEntity>,
+    pub index_name: String,
+    pub document_id: String,
+    pub document: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+impl CrudEntity for SearchDocumentEntity {
+    const TABLE: &'static str = "search.search_document";
+    const ENTITY: &'static str = "search_document";
+
+    fn id(&self) -> String {
+        self.id.to_string()
+    }
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+stheno_types::prefixed_id! {
+    SearchDocumentEntity => "sdoc",
 }

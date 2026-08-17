@@ -1,9 +1,12 @@
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_pricing::{CreatePriceInput, CreatePriceSetInput, PricingContext, PricingService};
 
 #[tokio::test]
 async fn test_pricing_quantity_tiers_resolution() {
-    let service = PricingService::new();
+    let db = TestDb::migrated().await;
+    let service = PricingService::new(create_pool(&db.url, 5).expect("pool"));
 
     let set = service
         .create_price_set(CreatePriceSetInput {
@@ -90,4 +93,6 @@ async fn test_pricing_quantity_tiers_resolution() {
         .await
         .unwrap();
     assert_eq!(calc_100.calculated_amount, dec!(30.00));
+
+    db.drop().await;
 }

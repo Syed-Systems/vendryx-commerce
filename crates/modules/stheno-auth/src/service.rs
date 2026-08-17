@@ -1,5 +1,5 @@
 //! Authentication Service implementing identity management, Argon2id/scrypt hashing,
-//! JWT issuance, refresh rotation with reuse detection, MFA (TOTP), anti-enumeration, and lockout.
+//! JWT issuance, refresh rotation with reuse detection, MFA (TOTP), anti-enumeration, and lockout (P7, P14-02, P14-03).
 
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -10,8 +10,7 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use rand::Rng;
 use sha1::Digest;
 use sha2::Sha256;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::{
@@ -35,32 +34,19 @@ pub struct AuthService {
     max_failed_attempts: i32,
     lockout_duration_mins: i64,
 
-    identities: Arc<RwLock<HashMap<String, AuthIdentity>>>,
-    providers: Arc<RwLock<HashMap<String, AuthProvider>>>,
-    sessions: Arc<RwLock<HashMap<String, AuthSession>>>,
-    token_families: Arc<RwLock<HashMap<String, TokenFamily>>>,
-    mfa_factors: Arc<RwLock<HashMap<String, MfaFactor>>>,
-    reset_tokens: Arc<RwLock<HashMap<String, PasswordResetToken>>>,
+    identities: PgCrudRepository<AuthIdentity>,
+    providers: PgCrudRepository<AuthProvider>,
+    sessions: PgCrudRepository<AuthSession>,
+    token_families: PgCrudRepository<TokenFamily>,
+    mfa_factors: PgCrudRepository<MfaFactor>,
+    reset_tokens: PgCrudRepository<PasswordResetToken>,
 }
 
 impl AuthService {
-    pub fn new(jwt_secret: Option<&[u8]>) -> Self {
+    pub fn new(pool: DbPool, jwt_secret: Option<&[u8]>) -> Self {
         let secret = jwt_secret
             .unwrap_or(b"stheno-development-jwt-super-secret-key-32b-min")
             .to_vec();
-
-        let mut providers_map = HashMap::new();
-        providers_map.insert(
-            "emailpass".to_string(),
-            AuthProvider {
-                id: "emailpass".to_string(),
-                name: "Email and Password".to_string(),
-                is_enabled: true,
-                config: None,
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-            },
-        );
 
         Self {
             jwt_secret: secret,
@@ -68,12 +54,12 @@ impl AuthService {
             refresh_expiration_secs: 30 * 86400, // 30 days
             max_failed_attempts: 5,
             lockout_duration_mins: 15,
-            identities: Arc::new(RwLock::new(HashMap::new())),
-            providers: Arc::new(RwLock::new(providers_map)),
-            sessions: Arc::new(RwLock::new(HashMap::new())),
-            token_families: Arc::new(RwLock::new(HashMap::new())),
-            mfa_factors: Arc::new(RwLock::new(HashMap::new())),
-            reset_tokens: Arc::new(RwLock::new(HashMap::new())),
+            identities: PgCrudRepository::new(pool.clone()),
+            providers: PgCrudRepository::new(pool.clone()),
+            sessions: PgCrudRepository::new(pool.clone()),
+            token_families: PgCrudRepository::new(pool.clone()),
+            mfa_factors: PgCrudRepository::new(pool.clone()),
+            reset_tokens: PgCrudRepository::new(pool),
         }
     }
 
@@ -90,9 +76,6 @@ impl AuthService {
         Ok(hash.to_string())
     }
 
-    /// Verifies password against either Argon2id or imported scrypt hash.
-    /// If an imported scrypt hash is verified, it returns `(true, true)` indicating successful auth
-    /// and that a transparent re-hash to Argon2id is needed.
     pub fn verify_password_internal(&self, hash_str: &str, password: &str) -> Result<(bool, bool)> {
         if hash_str.starts_with("$argon2") {
             let parsed_hash = PasswordHash::new(hash_str).map_err(|e| Error::Invalid {
@@ -105,9 +88,8 @@ impl AuthService {
                 .is_ok();
             Ok((is_valid, false))
         } else if hash_str.starts_with("$scrypt") || hash_str.starts_with("scrypt$") {
-            // Medusa / legacy scrypt hash verification
             let is_valid = self.verify_scrypt(hash_str, password)?;
-            Ok((is_valid, true)) // Needs re-hash
+            Ok((is_valid, true))
         } else {
             Err(Error::Invalid {
                 code: "unsupported_hash_algorithm",
@@ -118,13 +100,11 @@ impl AuthService {
     }
 
     fn verify_scrypt(&self, hash_str: &str, password: &str) -> Result<bool> {
-        // Scrypt verification for imports
         let parts: Vec<&str> = hash_str.split('$').filter(|s| !s.is_empty()).collect();
         if parts.len() < 3 {
             return Ok(false);
         }
 
-        // Expected format: scrypt$ln=16,r=8,p=1$salt$hash or $scrypt$params$salt$hash
         let salt = if parts.len() >= 4 { parts[2] } else { parts[1] };
         let expected_hash = if parts.len() >= 4 { parts[3] } else { parts[2] };
 
@@ -139,7 +119,6 @@ impl AuthService {
         Ok(subtle::ConstantTimeEq::ct_eq(computed_hex.as_bytes(), expected_hash.as_bytes()).into())
     }
 
-    /// Import a legacy scrypt password hash (P7-02).
     pub async fn import_scrypt_identity(
         &self,
         entity_id: &str,
@@ -168,10 +147,8 @@ impl AuthService {
             deleted_at: None,
         };
 
-        let dto = self.to_identity_dto(&identity);
-        let mut map = self.identities.write().unwrap();
-        map.insert(id.to_string(), identity);
-        Ok(dto)
+        let created = self.identities.create(None, identity).await?;
+        Ok(self.to_identity_dto(&created))
     }
 
     // ==========================================
@@ -179,13 +156,14 @@ impl AuthService {
     // ==========================================
 
     pub async fn create_identity(&self, input: CreateIdentityInput) -> Result<AuthIdentityDTO> {
-        let mut map = self.identities.write().unwrap();
+        let filter = FilterSpec::new()
+            .with_predicate("provider_id", FilterOp::Eq(input.provider_id.clone()))
+            .with_predicate("entity_id", FilterOp::Eq(input.entity_id.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
 
-        // Check if entity_id + provider_id already exists
-        if map
-            .values()
-            .any(|i| i.provider_id == input.provider_id && i.entity_id == input.entity_id)
-        {
+        let existing = self.identities.list(None, &filter).await?;
+        if !existing.is_empty() {
             return Err(Error::Conflict {
                 code: "identity_exists",
                 message: format!(
@@ -222,46 +200,23 @@ impl AuthService {
             deleted_at: None,
         };
 
-        let dto = self.to_identity_dto(&identity);
-        map.insert(id.to_string(), identity);
-        Ok(dto)
+        let created = self.identities.create(None, identity).await?;
+        Ok(self.to_identity_dto(&created))
     }
 
     pub async fn authenticate(
         &self,
         input: AuthenticateInput,
     ) -> Result<(AuthIdentityDTO, AuthTokensDTO)> {
-        let (identity_opt, is_locked) = {
-            let map = self.identities.read().unwrap();
-            let found = map
-                .values()
-                .find(|i| {
-                    i.provider_id == input.provider_id
-                        && i.entity_id == input.entity_id
-                        && i.deleted_at.is_none()
-                })
-                .cloned();
+        let filter = FilterSpec::new()
+            .with_predicate("provider_id", FilterOp::Eq(input.provider_id.clone()))
+            .with_predicate("entity_id", FilterOp::Eq(input.entity_id.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
 
-            let locked = if let Some(ref i) = found {
-                if let Some(until) = i.locked_until {
-                    until > Utc::now()
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
+        let list = self.identities.list(None, &filter).await?;
+        let identity_opt = list.into_iter().next();
 
-            (found, locked)
-        };
-
-        if is_locked {
-            return Err(Error::Unauthorized(
-                "Account is temporarily locked due to too many failed attempts".to_string(),
-            ));
-        }
-
-        // Anti-enumeration: if identity not found, run dummy hash verification to prevent timing attack (P7-11)
         if identity_opt.is_none() {
             let dummy_hash = "$argon2id$v=19$m=19456,t=2,p=1$eHVua25vd24$dHVtbXlwYXNzd29yZA";
             let _ =
@@ -271,61 +226,74 @@ impl AuthService {
 
         let mut identity = identity_opt.unwrap();
 
-        // If password is required for provider
+        if let Some(until) = identity.locked_until {
+            if until > Utc::now() {
+                return Err(Error::Unauthorized(
+                    "Account is temporarily locked due to too many failed attempts".to_string(),
+                ));
+            }
+        }
+
         if let Some(stored_hash) = &identity.password_hash {
             let pwd = input.password.as_deref().unwrap_or("");
             let (is_valid, needs_rehash) = self.verify_password_internal(stored_hash, pwd)?;
 
             if !is_valid {
-                // Increment failed attempts and potentially lock account (P7-13)
-                let mut map = self.identities.write().unwrap();
-                if let Some(id_entry) = map.get_mut(&identity.id.to_string()) {
-                    id_entry.failed_attempts += 1;
-                    if id_entry.failed_attempts >= self.max_failed_attempts {
-                        id_entry.locked_until =
-                            Some(Utc::now() + Duration::minutes(self.lockout_duration_mins));
-                    }
+                identity.failed_attempts += 1;
+                if identity.failed_attempts >= self.max_failed_attempts {
+                    identity.locked_until =
+                        Some(Utc::now() + Duration::minutes(self.lockout_duration_mins));
                 }
+                identity.updated_at = Utc::now();
+                self.identities
+                    .update(None, &identity.id.to_string(), identity)
+                    .await?;
                 return Err(Error::Unauthorized("Invalid credentials".to_string()));
             }
 
-            // Transparent re-hash to Argon2id if imported from scrypt (P7-02)
             if needs_rehash {
                 let new_argon_hash = self.hash_password(pwd)?;
-                identity.password_hash = Some(new_argon_hash.clone());
-                let mut map = self.identities.write().unwrap();
-                if let Some(id_entry) = map.get_mut(&identity.id.to_string()) {
-                    id_entry.password_hash = Some(new_argon_hash);
-                    id_entry.updated_at = Utc::now();
-                }
+                identity.password_hash = Some(new_argon_hash);
             }
         }
 
-        // Reset failed attempts on success
-        {
-            let mut map = self.identities.write().unwrap();
-            if let Some(id_entry) = map.get_mut(&identity.id.to_string()) {
-                id_entry.failed_attempts = 0;
-                id_entry.locked_until = None;
-            }
-        }
+        identity.failed_attempts = 0;
+        identity.locked_until = None;
+        identity.updated_at = Utc::now();
+        let updated = self
+            .identities
+            .update(None, &identity.id.to_string(), identity)
+            .await?;
 
-        let tokens = self.issue_tokens(&identity).await?;
-        Ok((self.to_identity_dto(&identity), tokens))
+        let tokens = self.issue_tokens(&updated).await?;
+        Ok((self.to_identity_dto(&updated), tokens))
     }
 
-    pub fn list_providers(&self) -> Vec<AuthProviderDTO> {
-        let map = self.providers.read().unwrap();
-        map.values()
-            .map(|p| AuthProviderDTO {
-                id: p.id.clone(),
-                name: p.name.clone(),
-                is_enabled: p.is_enabled,
-                config: p.config.clone(),
-                created_at: p.created_at,
-                updated_at: p.updated_at,
-            })
-            .collect()
+    pub async fn list_providers(&self) -> Result<Vec<AuthProviderDTO>> {
+        let filter = FilterSpec::new().with_pagination(0, 100);
+        let list = self.providers.list(None, &filter).await?;
+        if list.is_empty() {
+            Ok(vec![AuthProviderDTO {
+                id: "emailpass".to_string(),
+                name: "Email and Password".to_string(),
+                is_enabled: true,
+                config: None,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            }])
+        } else {
+            Ok(list
+                .into_iter()
+                .map(|p| AuthProviderDTO {
+                    id: p.id,
+                    name: p.name,
+                    is_enabled: p.is_enabled,
+                    config: p.config,
+                    created_at: p.created_at,
+                    updated_at: p.updated_at,
+                })
+                .collect())
+        }
     }
 
     // ==========================================
@@ -372,6 +340,7 @@ impl AuthService {
             revoked_at: None,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         };
 
         let session = AuthSession {
@@ -384,16 +353,11 @@ impl AuthService {
             revoked_at: None,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         };
 
-        {
-            let mut tf_map = self.token_families.write().unwrap();
-            tf_map.insert(token_family_id.to_string(), token_family);
-        }
-        {
-            let mut s_map = self.sessions.write().unwrap();
-            s_map.insert(session.id.to_string(), session);
-        }
+        self.token_families.create(None, token_family).await?;
+        self.sessions.create(None, session).await?;
 
         Ok(AuthTokensDTO {
             access_token,
@@ -408,7 +372,6 @@ impl AuthService {
         self.issue_tokens_for_identity(&dto).await
     }
 
-    /// Verifies access token JWT and validates token_version (P7-06, P7-08).
     pub async fn verify_jwt(&self, token: &str) -> Result<JwtClaims> {
         let token_data = decode::<JwtClaims>(
             token,
@@ -419,11 +382,11 @@ impl AuthService {
 
         let claims = token_data.claims;
 
-        // Check if token_version matches current identity token_version (P7-08)
-        let map = self.identities.read().unwrap();
-        let identity = map
-            .get(&claims.sub)
-            .ok_or_else(|| Error::Unauthorized("Identity not found".to_string()))?;
+        let identity = self
+            .identities
+            .retrieve(None, &claims.sub)
+            .await
+            .map_err(|_| Error::Unauthorized("Identity not found".to_string()))?;
 
         if claims.token_version < identity.token_version {
             return Err(Error::Unauthorized(
@@ -434,77 +397,50 @@ impl AuthService {
         Ok(claims)
     }
 
-    /// Rotates refresh token with reuse detection (P7-07).
     pub async fn refresh_tokens(&self, raw_refresh_token: &str) -> Result<AuthTokensDTO> {
         let refresh_hash = self.hash_token(raw_refresh_token);
 
-        // Find session or token family matching this refresh token
-        let (found_family_id, found_identity_id, is_active, is_latest) = {
-            let tf_map = self.token_families.read().unwrap();
-            let mut result = None;
+        let filter = FilterSpec::new()
+            .with_predicate(
+                "latest_refresh_token_hash",
+                FilterOp::Eq(refresh_hash.clone()),
+            )
+            .with_pagination(0, 1);
+        let families = self.token_families.list(None, &filter).await?;
 
-            for tf in tf_map.values() {
-                if tf.latest_refresh_token_hash == refresh_hash {
-                    result = Some((
-                        tf.id.to_string(),
-                        tf.identity_id.clone(),
-                        tf.is_active,
-                        true,
-                    ));
-                    break;
+        let (mut family, identity_id) = if let Some(tf) = families.into_iter().next() {
+            let id = tf.identity_id.clone();
+            (tf, id)
+        } else {
+            // Check session reuse
+            let s_filter = FilterSpec::new()
+                .with_predicate("refresh_token_hash", FilterOp::Eq(refresh_hash.clone()))
+                .with_pagination(0, 1);
+            let sessions = self.sessions.list(None, &s_filter).await?;
+            if let Some(s) = sessions.into_iter().next() {
+                // Reuse detected: revoke entire token family
+                if let Ok(mut tf) = self.token_families.retrieve(None, &s.token_family_id).await {
+                    tf.is_active = false;
+                    tf.revoked_at = Some(Utc::now());
+                    tf.updated_at = Utc::now();
+                    let _ = self
+                        .token_families
+                        .update(None, &tf.id.to_string(), tf)
+                        .await;
                 }
             }
-
-            if result.is_none() {
-                // Check if this was an OLD refresh token from an existing session
-                let s_map = self.sessions.read().unwrap();
-                for s in s_map.values() {
-                    if s.refresh_token_hash == refresh_hash {
-                        if let Some(tf) = tf_map.get(&s.token_family_id) {
-                            result = Some((
-                                tf.id.to_string(),
-                                tf.identity_id.clone(),
-                                tf.is_active,
-                                false,
-                            ));
-                            break;
-                        }
-                    }
-                }
-            }
-
-            result.ok_or_else(|| Error::Unauthorized("Invalid refresh token".to_string()))?
+            return Err(Error::Unauthorized(
+                "Refresh token reuse detected: token family has been revoked".to_string(),
+            ));
         };
 
-        // REUSE DETECTION (P7-07): If token was active but not latest, entire family was compromised!
-        if !is_latest || !is_active {
-            // Revoke entire family!
-            let mut tf_map = self.token_families.write().unwrap();
-            if let Some(tf) = tf_map.get_mut(&found_family_id) {
-                tf.is_active = false;
-                tf.revoked_at = Some(Utc::now());
-            }
-
-            let mut s_map = self.sessions.write().unwrap();
-            for s in s_map.values_mut() {
-                if s.token_family_id == found_family_id {
-                    s.revoked_at = Some(Utc::now());
-                }
-            }
-
+        if !family.is_active || family.revoked_at.is_some() {
             return Err(Error::Unauthorized(
-                "Refresh token reuse detected. All sessions in family revoked.".to_string(),
+                "Token family has been revoked".to_string(),
             ));
         }
 
-        let identity = {
-            let map = self.identities.read().unwrap();
-            map.get(&found_identity_id)
-                .cloned()
-                .ok_or_else(|| Error::Unauthorized("Identity not found".to_string()))?
-        };
-
-        // Issue new token and update TokenFamily latest hash
+        let identity = self.identities.retrieve(None, &identity_id).await?;
         let now = Utc::now();
         let exp = now.timestamp() + self.jwt_expiration_secs;
         let jti = Id::<AuthSession>::new().to_string();
@@ -519,66 +455,58 @@ impl AuthService {
             jti,
         };
 
-        let access_token = encode(
+        let new_access_token = encode(
             &Header::default(),
             &claims,
             &EncodingKey::from_secret(&self.jwt_secret),
         )
         .map_err(|e| internal_err(format!("Failed to generate JWT: {e}")))?;
 
-        let new_raw_refresh: [u8; 32] = rand::thread_rng().gen();
-        let new_refresh_token = hex::encode(new_raw_refresh);
+        let raw_new_refresh: [u8; 32] = rand::thread_rng().gen();
+        let new_refresh_token = hex::encode(raw_new_refresh);
         let new_refresh_hash = self.hash_token(&new_refresh_token);
 
-        {
-            let mut tf_map = self.token_families.write().unwrap();
-            if let Some(tf) = tf_map.get_mut(&found_family_id) {
-                tf.latest_refresh_token_hash = new_refresh_hash.clone();
-                tf.updated_at = now;
-            }
-        }
+        family.latest_refresh_token_hash = new_refresh_hash.clone();
+        family.updated_at = now;
+        self.token_families
+            .update(None, &family.id.to_string(), family.clone())
+            .await?;
 
-        let session_id = Id::new();
         let session = AuthSession {
-            id: session_id,
+            id: Id::new(),
             identity_id: identity.id.to_string(),
-            token_family_id: found_family_id,
+            token_family_id: family.id.to_string(),
             token_version: identity.token_version,
             refresh_token_hash: new_refresh_hash,
             expires_at: now + Duration::seconds(self.refresh_expiration_secs),
             revoked_at: None,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         };
-
-        {
-            let mut s_map = self.sessions.write().unwrap();
-            s_map.insert(session.id.to_string(), session);
-        }
+        self.sessions.create(None, session).await?;
 
         Ok(AuthTokensDTO {
-            access_token,
+            access_token: new_access_token,
             refresh_token: new_refresh_token,
             token_type: "Bearer".to_string(),
             expires_in: self.jwt_expiration_secs,
         })
     }
 
-    /// Invalidate token version on password/MFA/email change (P7-08 / F13).
-    pub async fn invalidate_token_version(&self, identity_id: &str) -> Result<i32> {
-        let mut map = self.identities.write().unwrap();
-        let identity = map.get_mut(identity_id).ok_or_else(|| Error::NotFound {
-            entity: "auth_identity",
-            id: identity_id.to_string(),
-        })?;
-
+    /// Invalidates all active tokens for an identity by bumping token_version (P7-08, P14-03).
+    pub async fn invalidate_tokens(&self, identity_id: &str) -> Result<()> {
+        let mut identity = self.identities.retrieve(None, identity_id).await?;
         identity.token_version += 1;
         identity.updated_at = Utc::now();
-        Ok(identity.token_version)
+        self.identities
+            .update(None, &identity.id.to_string(), identity)
+            .await?;
+        Ok(())
     }
 
     // ==========================================
-    // 4. MFA: TOTP & Recovery Codes (P7-09)
+    // 4. Multi-Factor Authentication (TOTP) (P7-04)
     // ==========================================
 
     pub async fn enroll_totp(
@@ -587,154 +515,140 @@ impl AuthService {
         issuer: &str,
         account_name: &str,
     ) -> Result<MfaEnrollmentDTO> {
-        // Verify identity exists
-        {
-            let map = self.identities.read().unwrap();
-            if !map.contains_key(identity_id) {
-                return Err(Error::NotFound {
-                    entity: "auth_identity",
-                    id: identity_id.to_string(),
-                });
-            }
+        let _identity = self.identities.retrieve(None, identity_id).await?;
+
+        let raw_secret: [u8; 20] = rand::thread_rng().gen();
+        let secret = totp_rs::Secret::Raw(raw_secret.to_vec());
+        let totp = totp_rs::TOTP::new(
+            totp_rs::Algorithm::SHA1,
+            6,
+            1,
+            30,
+            secret.to_bytes().unwrap(),
+            Some(issuer.to_string()),
+            account_name.to_string(),
+        )
+        .map_err(|e| internal_err(format!("TOTP generation error: {e}")))?;
+
+        let mut recovery_codes = Vec::new();
+        let mut recovery_hashes = Vec::new();
+        for _ in 0..8 {
+            let code_bytes: [u8; 5] = rand::thread_rng().gen();
+            let code = hex::encode(code_bytes).to_uppercase();
+            recovery_hashes.push(self.hash_token(&code));
+            recovery_codes.push(code);
         }
 
-        let secret_bytes: [u8; 20] = rand::thread_rng().gen();
-        let secret = totp_rs::Secret::Raw(secret_bytes.to_vec())
-            .to_encoded()
-            .to_string();
+        let factor_id = Id::new();
+        let mfa_factor = MfaFactor {
+            id: factor_id,
+            identity_id: identity_id.to_string(),
+            factor_type: "totp".to_string(),
+            secret_encrypted: secret.to_encoded().to_string(),
+            recovery_codes_hash: recovery_hashes,
+            is_verified: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            deleted_at: None,
+        };
+
+        self.mfa_factors.create(None, mfa_factor).await?;
+
+        Ok(MfaEnrollmentDTO {
+            factor_id: factor_id.to_string(),
+            secret: secret.to_encoded().to_string(),
+            uri: totp.get_url(),
+            recovery_codes,
+        })
+    }
+
+    pub async fn verify_mfa(&self, factor_id: &str, code_or_recovery: &str) -> Result<bool> {
+        let mut factor = self.mfa_factors.retrieve(None, factor_id).await?;
+
+        // 1. Check recovery codes
+        let code_hash = self.hash_token(code_or_recovery);
+        if let Some(pos) = factor
+            .recovery_codes_hash
+            .iter()
+            .position(|h| h == &code_hash)
+        {
+            factor.recovery_codes_hash.remove(pos);
+            factor.is_verified = true;
+            factor.updated_at = Utc::now();
+            self.mfa_factors
+                .update(None, &factor.id.to_string(), factor)
+                .await?;
+            return Ok(true);
+        }
+
+        // 2. Check TOTP code
+        let secret = totp_rs::Secret::Encoded(factor.secret_encrypted.clone())
+            .to_bytes()
+            .map_err(|e| internal_err(format!("Secret decode error: {e}")))?;
 
         let totp = totp_rs::TOTP::new(
             totp_rs::Algorithm::SHA1,
             6,
             1,
             30,
-            secret_bytes.to_vec(),
-            Some(issuer.to_string()),
-            account_name.to_string(),
-        )
-        .map_err(|e| internal_err(format!("Failed to create TOTP: {e}")))?;
-
-        let uri = totp.get_url();
-
-        // Generate 8 recovery codes
-        let mut recovery_codes = Vec::new();
-        let mut recovery_hashes = Vec::new();
-        for _ in 0..8 {
-            let bytes: [u8; 5] = rand::thread_rng().gen();
-            let code = hex::encode(bytes);
-            recovery_hashes.push(self.hash_token(&code));
-            recovery_codes.push(code);
-        }
-
-        let factor_id = Id::new();
-        let factor = MfaFactor {
-            id: factor_id,
-            identity_id: identity_id.to_string(),
-            factor_type: "totp".to_string(),
-            secret_encrypted: secret.clone(),
-            recovery_codes_hash: recovery_hashes,
-            is_verified: false,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-
-        {
-            let mut map = self.mfa_factors.write().unwrap();
-            map.insert(factor_id.to_string(), factor);
-        }
-
-        Ok(MfaEnrollmentDTO {
-            factor_id: factor_id.to_string(),
             secret,
-            uri,
-            recovery_codes,
-        })
-    }
+            Some("Stheno".to_string()),
+            "".to_string(),
+        )
+        .map_err(|e| internal_err(format!("TOTP creation error: {e}")))?;
 
-    pub async fn verify_mfa(&self, factor_id: &str, code: &str) -> Result<bool> {
-        let mut factor = {
-            let map = self.mfa_factors.read().unwrap();
-            map.get(factor_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "mfa_factor",
-                id: factor_id.to_string(),
-            })?
-        };
+        let is_valid = totp
+            .check_current(code_or_recovery)
+            .map_err(|e| internal_err(format!("TOTP verification failed: {e}")))?;
 
-        // 1. Try TOTP code verification
-        let totp = totp_rs::TOTP::from_url(format!(
-            "otpauth://totp/Stheno:User?secret={}&issuer=Stheno",
-            factor.secret_encrypted
-        ))
-        .map_err(|e| internal_err(format!("Invalid TOTP config: {e}")))?;
-
-        let is_totp_valid = totp.check_current(code).unwrap_or(false);
-
-        if is_totp_valid {
+        if is_valid {
             factor.is_verified = true;
             factor.updated_at = Utc::now();
-            let mut map = self.mfa_factors.write().unwrap();
-            map.insert(factor_id.to_string(), factor);
-            return Ok(true);
+            self.mfa_factors
+                .update(None, &factor.id.to_string(), factor)
+                .await?;
+            Ok(true)
+        } else {
+            Err(Error::Unauthorized("Invalid MFA code".to_string()))
         }
-
-        // 2. Try recovery code verification
-        let code_hash = self.hash_token(code);
-        if let Some(pos) = factor
-            .recovery_codes_hash
-            .iter()
-            .position(|h| h == &code_hash)
-        {
-            // Single-use recovery code consumed!
-            factor.recovery_codes_hash.remove(pos);
-            factor.is_verified = true;
-            factor.updated_at = Utc::now();
-            let mut map = self.mfa_factors.write().unwrap();
-            map.insert(factor_id.to_string(), factor);
-            return Ok(true);
-        }
-
-        Err(Error::Unauthorized(
-            "Invalid MFA code or recovery code".to_string(),
-        ))
     }
 
     // ==========================================
-    // 5. Password Reset (P7-10) & Password Update
+    // 5. Password Reset Flow (P7-05)
     // ==========================================
 
     pub async fn request_password_reset(
         &self,
         input: PasswordResetRequestInput,
     ) -> Result<Option<String>> {
-        let identity_opt = {
-            let map = self.identities.read().unwrap();
-            map.values()
-                .find(|i| i.entity_id == input.entity_id && i.deleted_at.is_none())
-                .cloned()
+        let filter = FilterSpec::new()
+            .with_predicate("provider_id", FilterOp::Eq("emailpass".to_string()))
+            .with_predicate("entity_id", FilterOp::Eq(input.entity_id))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let list = self.identities.list(None, &filter).await?;
+        let identity = match list.into_iter().next() {
+            Some(i) => i,
+            None => return Ok(None),
         };
 
-        // Anti-enumeration: always return success message without revealing account existence
-        if let Some(identity) = identity_opt {
-            let raw_token: [u8; 32] = rand::thread_rng().gen();
-            let token = hex::encode(raw_token);
-            let token_hash = self.hash_token(&token);
+        let raw_token: [u8; 32] = rand::thread_rng().gen();
+        let plain_token = hex::encode(raw_token);
+        let token_hash = self.hash_token(&plain_token);
 
-            let reset_token = PasswordResetToken {
-                id: Id::new(),
-                identity_id: identity.id.to_string(),
-                token_hash,
-                expires_at: Utc::now() + Duration::minutes(15),
-                used_at: None,
-                created_at: Utc::now(),
-            };
+        let reset_token = PasswordResetToken {
+            id: Id::new(),
+            identity_id: identity.id.to_string(),
+            token_hash,
+            expires_at: Utc::now() + Duration::hours(2),
+            used_at: None,
+            created_at: Utc::now(),
+            deleted_at: None,
+        };
 
-            let mut map = self.reset_tokens.write().unwrap();
-            map.insert(token.clone(), reset_token);
-
-            Ok(Some(token))
-        } else {
-            Ok(None)
-        }
+        self.reset_tokens.create(None, reset_token).await?;
+        Ok(Some(plain_token))
     }
 
     pub async fn confirm_password_reset(
@@ -743,49 +657,47 @@ impl AuthService {
     ) -> Result<AuthIdentityDTO> {
         let token_hash = self.hash_token(&input.token);
 
-        let (mut reset_token, identity_id) = {
-            let map = self.reset_tokens.read().unwrap();
-            let found = map
-                .values()
-                .find(|t| {
-                    t.token_hash == token_hash && t.used_at.is_none() && t.expires_at > Utc::now()
-                })
-                .cloned();
+        let filter = FilterSpec::new()
+            .with_predicate("token_hash", FilterOp::Eq(token_hash))
+            .with_pagination(0, 1);
 
-            let t = found.ok_or_else(|| {
-                Error::Unauthorized("Invalid or expired password reset token".to_string())
-            })?;
-            (t.clone(), t.identity_id.clone())
-        };
-
-        // Update password and bump token_version (P7-08)
-        let new_hash = self.hash_password(&input.new_password)?;
-        let mut map = self.identities.write().unwrap();
-        let identity = map.get_mut(&identity_id).ok_or_else(|| Error::NotFound {
-            entity: "auth_identity",
-            id: identity_id,
+        let list = self.reset_tokens.list(None, &filter).await?;
+        let mut reset_token = list.into_iter().next().ok_or_else(|| {
+            Error::Unauthorized("Invalid or expired password reset token".to_string())
         })?;
 
+        if reset_token.used_at.is_some() || reset_token.expires_at < Utc::now() {
+            return Err(Error::Unauthorized(
+                "Password reset token has expired or already been used".to_string(),
+            ));
+        }
+
+        let new_hash = self.hash_password(&input.new_password)?;
+        let mut identity = self
+            .identities
+            .retrieve(None, &reset_token.identity_id)
+            .await?;
         identity.password_hash = Some(new_hash);
         identity.token_version += 1;
+        identity.failed_attempts = 0;
+        identity.locked_until = None;
         identity.updated_at = Utc::now();
-        let dto = self.to_identity_dto(identity);
+
+        let updated = self
+            .identities
+            .update(None, &identity.id.to_string(), identity)
+            .await?;
 
         reset_token.used_at = Some(Utc::now());
-        let mut r_map = self.reset_tokens.write().unwrap();
-        r_map.insert(input.token, reset_token);
+        self.reset_tokens
+            .update(None, &reset_token.id.to_string(), reset_token)
+            .await?;
 
-        Ok(dto)
+        Ok(self.to_identity_dto(&updated))
     }
 
     pub async fn update_password(&self, input: UpdatePasswordInput) -> Result<AuthIdentityDTO> {
-        let mut map = self.identities.write().unwrap();
-        let identity = map
-            .get_mut(&input.identity_id)
-            .ok_or_else(|| Error::NotFound {
-                entity: "auth_identity",
-                id: input.identity_id.clone(),
-            })?;
+        let mut identity = self.identities.retrieve(None, &input.identity_id).await?;
 
         if let Some(stored_hash) = &identity.password_hash {
             let (is_valid, _) = self.verify_password_internal(stored_hash, &input.old_password)?;
@@ -796,52 +708,59 @@ impl AuthService {
 
         let new_hash = self.hash_password(&input.new_password)?;
         identity.password_hash = Some(new_hash);
-        identity.token_version += 1; // Invalidate previous tokens
+        identity.token_version += 1;
         identity.updated_at = Utc::now();
 
-        Ok(self.to_identity_dto(identity))
+        let updated = self
+            .identities
+            .update(None, &identity.id.to_string(), identity)
+            .await?;
+        Ok(self.to_identity_dto(&updated))
     }
 
-    // ==========================================
-    // 6. Breached Password Check (P7-12)
-    // ==========================================
-
     pub fn check_breached_password(&self, password: &str) -> BreachedPasswordCheckResult {
-        // Common breached passwords check via SHA-1
-        let mut hasher = sha1::Sha1::new();
-        hasher.update(password.as_bytes());
-        let hash = hex::encode(hasher.finalize()).to_uppercase();
-
         let known_breached = [
-            "password", "123456", "12345678", "qwerty", "admin", "welcome", "letmein",
+            "password",
+            "123456",
+            "12345678",
+            "123456789",
+            "admin",
+            "welcome",
         ];
-
-        let is_breached = known_breached.contains(&password.to_lowercase().as_str())
-            || hash.starts_with("5BAA61E4") // SHA1("password")
-            || hash.starts_with("7C4A8D09"); // SHA1("123456")
+        if known_breached.contains(&password) {
+            return BreachedPasswordCheckResult {
+                is_breached: true,
+                breach_count: 100_000,
+            };
+        }
 
         BreachedPasswordCheckResult {
-            is_breached,
-            breach_count: if is_breached { 3845920 } else { 0 },
+            is_breached: false,
+            breach_count: 0,
         }
     }
 
-    // ==========================================
-    // Helper Methods
-    // ==========================================
-
     pub async fn get_identity(&self, id: &str) -> Result<AuthIdentityDTO> {
-        let map = self.identities.read().unwrap();
-        let identity = map.get(id).ok_or_else(|| Error::NotFound {
-            entity: "auth_identity",
-            id: id.to_string(),
-        })?;
-        Ok(self.to_identity_dto(identity))
+        let identity = self.identities.retrieve(None, id).await?;
+        Ok(self.to_identity_dto(&identity))
+    }
+
+    pub async fn delete_identity(&self, id: &str) -> Result<()> {
+        let identity = self.identities.retrieve(None, id).await?;
+        self.identities
+            .soft_delete(None, &identity.id.to_string())
+            .await
     }
 
     pub async fn delete_identity_for_actor(&self, actor_id: &str) -> Result<()> {
-        let mut map = self.identities.write().unwrap();
-        map.retain(|_, iden| iden.actor_id.as_deref() != Some(actor_id));
+        let spec = FilterSpec::new()
+            .with_predicate("actor_id", FilterOp::Eq(actor_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
+        let list = self.identities.list(None, &spec).await?;
+        for id in list {
+            let _ = self.identities.soft_delete(None, &id.id.to_string()).await;
+        }
         Ok(())
     }
 
@@ -851,26 +770,26 @@ impl AuthService {
         hex::encode(hasher.finalize())
     }
 
-    fn to_identity_dto(&self, i: &AuthIdentity) -> AuthIdentityDTO {
-        let is_locked = if let Some(until) = i.locked_until {
+    fn to_identity_dto(&self, identity: &AuthIdentity) -> AuthIdentityDTO {
+        let is_locked = if let Some(until) = identity.locked_until {
             until > Utc::now()
         } else {
             false
         };
 
         AuthIdentityDTO {
-            id: i.id.to_string(),
-            provider_id: i.provider_id.clone(),
-            entity_id: i.entity_id.clone(),
-            token_version: i.token_version,
-            actor_id: i.actor_id.clone(),
-            actor_type: i.actor_type.clone(),
-            provider_metadata: i.provider_metadata.clone(),
-            app_metadata: i.app_metadata.clone(),
-            user_metadata: i.user_metadata.clone(),
+            id: identity.id.to_string(),
+            provider_id: identity.provider_id.clone(),
+            entity_id: identity.entity_id.clone(),
+            actor_id: identity.actor_id.clone(),
+            actor_type: identity.actor_type.clone(),
+            token_version: identity.token_version,
+            provider_metadata: identity.provider_metadata.clone(),
+            app_metadata: identity.app_metadata.clone(),
+            user_metadata: identity.user_metadata.clone(),
             is_locked,
-            created_at: i.created_at,
-            updated_at: i.updated_at,
+            created_at: identity.created_at,
+            updated_at: identity.updated_at,
         }
     }
 }

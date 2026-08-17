@@ -119,3 +119,11 @@ pub struct CalculatedPriceDTO {
     pub matched_rules_count: i32,
     pub min_quantity: Option<i32>,
 }
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    PriceDTO => "price",
+    PriceListDTO => "plist",
+    PricePreferenceDTO => "pricepref",
+    PriceSetDTO => "pset",
+}

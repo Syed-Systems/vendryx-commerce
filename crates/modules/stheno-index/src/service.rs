@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-use std::sync::RwLock;
-
 use chrono::Utc;
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::{
@@ -10,102 +8,119 @@ use crate::dto::{
 };
 use crate::models::{IndexData, IndexField, IndexRelation, IndexSyncState};
 
+#[derive(Clone)]
 pub struct IndexService {
-    index_data: RwLock<HashMap<String, IndexData>>,
-    relations: RwLock<Vec<IndexRelation>>,
-    fields: RwLock<HashMap<String, IndexField>>,
-    sync_states: RwLock<HashMap<String, IndexSyncState>>,
-}
-
-impl Default for IndexService {
-    fn default() -> Self {
-        Self::new()
-    }
+    index_data: PgCrudRepository<IndexData>,
+    relations: PgCrudRepository<IndexRelation>,
+    fields: PgCrudRepository<IndexField>,
+    sync_states: PgCrudRepository<IndexSyncState>,
 }
 
 impl IndexService {
-    pub fn new() -> Self {
+    pub fn new(pool: DbPool) -> Self {
         Self {
-            index_data: RwLock::new(HashMap::new()),
-            relations: RwLock::new(Vec::new()),
-            fields: RwLock::new(HashMap::new()),
-            sync_states: RwLock::new(HashMap::new()),
+            index_data: PgCrudRepository::new(pool.clone()),
+            relations: PgCrudRepository::new(pool.clone()),
+            fields: PgCrudRepository::new(pool.clone()),
+            sync_states: PgCrudRepository::new(pool),
         }
     }
 
-    fn make_data_key(entity_name: &str, entity_id: &str) -> String {
-        format!("{}:{}", entity_name, entity_id)
-    }
-
     // ==========================================
-    // 1. Incremental Update & Projection (P8-13)
+    // 1. Incremental Update & Projection (P8-13, P14-14)
     // ==========================================
 
     pub async fn upsert_index_data(&self, input: UpsertIndexDataInput) -> Result<IndexDataDTO> {
-        let key = Self::make_data_key(&input.entity_name, &input.entity_id);
+        let filter = FilterSpec::new()
+            .with_predicate("entity_name", FilterOp::Eq(input.entity_name.clone()))
+            .with_predicate("entity_id", FilterOp::Eq(input.entity_id.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let existing = self.index_data.list(None, &filter).await?;
         let now = Utc::now();
         let version = input.version.unwrap_or(1);
 
-        let data = IndexData {
-            id: Id::new(),
-            entity_name: input.entity_name.clone(),
-            entity_id: input.entity_id.clone(),
-            data: input.data,
-            version,
-            created_at: now,
-            updated_at: now,
-            deleted_at: None,
+        let data = if let Some(mut existing_data) = existing.into_iter().next() {
+            existing_data.data = input.data;
+            existing_data.version = version;
+            existing_data.updated_at = now;
+            self.index_data
+                .update(None, &existing_data.id.to_string(), existing_data)
+                .await?
+        } else {
+            let id = Id::new();
+            let data = IndexData {
+                id,
+                entity_name: input.entity_name.clone(),
+                entity_id: input.entity_id.clone(),
+                data: input.data,
+                version,
+                created_at: now,
+                updated_at: now,
+                deleted_at: None,
+            };
+            self.index_data.create(None, data).await?
         };
 
-        let dto = IndexDataDTO {
+        // Update sync state
+        let sync_filter = FilterSpec::new()
+            .with_predicate("entity_name", FilterOp::Eq(input.entity_name.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let sync_existing = self.sync_states.list(None, &sync_filter).await?;
+        if let Some(mut state) = sync_existing.into_iter().next() {
+            state.last_synced_version = version;
+            state.last_synced_at = now;
+            state.lag_seconds = 0;
+            state.status = "synced".to_string();
+            let _ = self
+                .sync_states
+                .update(None, &state.id.to_string(), state)
+                .await;
+        } else {
+            let state = IndexSyncState {
+                id: Id::new(),
+                entity_name: input.entity_name.clone(),
+                last_synced_version: version,
+                last_synced_at: now,
+                lag_seconds: 0,
+                status: "synced".to_string(),
+                deleted_at: None,
+            };
+            let _ = self.sync_states.create(None, state).await;
+        }
+
+        Ok(IndexDataDTO {
             id: data.id.to_string(),
-            entity_name: data.entity_name.clone(),
-            entity_id: data.entity_id.clone(),
-            data: data.data.clone(),
+            entity_name: data.entity_name,
+            entity_id: data.entity_id,
+            data: data.data,
             version: data.version,
             created_at: data.created_at,
             updated_at: data.updated_at,
-        };
-
-        {
-            let mut map = self.index_data.write().unwrap();
-            map.insert(key, data);
-        }
-
-        // Update sync state & lag
-        {
-            let mut sync_map = self.sync_states.write().unwrap();
-            let state = sync_map
-                .entry(input.entity_name.clone())
-                .or_insert_with(|| IndexSyncState {
-                    id: Id::new(),
-                    entity_name: input.entity_name.clone(),
-                    last_synced_version: 0,
-                    last_synced_at: now,
-                    lag_seconds: 0,
-                    status: "synced".to_string(),
-                });
-
-            state.last_synced_version = version;
-            state.last_synced_at = now;
-            state.lag_seconds = 0; // Freshly updated
-            state.status = "synced".to_string();
-        }
-
-        Ok(dto)
+        })
     }
 
     pub async fn delete_index_data(&self, entity_name: &str, entity_id: &str) -> Result<()> {
-        let key = Self::make_data_key(entity_name, entity_id);
-        let mut map = self.index_data.write().unwrap();
-        if let Some(entry) = map.get_mut(&key) {
-            entry.deleted_at = Some(Utc::now());
+        let filter = FilterSpec::new()
+            .with_predicate("entity_name", FilterOp::Eq(entity_name.to_string()))
+            .with_predicate("entity_id", FilterOp::Eq(entity_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let list = self.index_data.list(None, &filter).await?;
+        if let Some(data) = list.into_iter().next() {
+            self.index_data
+                .soft_delete(None, &data.id.to_string())
+                .await?;
         }
         Ok(())
     }
 
     // ==========================================
-    // 2. Full Rebuild & Lag Metric (P8-13)
+    // 2. Full Rebuild & Lag Metric (P8-13, P14-14)
     // ==========================================
 
     pub async fn rebuild_index(
@@ -114,58 +129,81 @@ impl IndexService {
         documents: Vec<(String, serde_json::Value)>,
     ) -> Result<IndexSyncStateDTO> {
         let now = Utc::now();
-        {
-            let mut map = self.index_data.write().unwrap();
-            // Remove previous entries for entity_name
-            map.retain(|_, v| v.entity_name != entity_name);
 
-            for (id_str, val) in documents {
-                let key = Self::make_data_key(entity_name, &id_str);
-                map.insert(
-                    key,
-                    IndexData {
-                        id: Id::new(),
-                        entity_name: entity_name.to_string(),
-                        entity_id: id_str,
-                        data: val,
-                        version: 1,
-                        created_at: now,
-                        updated_at: now,
-                        deleted_at: None,
-                    },
-                );
-            }
+        // Soft delete old entries
+        let filter = FilterSpec::new()
+            .with_predicate("entity_name", FilterOp::Eq(entity_name.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        let old = self.index_data.list(None, &filter).await?;
+        for entry in old {
+            let _ = self
+                .index_data
+                .soft_delete(None, &entry.id.to_string())
+                .await;
         }
 
-        let sync_state = IndexSyncState {
-            id: Id::new(),
-            entity_name: entity_name.to_string(),
-            last_synced_version: 1,
-            last_synced_at: now,
-            lag_seconds: 0,
-            status: "ready".to_string(),
-        };
-
-        let dto = IndexSyncStateDTO {
-            id: sync_state.id.to_string(),
-            entity_name: sync_state.entity_name.clone(),
-            last_synced_version: sync_state.last_synced_version,
-            last_synced_at: sync_state.last_synced_at,
-            lag_seconds: sync_state.lag_seconds,
-            status: sync_state.status.clone(),
-        };
-
-        {
-            let mut sync_map = self.sync_states.write().unwrap();
-            sync_map.insert(entity_name.to_string(), sync_state);
+        // Insert new documents
+        for (id_str, val) in documents {
+            let data = IndexData {
+                id: Id::new(),
+                entity_name: entity_name.to_string(),
+                entity_id: id_str,
+                data: val,
+                version: 1,
+                created_at: now,
+                updated_at: now,
+                deleted_at: None,
+            };
+            let _ = self.index_data.create(None, data).await;
         }
 
-        Ok(dto)
+        let sync_filter = FilterSpec::new()
+            .with_predicate("entity_name", FilterOp::Eq(entity_name.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let sync_existing = self.sync_states.list(None, &sync_filter).await?;
+        let state = if let Some(mut existing_state) = sync_existing.into_iter().next() {
+            existing_state.last_synced_version = 1;
+            existing_state.last_synced_at = now;
+            existing_state.lag_seconds = 0;
+            existing_state.status = "ready".to_string();
+            self.sync_states
+                .update(None, &existing_state.id.to_string(), existing_state)
+                .await?
+        } else {
+            let state = IndexSyncState {
+                id: Id::new(),
+                entity_name: entity_name.to_string(),
+                last_synced_version: 1,
+                last_synced_at: now,
+                lag_seconds: 0,
+                status: "ready".to_string(),
+                deleted_at: None,
+            };
+            self.sync_states.create(None, state).await?
+        };
+
+        Ok(IndexSyncStateDTO {
+            id: state.id.to_string(),
+            entity_name: state.entity_name,
+            last_synced_version: state.last_synced_version,
+            last_synced_at: state.last_synced_at,
+            lag_seconds: state.lag_seconds,
+            status: state.status,
+        })
     }
 
     pub async fn get_sync_state(&self, entity_name: &str) -> Result<IndexSyncStateDTO> {
-        let map = self.sync_states.read().unwrap();
-        let state = map.get(entity_name).ok_or_else(|| Error::NotFound {
+        let filter = FilterSpec::new()
+            .with_predicate("entity_name", FilterOp::Eq(entity_name.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let list = self.sync_states.list(None, &filter).await?;
+        let state = list.into_iter().next().ok_or_else(|| Error::NotFound {
             entity: "index_sync_state",
             id: entity_name.to_string(),
         })?;
@@ -175,11 +213,11 @@ impl IndexService {
 
         Ok(IndexSyncStateDTO {
             id: state.id.to_string(),
-            entity_name: state.entity_name.clone(),
+            entity_name: state.entity_name,
             last_synced_version: state.last_synced_version,
             last_synced_at: state.last_synced_at,
             lag_seconds: lag.max(0),
-            status: state.status.clone(),
+            status: state.status,
         })
     }
 
@@ -188,12 +226,17 @@ impl IndexService {
     // ==========================================
 
     pub async fn query_index(&self, input: QueryIndexFilterInput) -> Result<Vec<IndexDataDTO>> {
-        let map = self.index_data.read().unwrap();
-        let mut results: Vec<IndexData> = map
-            .values()
-            .filter(|d| d.entity_name == input.entity_name && d.deleted_at.is_none())
+        let filter = FilterSpec::new()
+            .with_predicate("entity_name", FilterOp::Eq(input.entity_name.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        let list = self.index_data.list(None, &filter).await?;
+
+        let mut results: Vec<IndexData> = list
+            .into_iter()
             .filter(|d| {
-                // Filter matching against JSON projection fields
                 for (k, expected_val) in &input.filters {
                     match d.data.get(k) {
                         Some(actual_val) => {
@@ -206,7 +249,6 @@ impl IndexService {
                 }
                 true
             })
-            .cloned()
             .collect();
 
         // Sort
@@ -279,24 +321,20 @@ impl IndexService {
             child_id: child_id.to_string(),
             relation_type: relation_type.to_string(),
             created_at: now,
+            deleted_at: None,
         };
 
-        let dto = IndexRelationDTO {
-            id: id.to_string(),
-            parent_entity: rel.parent_entity.clone(),
-            parent_id: rel.parent_id.clone(),
-            child_entity: rel.child_entity.clone(),
-            child_id: rel.child_id.clone(),
-            relation_type: rel.relation_type.clone(),
-            created_at: rel.created_at,
-        };
+        let created = self.relations.create(None, rel).await?;
 
-        {
-            let mut list = self.relations.write().unwrap();
-            list.push(rel);
-        }
-
-        Ok(dto)
+        Ok(IndexRelationDTO {
+            id: created.id.to_string(),
+            parent_entity: created.parent_entity,
+            parent_id: created.parent_id,
+            child_entity: created.child_entity,
+            child_id: created.child_id,
+            relation_type: created.relation_type,
+            created_at: created.created_at,
+        })
     }
 
     pub async fn define_field(
@@ -317,24 +355,19 @@ impl IndexService {
             is_searchable,
             is_filterable,
             is_sortable,
+            deleted_at: None,
         };
 
-        let dto = IndexFieldDTO {
-            id: id.to_string(),
-            entity_name: field.entity_name.clone(),
-            field_name: field.field_name.clone(),
-            field_type: field.field_type.clone(),
-            is_searchable,
-            is_filterable,
-            is_sortable,
-        };
+        let created = self.fields.create(None, field).await?;
 
-        let key = format!("{}:{}", entity_name, field_name);
-        {
-            let mut map = self.fields.write().unwrap();
-            map.insert(key, field);
-        }
-
-        Ok(dto)
+        Ok(IndexFieldDTO {
+            id: created.id.to_string(),
+            entity_name: created.entity_name,
+            field_name: created.field_name,
+            field_type: created.field_type,
+            is_searchable: created.is_searchable,
+            is_filterable: created.is_filterable,
+            is_sortable: created.is_sortable,
+        })
     }
 }

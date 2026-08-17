@@ -1,10 +1,13 @@
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_pricing::{CreatePriceInput, CreatePriceSetInput, PricingContext, PricingService};
 
 #[tokio::test]
 async fn test_pricing_single_query_batch_resolution_100_variants() {
-    let service = PricingService::new();
+    let db = TestDb::migrated().await;
+    let service = PricingService::new(create_pool(&db.url, 5).expect("pool"));
 
     let mut set_ids = Vec::with_capacity(100);
 
@@ -71,4 +74,6 @@ async fn test_pricing_single_query_batch_resolution_100_variants() {
         assert_eq!(calc.calculated_amount, dec!(65.00));
         assert_eq!(calc.matched_rules_count, 2);
     }
+
+    db.drop().await;
 }

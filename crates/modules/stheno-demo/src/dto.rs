@@ -15,3 +15,8 @@ pub struct DemoDTO {
 pub struct CreateDemoInput {
     pub name: String,
 }
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    DemoDTO => "demo",
+}

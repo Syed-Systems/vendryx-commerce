@@ -1,8 +1,12 @@
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_store::{CreateStoreInput, StoreService};
 
 #[tokio::test]
 async fn test_store_creation_and_currency_retrieval() {
-    let service = StoreService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = StoreService::new(pool);
 
     let store = service
         .create_store(CreateStoreInput {
@@ -34,4 +38,36 @@ async fn test_store_creation_and_currency_retrieval() {
 
     assert_eq!(retrieved.name, "Flagship Store");
     assert_eq!(retrieved.supported_currencies[0], "usd");
+
+    db.drop().await;
+}
+
+#[tokio::test]
+async fn rows_outlive_the_service_instance() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+
+    let store_id = {
+        let first = StoreService::new(pool.clone());
+        let store = first
+            .create_store(CreateStoreInput {
+                name: "Persistent Store".to_string(),
+                default_sales_channel_id: None,
+                default_region_id: None,
+                default_location_id: None,
+                supported_currencies: None,
+                default_currency_code: None,
+                supported_locales: None,
+                default_locale: None,
+            })
+            .await
+            .expect("create");
+        store.id.to_string()
+    };
+
+    let second = StoreService::new(pool);
+    let found = second.get_store(&store_id).await.expect("found");
+    assert_eq!(found.name, "Persistent Store");
+
+    db.drop().await;
 }

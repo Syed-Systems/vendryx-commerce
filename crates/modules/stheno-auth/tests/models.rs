@@ -1,10 +1,14 @@
 //! Test P7-01: Auth entities and models.
 
 use stheno_auth::{AuthService, CreateIdentityInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_auth_models_and_identity_lifecycle() {
-    let service = AuthService::new(None);
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = AuthService::new(pool, None);
 
     let identity = service
         .create_identity(CreateIdentityInput {
@@ -26,4 +30,6 @@ async fn test_auth_models_and_identity_lifecycle() {
     assert_eq!(identity.actor_type, Some("user".to_string()));
     assert_eq!(identity.token_version, 1);
     assert!(!identity.is_locked);
+
+    db.drop().await;
 }

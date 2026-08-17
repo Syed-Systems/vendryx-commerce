@@ -37,24 +37,18 @@ impl CacheService {
     }
 
     pub async fn set_bytes(&self, key: &str, value: &[u8], ttl_seconds: Option<u64>) -> Result<()> {
-        let mut success = false;
         if self.primary_provider.is_healthy().await {
             if let Err(err) = self.primary_provider.set(key, value, ttl_seconds).await {
                 tracing::warn!(
                     "Primary cache set failed ({}), writing to in-process fallback",
                     err
                 );
-            } else {
-                success = true;
             }
         }
         // Always write to fallback as well so fallback has warm data
         let _ = self.fallback_provider.set(key, value, ttl_seconds).await;
-        if success {
-            Ok(())
-        } else {
-            Ok(()) // Degradation: never fail request when cache fails
-        }
+        // Degradation: never fail request when cache fails
+        Ok(())
     }
 
     pub async fn get_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {

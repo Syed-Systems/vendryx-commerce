@@ -1,0 +1,10 @@
+[module]
+name = "stheno-reporting"
+schema = "reporting"
+description = "Materialised daily rollups, reporting aggregates, window-gating, and CSV exports"
+
+[tables]
+daily_rollup = ["date", "currency", "order_count", "total_revenue", "units_sold", "created_at", "updated_at", "deleted_at"]
+daily_product_rollup = ["date", "product_id", "title", "units_sold", "total_revenue", "created_at", "updated_at", "deleted_at"]
+
+[events.published]

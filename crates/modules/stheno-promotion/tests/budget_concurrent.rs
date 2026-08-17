@@ -1,10 +1,14 @@
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_promotion::{CreateCampaignBudgetInput, CreateCampaignInput, PromotionService};
 
 #[tokio::test]
 async fn test_campaign_budget_concurrency_100_parallel_requests() {
-    let service = Arc::new(PromotionService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 20).expect("pool");
+    let service = Arc::new(PromotionService::new(pool));
 
     // Create a campaign with a strict usage limit of 50 orders
     let camp = service

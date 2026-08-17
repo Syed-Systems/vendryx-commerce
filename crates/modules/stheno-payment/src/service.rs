@@ -1,6 +1,10 @@
+//! Payment service with PostgreSQL persistence via PgCrudRepository (TASKS P13-12).
+//! Enforces outbound idempotency, row-locked ledger invariants, webhook convergence,
+//! and card-testing abuse limits.
+
 #![allow(dead_code)]
 
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -8,34 +12,52 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::{Arc, RwLock};
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::dto::*;
 use crate::models::{
-    AccountHolder, Capture, Payment, PaymentCollection, PaymentProviderRequest, PaymentSession,
-    PaymentWebhookEvent, Refund, RefundReason,
+    AccountHolder, Capture, Payment, PaymentCollection, PaymentProviderRequest,
+    PaymentReconciliationRun, PaymentSession, PaymentWebhookEvent, Refund, RefundReason,
 };
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct PaymentService {
-    collections: Arc<RwLock<HashMap<String, PaymentCollection>>>,
-    sessions: Arc<RwLock<HashMap<String, PaymentSession>>>,
-    payments: Arc<RwLock<HashMap<String, Payment>>>,
-    payment_locks: Arc<RwLock<HashMap<String, Arc<AsyncMutex<()>>>>>, // Row-lock per payment for atomic ledger invariant (P4-21, P4-22)
-    captures: Arc<RwLock<HashMap<String, Vec<Capture>>>>,
-    refunds: Arc<RwLock<HashMap<String, Vec<Refund>>>>,
-    refund_reasons: Arc<RwLock<HashMap<String, RefundReason>>>,
-    account_holders: Arc<RwLock<HashMap<String, AccountHolder>>>,
-    outbound_requests: Arc<RwLock<HashMap<String, PaymentProviderRequest>>>,
-    webhook_events: Arc<RwLock<HashMap<String, PaymentWebhookEvent>>>,
+    pool: DbPool,
+    collections: Arc<PgCrudRepository<PaymentCollection>>,
+    sessions: Arc<PgCrudRepository<PaymentSession>>,
+    payments: Arc<PgCrudRepository<Payment>>,
+    captures: Arc<PgCrudRepository<Capture>>,
+    refunds: Arc<PgCrudRepository<Refund>>,
+    refund_reasons: Arc<PgCrudRepository<RefundReason>>,
+    account_holders: Arc<PgCrudRepository<AccountHolder>>,
+    outbound_requests: Arc<PgCrudRepository<PaymentProviderRequest>>,
+    webhook_events: Arc<PgCrudRepository<PaymentWebhookEvent>>,
+    reconciliation_runs: Arc<PgCrudRepository<PaymentReconciliationRun>>,
+    payment_locks: Arc<RwLock<HashMap<String, Arc<AsyncMutex<()>>>>>,
     providers: Arc<RwLock<HashMap<String, Arc<dyn PaymentProvider>>>>,
-    ip_session_attempts: Arc<RwLock<HashMap<String, Vec<chrono::DateTime<Utc>>>>>,
+    ip_session_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
 }
 
 impl PaymentService {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            collections: Arc::new(PgCrudRepository::new(pool.clone())),
+            sessions: Arc::new(PgCrudRepository::new(pool.clone())),
+            payments: Arc::new(PgCrudRepository::new(pool.clone())),
+            captures: Arc::new(PgCrudRepository::new(pool.clone())),
+            refunds: Arc::new(PgCrudRepository::new(pool.clone())),
+            refund_reasons: Arc::new(PgCrudRepository::new(pool.clone())),
+            account_holders: Arc::new(PgCrudRepository::new(pool.clone())),
+            outbound_requests: Arc::new(PgCrudRepository::new(pool.clone())),
+            webhook_events: Arc::new(PgCrudRepository::new(pool.clone())),
+            reconciliation_runs: Arc::new(PgCrudRepository::new(pool.clone())),
+            pool,
+            payment_locks: Arc::new(RwLock::new(HashMap::new())),
+            providers: Arc::new(RwLock::new(HashMap::new())),
+            ip_session_attempts: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
 
     pub fn register_provider(&self, provider: Arc<dyn PaymentProvider>) {
@@ -49,6 +71,25 @@ impl PaymentService {
             entity: "payment_provider",
             id: id.to_string(),
         })
+    }
+
+    pub async fn create_refund_reason(
+        &self,
+        label: &str,
+        description: Option<String>,
+        metadata: Option<serde_json::Value>,
+    ) -> Result<String> {
+        let reason = RefundReason {
+            id: Id::new(),
+            label: label.to_string(),
+            description,
+            metadata,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            deleted_at: None,
+        };
+        let created = self.refund_reasons.create(None, reason).await?;
+        Ok(created.id.to_string())
     }
 
     // ── Payment Collection CRUD ──────────────────────────────────────────────
@@ -73,34 +114,22 @@ impl PaymentService {
             deleted_at: None,
         };
 
-        let col_id_str = col.id.to_string();
-        {
-            let mut map = self.collections.write().unwrap();
-            map.insert(col_id_str.clone(), col);
-        }
-
-        self.get_payment_collection(&col_id_str).await
+        let created = self.collections.create(None, col).await?;
+        self.get_payment_collection(&created.id.to_string()).await
     }
 
     pub async fn get_payment_collection(&self, id: &str) -> Result<PaymentCollectionDTO> {
-        let col = {
-            let map = self.collections.read().unwrap();
-            map.values()
-                .find(|c| {
-                    (c.id.to_string() == id || c.id.to_string().ends_with(id))
-                        && c.deleted_at.is_none()
-                })
-                .cloned()
-                .or_else(|| map.get(id).filter(|c| c.deleted_at.is_none()).cloned())
-                .ok_or_else(|| Error::NotFound {
-                    entity: "payment_collection",
-                    id: id.to_string(),
-                })?
-        };
+        let col = self.collections.retrieve(None, id).await?;
+        if col.deleted_at.is_some() {
+            return Err(Error::NotFound {
+                entity: "payment_collection",
+                id: id.to_string(),
+            });
+        }
 
         let col_id_str = col.id.to_string();
-        let sessions = self.get_sessions_for_collection(&col_id_str).await;
-        let payments = self.get_payments_for_collection(&col_id_str).await;
+        let sessions = self.get_sessions_for_collection(&col_id_str).await?;
+        let payments = self.get_payments_for_collection(&col_id_str).await?;
 
         Ok(PaymentCollectionDTO {
             id: col.id.to_string(),
@@ -136,28 +165,23 @@ impl PaymentService {
             }
         }
 
-        let col = {
-            let map = self.collections.read().unwrap();
-            map.get(&input.payment_collection_id)
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "payment_collection",
-                    id: input.payment_collection_id.clone(),
-                })?
-        };
+        let col = self
+            .collections
+            .retrieve(None, &input.payment_collection_id)
+            .await?;
 
         // Cancel previous active sessions on this collection (PAYMENTS §11, E30)
-        {
-            let mut s_map = self.sessions.write().unwrap();
-            for s in s_map.values_mut() {
-                if s.payment_collection_id == col.id.to_string()
-                    && s.status != "canceled"
-                    && s.status != "error"
-                    && s.status != "captured"
-                {
-                    s.status = "canceled".to_string();
-                    s.updated_at = Utc::now();
-                }
+        let spec = FilterSpec::new()
+            .with_predicate("payment_collection_id", FilterOp::Eq(col.id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
+        let existing_sessions = self.sessions.list(None, &spec).await?;
+        for mut s in existing_sessions {
+            if s.status != "canceled" && s.status != "error" && s.status != "captured" {
+                s.status = "canceled".to_string();
+                s.updated_at = Utc::now();
+                let s_id = s.id.to_string();
+                let _ = self.sessions.update(None, &s_id, s).await;
             }
         }
 
@@ -189,30 +213,18 @@ impl PaymentService {
             deleted_at: None,
         };
 
-        let session_id_str = session.id.to_string();
-        {
-            let mut map = self.sessions.write().unwrap();
-            map.insert(session_id_str.clone(), session);
-        }
-
-        self.get_payment_session(&session_id_str).await
+        let created = self.sessions.create(None, session).await?;
+        self.get_payment_session(&created.id.to_string()).await
     }
 
     pub async fn get_payment_session(&self, id: &str) -> Result<PaymentSessionDTO> {
-        let s = {
-            let map = self.sessions.read().unwrap();
-            map.values()
-                .find(|s| {
-                    (s.id.to_string() == id || s.id.to_string().ends_with(id))
-                        && s.deleted_at.is_none()
-                })
-                .cloned()
-                .or_else(|| map.get(id).filter(|s| s.deleted_at.is_none()).cloned())
-                .ok_or_else(|| Error::NotFound {
-                    entity: "payment_session",
-                    id: id.to_string(),
-                })?
-        };
+        let s = self.sessions.retrieve(None, id).await?;
+        if s.deleted_at.is_some() {
+            return Err(Error::NotFound {
+                entity: "payment_session",
+                id: id.to_string(),
+            });
+        }
 
         let status =
             PaymentSessionStatus::from_str_name(&s.status).unwrap_or(PaymentSessionStatus::Pending);
@@ -253,58 +265,38 @@ impl PaymentService {
     {
         let request_hash = compute_sha256(payload);
 
-        // Check if request already recorded
-        enum ExistingState {
-            Succeeded(serde_json::Value),
-            Failed,
-            Ambiguous,
-        }
+        let spec = FilterSpec::new()
+            .with_predicate("idempotency_key", FilterOp::Eq(idempotency_key.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+        let existing = self.outbound_requests.list(None, &spec).await?;
 
-        let existing = {
-            let map = self.outbound_requests.read().unwrap();
-            if let Some(req) = map.get(idempotency_key) {
-                // Key reuse with changed payload (PAYMENTS §6, E4)
-                if req.request_hash != request_hash {
-                    return Err(Error::Invalid {
-                        code: "idempotency_key_payload_mismatch",
-                        message: "Idempotency key reused with different request payload"
-                            .to_string(),
-                        field: None,
-                    });
-                }
-
-                if req.state == "succeeded" {
-                    req.response.clone().map(ExistingState::Succeeded)
-                } else if req.state == "failed" {
-                    Some(ExistingState::Failed)
-                } else if req.state == "in_flight" || req.state == "unknown" {
-                    Some(ExistingState::Ambiguous)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        };
-
-        match existing {
-            Some(ExistingState::Succeeded(resp_val)) => {
-                let parsed: T = serde_json::from_value(resp_val).map_err(|e| {
-                    Error::Internal(format!("Failed to deserialize cached response: {}", e).into())
-                })?;
-                return Ok(parsed);
-            }
-            Some(ExistingState::Failed) => {
+        if let Some(req) = existing.into_iter().next() {
+            // Key reuse with changed payload (PAYMENTS §6, E4)
+            if req.request_hash != request_hash {
                 return Err(Error::Invalid {
-                    code: "previous_request_failed",
-                    message: format!(
-                        "Previous provider request with key {} failed",
-                        idempotency_key
-                    ),
+                    code: "idempotency_key_payload_mismatch",
+                    message: "Idempotency key reused with different request payload".to_string(),
                     field: None,
                 });
             }
-            Some(ExistingState::Ambiguous) => {
+
+            if req.state == "succeeded" {
+                if let Some(resp_val) = req.response {
+                    let parsed: T = serde_json::from_value(resp_val).map_err(|e| {
+                        Error::Internal(
+                            format!("Failed to deserialize cached response: {}", e).into(),
+                        )
+                    })?;
+                    return Ok(parsed);
+                }
+            } else if req.state == "failed" {
+                return Err(Error::Invalid {
+                    code: "previous_request_failed",
+                    message: format!("Previous provider request with key {idempotency_key} failed"),
+                    field: None,
+                });
+            } else if req.state == "in_flight" || req.state == "unknown" {
                 // Ambiguous timeout recovery path (P4-18, PAYMENTS §6 step 5)
                 if let Ok(provider) = self.get_provider(provider_id) {
                     let ret_res = provider
@@ -320,14 +312,16 @@ impl PaymentService {
                         {
                             // Succeeded on remote, backfill and return
                             let resp_json = serde_json::to_value(&ret.data).unwrap_or_default();
-                            {
-                                let mut w_map = self.outbound_requests.write().unwrap();
-                                if let Some(entry) = w_map.get_mut(idempotency_key) {
-                                    entry.state = "succeeded".to_string();
-                                    entry.response = Some(resp_json.clone());
-                                    entry.settled_at = Some(Utc::now());
-                                }
-                            }
+                            let req_id = req.id.to_string();
+                            let mut updated_req = req;
+                            updated_req.state = "succeeded".to_string();
+                            updated_req.response = Some(resp_json.clone());
+                            updated_req.settled_at = Some(Utc::now());
+                            let _ = self
+                                .outbound_requests
+                                .update(None, &req_id, updated_req)
+                                .await;
+
                             if let Ok(parsed) = serde_json::from_value::<T>(resp_json) {
                                 return Ok(parsed);
                             }
@@ -335,54 +329,49 @@ impl PaymentService {
                     }
                 }
             }
-            None => {}
         }
 
         // Record in_flight request
         let req_id: Id<PaymentProviderRequest> = Id::new();
         let now = Utc::now();
-        {
-            let mut map = self.outbound_requests.write().unwrap();
-            map.insert(
-                idempotency_key.to_string(),
-                PaymentProviderRequest {
-                    id: req_id,
-                    idempotency_key: idempotency_key.to_string(),
-                    provider_id: provider_id.to_string(),
-                    operation: operation.to_string(),
-                    resource_type: resource_type.to_string(),
-                    resource_id: resource_id.to_string(),
-                    request_hash,
-                    state: "in_flight".to_string(),
-                    response: None,
-                    error: None,
-                    attempts: 1,
-                    first_sent_at: now,
-                    settled_at: None,
-                },
-            );
-        }
+        let in_flight_req = PaymentProviderRequest {
+            id: req_id,
+            idempotency_key: idempotency_key.to_string(),
+            provider_id: provider_id.to_string(),
+            operation: operation.to_string(),
+            resource_type: resource_type.to_string(),
+            resource_id: resource_id.to_string(),
+            request_hash,
+            state: "in_flight".to_string(),
+            response: None,
+            error: None,
+            attempts: 1,
+            first_sent_at: now,
+            settled_at: None,
+            deleted_at: None,
+        };
+
+        let mut recorded = self.outbound_requests.create(None, in_flight_req).await?;
 
         // Execute provider call
         let result = call_fn(idempotency_key.to_string()).await;
 
-        let mut map = self.outbound_requests.write().unwrap();
-        let entry = map.get_mut(idempotency_key).unwrap();
-
         match &result {
             Ok(output) => {
-                entry.state = "succeeded".to_string();
-                entry.response = serde_json::to_value(output).ok();
-                entry.settled_at = Some(Utc::now());
+                recorded.state = "succeeded".to_string();
+                recorded.response = serde_json::to_value(output).ok();
+                recorded.settled_at = Some(Utc::now());
             }
             Err(e) => {
-                // Ambiguous timeout/failure -> set to 'unknown' to trigger retrieve() reconciliation on retry (PAYMENTS §6)
-                entry.state = "unknown".to_string();
-                entry.error = Some(serde_json::json!({ "error": format!("{:?}", e) }));
-                entry.settled_at = Some(Utc::now());
+                // Ambiguous timeout/failure -> set to 'unknown' to trigger retrieve() reconciliation on retry
+                recorded.state = "unknown".to_string();
+                recorded.error = Some(serde_json::json!({ "error": format!("{:?}", e) }));
+                recorded.settled_at = Some(Utc::now());
             }
         }
 
+        let rec_id = recorded.id.to_string();
+        let _ = self.outbound_requests.update(None, &rec_id, recorded).await;
         result
     }
 
@@ -407,14 +396,12 @@ impl PaymentService {
 
         if auth_out.status != PaymentSessionStatus::Authorized {
             // Update session status and fail
-            {
-                let mut s_map = self.sessions.write().unwrap();
-                if let Some(s) = s_map.get_mut(&session.id) {
-                    s.status = auth_out.status.as_str().to_string();
-                    s.data = Some(auth_out.data);
-                    s.updated_at = Utc::now();
-                }
-            }
+            let mut s = self.sessions.retrieve(None, &session.id).await?;
+            s.status = auth_out.status.as_str().to_string();
+            s.data = Some(auth_out.data);
+            s.updated_at = Utc::now();
+            let _ = self.sessions.update(None, &session.id, s).await;
+
             return Err(Error::Invalid {
                 code: "payment_authorization_failed",
                 message: format!(
@@ -427,15 +414,12 @@ impl PaymentService {
 
         // Update session to authorized
         let now = Utc::now();
-        {
-            let mut s_map = self.sessions.write().unwrap();
-            if let Some(s) = s_map.get_mut(&session.id) {
-                s.status = "authorized".to_string();
-                s.authorized_at = Some(now);
-                s.data = Some(auth_out.data.clone());
-                s.updated_at = now;
-            }
-        }
+        let mut s = self.sessions.retrieve(None, &session.id).await?;
+        s.status = "authorized".to_string();
+        s.authorized_at = Some(now);
+        s.data = Some(auth_out.data.clone());
+        s.updated_at = now;
+        let _ = self.sessions.update(None, &session.id, s).await;
 
         // Create Payment entity ONLY on successful authorization (DATA_MODEL §2.7, PAYMENTS §2)
         let payment_id: Id<Payment> = Id::new();
@@ -455,44 +439,36 @@ impl PaymentService {
             deleted_at: None,
         };
 
-        let payment_id_str = payment.id.to_string();
-        {
-            let mut p_map = self.payments.write().unwrap();
-            p_map.insert(payment_id_str.clone(), payment);
-        }
+        let created_payment = self.payments.create(None, payment).await?;
 
         // Update collection authorized_amount & status
-        {
-            let mut c_map = self.collections.write().unwrap();
-            if let Some(col) = c_map.get_mut(&session.payment_collection_id) {
-                col.authorized_amount += session.amount;
-                col.status = "authorized".to_string();
-                col.updated_at = now;
-            }
-        }
+        let mut col = self
+            .collections
+            .retrieve(None, &session.payment_collection_id)
+            .await?;
+        col.authorized_amount += session.amount;
+        col.status = "authorized".to_string();
+        col.updated_at = now;
+        let _ = self
+            .collections
+            .update(None, &session.payment_collection_id, col)
+            .await;
 
-        self.get_payment(&payment_id_str).await
+        self.get_payment(&created_payment.id.to_string()).await
     }
 
     pub async fn get_payment(&self, id: &str) -> Result<PaymentDTO> {
-        let p = {
-            let map = self.payments.read().unwrap();
-            map.values()
-                .find(|p| {
-                    (p.id.to_string() == id || p.id.to_string().ends_with(id))
-                        && p.deleted_at.is_none()
-                })
-                .cloned()
-                .or_else(|| map.get(id).filter(|p| p.deleted_at.is_none()).cloned())
-                .ok_or_else(|| Error::NotFound {
-                    entity: "payment",
-                    id: id.to_string(),
-                })?
-        };
+        let p = self.payments.retrieve(None, id).await?;
+        if p.deleted_at.is_some() {
+            return Err(Error::NotFound {
+                entity: "payment",
+                id: id.to_string(),
+            });
+        }
 
         let payment_id_str = p.id.to_string();
-        let captures = self.get_captures_for_payment(&payment_id_str);
-        let refunds = self.get_refunds_for_payment(&payment_id_str);
+        let captures = self.get_captures_for_payment(&payment_id_str).await?;
+        let refunds = self.get_refunds_for_payment(&payment_id_str).await?;
 
         let captured_amount: Decimal = captures.iter().map(|c| c.amount).sum();
         let refunded_amount: Decimal = refunds.iter().map(|r| r.amount).sum();
@@ -569,49 +545,45 @@ impl PaymentService {
             id: Id::new(),
             payment_id: payment.id.clone(),
             amount: amount_to_capture,
-            created_by: input.created_by,
-            metadata: input.metadata,
+            created_by: input.created_by.clone(),
+            metadata: input.metadata.clone(),
             created_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = CaptureDTO {
-            id: capture.id.to_string(),
-            payment_id: capture.payment_id.clone(),
-            amount: capture.amount,
-            created_by: capture.created_by.clone(),
-            metadata: capture.metadata.clone(),
-            created_at: capture.created_at,
-        };
-
-        {
-            let mut cap_map = self.captures.write().unwrap();
-            cap_map.entry(payment.id.clone()).or_default().push(capture);
-        }
+        let created_capture = self.captures.create(None, capture).await?;
 
         // Update payment collection captured_amount
-        {
-            let mut col_map = self.collections.write().unwrap();
-            if let Some(col) = col_map.get_mut(&payment.payment_collection_id) {
-                col.captured_amount += amount_to_capture;
-                if col.captured_amount >= col.amount {
-                    col.status = "captured".to_string();
-                }
-                col.updated_at = Utc::now();
-            }
+        let mut col = self
+            .collections
+            .retrieve(None, &payment.payment_collection_id)
+            .await?;
+        col.captured_amount += amount_to_capture;
+        if col.captured_amount >= col.amount {
+            col.status = "captured".to_string();
         }
+        col.updated_at = Utc::now();
+        let _ = self
+            .collections
+            .update(None, &payment.payment_collection_id, col)
+            .await;
 
-        // Update payment captured_at
-        {
-            let mut p_map = self.payments.write().unwrap();
-            if let Some(p) = p_map.get_mut(&payment.id) {
-                if current_captured + amount_to_capture >= payment.amount {
-                    p.captured_at = Some(Utc::now());
-                }
-                p.updated_at = Utc::now();
-            }
+        // Update payment captured_at if fully captured
+        let mut p = self.payments.retrieve(None, &payment.id).await?;
+        if current_captured + amount_to_capture >= payment.amount {
+            p.captured_at = Some(Utc::now());
         }
+        p.updated_at = Utc::now();
+        let _ = self.payments.update(None, &payment.id, p).await;
 
-        Ok(dto)
+        Ok(CaptureDTO {
+            id: created_capture.id.to_string(),
+            payment_id: created_capture.payment_id,
+            amount: created_capture.amount,
+            created_by: created_capture.created_by,
+            metadata: created_capture.metadata,
+            created_at: created_capture.created_at,
+        })
     }
 
     pub async fn refund_payment(&self, input: RefundPaymentInput) -> Result<RefundDTO> {
@@ -665,34 +637,33 @@ impl PaymentService {
             created_by: input.created_by,
             metadata: input.metadata,
             created_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = RefundDTO {
-            id: refund.id.to_string(),
-            payment_id: refund.payment_id.clone(),
-            amount: refund.amount,
-            refund_reason_id: refund.refund_reason_id.clone(),
-            note: refund.note.clone(),
-            created_by: refund.created_by.clone(),
-            metadata: refund.metadata.clone(),
-            created_at: refund.created_at,
-        };
-
-        {
-            let mut ref_map = self.refunds.write().unwrap();
-            ref_map.entry(payment.id.clone()).or_default().push(refund);
-        }
+        let created_refund = self.refunds.create(None, refund).await?;
 
         // Update payment collection refunded_amount
-        {
-            let mut col_map = self.collections.write().unwrap();
-            if let Some(col) = col_map.get_mut(&payment.payment_collection_id) {
-                col.refunded_amount += input.amount;
-                col.updated_at = Utc::now();
-            }
-        }
+        let mut col = self
+            .collections
+            .retrieve(None, &payment.payment_collection_id)
+            .await?;
+        col.refunded_amount += input.amount;
+        col.updated_at = Utc::now();
+        let _ = self
+            .collections
+            .update(None, &payment.payment_collection_id, col)
+            .await;
 
-        Ok(dto)
+        Ok(RefundDTO {
+            id: created_refund.id.to_string(),
+            payment_id: created_refund.payment_id,
+            amount: created_refund.amount,
+            refund_reason_id: created_refund.refund_reason_id,
+            note: created_refund.note,
+            created_by: created_refund.created_by,
+            metadata: created_refund.metadata,
+            created_at: created_refund.created_at,
+        })
     }
 
     // ── Webhook Store & Convergence Reducer (P4-19, P4-20, PAYMENTS §7) ──────
@@ -706,27 +677,32 @@ impl PaymentService {
         let provider = self.get_provider(provider_id)?;
         let verified = provider.verify_webhook(raw_body, signature_header)?;
 
-        let event_key = format!("{}:{}", provider_id, verified.provider_event_id);
-
         // Webhook replay guard (PAYMENTS §7.1, §7.3, E9): Unique constraint
-        {
-            let map = self.webhook_events.read().unwrap();
-            if let Some(existing) = map.get(&event_key) {
-                // Replay detected -> return 200 OK with existing event without processing
-                return Ok(PaymentWebhookEventDTO {
-                    id: existing.id.to_string(),
-                    provider_id: existing.provider_id.clone(),
-                    provider_event_id: existing.provider_event_id.clone(),
-                    event_type: existing.event_type.clone(),
-                    payload: existing.payload.clone(),
-                    signature_verified: existing.signature_verified,
-                    provider_created_at: existing.provider_created_at,
-                    state: "ignored".to_string(),
-                    processed_at: existing.processed_at,
-                    error: existing.error.clone(),
-                    created_at: existing.created_at,
-                });
-            }
+        let spec = FilterSpec::new()
+            .with_predicate("provider_id", FilterOp::Eq(provider_id.to_string()))
+            .with_predicate(
+                "provider_event_id",
+                FilterOp::Eq(verified.provider_event_id.clone()),
+            )
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let existing = self.webhook_events.list(None, &spec).await?;
+        if let Some(event) = existing.into_iter().next() {
+            // Replay detected -> return 200 OK with existing event without processing
+            return Ok(PaymentWebhookEventDTO {
+                id: event.id.to_string(),
+                provider_id: event.provider_id,
+                provider_event_id: event.provider_event_id,
+                event_type: event.event_type,
+                payload: event.payload,
+                signature_verified: event.signature_verified,
+                provider_created_at: event.provider_created_at,
+                state: "ignored".to_string(),
+                processed_at: event.processed_at,
+                error: event.error,
+                created_at: event.created_at,
+            });
         }
 
         let event = PaymentWebhookEvent {
@@ -741,33 +717,29 @@ impl PaymentService {
             processed_at: None,
             error: None,
             created_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = PaymentWebhookEventDTO {
-            id: event.id.to_string(),
-            provider_id: event.provider_id.clone(),
-            provider_event_id: event.provider_event_id.clone(),
-            event_type: event.event_type.clone(),
-            payload: event.payload.clone(),
-            signature_verified: true,
-            provider_created_at: event.provider_created_at,
-            state: "received".to_string(),
-            processed_at: None,
-            error: None,
-            created_at: event.created_at,
-        };
-
-        {
-            let mut map = self.webhook_events.write().unwrap();
-            map.insert(event_key, event);
-        }
+        let created_event = self.webhook_events.create(None, event).await?;
 
         // Apply convergence reducer
         let action = provider.map_webhook(&verified)?;
         self.apply_webhook_action(provider_id, &verified, action)
             .await;
 
-        Ok(dto)
+        Ok(PaymentWebhookEventDTO {
+            id: created_event.id.to_string(),
+            provider_id: created_event.provider_id,
+            provider_event_id: created_event.provider_event_id,
+            event_type: created_event.event_type,
+            payload: created_event.payload,
+            signature_verified: true,
+            provider_created_at: created_event.provider_created_at,
+            state: "received".to_string(),
+            processed_at: None,
+            error: None,
+            created_at: created_event.created_at,
+        })
     }
 
     /// Convergence Reducer (PAYMENTS §7.2): Monotonic transitions + provider timestamp ordering
@@ -794,8 +766,7 @@ impl PaymentService {
 
         // If event payload has a session_id, apply monotonic convergence
         if let Some(session_id) = event.payload.get("session_id").and_then(|v| v.as_str()) {
-            let mut map = self.sessions.write().unwrap();
-            if let Some(session) = map.get_mut(session_id) {
+            if let Ok(mut session) = self.sessions.retrieve(None, session_id).await {
                 let current_status = PaymentSessionStatus::from_str_name(&session.status)
                     .unwrap_or(PaymentSessionStatus::Pending);
 
@@ -814,6 +785,7 @@ impl PaymentService {
                 session.status = target_status.as_str().to_string();
                 session.status_observed_at = event.provider_created_at;
                 session.updated_at = Utc::now();
+                let _ = self.sessions.update(None, session_id, session).await;
             }
         }
     }
@@ -836,50 +808,66 @@ impl PaymentService {
 
     // ── Internal Helpers ─────────────────────────────────────────────────────
 
-    async fn get_sessions_for_collection(&self, collection_id: &str) -> Vec<PaymentSessionDTO> {
-        let map = self.sessions.read().unwrap();
-        map.values()
-            .filter(|s| s.payment_collection_id == collection_id && s.deleted_at.is_none())
+    async fn get_sessions_for_collection(
+        &self,
+        collection_id: &str,
+    ) -> Result<Vec<PaymentSessionDTO>> {
+        let spec = FilterSpec::new()
+            .with_predicate(
+                "payment_collection_id",
+                FilterOp::Eq(collection_id.to_string()),
+            )
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
+        let sessions = self.sessions.list(None, &spec).await?;
+
+        Ok(sessions
+            .into_iter()
             .map(|s| {
                 let status = PaymentSessionStatus::from_str_name(&s.status)
                     .unwrap_or(PaymentSessionStatus::Pending);
                 PaymentSessionDTO {
                     id: s.id.to_string(),
-                    payment_collection_id: s.payment_collection_id.clone(),
-                    provider_id: s.provider_id.clone(),
+                    payment_collection_id: s.payment_collection_id,
+                    provider_id: s.provider_id,
                     amount: s.amount,
-                    currency_code: s.currency_code.clone(),
+                    currency_code: s.currency_code,
                     status,
-                    data: s.data.clone(),
-                    context: s.context.clone(),
+                    data: s.data,
+                    context: s.context,
                     authorized_at: s.authorized_at,
                     status_observed_at: s.status_observed_at,
                     created_at: s.created_at,
                     updated_at: s.updated_at,
                 }
             })
-            .collect()
+            .collect())
     }
 
-    async fn get_payments_for_collection(&self, collection_id: &str) -> Vec<PaymentDTO> {
-        let map = self.payments.read().unwrap();
+    async fn get_payments_for_collection(&self, collection_id: &str) -> Result<Vec<PaymentDTO>> {
+        let spec = FilterSpec::new()
+            .with_predicate(
+                "payment_collection_id",
+                FilterOp::Eq(collection_id.to_string()),
+            )
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
+        let payments = self.payments.list(None, &spec).await?;
+
         let mut list = Vec::new();
-        for p in map
-            .values()
-            .filter(|p| p.payment_collection_id == collection_id && p.deleted_at.is_none())
-        {
+        for p in payments {
             let p_id_str = p.id.to_string();
-            let captures = self.get_captures_for_payment(&p_id_str);
-            let refunds = self.get_refunds_for_payment(&p_id_str);
+            let captures = self.get_captures_for_payment(&p_id_str).await?;
+            let refunds = self.get_refunds_for_payment(&p_id_str).await?;
             let captured_amount = captures.iter().map(|c| c.amount).sum();
             let refunded_amount = refunds.iter().map(|r| r.amount).sum();
 
             list.push(PaymentDTO {
                 id: p_id_str,
-                payment_collection_id: p.payment_collection_id.clone(),
-                payment_session_id: p.payment_session_id.clone(),
-                provider_id: p.provider_id.clone(),
-                currency_code: p.currency_code.clone(),
+                payment_collection_id: p.payment_collection_id,
+                payment_session_id: p.payment_session_id,
+                provider_id: p.provider_id,
+                currency_code: p.currency_code,
                 amount: p.amount,
                 captured_at: p.captured_at,
                 canceled_at: p.canceled_at,
@@ -887,20 +875,23 @@ impl PaymentService {
                 refunds,
                 captured_amount,
                 refunded_amount,
-                data: p.data.clone(),
-                metadata: p.metadata.clone(),
+                data: p.data,
+                metadata: p.metadata,
                 created_at: p.created_at,
                 updated_at: p.updated_at,
             });
         }
-        list
+        Ok(list)
     }
 
-    fn get_captures_for_payment(&self, payment_id: &str) -> Vec<CaptureDTO> {
-        let map = self.captures.read().unwrap();
-        map.get(payment_id)
-            .cloned()
-            .unwrap_or_default()
+    async fn get_captures_for_payment(&self, payment_id: &str) -> Result<Vec<CaptureDTO>> {
+        let spec = FilterSpec::new()
+            .with_predicate("payment_id", FilterOp::Eq(payment_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
+        let captures = self.captures.list(None, &spec).await?;
+
+        Ok(captures
             .into_iter()
             .map(|c| CaptureDTO {
                 id: c.id.to_string(),
@@ -910,14 +901,17 @@ impl PaymentService {
                 metadata: c.metadata,
                 created_at: c.created_at,
             })
-            .collect()
+            .collect())
     }
 
-    fn get_refunds_for_payment(&self, payment_id: &str) -> Vec<RefundDTO> {
-        let map = self.refunds.read().unwrap();
-        map.get(payment_id)
-            .cloned()
-            .unwrap_or_default()
+    async fn get_refunds_for_payment(&self, payment_id: &str) -> Result<Vec<RefundDTO>> {
+        let spec = FilterSpec::new()
+            .with_predicate("payment_id", FilterOp::Eq(payment_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
+        let refunds = self.refunds.list(None, &spec).await?;
+
+        Ok(refunds
             .into_iter()
             .map(|r| RefundDTO {
                 id: r.id.to_string(),
@@ -929,7 +923,7 @@ impl PaymentService {
                 metadata: r.metadata,
                 created_at: r.created_at,
             })
-            .collect()
+            .collect())
     }
 
     /// Payment reconciliation job comparing PSP settlement records with Stheno payment ledgers (PAYMENTS §9, Task P8-22).
@@ -939,15 +933,18 @@ impl PaymentService {
         provider_id: &str,
         psp_report: Vec<PspReportItem>,
     ) -> Result<ReconciliationReportDTO> {
-        let payments_map = self.payments.read().unwrap();
+        let spec = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 100);
+        let payments = self.payments.list(None, &spec).await?;
         let mut matched_count = 0;
         let mut discrepancies = Vec::new();
 
         for psp_item in &psp_report {
             let internal_payment = if let Some(ref pid) = psp_item.payment_id {
-                payments_map.get(pid)
+                payments.iter().find(|p| p.id.to_string() == *pid)
             } else {
-                payments_map.values().find(|p| {
+                payments.iter().find(|p| {
                     p.data
                         .as_ref()
                         .and_then(|d| d.get("provider_payment_id"))
@@ -960,7 +957,7 @@ impl PaymentService {
                 Some(p) => {
                     let mut has_discrepancy = false;
                     let payment_id_str = p.id.to_string();
-                    let captures = self.get_captures_for_payment(&payment_id_str);
+                    let captures = self.get_captures_for_payment(&payment_id_str).await?;
                     let captured_total: Decimal = captures.iter().map(|c| c.amount).sum();
                     let p_effective_amount = if p.captured_at.is_some() || !captures.is_empty() {
                         captured_total

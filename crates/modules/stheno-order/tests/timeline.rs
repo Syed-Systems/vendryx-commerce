@@ -1,5 +1,7 @@
 //! Timeline reconstruction test (P6-18).
 use rust_decimal_macros::dec;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_order::{
     CreateAddressInput, CreateOrderChangeActionInput, CreateOrderChangeInput, CreateOrderInput,
     CreateReturnInput, CreateTransactionInput, OrderService,
@@ -7,7 +9,9 @@ use stheno_order::{
 
 #[tokio::test]
 async fn test_order_timeline_reconstruction_from_change_actions_and_transactions() {
-    let service = OrderService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = OrderService::new(pool);
 
     // 1. Create order
     let order = service

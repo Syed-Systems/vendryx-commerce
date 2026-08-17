@@ -3,10 +3,18 @@ use stheno_cart::{
     CartService, CreateCartInput, CreateLineItemAdjustmentInput, CreateLineItemInput,
     CreateLineItemTaxLineInput, UpdateLineItemInput,
 };
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
+
+async fn service() -> (TestDb, CartService) {
+    let db = TestDb::migrated().await;
+    let svc = CartService::new(create_pool(&db.url, 5).expect("pool"));
+    (db, svc)
+}
 
 #[tokio::test]
 async fn test_line_items_crud_and_denormalized_fields() {
-    let service = CartService::new();
+    let (db, service) = service().await;
 
     let cart = service
         .create_cart(CreateCartInput {
@@ -124,4 +132,6 @@ async fn test_line_items_crud_and_denormalized_fields() {
 
     let cart_after = service.get_cart(&cart.id).await.expect("cart fetched");
     assert_eq!(cart_after.items.len(), 0);
+
+    db.drop().await;
 }

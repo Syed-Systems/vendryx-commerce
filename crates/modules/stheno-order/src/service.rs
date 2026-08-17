@@ -1,12 +1,12 @@
-//! Order service, order-change integration, versioning snapshot engine, and transaction ledger (DATA_MODEL §2.4, TASKS P5-01..P5-06).
+//! Order service, order-change integration, versioning snapshot engine, and transaction ledger (DATA_MODEL §2.4, TASKS P5-01..P5-06, P13-15).
 #![allow(dead_code)]
 
 use chrono::Utc;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
@@ -17,39 +17,63 @@ use crate::models::{
     ShippingMethodAdjustment, ShippingMethodTaxLine, Transaction,
 };
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct OrderService {
-    orders: Arc<RwLock<HashMap<String, Order>>>,
-    order_items: Arc<RwLock<HashMap<String, Vec<OrderItem>>>>, // key: order_id
-    line_items: Arc<RwLock<HashMap<String, LineItem>>>,
-    line_item_adjustments: Arc<RwLock<HashMap<String, Vec<LineItemAdjustment>>>>,
-    line_item_tax_lines: Arc<RwLock<HashMap<String, Vec<LineItemTaxLine>>>>,
-    order_shipping_methods: Arc<RwLock<HashMap<String, Vec<OrderShippingMethod>>>>,
-    shipping_methods: Arc<RwLock<HashMap<String, ShippingMethod>>>,
-    shipping_method_adjustments: Arc<RwLock<HashMap<String, Vec<ShippingMethodAdjustment>>>>,
-    shipping_method_tax_lines: Arc<RwLock<HashMap<String, Vec<ShippingMethodTaxLine>>>>,
-    order_summaries: Arc<RwLock<HashMap<String, Vec<OrderSummary>>>>,
-    order_changes: Arc<RwLock<HashMap<String, OrderChange>>>,
-    order_change_actions: Arc<RwLock<HashMap<String, Vec<OrderChangeAction>>>>, // key: order_change_id
-    transactions: Arc<RwLock<HashMap<String, Vec<Transaction>>>>,
-    credit_lines: Arc<RwLock<HashMap<String, Vec<CreditLine>>>>,
-    addresses: Arc<RwLock<HashMap<String, Address>>>,
-    returns: Arc<RwLock<HashMap<String, Return>>>,
-    return_items: Arc<RwLock<HashMap<String, Vec<ReturnItem>>>>,
-    return_reasons: Arc<RwLock<HashMap<String, ReturnReason>>>,
-    claims: Arc<RwLock<HashMap<String, Claim>>>,
-    claim_items: Arc<RwLock<HashMap<String, Vec<ClaimItem>>>>,
-    claim_item_images: Arc<RwLock<HashMap<String, Vec<ClaimItemImage>>>>,
-    exchanges: Arc<RwLock<HashMap<String, Exchange>>>,
-    exchange_items: Arc<RwLock<HashMap<String, Vec<ExchangeItem>>>>,
+    orders: Arc<PgCrudRepository<Order>>,
+    order_items: Arc<PgCrudRepository<OrderItem>>,
+    line_items: Arc<PgCrudRepository<LineItem>>,
+    line_item_adjustments: Arc<PgCrudRepository<LineItemAdjustment>>,
+    line_item_tax_lines: Arc<PgCrudRepository<LineItemTaxLine>>,
+    order_shipping_methods: Arc<PgCrudRepository<OrderShippingMethod>>,
+    shipping_methods: Arc<PgCrudRepository<ShippingMethod>>,
+    shipping_method_adjustments: Arc<PgCrudRepository<ShippingMethodAdjustment>>,
+    shipping_method_tax_lines: Arc<PgCrudRepository<ShippingMethodTaxLine>>,
+    order_summaries: Arc<PgCrudRepository<OrderSummary>>,
+    order_changes: Arc<PgCrudRepository<OrderChange>>,
+    order_change_actions: Arc<PgCrudRepository<OrderChangeAction>>,
+    transactions: Arc<PgCrudRepository<Transaction>>,
+    credit_lines: Arc<PgCrudRepository<CreditLine>>,
+    addresses: Arc<PgCrudRepository<Address>>,
+    returns: Arc<PgCrudRepository<Return>>,
+    return_items: Arc<PgCrudRepository<ReturnItem>>,
+    return_reasons: Arc<PgCrudRepository<ReturnReason>>,
+    claims: Arc<PgCrudRepository<Claim>>,
+    claim_items: Arc<PgCrudRepository<ClaimItem>>,
+    claim_item_images: Arc<PgCrudRepository<ClaimItemImage>>,
+    exchanges: Arc<PgCrudRepository<Exchange>>,
+    exchange_items: Arc<PgCrudRepository<ExchangeItem>>,
+    pool: DbPool,
     display_id_counter: Arc<AtomicI64>,
 }
 
 impl OrderService {
-    pub fn new() -> Self {
+    pub fn new(pool: DbPool) -> Self {
         Self {
+            orders: Arc::new(PgCrudRepository::new(pool.clone())),
+            order_items: Arc::new(PgCrudRepository::new(pool.clone())),
+            line_items: Arc::new(PgCrudRepository::new(pool.clone())),
+            line_item_adjustments: Arc::new(PgCrudRepository::new(pool.clone())),
+            line_item_tax_lines: Arc::new(PgCrudRepository::new(pool.clone())),
+            order_shipping_methods: Arc::new(PgCrudRepository::new(pool.clone())),
+            shipping_methods: Arc::new(PgCrudRepository::new(pool.clone())),
+            shipping_method_adjustments: Arc::new(PgCrudRepository::new(pool.clone())),
+            shipping_method_tax_lines: Arc::new(PgCrudRepository::new(pool.clone())),
+            order_summaries: Arc::new(PgCrudRepository::new(pool.clone())),
+            order_changes: Arc::new(PgCrudRepository::new(pool.clone())),
+            order_change_actions: Arc::new(PgCrudRepository::new(pool.clone())),
+            transactions: Arc::new(PgCrudRepository::new(pool.clone())),
+            credit_lines: Arc::new(PgCrudRepository::new(pool.clone())),
+            addresses: Arc::new(PgCrudRepository::new(pool.clone())),
+            returns: Arc::new(PgCrudRepository::new(pool.clone())),
+            return_items: Arc::new(PgCrudRepository::new(pool.clone())),
+            return_reasons: Arc::new(PgCrudRepository::new(pool.clone())),
+            claims: Arc::new(PgCrudRepository::new(pool.clone())),
+            claim_items: Arc::new(PgCrudRepository::new(pool.clone())),
+            claim_item_images: Arc::new(PgCrudRepository::new(pool.clone())),
+            exchanges: Arc::new(PgCrudRepository::new(pool.clone())),
+            exchange_items: Arc::new(PgCrudRepository::new(pool.clone())),
+            pool,
             display_id_counter: Arc::new(AtomicI64::new(1000)),
-            ..Default::default()
         }
     }
 
@@ -68,13 +92,13 @@ impl OrderService {
 
         let mut shipping_address_id = None;
         if let Some(addr_input) = input.shipping_address {
-            let addr = self.create_address_internal(addr_input);
+            let addr = self.create_address_internal(addr_input).await?;
             shipping_address_id = Some(addr.id.to_string());
         }
 
         let mut billing_address_id = None;
         if let Some(addr_input) = input.billing_address {
-            let addr = self.create_address_internal(addr_input);
+            let addr = self.create_address_internal(addr_input).await?;
             billing_address_id = Some(addr.id.to_string());
         }
 
@@ -105,10 +129,7 @@ impl OrderService {
         };
 
         let order_id_str = order.id.to_string();
-        {
-            let mut map = self.orders.write().unwrap();
-            map.insert(order_id_str.clone(), order);
-        }
+        self.orders.create(None, order).await?;
 
         // Add line items and initial order_item snapshot at version 1
         if let Some(items) = input.items {
@@ -133,102 +154,54 @@ impl OrderService {
     }
 
     pub async fn get_order(&self, order_id: &str) -> Result<OrderDTO> {
-        let order = {
-            let map = self.orders.read().unwrap();
-            map.get(order_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "order",
-                id: order_id.to_string(),
-            })?
-        };
-
+        let order = self.orders.retrieve(None, order_id).await?;
         self.assemble_order_dto(&order, order.version).await
     }
 
     pub async fn list_orders(&self, filter: OrderFilter) -> Result<(Vec<OrderDTO>, usize)> {
-        let orders = {
-            let map = self.orders.read().unwrap();
-            let mut list: Vec<_> = map
-                .values()
-                .filter(|o| {
-                    if o.deleted_at.is_some() {
-                        return false;
-                    }
-                    if let Some(ref cid) = filter.customer_id {
-                        if o.customer_id.as_ref() != Some(cid) {
-                            return false;
-                        }
-                    }
-                    if let Some(ref scid) = filter.sales_channel_id {
-                        if o.sales_channel_id.as_ref() != Some(scid) {
-                            return false;
-                        }
-                    }
-                    if let Some(ref rid) = filter.region_id {
-                        if o.region_id.as_ref() != Some(rid) {
-                            return false;
-                        }
-                    }
-                    if let Some(ref st) = filter.status {
-                        if &o.status != st {
-                            return false;
-                        }
-                    }
-                    if let Some(ref pst) = filter.payment_status {
-                        if &o.payment_status != pst {
-                            return false;
-                        }
-                    }
-                    if let Some(ref fst) = filter.fulfillment_status {
-                        if &o.fulfillment_status != fst {
-                            return false;
-                        }
-                    }
-                    if let Some(did) = filter.display_id {
-                        if o.display_id != did {
-                            return false;
-                        }
-                    }
-                    true
-                })
-                .cloned()
-                .collect();
-            list.sort_by_key(|b| std::cmp::Reverse(b.created_at));
-            list
-        };
+        let mut spec = FilterSpec::new().with_predicate("deleted_at", FilterOp::IsNull);
+        if let Some(cid) = filter.customer_id {
+            spec = spec.with_predicate("customer_id", FilterOp::Eq(cid));
+        }
+        if let Some(scid) = filter.sales_channel_id {
+            spec = spec.with_predicate("sales_channel_id", FilterOp::Eq(scid));
+        }
+        if let Some(rid) = filter.region_id {
+            spec = spec.with_predicate("region_id", FilterOp::Eq(rid));
+        }
+        if let Some(st) = filter.status {
+            spec = spec.with_predicate("status", FilterOp::Eq(st));
+        }
+        if let Some(pst) = filter.payment_status {
+            spec = spec.with_predicate("payment_status", FilterOp::Eq(pst));
+        }
+        if let Some(fst) = filter.fulfillment_status {
+            spec = spec.with_predicate("fulfillment_status", FilterOp::Eq(fst));
+        }
+        if let Some(did) = filter.display_id {
+            spec = spec.with_predicate("display_id", FilterOp::Eq(did.to_string()));
+        }
 
-        let total = orders.len();
         let offset = filter.offset.unwrap_or(0);
         let limit = filter.limit.unwrap_or(20);
+        spec = spec.with_pagination(offset, limit);
 
-        let paged: Vec<_> = orders.into_iter().skip(offset).take(limit).collect();
-        let mut dtos = Vec::new();
-        for ord in paged {
+        let (orders, total) = self.orders.list_and_count(None, &spec).await?;
+        let mut dtos = Vec::with_capacity(orders.len());
+        for ord in orders {
             dtos.push(self.assemble_order_dto(&ord, ord.version).await?);
         }
 
-        Ok((dtos, total))
+        Ok((dtos, total as usize))
     }
 
     pub async fn get_order_at_version(&self, order_id: &str, version: i32) -> Result<OrderDTO> {
-        let order = {
-            let map = self.orders.read().unwrap();
-            map.get(order_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "order",
-                id: order_id.to_string(),
-            })?
-        };
-
+        let order = self.orders.retrieve(None, order_id).await?;
         self.assemble_order_dto(&order, version).await
     }
 
     pub async fn update_order(&self, order_id: &str, input: UpdateOrderInput) -> Result<OrderDTO> {
-        let mut order = {
-            let map = self.orders.read().unwrap();
-            map.get(order_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "order",
-                id: order_id.to_string(),
-            })?
-        };
+        let mut order = self.orders.retrieve(None, order_id).await?;
 
         if let Some(r_id) = input.region_id {
             order.region_id = Some(r_id);
@@ -256,22 +229,12 @@ impl OrderService {
         }
         order.updated_at = Utc::now();
 
-        {
-            let mut map = self.orders.write().unwrap();
-            map.insert(order_id.to_string(), order.clone());
-        }
-
-        self.assemble_order_dto(&order, order.version).await
+        let updated = self.orders.update(None, order_id, order).await?;
+        self.assemble_order_dto(&updated, updated.version).await
     }
 
     pub async fn cancel_order(&self, order_id: &str) -> Result<OrderDTO> {
-        let mut order = {
-            let map = self.orders.read().unwrap();
-            map.get(order_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "order",
-                id: order_id.to_string(),
-            })?
-        };
+        let mut order = self.orders.retrieve(None, order_id).await?;
 
         if order.status == "canceled" {
             return Err(Error::Conflict {
@@ -284,12 +247,8 @@ impl OrderService {
         order.canceled_at = Some(Utc::now());
         order.updated_at = Utc::now();
 
-        {
-            let mut map = self.orders.write().unwrap();
-            map.insert(order_id.to_string(), order.clone());
-        }
-
-        self.assemble_order_dto(&order, order.version).await
+        let updated = self.orders.update(None, order_id, order).await?;
+        self.assemble_order_dto(&updated, updated.version).await
     }
 
     pub async fn archive_order(&self, order_id: &str) -> Result<OrderDTO> {
@@ -320,130 +279,189 @@ impl OrderService {
         let order_id = order.id.to_string();
 
         let shipping_address = if let Some(addr_id) = &order.shipping_address_id {
-            let addrs = self.addresses.read().unwrap();
-            addrs.get(addr_id).map(Self::to_address_dto)
+            self.addresses
+                .retrieve(None, addr_id)
+                .await
+                .ok()
+                .map(|a| Self::to_address_dto(&a))
         } else {
             None
         };
 
         let billing_address = if let Some(addr_id) = &order.billing_address_id {
-            let addrs = self.addresses.read().unwrap();
-            addrs.get(addr_id).map(Self::to_address_dto)
+            self.addresses
+                .retrieve(None, addr_id)
+                .await
+                .ok()
+                .map(|a| Self::to_address_dto(&a))
         } else {
             None
         };
 
         // Load items at specified version (P5-03)
-        let mut items = Vec::new();
-        {
-            let oi_map = self.order_items.read().unwrap();
-            if let Some(ois) = oi_map.get(&order_id) {
-                let li_map = self.line_items.read().unwrap();
-                let adj_map = self.line_item_adjustments.read().unwrap();
-                let tax_map = self.line_item_tax_lines.read().unwrap();
+        let ois = self
+            .order_items
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-                for oi in ois.iter().filter(|o| o.version == version) {
-                    if let Some(li) = li_map.get(&oi.item_id) {
-                        let adjs = adj_map.get(&li.id.to_string()).cloned().unwrap_or_default();
-                        let taxes = tax_map.get(&li.id.to_string()).cloned().unwrap_or_default();
-                        items.push(LineItemDTO {
-                            id: li.id.to_string(),
-                            title: li.title.clone(),
-                            subtitle: li.subtitle.clone(),
-                            thumbnail: li.thumbnail.clone(),
-                            quantity: oi.quantity, // Snapshot quantity at version N
-                            unit_price: li.unit_price,
-                            is_tax_inclusive: li.is_tax_inclusive,
-                            compare_at_unit_price: li.compare_at_unit_price,
-                            requires_shipping: li.requires_shipping,
-                            is_discountable: li.is_discountable,
-                            is_custom_price: li.is_custom_price,
-                            variant_id: li.variant_id.clone(),
-                            product_id: li.product_id.clone(),
-                            product_title: li.product_title.clone(),
-                            product_description: li.product_description.clone(),
-                            product_subtitle: li.product_subtitle.clone(),
-                            product_type: li.product_type.clone(),
-                            product_collection: li.product_collection.clone(),
-                            product_handle: li.product_handle.clone(),
-                            variant_sku: li.variant_sku.clone(),
-                            variant_barcode: li.variant_barcode.clone(),
-                            variant_title: li.variant_title.clone(),
-                            variant_option_values: li.variant_option_values.clone(),
-                            adjustments: adjs.into_iter().map(Self::to_adj_dto).collect(),
-                            tax_lines: taxes.into_iter().map(Self::to_tax_dto).collect(),
-                            metadata: li.metadata.clone(),
-                            created_at: li.created_at,
-                            updated_at: li.updated_at,
-                        });
-                    }
-                }
+        let mut items = Vec::new();
+        for oi in ois.into_iter().filter(|o| o.version == version) {
+            if let Ok(li) = self.line_items.retrieve(None, &oi.item_id).await {
+                let adjs = self
+                    .line_item_adjustments
+                    .list(
+                        None,
+                        &FilterSpec::new()
+                            .with_predicate("item_id", FilterOp::Eq(li.id.to_string()))
+                            .with_predicate("deleted_at", FilterOp::IsNull)
+                            .with_pagination(0, 100),
+                    )
+                    .await?;
+                let taxes = self
+                    .line_item_tax_lines
+                    .list(
+                        None,
+                        &FilterSpec::new()
+                            .with_predicate("item_id", FilterOp::Eq(li.id.to_string()))
+                            .with_predicate("deleted_at", FilterOp::IsNull)
+                            .with_pagination(0, 100),
+                    )
+                    .await?;
+                items.push(LineItemDTO {
+                    id: li.id.to_string(),
+                    title: li.title.clone(),
+                    subtitle: li.subtitle.clone(),
+                    thumbnail: li.thumbnail.clone(),
+                    quantity: oi.quantity,
+                    unit_price: li.unit_price,
+                    is_tax_inclusive: li.is_tax_inclusive,
+                    compare_at_unit_price: li.compare_at_unit_price,
+                    requires_shipping: li.requires_shipping,
+                    is_discountable: li.is_discountable,
+                    is_custom_price: li.is_custom_price,
+                    variant_id: li.variant_id.clone(),
+                    product_id: li.product_id.clone(),
+                    product_title: li.product_title.clone(),
+                    product_description: li.product_description.clone(),
+                    product_subtitle: li.product_subtitle.clone(),
+                    product_type: li.product_type.clone(),
+                    product_collection: li.product_collection.clone(),
+                    product_handle: li.product_handle.clone(),
+                    variant_sku: li.variant_sku.clone(),
+                    variant_barcode: li.variant_barcode.clone(),
+                    variant_title: li.variant_title.clone(),
+                    variant_option_values: li.variant_option_values.clone(),
+                    adjustments: adjs.into_iter().map(Self::to_adj_dto).collect(),
+                    tax_lines: taxes.into_iter().map(Self::to_tax_dto).collect(),
+                    metadata: li.metadata.clone(),
+                    created_at: li.created_at,
+                    updated_at: li.updated_at,
+                });
             }
         }
 
         // Load shipping methods at specified version
-        let mut shipping_methods = Vec::new();
-        {
-            let osm_map = self.order_shipping_methods.read().unwrap();
-            if let Some(osms) = osm_map.get(&order_id) {
-                let sm_map = self.shipping_methods.read().unwrap();
-                let adj_map = self.shipping_method_adjustments.read().unwrap();
-                let tax_map = self.shipping_method_tax_lines.read().unwrap();
+        let osms = self
+            .order_shipping_methods
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-                for osm in osms.iter().filter(|o| o.version == version) {
-                    if let Some(sm) = sm_map.get(&osm.shipping_method_id) {
-                        let adjs = adj_map.get(&sm.id.to_string()).cloned().unwrap_or_default();
-                        let taxes = tax_map.get(&sm.id.to_string()).cloned().unwrap_or_default();
-                        shipping_methods.push(ShippingMethodDTO {
-                            id: sm.id.to_string(),
-                            name: sm.name.clone(),
-                            description: sm.description.clone(),
-                            amount: sm.amount,
-                            is_tax_inclusive: sm.is_tax_inclusive,
-                            shipping_option_id: sm.shipping_option_id.clone(),
-                            data: sm.data.clone(),
-                            adjustments: adjs.into_iter().map(Self::to_sm_adj_dto).collect(),
-                            tax_lines: taxes.into_iter().map(Self::to_sm_tax_dto).collect(),
-                            metadata: sm.metadata.clone(),
-                            created_at: sm.created_at,
-                            updated_at: sm.updated_at,
-                        });
-                    }
-                }
+        let mut shipping_methods = Vec::new();
+        for osm in osms.into_iter().filter(|o| o.version == version) {
+            if let Ok(sm) = self
+                .shipping_methods
+                .retrieve(None, &osm.shipping_method_id)
+                .await
+            {
+                let adjs = self
+                    .shipping_method_adjustments
+                    .list(
+                        None,
+                        &FilterSpec::new()
+                            .with_predicate("shipping_method_id", FilterOp::Eq(sm.id.to_string()))
+                            .with_predicate("deleted_at", FilterOp::IsNull)
+                            .with_pagination(0, 100),
+                    )
+                    .await?;
+                let taxes = self
+                    .shipping_method_tax_lines
+                    .list(
+                        None,
+                        &FilterSpec::new()
+                            .with_predicate("shipping_method_id", FilterOp::Eq(sm.id.to_string()))
+                            .with_predicate("deleted_at", FilterOp::IsNull)
+                            .with_pagination(0, 100),
+                    )
+                    .await?;
+                shipping_methods.push(ShippingMethodDTO {
+                    id: sm.id.to_string(),
+                    name: sm.name.clone(),
+                    description: sm.description.clone(),
+                    amount: sm.amount,
+                    is_tax_inclusive: sm.is_tax_inclusive,
+                    shipping_option_id: sm.shipping_option_id.clone(),
+                    data: sm.data.clone(),
+                    adjustments: adjs.into_iter().map(Self::to_sm_adj_dto).collect(),
+                    tax_lines: taxes.into_iter().map(Self::to_sm_tax_dto).collect(),
+                    metadata: sm.metadata.clone(),
+                    created_at: sm.created_at,
+                    updated_at: sm.updated_at,
+                });
             }
         }
 
         // Load summary at specified version
-        let summary = {
-            let s_map = self.order_summaries.read().unwrap();
-            s_map
-                .get(&order_id)
-                .and_then(|sums| sums.iter().find(|s| s.version == version))
-                .map(Self::to_summary_dto)
-        };
+        let sums = self
+            .order_summaries
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+        let summary = sums
+            .into_iter()
+            .find(|s| s.version == version)
+            .map(|s| Self::to_summary_dto(&s));
 
         // Transactions & Credit Lines
-        let transactions = {
-            let tx_map = self.transactions.read().unwrap();
-            tx_map
-                .get(&order_id)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::to_tx_dto)
-                .collect()
-        };
+        let txs = self
+            .transactions
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+        let transactions = txs.into_iter().map(Self::to_tx_dto).collect();
 
-        let credit_lines = {
-            let cl_map = self.credit_lines.read().unwrap();
-            cl_map
-                .get(&order_id)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::to_cl_dto)
-                .collect()
-        };
+        let cls = self
+            .credit_lines
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+        let credit_lines = cls.into_iter().map(Self::to_cl_dto).collect();
 
         Ok(OrderDTO {
             id: order.id.to_string(),
@@ -485,58 +503,98 @@ impl OrderService {
         let mut total_tax = Decimal::ZERO;
 
         // Sum items at version N
-        {
-            let oi_map = self.order_items.read().unwrap();
-            if let Some(ois) = oi_map.get(order_id) {
-                let li_map = self.line_items.read().unwrap();
-                let adj_map = self.line_item_adjustments.read().unwrap();
-                let tax_map = self.line_item_tax_lines.read().unwrap();
+        let ois = self
+            .order_items
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-                for oi in ois.iter().filter(|o| o.version == version) {
-                    if let Some(li) = li_map.get(&oi.item_id) {
-                        let item_gross = li.unit_price * Decimal::from(oi.quantity);
-                        item_subtotal += item_gross;
+        for oi in ois.into_iter().filter(|o| o.version == version) {
+            if let Ok(li) = self.line_items.retrieve(None, &oi.item_id).await {
+                let item_gross = li.unit_price * Decimal::from(oi.quantity);
+                item_subtotal += item_gross;
 
-                        if let Some(adjs) = adj_map.get(&li.id.to_string()) {
-                            for adj in adjs {
-                                total_discount += adj.amount;
-                            }
-                        }
+                let adjs = self
+                    .line_item_adjustments
+                    .list(
+                        None,
+                        &FilterSpec::new()
+                            .with_predicate("item_id", FilterOp::Eq(li.id.to_string()))
+                            .with_predicate("deleted_at", FilterOp::IsNull)
+                            .with_pagination(0, 100),
+                    )
+                    .await?;
+                for adj in adjs {
+                    total_discount += adj.amount;
+                }
 
-                        if let Some(taxes) = tax_map.get(&li.id.to_string()) {
-                            for t in taxes {
-                                total_tax += (item_gross * t.rate) / dec!(100);
-                            }
-                        }
-                    }
+                let taxes = self
+                    .line_item_tax_lines
+                    .list(
+                        None,
+                        &FilterSpec::new()
+                            .with_predicate("item_id", FilterOp::Eq(li.id.to_string()))
+                            .with_predicate("deleted_at", FilterOp::IsNull)
+                            .with_pagination(0, 100),
+                    )
+                    .await?;
+                for t in taxes {
+                    total_tax += (item_gross * t.rate) / dec!(100);
                 }
             }
         }
 
         // Sum shipping at version N
-        {
-            let osm_map = self.order_shipping_methods.read().unwrap();
-            if let Some(osms) = osm_map.get(order_id) {
-                let sm_map = self.shipping_methods.read().unwrap();
-                let adj_map = self.shipping_method_adjustments.read().unwrap();
-                let tax_map = self.shipping_method_tax_lines.read().unwrap();
+        let osms = self
+            .order_shipping_methods
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-                for osm in osms.iter().filter(|o| o.version == version) {
-                    if let Some(sm) = sm_map.get(&osm.shipping_method_id) {
-                        shipping_subtotal += sm.amount;
+        for osm in osms.into_iter().filter(|o| o.version == version) {
+            if let Ok(sm) = self
+                .shipping_methods
+                .retrieve(None, &osm.shipping_method_id)
+                .await
+            {
+                shipping_subtotal += sm.amount;
 
-                        if let Some(adjs) = adj_map.get(&sm.id.to_string()) {
-                            for adj in adjs {
-                                total_discount += adj.amount;
-                            }
-                        }
+                let adjs = self
+                    .shipping_method_adjustments
+                    .list(
+                        None,
+                        &FilterSpec::new()
+                            .with_predicate("shipping_method_id", FilterOp::Eq(sm.id.to_string()))
+                            .with_predicate("deleted_at", FilterOp::IsNull)
+                            .with_pagination(0, 100),
+                    )
+                    .await?;
+                for adj in adjs {
+                    total_discount += adj.amount;
+                }
 
-                        if let Some(taxes) = tax_map.get(&sm.id.to_string()) {
-                            for t in taxes {
-                                total_tax += (sm.amount * t.rate) / dec!(100);
-                            }
-                        }
-                    }
+                let taxes = self
+                    .shipping_method_tax_lines
+                    .list(
+                        None,
+                        &FilterSpec::new()
+                            .with_predicate("shipping_method_id", FilterOp::Eq(sm.id.to_string()))
+                            .with_predicate("deleted_at", FilterOp::IsNull)
+                            .with_pagination(0, 100),
+                    )
+                    .await?;
+                for t in taxes {
+                    total_tax += (sm.amount * t.rate) / dec!(100);
                 }
             }
         }
@@ -547,60 +605,94 @@ impl OrderService {
         // Calculate paid, refunded, credit line totals from Transactions
         let mut paid_total = Decimal::ZERO;
         let mut refunded_total = Decimal::ZERO;
-        {
-            let tx_map = self.transactions.read().unwrap();
-            if let Some(txs) = tx_map.get(order_id) {
-                for tx in txs {
-                    if tx.reference == "payment" || tx.reference == "capture" {
-                        paid_total += tx.amount;
-                    } else if tx.reference == "refund" {
-                        refunded_total += tx.amount;
-                    }
-                }
+        let txs = self
+            .transactions
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+
+        for tx in txs {
+            if tx.reference == "payment" || tx.reference == "capture" {
+                paid_total += tx.amount;
+            } else if tx.reference == "refund" {
+                refunded_total += tx.amount;
             }
         }
 
         let mut credit_line_total = Decimal::ZERO;
-        {
-            let cl_map = self.credit_lines.read().unwrap();
-            if let Some(cls) = cl_map.get(order_id) {
-                for cl in cls {
-                    credit_line_total += cl.amount;
-                }
-            }
+        let cls = self
+            .credit_lines
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+        for cl in cls {
+            credit_line_total += cl.amount;
         }
 
         let accounting_total = paid_total - refunded_total + credit_line_total;
         let raw_difference = current_order_total - accounting_total;
         let pending_difference = raw_difference;
 
-        let summary = OrderSummary {
-            id: Id::new(),
-            order_id: order_id.to_string(),
-            version,
-            paid_total,
-            refunded_total,
-            credit_line_total,
-            raw_difference,
-            pending_difference,
-            current_order_total,
-            original_order_total: current_order_total,
-            accounting_total,
-            metadata: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+        // Upsert / Create summary for version
+        let existing_summaries = self
+            .order_summaries
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+
+        let existing = existing_summaries
+            .into_iter()
+            .find(|s| s.version == version);
+
+        let summary = if let Some(mut existing_sum) = existing {
+            existing_sum.paid_total = paid_total;
+            existing_sum.refunded_total = refunded_total;
+            existing_sum.credit_line_total = credit_line_total;
+            existing_sum.raw_difference = raw_difference;
+            existing_sum.pending_difference = pending_difference;
+            existing_sum.current_order_total = current_order_total;
+            existing_sum.accounting_total = accounting_total;
+            existing_sum.updated_at = Utc::now();
+            self.order_summaries
+                .update(None, &existing_sum.id.to_string(), existing_sum)
+                .await?
+        } else {
+            let new_sum = OrderSummary {
+                id: Id::new(),
+                order_id: order_id.to_string(),
+                version,
+                paid_total,
+                refunded_total,
+                credit_line_total,
+                raw_difference,
+                pending_difference,
+                current_order_total,
+                original_order_total: current_order_total,
+                accounting_total,
+                metadata: None,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                deleted_at: None,
+            };
+            self.order_summaries.create(None, new_sum).await?
         };
 
-        let dto = Self::to_summary_dto(&summary);
-
-        {
-            let mut s_map = self.order_summaries.write().unwrap();
-            let list = s_map.entry(order_id.to_string()).or_default();
-            list.retain(|s| s.version != version);
-            list.push(summary);
-        }
-
-        Ok(dto)
+        Ok(Self::to_summary_dto(&summary))
     }
 
     // ── Order Change Engine Integration (P5-02, P5-03, P5-04) ───────────────
@@ -629,15 +721,11 @@ impl OrderService {
             metadata: input.metadata,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let change_id_str = change.id.to_string();
-        {
-            let mut map = self.order_changes.write().unwrap();
-            map.insert(change_id_str.clone(), change.clone());
-        }
-
-        Ok(Self::to_order_change_dto(&change, vec![]))
+        let created = self.order_changes.create(None, change).await?;
+        Ok(Self::to_order_change_dto(&created, vec![]))
     }
 
     pub async fn add_order_change_action(
@@ -645,13 +733,7 @@ impl OrderService {
         change_id: &str,
         input: CreateOrderChangeActionInput,
     ) -> Result<OrderChangeActionDTO> {
-        let change = {
-            let map = self.order_changes.read().unwrap();
-            map.get(change_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "order_change",
-                id: change_id.to_string(),
-            })?
-        };
+        let change = self.order_changes.retrieve(None, change_id).await?;
 
         if change.status != "pending" && change.status != "requested" {
             return Err(Error::Conflict {
@@ -672,30 +754,16 @@ impl OrderService {
             details: input.details,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = Self::to_action_dto(&action);
-
-        {
-            let mut act_map = self.order_change_actions.write().unwrap();
-            act_map
-                .entry(change_id.to_string())
-                .or_default()
-                .push(action);
-        }
-
-        Ok(dto)
+        let created = self.order_change_actions.create(None, action).await?;
+        Ok(Self::to_action_dto(&created))
     }
 
     /// Preview Order Change: evaluates pending actions against version-N snapshot in-memory (P5-02, DATA_MODEL §2.4 step 3).
     pub async fn preview_order_change(&self, change_id: &str) -> Result<OrderChangePreview> {
-        let change = {
-            let map = self.order_changes.read().unwrap();
-            map.get(change_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "order_change",
-                id: change_id.to_string(),
-            })?
-        };
+        let change = self.order_changes.retrieve(None, change_id).await?;
 
         let order = self
             .get_order_at_version(&change.order_id, change.version)
@@ -712,10 +780,16 @@ impl OrderService {
             .unwrap_or(stheno_types::CurrencyCode::Usd);
         let current_money = stheno_types::Money::new(current_total, currency);
 
-        let actions = {
-            let act_map = self.order_change_actions.read().unwrap();
-            act_map.get(change_id).cloned().unwrap_or_default()
-        };
+        let actions = self
+            .order_change_actions
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_change_id", FilterOp::Eq(change_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
         let mut delta = stheno_types::Money::zero(currency);
 
@@ -792,9 +866,15 @@ impl OrderService {
                     if let Some(ref_id) = &act.reference_id {
                         if let Some(sm) = order.shipping_methods.iter().find(|s| &s.id == ref_id) {
                             if let Some(new_amt) = act.amount {
-                                let diff = new_amt - sm.amount;
-                                let money_diff = stheno_types::Money::new(diff, currency);
-                                delta = (delta + money_diff)?;
+                                if new_amt >= sm.amount {
+                                    let diff = new_amt - sm.amount;
+                                    let money_diff = stheno_types::Money::new(diff, currency);
+                                    delta = (delta + money_diff)?;
+                                } else {
+                                    let diff = sm.amount - new_amt;
+                                    let money_diff = stheno_types::Money::new(diff, currency);
+                                    delta = (delta - money_diff)?;
+                                }
                             }
                         }
                     }
@@ -824,13 +904,7 @@ impl OrderService {
         change_id: &str,
         confirmed_by: Option<&str>,
     ) -> Result<OrderDTO> {
-        let mut change = {
-            let map = self.order_changes.read().unwrap();
-            map.get(change_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "order_change",
-                id: change_id.to_string(),
-            })?
-        };
+        let mut change = self.order_changes.retrieve(None, change_id).await?;
 
         if change.status != "pending" && change.status != "requested" {
             return Err(Error::Conflict {
@@ -844,115 +918,130 @@ impl OrderService {
         let new_version = old_version + 1;
 
         // Clone version N items to version N+1
-        {
-            let mut oi_map = self.order_items.write().unwrap();
-            let ois = oi_map.entry(order_id.clone()).or_default();
-            let version_n_items: Vec<OrderItem> = ois
-                .iter()
-                .filter(|o| o.version == old_version)
-                .cloned()
-                .collect();
+        let ois = self
+            .order_items
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-            for mut item in version_n_items {
-                item.id = Id::new();
-                item.version = new_version;
-                item.created_at = Utc::now();
-                item.updated_at = Utc::now();
-                ois.push(item);
-            }
+        let version_n_items: Vec<OrderItem> = ois
+            .into_iter()
+            .filter(|o| o.version == old_version)
+            .collect();
+
+        for mut item in version_n_items {
+            item.id = Id::new();
+            item.version = new_version;
+            item.created_at = Utc::now();
+            item.updated_at = Utc::now();
+            self.order_items.create(None, item).await?;
         }
 
         // Clone version N shipping methods to version N+1
-        {
-            let mut osm_map = self.order_shipping_methods.write().unwrap();
-            let osms = osm_map.entry(order_id.clone()).or_default();
-            let version_n_sms: Vec<OrderShippingMethod> = osms
-                .iter()
-                .filter(|o| o.version == old_version)
-                .cloned()
-                .collect();
+        let osms = self
+            .order_shipping_methods
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order_id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-            for mut sm in version_n_sms {
-                sm.id = Id::new();
-                sm.version = new_version;
-                sm.created_at = Utc::now();
-                sm.updated_at = Utc::now();
-                osms.push(sm);
-            }
+        let version_n_sms: Vec<OrderShippingMethod> = osms
+            .into_iter()
+            .filter(|o| o.version == old_version)
+            .collect();
+
+        for mut sm in version_n_sms {
+            sm.id = Id::new();
+            sm.version = new_version;
+            sm.created_at = Utc::now();
+            sm.updated_at = Utc::now();
+            self.order_shipping_methods.create(None, sm).await?;
         }
 
         // Apply actions to version N+1
-        {
-            let act_map = self.order_change_actions.read().unwrap();
-            if let Some(actions) = act_map.get(change_id) {
-                for act in actions {
-                    match act.action.as_str() {
-                        "ITEM_ADD" => {
-                            if let Some(details) = &act.details {
-                                let title = details
-                                    .get("title")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("Item");
-                                let qty = details
-                                    .get("quantity")
-                                    .and_then(|v| v.as_i64())
-                                    .unwrap_or(1) as i32;
-                                let unit_price = details
-                                    .get("unit_price")
-                                    .and_then(|v| v.as_str())
-                                    .and_then(|s| s.parse::<Decimal>().ok())
-                                    .or_else(|| {
-                                        details.get("unit_price").and_then(|v| v.as_f64()).map(
-                                            |f| {
-                                                Decimal::from_str_exact(&f.to_string())
-                                                    .unwrap_or(Decimal::ZERO)
-                                            },
-                                        )
-                                    })
-                                    .unwrap_or(Decimal::ZERO);
-                                let variant_id = details
-                                    .get("variant_id")
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.to_string());
+        let actions = self
+            .order_change_actions
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_change_id", FilterOp::Eq(change_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-                                let line_item = LineItem {
-                                    id: Id::new(),
-                                    title: title.to_string(),
-                                    subtitle: None,
-                                    thumbnail: None,
-                                    variant_id,
-                                    product_id: None,
-                                    product_title: None,
-                                    product_description: None,
-                                    product_subtitle: None,
-                                    product_type: None,
-                                    product_collection: None,
-                                    product_handle: None,
-                                    variant_sku: None,
-                                    variant_barcode: None,
-                                    variant_title: None,
-                                    variant_option_values: None,
-                                    requires_shipping: true,
-                                    is_discountable: true,
-                                    is_tax_inclusive: false,
-                                    compare_at_unit_price: None,
-                                    unit_price,
-                                    quantity: qty,
-                                    is_custom_price: false,
-                                    metadata: None,
-                                    created_at: Utc::now(),
-                                    updated_at: Utc::now(),
-                                    deleted_at: None,
-                                };
-                                let line_item_id = line_item.id.to_string();
-                                {
-                                    let mut li_map = self.line_items.write().unwrap();
-                                    li_map.insert(line_item_id.clone(), line_item);
-                                }
+        for act in actions {
+            match act.action.as_str() {
+                "ITEM_ADD" => {
+                    if let Some(details) = &act.details {
+                        let title = details
+                            .get("title")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Item");
+                        let qty = details
+                            .get("quantity")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(1) as i32;
+                        let unit_price = details
+                            .get("unit_price")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| s.parse::<Decimal>().ok())
+                            .or_else(|| {
+                                details.get("unit_price").and_then(|v| v.as_f64()).map(|f| {
+                                    Decimal::from_str_exact(&f.to_string()).unwrap_or(Decimal::ZERO)
+                                })
+                            })
+                            .unwrap_or(Decimal::ZERO);
+                        let variant_id = details
+                            .get("variant_id")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
 
-                                let mut oi_map = self.order_items.write().unwrap();
-                                let ois = oi_map.entry(order_id.clone()).or_default();
-                                ois.push(OrderItem {
+                        let line_item = LineItem {
+                            id: Id::new(),
+                            title: title.to_string(),
+                            subtitle: None,
+                            thumbnail: None,
+                            variant_id,
+                            product_id: None,
+                            product_title: None,
+                            product_description: None,
+                            product_subtitle: None,
+                            product_type: None,
+                            product_collection: None,
+                            product_handle: None,
+                            variant_sku: None,
+                            variant_barcode: None,
+                            variant_title: None,
+                            variant_option_values: None,
+                            requires_shipping: true,
+                            is_discountable: true,
+                            is_tax_inclusive: false,
+                            compare_at_unit_price: None,
+                            unit_price,
+                            quantity: qty,
+                            is_custom_price: false,
+                            metadata: None,
+                            created_at: Utc::now(),
+                            updated_at: Utc::now(),
+                            deleted_at: None,
+                        };
+                        let line_item_id = line_item.id.to_string();
+                        self.line_items.create(None, line_item).await?;
+
+                        self.order_items
+                            .create(
+                                None,
+                                OrderItem {
                                     id: Id::new(),
                                     order_id: order_id.clone(),
                                     item_id: line_item_id,
@@ -967,133 +1056,160 @@ impl OrderService {
                                     metadata: None,
                                     created_at: Utc::now(),
                                     updated_at: Utc::now(),
-                                });
-                            }
-                        }
-                        "ITEM_REMOVE" => {
-                            if let Some(ref_id) = &act.reference_id {
-                                let mut oi_map = self.order_items.write().unwrap();
-                                let ois = oi_map.entry(order_id.clone()).or_default();
-                                ois.retain(|o| !(o.version == new_version && &o.item_id == ref_id));
-                            }
-                        }
-                        "ITEM_UPDATE" => {
-                            if let (Some(ref_id), Some(details)) = (&act.reference_id, &act.details)
-                            {
-                                if let Some(new_qty) =
-                                    details.get("quantity").and_then(|v| v.as_i64())
-                                {
-                                    let mut oi_map = self.order_items.write().unwrap();
-                                    let ois = oi_map.entry(order_id.clone()).or_default();
-                                    if let Some(oi) = ois
-                                        .iter_mut()
-                                        .find(|o| o.version == new_version && &o.item_id == ref_id)
-                                    {
-                                        oi.quantity = new_qty as i32;
-                                        oi.updated_at = Utc::now();
-                                    }
-                                }
-                                if let Some(new_price) = details
-                                    .get("unit_price")
-                                    .and_then(|v| v.as_str())
-                                    .and_then(|s| s.parse::<Decimal>().ok())
-                                {
-                                    let mut li_map = self.line_items.write().unwrap();
-                                    if let Some(li) = li_map.get_mut(ref_id) {
-                                        li.unit_price = new_price;
-                                        li.updated_at = Utc::now();
-                                    }
-                                }
-                            }
-                        }
-                        "SHIPPING_ADD" => {
-                            if let Some(details) = &act.details {
-                                let name = details
-                                    .get("name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("Shipping");
-                                let amount = details
-                                    .get("amount")
-                                    .and_then(|v| v.as_str())
-                                    .and_then(|s| s.parse::<Decimal>().ok())
-                                    .unwrap_or(Decimal::ZERO);
-                                let shipping_option_id = details
-                                    .get("shipping_option_id")
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.to_string());
-
-                                let sm = ShippingMethod {
-                                    id: Id::new(),
-                                    name: name.to_string(),
-                                    description: None,
-                                    shipping_option_id,
-                                    amount,
-                                    is_tax_inclusive: false,
-                                    data: None,
-                                    metadata: None,
-                                    created_at: Utc::now(),
-                                    updated_at: Utc::now(),
                                     deleted_at: None,
-                                };
-                                let sm_id = sm.id.to_string();
-                                {
-                                    let mut sm_map = self.shipping_methods.write().unwrap();
-                                    sm_map.insert(sm_id.clone(), sm);
+                                },
+                            )
+                            .await?;
+                    }
+                }
+                "ITEM_REMOVE" => {
+                    if let Some(ref_id) = &act.reference_id {
+                        let current_ois = self
+                            .order_items
+                            .list(
+                                None,
+                                &FilterSpec::new()
+                                    .with_predicate("order_id", FilterOp::Eq(order_id.clone()))
+                                    .with_predicate("deleted_at", FilterOp::IsNull)
+                                    .with_pagination(0, 100),
+                            )
+                            .await?;
+                        for oi in current_ois {
+                            if oi.version == new_version && &oi.item_id == ref_id {
+                                self.order_items.delete(None, &oi.id.to_string()).await?;
+                            }
+                        }
+                    }
+                }
+                "ITEM_UPDATE" => {
+                    if let (Some(ref_id), Some(details)) = (&act.reference_id, &act.details) {
+                        if let Some(new_qty) = details.get("quantity").and_then(|v| v.as_i64()) {
+                            let current_ois = self
+                                .order_items
+                                .list(
+                                    None,
+                                    &FilterSpec::new()
+                                        .with_predicate("order_id", FilterOp::Eq(order_id.clone()))
+                                        .with_predicate("deleted_at", FilterOp::IsNull)
+                                        .with_pagination(0, 100),
+                                )
+                                .await?;
+                            for mut oi in current_ois {
+                                if oi.version == new_version && &oi.item_id == ref_id {
+                                    oi.quantity = new_qty as i32;
+                                    oi.updated_at = Utc::now();
+                                    self.order_items
+                                        .update(None, &oi.id.to_string(), oi)
+                                        .await?;
                                 }
+                            }
+                        }
+                        if let Some(new_price) = details
+                            .get("unit_price")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| s.parse::<Decimal>().ok())
+                        {
+                            if let Ok(mut li) = self.line_items.retrieve(None, ref_id).await {
+                                li.unit_price = new_price;
+                                li.updated_at = Utc::now();
+                                self.line_items.update(None, ref_id, li).await?;
+                            }
+                        }
+                    }
+                }
+                "SHIPPING_ADD" => {
+                    if let Some(details) = &act.details {
+                        let name = details
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Shipping");
+                        let amount = details
+                            .get("amount")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| s.parse::<Decimal>().ok())
+                            .unwrap_or(Decimal::ZERO);
+                        let shipping_option_id = details
+                            .get("shipping_option_id")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
 
-                                let mut osm_map = self.order_shipping_methods.write().unwrap();
-                                let osms = osm_map.entry(order_id.clone()).or_default();
-                                osms.push(OrderShippingMethod {
+                        let sm = ShippingMethod {
+                            id: Id::new(),
+                            name: name.to_string(),
+                            description: None,
+                            shipping_option_id,
+                            amount,
+                            is_tax_inclusive: false,
+                            data: None,
+                            metadata: None,
+                            created_at: Utc::now(),
+                            updated_at: Utc::now(),
+                            deleted_at: None,
+                        };
+                        let sm_id = sm.id.to_string();
+                        self.shipping_methods.create(None, sm).await?;
+
+                        self.order_shipping_methods
+                            .create(
+                                None,
+                                OrderShippingMethod {
                                     id: Id::new(),
                                     order_id: order_id.clone(),
                                     shipping_method_id: sm_id,
                                     version: new_version,
                                     created_at: Utc::now(),
                                     updated_at: Utc::now(),
-                                });
-                            }
-                        }
-                        "SHIPPING_UPDATE" => {
-                            if let (Some(ref_id), Some(details)) = (&act.reference_id, &act.details)
-                            {
-                                if let Some(amt) = details
-                                    .get("amount")
-                                    .and_then(|v| v.as_str())
-                                    .and_then(|s| s.parse::<Decimal>().ok())
-                                {
-                                    let mut sm_map = self.shipping_methods.write().unwrap();
-                                    if let Some(sm) = sm_map.get_mut(ref_id) {
-                                        sm.amount = amt;
-                                        sm.updated_at = Utc::now();
-                                    }
-                                }
-                            }
-                        }
-                        "SHIPPING_REMOVE" => {
-                            if let Some(ref_id) = &act.reference_id {
-                                let mut osm_map = self.order_shipping_methods.write().unwrap();
-                                if let Some(osms) = osm_map.get_mut(&order_id) {
-                                    osms.retain(|o| {
-                                        !(o.version == new_version
-                                            && &o.shipping_method_id == ref_id)
-                                    });
-                                }
-                            }
-                        }
-                        _ => {}
+                                    deleted_at: None,
+                                },
+                            )
+                            .await?;
                     }
                 }
+                "SHIPPING_UPDATE" => {
+                    if let (Some(ref_id), Some(details)) = (&act.reference_id, &act.details) {
+                        if let Some(amt) = details
+                            .get("amount")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| s.parse::<Decimal>().ok())
+                        {
+                            if let Ok(mut sm) = self.shipping_methods.retrieve(None, ref_id).await {
+                                sm.amount = amt;
+                                sm.updated_at = Utc::now();
+                                self.shipping_methods.update(None, ref_id, sm).await?;
+                            }
+                        }
+                    }
+                }
+                "SHIPPING_REMOVE" => {
+                    if let Some(ref_id) = &act.reference_id {
+                        let current_osms = self
+                            .order_shipping_methods
+                            .list(
+                                None,
+                                &FilterSpec::new()
+                                    .with_predicate("order_id", FilterOp::Eq(order_id.clone()))
+                                    .with_predicate("deleted_at", FilterOp::IsNull)
+                                    .with_pagination(0, 100),
+                            )
+                            .await?;
+                        for osm in current_osms {
+                            if osm.version == new_version && &osm.shipping_method_id == ref_id {
+                                self.order_shipping_methods
+                                    .delete(None, &osm.id.to_string())
+                                    .await?;
+                            }
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
         // Increment order.version
-        {
-            let mut map = self.orders.write().unwrap();
-            if let Some(order) = map.get_mut(&order_id) {
-                order.version = new_version;
-                order.updated_at = Utc::now();
-            }
-        }
+        let mut order = self.orders.retrieve(None, &order_id).await?;
+        order.version = new_version;
+        order.updated_at = Utc::now();
+        self.orders.update(None, &order_id, order).await?;
 
         // Recompute order_summary at N+1
         self.recompute_order_summary(&order_id, new_version).await?;
@@ -1104,22 +1220,13 @@ impl OrderService {
         change.confirmed_at = Some(Utc::now());
         change.updated_at = Utc::now();
 
-        {
-            let mut map = self.order_changes.write().unwrap();
-            map.insert(change_id.to_string(), change);
-        }
+        self.order_changes.update(None, change_id, change).await?;
 
         self.get_order(&order_id).await
     }
 
     pub async fn cancel_order_change(&self, change_id: &str) -> Result<OrderChangeDTO> {
-        let mut change = {
-            let map = self.order_changes.read().unwrap();
-            map.get(change_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "order_change",
-                id: change_id.to_string(),
-            })?
-        };
+        let mut change = self.order_changes.retrieve(None, change_id).await?;
 
         if change.status == "confirmed" || change.status == "canceled" {
             return Err(Error::Conflict {
@@ -1132,23 +1239,23 @@ impl OrderService {
         change.canceled_at = Some(Utc::now());
         change.updated_at = Utc::now();
 
-        {
-            let mut map = self.order_changes.write().unwrap();
-            map.insert(change_id.to_string(), change.clone());
-        }
+        let updated = self.order_changes.update(None, change_id, change).await?;
 
-        let actions = {
-            let act_map = self.order_change_actions.read().unwrap();
-            act_map
-                .get(change_id)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|a| Self::to_action_dto(&a))
-                .collect()
-        };
+        let actions = self
+            .order_change_actions
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_change_id", FilterOp::Eq(change_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-        Ok(Self::to_order_change_dto(&change, actions))
+        Ok(Self::to_order_change_dto(
+            &updated,
+            actions.iter().map(Self::to_action_dto).collect(),
+        ))
     }
 
     pub async fn decline_order_change(
@@ -1157,13 +1264,7 @@ impl OrderService {
         declined_by: Option<&str>,
         _reason: Option<&str>,
     ) -> Result<OrderChangeDTO> {
-        let mut change = {
-            let map = self.order_changes.read().unwrap();
-            map.get(change_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "order_change",
-                id: change_id.to_string(),
-            })?
-        };
+        let mut change = self.order_changes.retrieve(None, change_id).await?;
 
         if change.status != "pending" && change.status != "requested" {
             return Err(Error::Conflict {
@@ -1177,23 +1278,23 @@ impl OrderService {
         change.declined_at = Some(Utc::now());
         change.updated_at = Utc::now();
 
-        {
-            let mut map = self.order_changes.write().unwrap();
-            map.insert(change_id.to_string(), change.clone());
-        }
+        let updated = self.order_changes.update(None, change_id, change).await?;
 
-        let actions = {
-            let act_map = self.order_change_actions.read().unwrap();
-            act_map
-                .get(change_id)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|a| Self::to_action_dto(&a))
-                .collect()
-        };
+        let actions = self
+            .order_change_actions
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_change_id", FilterOp::Eq(change_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-        Ok(Self::to_order_change_dto(&change, actions))
+        Ok(Self::to_order_change_dto(
+            &updated,
+            actions.iter().map(Self::to_action_dto).collect(),
+        ))
     }
 
     // ── Returns Engine (P6-07 to P6-10) ─────────────────────────────────────
@@ -1215,27 +1316,16 @@ impl OrderService {
             canceled_at: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
         let ret_id = ret.id.to_string();
-        {
-            let mut map = self.returns.write().unwrap();
-            map.insert(ret_id.clone(), ret.clone());
-        }
-
+        self.returns.create(None, ret).await?;
         self.get_return_dto(&ret_id).await
     }
 
     pub async fn add_return_item(&self, input: AddReturnItemInput) -> Result<ReturnItemDTO> {
-        let ret = {
-            let map = self.returns.read().unwrap();
-            map.get(&input.return_id)
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "return",
-                    id: input.return_id.clone(),
-                })?
-        };
+        let ret = self.returns.retrieve(None, &input.return_id).await?;
 
         if ret.status != "requested" && ret.status != "open" {
             return Err(Error::Conflict {
@@ -1256,15 +1346,11 @@ impl OrderService {
             metadata: input.metadata,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = Self::to_return_item_dto(&item);
-        {
-            let mut map = self.return_items.write().unwrap();
-            map.entry(input.return_id).or_default().push(item);
-        }
-
-        Ok(dto)
+        let created = self.return_items.create(None, item).await?;
+        Ok(Self::to_return_item_dto(&created))
     }
 
     pub async fn receive_return_items(
@@ -1272,13 +1358,7 @@ impl OrderService {
         return_id: &str,
         items: Vec<ReceiveReturnItemsInput>,
     ) -> Result<ReturnDTO> {
-        let mut ret = {
-            let map = self.returns.read().unwrap();
-            map.get(return_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "return",
-                id: return_id.to_string(),
-            })?
-        };
+        let mut ret = self.returns.retrieve(None, return_id).await?;
 
         if ret.status == "canceled" || ret.status == "completed" {
             return Err(Error::Conflict {
@@ -1287,18 +1367,31 @@ impl OrderService {
             });
         }
 
-        {
-            let mut map = self.return_items.write().unwrap();
-            if let Some(r_items) = map.get_mut(return_id) {
-                for in_item in items {
-                    if let Some(ri) = r_items.iter_mut().find(|r| r.item_id == in_item.item_id) {
-                        ri.received_quantity += in_item.received_quantity;
-                        if let Some(dmg) = in_item.damaged_quantity {
-                            ri.damaged_quantity += dmg;
-                        }
-                        ri.updated_at = Utc::now();
-                    }
+        let r_items = self
+            .return_items
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("return_id", FilterOp::Eq(return_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+
+        for in_item in items {
+            if let Some(mut ri) = r_items
+                .iter()
+                .find(|r| r.item_id == in_item.item_id)
+                .cloned()
+            {
+                ri.received_quantity += in_item.received_quantity;
+                if let Some(dmg) = in_item.damaged_quantity {
+                    ri.damaged_quantity += dmg;
                 }
+                ri.updated_at = Utc::now();
+                self.return_items
+                    .update(None, &ri.id.to_string(), ri)
+                    .await?;
             }
         }
 
@@ -1306,11 +1399,7 @@ impl OrderService {
         ret.received_at = Some(Utc::now());
         ret.updated_at = Utc::now();
 
-        {
-            let mut map = self.returns.write().unwrap();
-            map.insert(return_id.to_string(), ret);
-        }
-
+        self.returns.update(None, return_id, ret).await?;
         self.get_return_dto(return_id).await
     }
 
@@ -1319,13 +1408,7 @@ impl OrderService {
         return_id: &str,
         refund_amount: Option<Decimal>,
     ) -> Result<ReturnDTO> {
-        let mut ret = {
-            let map = self.returns.read().unwrap();
-            map.get(return_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "return",
-                id: return_id.to_string(),
-            })?
-        };
+        let mut ret = self.returns.retrieve(None, return_id).await?;
 
         if ret.status == "completed" || ret.status == "canceled" {
             return Err(Error::Conflict {
@@ -1340,10 +1423,7 @@ impl OrderService {
         }
         ret.updated_at = Utc::now();
 
-        {
-            let mut map = self.returns.write().unwrap();
-            map.insert(return_id.to_string(), ret.clone());
-        }
+        self.returns.update(None, return_id, ret.clone()).await?;
 
         // If refund amount is set, record refund transaction on order
         if let Some(amt) = ret.refund_amount {
@@ -1367,13 +1447,7 @@ impl OrderService {
     }
 
     pub async fn cancel_return(&self, return_id: &str) -> Result<ReturnDTO> {
-        let mut ret = {
-            let map = self.returns.read().unwrap();
-            map.get(return_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "return",
-                id: return_id.to_string(),
-            })?
-        };
+        let mut ret = self.returns.retrieve(None, return_id).await?;
 
         if ret.status == "completed" {
             return Err(Error::Conflict {
@@ -1386,22 +1460,12 @@ impl OrderService {
         ret.canceled_at = Some(Utc::now());
         ret.updated_at = Utc::now();
 
-        {
-            let mut map = self.returns.write().unwrap();
-            map.insert(return_id.to_string(), ret);
-        }
-
+        self.returns.update(None, return_id, ret).await?;
         self.get_return_dto(return_id).await
     }
 
     pub async fn dismiss_return(&self, return_id: &str, reason: Option<&str>) -> Result<ReturnDTO> {
-        let mut ret = {
-            let map = self.returns.read().unwrap();
-            map.get(return_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "return",
-                id: return_id.to_string(),
-            })?
-        };
+        let mut ret = self.returns.retrieve(None, return_id).await?;
 
         ret.status = "dismissed".to_string();
         if let Some(r) = reason {
@@ -1413,57 +1477,39 @@ impl OrderService {
         }
         ret.updated_at = Utc::now();
 
-        {
-            let mut map = self.returns.write().unwrap();
-            map.insert(return_id.to_string(), ret);
-        }
-
+        self.returns.update(None, return_id, ret).await?;
         self.get_return_dto(return_id).await
     }
 
     pub async fn list_returns(&self, order_id: Option<&str>) -> Result<Vec<ReturnDTO>> {
-        let ids: Vec<String> = {
-            let ret_map = self.returns.read().unwrap();
-            ret_map
-                .values()
-                .filter(|r| {
-                    if let Some(oid) = order_id {
-                        r.order_id == oid
-                    } else {
-                        true
-                    }
-                })
-                .map(|r| r.id.to_string())
-                .collect()
-        };
+        let mut spec = FilterSpec::new().with_predicate("deleted_at", FilterOp::IsNull);
+        if let Some(oid) = order_id {
+            spec = spec.with_predicate("order_id", FilterOp::Eq(oid.to_string()));
+        }
+        spec = spec.with_pagination(0, 100);
 
+        let returns = self.returns.list(None, &spec).await?;
         let mut list = Vec::new();
-        for id in ids {
-            list.push(self.get_return_dto(&id).await?);
+        for r in returns {
+            list.push(self.get_return_dto(&r.id.to_string()).await?);
         }
         list.sort_by_key(|b| std::cmp::Reverse(b.created_at));
         Ok(list)
     }
 
     pub async fn get_return_dto(&self, return_id: &str) -> Result<ReturnDTO> {
-        let ret = {
-            let map = self.returns.read().unwrap();
-            map.get(return_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "return",
-                id: return_id.to_string(),
-            })?
-        };
+        let ret = self.returns.retrieve(None, return_id).await?;
 
-        let items = {
-            let item_map = self.return_items.read().unwrap();
-            item_map
-                .get(return_id)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|i| Self::to_return_item_dto(&i))
-                .collect()
-        };
+        let items = self
+            .return_items
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("return_id", FilterOp::Eq(return_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
         Ok(ReturnDTO {
             id: ret.id.to_string(),
@@ -1473,7 +1519,7 @@ impl OrderService {
             status: ret.status,
             refund_amount: ret.refund_amount,
             location_id: ret.location_id,
-            items,
+            items: items.iter().map(Self::to_return_item_dto).collect(),
             requested_at: ret.requested_at,
             received_at: ret.received_at,
             canceled_at: ret.canceled_at,
@@ -1518,40 +1564,43 @@ impl OrderService {
             deleted_at: None,
         };
 
-        let dto = ReturnReasonDTO {
-            id: reason.id.to_string(),
-            value: reason.value.clone(),
-            label: reason.label.clone(),
-            description: reason.description.clone(),
+        let created = self.return_reasons.create(None, reason).await?;
+        Ok(ReturnReasonDTO {
+            id: created.id.to_string(),
+            value: created.value,
+            label: created.label,
+            description: created.description,
             parent_return_reason_id: None,
             metadata: None,
-            created_at: reason.created_at,
-            updated_at: reason.updated_at,
-        };
-
-        let mut map = self.return_reasons.write().unwrap();
-        map.insert(reason.value.clone(), reason);
-
-        Ok(dto)
+            created_at: created.created_at,
+            updated_at: created.updated_at,
+        })
     }
 
     pub async fn list_return_reasons(&self) -> Result<Vec<ReturnReasonDTO>> {
-        let map = self.return_reasons.read().unwrap();
-        let list = map
-            .values()
-            .filter(|r| r.deleted_at.is_none())
+        let reasons = self
+            .return_reasons
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+
+        Ok(reasons
+            .into_iter()
             .map(|r| ReturnReasonDTO {
                 id: r.id.to_string(),
-                value: r.value.clone(),
-                label: r.label.clone(),
-                description: r.description.clone(),
-                parent_return_reason_id: r.parent_return_reason_id.clone(),
-                metadata: r.metadata.clone(),
+                value: r.value,
+                label: r.label,
+                description: r.description,
+                parent_return_reason_id: r.parent_return_reason_id,
+                metadata: r.metadata,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
             })
-            .collect();
-        Ok(list)
+            .collect())
     }
 
     // ── Claims Engine (P6-11 to P6-12) ──
@@ -1572,27 +1621,16 @@ impl OrderService {
             metadata: input.metadata,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
         let claim_id = claim.id.to_string();
-        {
-            let mut map = self.claims.write().unwrap();
-            map.insert(claim_id.clone(), claim);
-        }
-
+        self.claims.create(None, claim).await?;
         self.get_claim_dto(&claim_id).await
     }
 
     pub async fn add_claim_item(&self, input: AddClaimItemInput) -> Result<ClaimItemDTO> {
-        let claim = {
-            let map = self.claims.read().unwrap();
-            map.get(&input.claim_id)
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "claim",
-                    id: input.claim_id.clone(),
-                })?
-        };
+        let claim = self.claims.retrieve(None, &input.claim_id).await?;
 
         if claim.status != "open" {
             return Err(Error::Conflict {
@@ -1611,50 +1649,41 @@ impl OrderService {
             metadata: input.metadata,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let item_id_str = item.id.to_string();
+        let created = self.claim_items.create(None, item).await?;
+        let item_id_str = created.id.to_string();
 
         if let Some(imgs) = input.images {
-            let mut img_map = self.claim_item_images.write().unwrap();
-            let list = img_map.entry(item_id_str.clone()).or_default();
             for img_url in imgs {
-                list.push(ClaimItemImage {
-                    id: Id::new(),
-                    claim_item_id: item_id_str.clone(),
-                    url: img_url,
-                    metadata: None,
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                });
+                self.claim_item_images
+                    .create(
+                        None,
+                        ClaimItemImage {
+                            id: Id::new(),
+                            claim_item_id: item_id_str.clone(),
+                            url: img_url,
+                            metadata: None,
+                            created_at: Utc::now(),
+                            updated_at: Utc::now(),
+                            deleted_at: None,
+                        },
+                    )
+                    .await?;
             }
         }
 
-        let dto = self.to_claim_item_dto(&item).await;
-        {
-            let mut map = self.claim_items.write().unwrap();
-            map.entry(input.claim_id).or_default().push(item);
-        }
-
-        Ok(dto)
+        Ok(self.to_claim_item_dto(&created).await)
     }
 
     pub async fn confirm_claim(&self, claim_id: &str) -> Result<ClaimDTO> {
-        let mut claim = {
-            let map = self.claims.read().unwrap();
-            map.get(claim_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "claim",
-                id: claim_id.to_string(),
-            })?
-        };
+        let mut claim = self.claims.retrieve(None, claim_id).await?;
 
         claim.status = "confirmed".to_string();
         claim.updated_at = Utc::now();
 
-        {
-            let mut map = self.claims.write().unwrap();
-            map.insert(claim_id.to_string(), claim.clone());
-        }
+        self.claims.update(None, claim_id, claim.clone()).await?;
 
         if claim.r#type == "refund" {
             if let Some(amt) = claim.refund_amount {
@@ -1679,39 +1708,29 @@ impl OrderService {
     }
 
     pub async fn cancel_claim(&self, claim_id: &str) -> Result<ClaimDTO> {
-        let mut claim = {
-            let map = self.claims.read().unwrap();
-            map.get(claim_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "claim",
-                id: claim_id.to_string(),
-            })?
-        };
+        let mut claim = self.claims.retrieve(None, claim_id).await?;
 
         claim.status = "canceled".to_string();
         claim.canceled_at = Some(Utc::now());
         claim.updated_at = Utc::now();
 
-        {
-            let mut map = self.claims.write().unwrap();
-            map.insert(claim_id.to_string(), claim);
-        }
-
+        self.claims.update(None, claim_id, claim).await?;
         self.get_claim_dto(claim_id).await
     }
 
     pub async fn get_claim_dto(&self, claim_id: &str) -> Result<ClaimDTO> {
-        let claim = {
-            let map = self.claims.read().unwrap();
-            map.get(claim_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "claim",
-                id: claim_id.to_string(),
-            })?
-        };
+        let claim = self.claims.retrieve(None, claim_id).await?;
 
-        let raw_items = {
-            let map = self.claim_items.read().unwrap();
-            map.get(claim_id).cloned().unwrap_or_default()
-        };
+        let raw_items = self
+            .claim_items
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("claim_id", FilterOp::Eq(claim_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
         let mut items = Vec::new();
         for item in raw_items {
@@ -1737,11 +1756,26 @@ impl OrderService {
 
     async fn to_claim_item_dto(&self, item: &ClaimItem) -> ClaimItemDTO {
         let item_id_str = item.id.to_string();
-        let images = {
-            let map = self.claim_item_images.read().unwrap();
-            map.get(&item_id_str)
-                .cloned()
-                .unwrap_or_default()
+        let images = self
+            .claim_item_images
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("claim_item_id", FilterOp::Eq(item_id_str.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await
+            .unwrap_or_default();
+
+        ClaimItemDTO {
+            id: item_id_str,
+            claim_id: item.claim_id.clone(),
+            item_id: item.item_id.clone(),
+            quantity: item.quantity,
+            reason: item.reason.clone(),
+            raw_quantity: item.raw_quantity.clone(),
+            images: images
                 .into_iter()
                 .map(|img| ClaimItemImageDTO {
                     id: img.id.to_string(),
@@ -1751,17 +1785,7 @@ impl OrderService {
                     created_at: img.created_at,
                     updated_at: img.updated_at,
                 })
-                .collect()
-        };
-
-        ClaimItemDTO {
-            id: item_id_str,
-            claim_id: item.claim_id.clone(),
-            item_id: item.item_id.clone(),
-            quantity: item.quantity,
-            reason: item.reason.clone(),
-            raw_quantity: item.raw_quantity.clone(),
-            images,
+                .collect(),
             metadata: item.metadata.clone(),
             created_at: item.created_at,
             updated_at: item.updated_at,
@@ -1785,27 +1809,16 @@ impl OrderService {
             metadata: input.metadata,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
         let exchange_id = exchange.id.to_string();
-        {
-            let mut map = self.exchanges.write().unwrap();
-            map.insert(exchange_id.clone(), exchange);
-        }
-
+        self.exchanges.create(None, exchange).await?;
         self.get_exchange_dto(&exchange_id).await
     }
 
     pub async fn add_exchange_item(&self, input: AddExchangeItemInput) -> Result<ExchangeItemDTO> {
-        let exchange = {
-            let map = self.exchanges.read().unwrap();
-            map.get(&input.exchange_id)
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "exchange",
-                    id: input.exchange_id.clone(),
-                })?
-        };
+        let exchange = self.exchanges.retrieve(None, &input.exchange_id).await?;
 
         if exchange.status != "open" {
             return Err(Error::Conflict {
@@ -1822,15 +1835,11 @@ impl OrderService {
             metadata: input.metadata,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = Self::to_exchange_item_dto(&item);
-        {
-            let mut map = self.exchange_items.write().unwrap();
-            map.entry(input.exchange_id).or_default().push(item);
-        }
-
-        Ok(dto)
+        let created = self.exchange_items.create(None, item).await?;
+        Ok(Self::to_exchange_item_dto(&created))
     }
 
     pub async fn confirm_exchange(
@@ -1838,71 +1847,40 @@ impl OrderService {
         exchange_id: &str,
         difference_due: Option<Decimal>,
     ) -> Result<ExchangeDTO> {
-        let mut exchange = {
-            let map = self.exchanges.read().unwrap();
-            map.get(exchange_id)
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "exchange",
-                    id: exchange_id.to_string(),
-                })?
-        };
+        let mut exchange = self.exchanges.retrieve(None, exchange_id).await?;
 
         exchange.status = "confirmed".to_string();
         exchange.difference_due = difference_due;
         exchange.updated_at = Utc::now();
 
-        {
-            let mut map = self.exchanges.write().unwrap();
-            map.insert(exchange_id.to_string(), exchange);
-        }
-
+        self.exchanges.update(None, exchange_id, exchange).await?;
         self.get_exchange_dto(exchange_id).await
     }
 
     pub async fn cancel_exchange(&self, exchange_id: &str) -> Result<ExchangeDTO> {
-        let mut exchange = {
-            let map = self.exchanges.read().unwrap();
-            map.get(exchange_id)
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "exchange",
-                    id: exchange_id.to_string(),
-                })?
-        };
+        let mut exchange = self.exchanges.retrieve(None, exchange_id).await?;
 
         exchange.status = "canceled".to_string();
         exchange.canceled_at = Some(Utc::now());
         exchange.updated_at = Utc::now();
 
-        {
-            let mut map = self.exchanges.write().unwrap();
-            map.insert(exchange_id.to_string(), exchange);
-        }
-
+        self.exchanges.update(None, exchange_id, exchange).await?;
         self.get_exchange_dto(exchange_id).await
     }
 
     pub async fn get_exchange_dto(&self, exchange_id: &str) -> Result<ExchangeDTO> {
-        let exchange = {
-            let map = self.exchanges.read().unwrap();
-            map.get(exchange_id)
-                .cloned()
-                .ok_or_else(|| Error::NotFound {
-                    entity: "exchange",
-                    id: exchange_id.to_string(),
-                })?
-        };
+        let exchange = self.exchanges.retrieve(None, exchange_id).await?;
 
-        let items = {
-            let map = self.exchange_items.read().unwrap();
-            map.get(exchange_id)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|i| Self::to_exchange_item_dto(&i))
-                .collect()
-        };
+        let items = self
+            .exchange_items
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("exchange_id", FilterOp::Eq(exchange_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
         Ok(ExchangeDTO {
             id: exchange.id.to_string(),
@@ -1911,7 +1889,7 @@ impl OrderService {
             status: exchange.status,
             allow_backorder: exchange.allow_backorder,
             difference_due: exchange.difference_due,
-            items,
+            items: items.iter().map(Self::to_exchange_item_dto).collect(),
             created_by: exchange.created_by,
             canceled_at: exchange.canceled_at,
             metadata: exchange.metadata,
@@ -1935,13 +1913,7 @@ impl OrderService {
     // ── Draft Order Conversion (P6-15 to P6-16) ─────────────────────────────
 
     pub async fn convert_draft_order(&self, order_id: &str) -> Result<OrderDTO> {
-        let mut order = {
-            let map = self.orders.read().unwrap();
-            map.get(order_id).cloned().ok_or_else(|| Error::NotFound {
-                entity: "order",
-                id: order_id.to_string(),
-            })?
-        };
+        let mut order = self.orders.retrieve(None, order_id).await?;
 
         if order.status != "draft" {
             return Err(Error::Conflict {
@@ -1958,12 +1930,8 @@ impl OrderService {
         order.fulfillment_status = "not_fulfilled".to_string();
         order.updated_at = Utc::now();
 
-        {
-            let mut map = self.orders.write().unwrap();
-            map.insert(order_id.to_string(), order.clone());
-        }
-
-        self.assemble_order_dto(&order, order.version).await
+        let updated = self.orders.update(None, order_id, order).await?;
+        self.assemble_order_dto(&updated, updated.version).await
     }
 
     // ── Timeline Reconstruction (P6-18) ─────────────────────────────────────
@@ -1987,111 +1955,156 @@ impl OrderService {
         });
 
         // 2. Order changes and actions
-        {
-            let chg_map = self.order_changes.read().unwrap();
-            let act_map = self.order_change_actions.read().unwrap();
+        let chgs = self
+            .order_changes
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order.id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-            for chg in chg_map.values().filter(|c| c.order_id == order.id) {
-                let chg_id = chg.id.to_string();
-                if let Some(actions) = act_map.get(&chg_id) {
-                    for act in actions {
-                        events.push(OrderTimelineEventDTO {
-                            id: format!("evt_act_{}", act.id),
-                            order_id: order.id.clone(),
-                            event_type: format!("change_action_{}", act.action.to_lowercase()),
-                            description: format!("Order change action: {}", act.action),
-                            actor_id: chg.requested_by.clone(),
-                            created_at: act.created_at,
-                            metadata: act.details.clone(),
-                        });
-                    }
-                }
+        for chg in chgs {
+            let chg_id = chg.id.to_string();
+            let actions = self
+                .order_change_actions
+                .list(
+                    None,
+                    &FilterSpec::new()
+                        .with_predicate("order_change_id", FilterOp::Eq(chg_id.clone()))
+                        .with_predicate("deleted_at", FilterOp::IsNull)
+                        .with_pagination(0, 100),
+                )
+                .await?;
 
-                if chg.status == "confirmed" {
-                    events.push(OrderTimelineEventDTO {
-                        id: format!("evt_chg_conf_{}", chg.id),
-                        order_id: order.id.clone(),
-                        event_type: "order_change_confirmed".to_string(),
-                        description: format!("Order change confirmed (v{})", chg.version),
-                        actor_id: chg.confirmed_by.clone(),
-                        created_at: chg.confirmed_at.unwrap_or(chg.updated_at),
-                        metadata: None,
-                    });
-                }
+            for act in actions {
+                events.push(OrderTimelineEventDTO {
+                    id: format!("evt_act_{}", act.id),
+                    order_id: order.id.clone(),
+                    event_type: format!("change_action_{}", act.action.to_lowercase()),
+                    description: format!("Order change action: {}", act.action),
+                    actor_id: chg.requested_by.clone(),
+                    created_at: act.created_at,
+                    metadata: act.details.clone(),
+                });
+            }
+
+            if chg.status == "confirmed" {
+                events.push(OrderTimelineEventDTO {
+                    id: format!("evt_chg_conf_{}", chg.id),
+                    order_id: order.id.clone(),
+                    event_type: "order_change_confirmed".to_string(),
+                    description: format!("Order change confirmed (v{})", chg.version),
+                    actor_id: chg.confirmed_by.clone(),
+                    created_at: chg.confirmed_at.unwrap_or(chg.updated_at),
+                    metadata: None,
+                });
             }
         }
 
         // 3. Transactions (Payment captured / refund issued)
-        {
-            let tx_map = self.transactions.read().unwrap();
-            if let Some(txs) = tx_map.get(&order.id) {
-                for tx in txs {
-                    let ev_type = match tx.reference.as_str() {
-                        "refund" => "refund_issued",
-                        _ => "payment_captured",
-                    };
-                    events.push(OrderTimelineEventDTO {
-                        id: format!("evt_tx_{}", tx.id),
-                        order_id: order.id.clone(),
-                        event_type: ev_type.to_string(),
-                        description: format!(
-                            "Transaction {} of {} {}",
-                            tx.reference, tx.amount, tx.currency_code
-                        ),
-                        actor_id: None,
-                        created_at: tx.created_at,
-                        metadata: tx.metadata.clone(),
-                    });
-                }
-            }
+        let txs = self
+            .transactions
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order.id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+
+        for tx in txs {
+            let ev_type = match tx.reference.as_str() {
+                "refund" => "refund_issued",
+                _ => "payment_captured",
+            };
+            events.push(OrderTimelineEventDTO {
+                id: format!("evt_tx_{}", tx.id),
+                order_id: order.id.clone(),
+                event_type: ev_type.to_string(),
+                description: format!(
+                    "Transaction {} of {} {}",
+                    tx.reference, tx.amount, tx.currency_code
+                ),
+                actor_id: None,
+                created_at: tx.created_at,
+                metadata: tx.metadata.clone(),
+            });
         }
 
         // 4. Returns
-        {
-            let ret_map = self.returns.read().unwrap();
-            for ret in ret_map.values().filter(|r| r.order_id == order.id) {
-                events.push(OrderTimelineEventDTO {
-                    id: format!("evt_ret_{}", ret.id),
-                    order_id: order.id.clone(),
-                    event_type: "return_requested".to_string(),
-                    description: format!("Return requested in status {}", ret.status),
-                    actor_id: None,
-                    created_at: ret.created_at,
-                    metadata: ret.metadata.clone(),
-                });
-            }
+        let rets = self
+            .returns
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order.id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+
+        for ret in rets {
+            events.push(OrderTimelineEventDTO {
+                id: format!("evt_ret_{}", ret.id),
+                order_id: order.id.clone(),
+                event_type: "return_requested".to_string(),
+                description: format!("Return requested in status {}", ret.status),
+                actor_id: None,
+                created_at: ret.created_at,
+                metadata: ret.metadata.clone(),
+            });
         }
 
         // 5. Claims
-        {
-            let clm_map = self.claims.read().unwrap();
-            for clm in clm_map.values().filter(|c| c.order_id == order.id) {
-                events.push(OrderTimelineEventDTO {
-                    id: format!("evt_clm_{}", clm.id),
-                    order_id: order.id.clone(),
-                    event_type: "claim_created".to_string(),
-                    description: format!("Claim created of type {}", clm.r#type),
-                    actor_id: clm.created_by.clone(),
-                    created_at: clm.created_at,
-                    metadata: clm.metadata.clone(),
-                });
-            }
+        let clms = self
+            .claims
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order.id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+
+        for clm in clms {
+            events.push(OrderTimelineEventDTO {
+                id: format!("evt_clm_{}", clm.id),
+                order_id: order.id.clone(),
+                event_type: "claim_created".to_string(),
+                description: format!("Claim created of type {}", clm.r#type),
+                actor_id: clm.created_by.clone(),
+                created_at: clm.created_at,
+                metadata: clm.metadata.clone(),
+            });
         }
 
         // 6. Exchanges
-        {
-            let exc_map = self.exchanges.read().unwrap();
-            for exc in exc_map.values().filter(|e| e.order_id == order.id) {
-                events.push(OrderTimelineEventDTO {
-                    id: format!("evt_exc_{}", exc.id),
-                    order_id: order.id.clone(),
-                    event_type: "exchange_created".to_string(),
-                    description: format!("Exchange created in status {}", exc.status),
-                    actor_id: exc.created_by.clone(),
-                    created_at: exc.created_at,
-                    metadata: exc.metadata.clone(),
-                });
-            }
+        let excs = self
+            .exchanges
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_id", FilterOp::Eq(order.id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+
+        for exc in excs {
+            events.push(OrderTimelineEventDTO {
+                id: format!("evt_exc_{}", exc.id),
+                order_id: order.id.clone(),
+                event_type: "exchange_created".to_string(),
+                description: format!("Exchange created in status {}", exc.status),
+                actor_id: exc.created_by.clone(),
+                created_at: exc.created_at,
+                metadata: exc.metadata.clone(),
+            });
         }
 
         // Chronological sort
@@ -2119,14 +2132,11 @@ impl OrderService {
             metadata: input.metadata,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = Self::to_tx_dto(tx.clone());
-
-        {
-            let mut map = self.transactions.write().unwrap();
-            map.entry(order_id.to_string()).or_default().push(tx);
-        }
+        let created = self.transactions.create(None, tx).await?;
+        let dto = Self::to_tx_dto(created);
 
         // Recompute summary with updated paid/refunded totals
         self.recompute_order_summary(order_id, order.version)
@@ -2158,9 +2168,36 @@ impl OrderService {
         Ok(dto)
     }
 
+    pub async fn create_credit_line(
+        &self,
+        order_id: &str,
+        amount: Decimal,
+        reference: Option<String>,
+        reference_id: Option<String>,
+    ) -> Result<CreditLineDTO> {
+        let order = self.get_order(order_id).await?;
+
+        let cl = CreditLine {
+            id: Id::new(),
+            order_id: order_id.to_string(),
+            reference,
+            reference_id,
+            amount,
+            metadata: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            deleted_at: None,
+        };
+
+        let created = self.credit_lines.create(None, cl).await?;
+        self.recompute_order_summary(order_id, order.version)
+            .await?;
+        Ok(Self::to_cl_dto(created))
+    }
+
     // ── Internal Helpers ────────────────────────────────────────────────────
 
-    fn create_address_internal(&self, input: CreateAddressInput) -> Address {
+    async fn create_address_internal(&self, input: CreateAddressInput) -> Result<Address> {
         let addr = Address {
             id: Id::new(),
             customer_id: input.customer_id,
@@ -2180,9 +2217,7 @@ impl OrderService {
             deleted_at: None,
         };
 
-        let mut map = self.addresses.write().unwrap();
-        map.insert(addr.id.to_string(), addr.clone());
-        addr
+        self.addresses.create(None, addr).await
     }
 
     async fn add_line_item_internal(
@@ -2222,10 +2257,7 @@ impl OrderService {
         };
 
         let item_id_str = line_item.id.to_string();
-        {
-            let mut map = self.line_items.write().unwrap();
-            map.insert(item_id_str.clone(), line_item.clone());
-        }
+        let created_li = self.line_items.create(None, line_item).await?;
 
         let order_item = OrderItem {
             id: Id::new(),
@@ -2242,16 +2274,11 @@ impl OrderService {
             metadata: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        {
-            let mut map = self.order_items.write().unwrap();
-            map.entry(order_id.to_string())
-                .or_default()
-                .push(order_item);
-        }
-
-        Ok(line_item)
+        self.order_items.create(None, order_item).await?;
+        Ok(created_li)
     }
 
     async fn add_shipping_method_internal(
@@ -2275,10 +2302,7 @@ impl OrderService {
         };
 
         let sm_id_str = sm.id.to_string();
-        {
-            let mut map = self.shipping_methods.write().unwrap();
-            map.insert(sm_id_str.clone(), sm.clone());
-        }
+        let created_sm = self.shipping_methods.create(None, sm).await?;
 
         let osm = OrderShippingMethod {
             id: Id::new(),
@@ -2287,14 +2311,11 @@ impl OrderService {
             version,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
-        {
-            let mut map = self.order_shipping_methods.write().unwrap();
-            map.entry(order_id.to_string()).or_default().push(osm);
-        }
-
-        Ok(sm)
+        self.order_shipping_methods.create(None, osm).await?;
+        Ok(created_sm)
     }
 
     fn to_address_dto(a: &Address) -> AddressDTO {
@@ -2460,31 +2481,42 @@ impl OrderService {
     }
 
     pub async fn pseudonymize_customer_orders(&self, customer_id: &str) -> Result<()> {
-        let mut orders_map = self.orders.write().unwrap();
-        let mut addresses_map = self.addresses.write().unwrap();
+        let orders = self
+            .orders
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("customer_id", FilterOp::Eq(customer_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
 
-        for order in orders_map.values_mut() {
-            if order.customer_id.as_deref() == Some(customer_id) {
-                order.email = Some("erased@pseudonym.local".to_string());
-                if let Some(ref s_id) = order.shipping_address_id {
-                    if let Some(addr) = addresses_map.get_mut(s_id) {
-                        addr.first_name = Some("[ERASED]".to_string());
-                        addr.last_name = Some("[ERASED]".to_string());
-                        addr.address_1 = Some("[ERASED]".to_string());
-                        addr.address_2 = None;
-                        addr.phone = Some("[ERASED]".to_string());
-                    }
-                }
-                if let Some(ref b_id) = order.billing_address_id {
-                    if let Some(addr) = addresses_map.get_mut(b_id) {
-                        addr.first_name = Some("[ERASED]".to_string());
-                        addr.last_name = Some("[ERASED]".to_string());
-                        addr.address_1 = Some("[ERASED]".to_string());
-                        addr.address_2 = None;
-                        addr.phone = Some("[ERASED]".to_string());
-                    }
+        for mut order in orders {
+            order.email = Some("erased@pseudonym.local".to_string());
+            if let Some(s_id) = &order.shipping_address_id {
+                if let Ok(mut addr) = self.addresses.retrieve(None, s_id).await {
+                    addr.first_name = Some("[ERASED]".to_string());
+                    addr.last_name = Some("[ERASED]".to_string());
+                    addr.address_1 = Some("[ERASED]".to_string());
+                    addr.address_2 = None;
+                    addr.phone = Some("[ERASED]".to_string());
+                    self.addresses.update(None, s_id, addr).await?;
                 }
             }
+            if let Some(b_id) = &order.billing_address_id {
+                if let Ok(mut addr) = self.addresses.retrieve(None, b_id).await {
+                    addr.first_name = Some("[ERASED]".to_string());
+                    addr.last_name = Some("[ERASED]".to_string());
+                    addr.address_1 = Some("[ERASED]".to_string());
+                    addr.address_2 = None;
+                    addr.phone = Some("[ERASED]".to_string());
+                    self.addresses.update(None, b_id, addr).await?;
+                }
+            }
+            self.orders
+                .update(None, &order.id.to_string(), order)
+                .await?;
         }
         Ok(())
     }

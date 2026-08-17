@@ -5,10 +5,18 @@ use stheno_cart::{
     CreateShippingMethodAdjustmentInput, CreateShippingMethodInput,
     CreateShippingMethodTaxLineInput,
 };
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
+
+async fn service() -> (TestDb, CartService) {
+    let db = TestDb::migrated().await;
+    let svc = CartService::new(create_pool(&db.url, 5).expect("pool"));
+    (db, svc)
+}
 
 #[tokio::test]
 async fn test_cart_all_9_entities_lifecycle() {
-    let service = CartService::new();
+    let (db, service) = service().await;
 
     // 1. Address & Cart
     let cart = service
@@ -175,4 +183,6 @@ async fn test_cart_all_9_entities_lifecycle() {
     assert_eq!(hydrated.shipping_methods[0].adjustments.len(), 1);
     assert_eq!(hydrated.shipping_methods[0].tax_lines.len(), 1);
     assert_eq!(hydrated.credit_lines.len(), 1);
+
+    db.drop().await;
 }

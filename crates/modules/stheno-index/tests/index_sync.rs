@@ -1,9 +1,13 @@
 use std::collections::HashMap;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_index::{IndexService, QueryIndexFilterInput, UpsertIndexDataInput};
 
 #[tokio::test]
 async fn test_index_models_sync_and_rebuild() {
-    let service = IndexService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = IndexService::new(pool);
 
     // 1. Incremental upserts (Task P8-12, P8-13)
     let p1 = service
@@ -68,12 +72,15 @@ async fn test_index_models_sync_and_rebuild() {
         .await
         .unwrap();
     assert_eq!(rebuilt_state.status, "ready");
+
+    db.drop().await;
 }
 
 #[tokio::test]
 async fn test_cross_module_filtering_and_sorting() {
-    // Task P8-14: Cross-module filter/sort resolving via index_data
-    let service = IndexService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = IndexService::new(pool);
 
     let products = vec![
         (
@@ -111,4 +118,6 @@ async fn test_cross_module_filtering_and_sorting() {
     assert_eq!(results.len(), 2);
     assert_eq!(results[0].entity_id, "p2"); // Beta Jacket ($180.0)
     assert_eq!(results[1].entity_id, "p1"); // Alpha T-Shirt ($35.0)
+
+    db.drop().await;
 }

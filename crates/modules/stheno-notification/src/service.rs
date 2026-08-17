@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use chrono::Utc;
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::{
@@ -11,37 +12,35 @@ use crate::dto::{
 use crate::models::{Notification, NotificationDelivery, NotificationTemplate};
 use crate::provider::NotificationProvider;
 
-pub struct NotificationService {
-    providers: RwLock<HashMap<String, Arc<dyn NotificationProvider>>>,
-    templates: RwLock<HashMap<String, NotificationTemplate>>,
-    notifications: RwLock<HashMap<String, Notification>>,
-    deliveries: RwLock<Vec<NotificationDelivery>>,
-}
+#[derive(Default)]
+struct ProviderRegistry(HashMap<String, Arc<dyn NotificationProvider>>);
 
-impl Default for NotificationService {
-    fn default() -> Self {
-        Self::new()
-    }
+#[derive(Clone)]
+pub struct NotificationService {
+    providers: Arc<RwLock<ProviderRegistry>>,
+    templates: PgCrudRepository<NotificationTemplate>,
+    notifications: PgCrudRepository<Notification>,
+    deliveries: PgCrudRepository<NotificationDelivery>,
 }
 
 impl NotificationService {
-    pub fn new() -> Self {
+    pub fn new(pool: DbPool) -> Self {
         Self {
-            providers: RwLock::new(HashMap::new()),
-            templates: RwLock::new(HashMap::new()),
-            notifications: RwLock::new(HashMap::new()),
-            deliveries: RwLock::new(Vec::new()),
+            providers: Arc::new(RwLock::new(ProviderRegistry(HashMap::new()))),
+            templates: PgCrudRepository::new(pool.clone()),
+            notifications: PgCrudRepository::new(pool.clone()),
+            deliveries: PgCrudRepository::new(pool),
         }
     }
 
     pub fn register_provider(&self, provider: Arc<dyn NotificationProvider>) {
-        let mut map = self.providers.write().unwrap();
-        map.insert(provider.provider_id().to_string(), provider);
+        let mut reg = self.providers.write().unwrap();
+        reg.0.insert(provider.provider_id().to_string(), provider);
     }
 
     fn find_provider_for_channel(&self, channel: &str) -> Result<Arc<dyn NotificationProvider>> {
-        let map = self.providers.read().unwrap();
-        for provider in map.values() {
+        let reg = self.providers.read().unwrap();
+        for provider in reg.0.values() {
             if provider.supported_channels().contains(&channel) {
                 return Ok(provider.clone());
             }
@@ -71,39 +70,40 @@ impl NotificationService {
             body_template: input.body_template,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         };
 
-        let dto = NotificationTemplateDTO {
-            id: id.to_string(),
-            name: template.name.clone(),
-            channel: template.channel.clone(),
-            subject_template: template.subject_template.clone(),
-            body_template: template.body_template.clone(),
-            created_at: template.created_at,
-            updated_at: template.updated_at,
-        };
+        let created = self.templates.create(None, template).await?;
 
-        {
-            let mut map = self.templates.write().unwrap();
-            map.insert(template.name.clone(), template);
-        }
-
-        Ok(dto)
+        Ok(NotificationTemplateDTO {
+            id: created.id.to_string(),
+            name: created.name,
+            channel: created.channel,
+            subject_template: created.subject_template,
+            body_template: created.body_template,
+            created_at: created.created_at,
+            updated_at: created.updated_at,
+        })
     }
 
     pub async fn get_template_by_name(&self, name: &str) -> Result<NotificationTemplateDTO> {
-        let map = self.templates.read().unwrap();
-        let t = map.get(name).ok_or_else(|| Error::NotFound {
+        let filter = FilterSpec::new()
+            .with_predicate("name", FilterOp::Eq(name.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let list = self.templates.list(None, &filter).await?;
+        let t = list.into_iter().next().ok_or_else(|| Error::NotFound {
             entity: "notification_template",
             id: name.to_string(),
         })?;
 
         Ok(NotificationTemplateDTO {
             id: t.id.to_string(),
-            name: t.name.clone(),
-            channel: t.channel.clone(),
-            subject_template: t.subject_template.clone(),
-            body_template: t.body_template.clone(),
+            name: t.name,
+            channel: t.channel,
+            subject_template: t.subject_template,
+            body_template: t.body_template,
             created_at: t.created_at,
             updated_at: t.updated_at,
         })
@@ -179,6 +179,7 @@ impl NotificationService {
             status: status.clone(),
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         };
 
         let delivery = NotificationDelivery {
@@ -193,54 +194,42 @@ impl NotificationService {
             error_message: error_msg,
             metadata: meta,
             created_at: Utc::now(),
+            deleted_at: None,
         };
 
-        let dto = NotificationDTO {
-            id: notification_id.to_string(),
-            to: notification.to.clone(),
-            channel: notification.channel.clone(),
-            template: notification.template.clone(),
-            data: notification.data.clone(),
-            trigger_type: notification.trigger_type.clone(),
-            resource_id: notification.resource_id.clone(),
-            resource_type: notification.resource_type.clone(),
-            receiver_id: notification.receiver_id.clone(),
-            status: notification.status.clone(),
-            created_at: notification.created_at,
-            updated_at: notification.updated_at,
-        };
+        let created = self.notifications.create(None, notification).await?;
+        self.deliveries.create(None, delivery).await?;
 
-        {
-            let mut n_map = self.notifications.write().unwrap();
-            n_map.insert(notification_id.to_string(), notification);
-        }
-
-        {
-            let mut d_list = self.deliveries.write().unwrap();
-            d_list.push(delivery);
-        }
-
-        Ok(dto)
+        Ok(NotificationDTO {
+            id: created.id.to_string(),
+            to: created.to,
+            channel: created.channel,
+            template: created.template,
+            data: created.data,
+            trigger_type: created.trigger_type,
+            resource_id: created.resource_id,
+            resource_type: created.resource_type,
+            receiver_id: created.receiver_id,
+            status: created.status,
+            created_at: created.created_at,
+            updated_at: created.updated_at,
+        })
     }
 
     pub async fn get_notification(&self, id: &str) -> Result<NotificationDTO> {
-        let map = self.notifications.read().unwrap();
-        let n = map.get(id).ok_or_else(|| Error::NotFound {
-            entity: "notification",
-            id: id.to_string(),
-        })?;
+        let n = self.notifications.retrieve(None, id).await?;
 
         Ok(NotificationDTO {
             id: n.id.to_string(),
-            to: n.to.clone(),
-            channel: n.channel.clone(),
-            template: n.template.clone(),
-            data: n.data.clone(),
-            trigger_type: n.trigger_type.clone(),
-            resource_id: n.resource_id.clone(),
-            resource_type: n.resource_type.clone(),
-            receiver_id: n.receiver_id.clone(),
-            status: n.status.clone(),
+            to: n.to,
+            channel: n.channel,
+            template: n.template,
+            data: n.data,
+            trigger_type: n.trigger_type,
+            resource_id: n.resource_id,
+            resource_type: n.resource_type,
+            receiver_id: n.receiver_id,
+            status: n.status,
             created_at: n.created_at,
             updated_at: n.updated_at,
         })
@@ -250,20 +239,24 @@ impl NotificationService {
         &self,
         notification_id: &str,
     ) -> Result<Vec<NotificationDeliveryDTO>> {
-        let list = self.deliveries.read().unwrap();
-        let filtered: Vec<NotificationDeliveryDTO> = list
-            .iter()
-            .filter(|d| d.notification_id == notification_id)
+        let filter = FilterSpec::new()
+            .with_predicate("notification_id", FilterOp::Eq(notification_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        let list = self.deliveries.list(None, &filter).await?;
+        Ok(list
+            .into_iter()
             .map(|d| NotificationDeliveryDTO {
                 id: d.id.to_string(),
-                notification_id: d.notification_id.clone(),
-                provider_id: d.provider_id.clone(),
+                notification_id: d.notification_id,
+                provider_id: d.provider_id,
                 delivered_at: d.delivered_at,
-                error_message: d.error_message.clone(),
-                metadata: d.metadata.clone(),
+                error_message: d.error_message,
+                metadata: d.metadata,
                 created_at: d.created_at,
             })
-            .collect();
-        Ok(filtered)
+            .collect())
     }
 }

@@ -1,8 +1,12 @@
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_promotion::{PromotionEvaluationContext, PromotionRuleDTO, PromotionService};
 
-#[test]
-fn test_rule_engine_all_8_operators() {
-    let service = PromotionService::new();
+#[tokio::test]
+async fn test_rule_engine_all_8_operators() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = PromotionService::new(pool);
 
     let mut context = PromotionEvaluationContext::default();
     context

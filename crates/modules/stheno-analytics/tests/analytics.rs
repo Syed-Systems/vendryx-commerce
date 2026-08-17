@@ -3,16 +3,21 @@ use stheno_analytics::{
     AnalyticsService, IdentifyUserInput, LocalAnalyticsProvider, PostHogAnalyticsProvider,
     PostHogConfig, TrackEventInput,
 };
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_analytics_tracking_and_pii_redaction() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+
     let local_provider = Arc::new(LocalAnalyticsProvider::new());
     let posthog_provider = Arc::new(PostHogAnalyticsProvider::new(PostHogConfig {
         api_key: "ph_live_mock_123".to_string(),
         host: "https://app.posthog.com".to_string(),
     }));
 
-    let service = AnalyticsService::new();
+    let service = AnalyticsService::new(pool);
     service.register_provider(local_provider.clone());
     service.register_provider(posthog_provider.clone());
 
@@ -61,4 +66,6 @@ async fn test_analytics_tracking_and_pii_redaction() {
     assert_eq!(props["email"], "a***@example.com"); // Pseudonymized
     assert_eq!(props["order_id"], "ord_9901");
     assert_eq!(props["revenue"], 149.99);
+
+    db.drop().await;
 }

@@ -1,10 +1,14 @@
-//! Test P7-16: API Key creation, validation, scoping, and revocation.
+//! Test P7-16, P14-05: API Key creation, validation, scoping, and revocation on Postgres.
 
 use stheno_api_key::{ApiKeyService, CreateApiKeyInput, UpdateApiKeyInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_api_key_lifecycle_and_scope_validation() {
-    let service = ApiKeyService::new();
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = ApiKeyService::new(pool);
 
     // 1. Create publishable API key scoped to specific sales channels (F20)
     let created = service
@@ -59,4 +63,6 @@ async fn test_api_key_lifecycle_and_scope_validation() {
     // 5. Validation of revoked key fails
     let post_revoke_res = service.validate_key(&created.token).await.unwrap();
     assert!(!post_revoke_res.is_valid);
+
+    db.drop().await;
 }

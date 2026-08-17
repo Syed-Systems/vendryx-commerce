@@ -1,10 +1,14 @@
 //! Test P7-08: Token version invalidation on password/MFA/email change (F13).
 
 use stheno_auth::{AuthService, AuthenticateInput, CreateIdentityInput, UpdatePasswordInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 
 #[tokio::test]
 async fn test_token_version_invalidation_revokes_active_jwts() {
-    let service = AuthService::new(None);
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = AuthService::new(pool, None);
 
     let identity = service
         .create_identity(CreateIdentityInput {
@@ -66,4 +70,6 @@ async fn test_token_version_invalidation_revokes_active_jwts() {
 
     let new_claims = service.verify_jwt(&new_tokens.access_token).await.unwrap();
     assert_eq!(new_claims.token_version, 2);
+
+    db.drop().await;
 }

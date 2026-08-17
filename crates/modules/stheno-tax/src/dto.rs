@@ -106,3 +106,10 @@ pub struct TaxInclusiveBreakdown {
     pub total: Decimal, // = subtotal + tax_total
     pub rate: Decimal,
 }
+
+// Medusa id prefixes for this module's entities (ADR-010).
+stheno_types::prefixed_id! {
+    TaxRateDTO => "txr",
+    TaxRateRuleDTO => "txrule",
+    TaxRegionDTO => "txreg",
+}
