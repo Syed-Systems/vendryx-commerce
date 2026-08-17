@@ -1,12 +1,16 @@
 //! Exchange Confirm with Computed Difference Test (P6-14).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::ExchangeWorkflowEngine;
 use stheno_order::{CreateAddressInput, CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_exchange_confirm_with_computed_difference() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = ExchangeWorkflowEngine::new(order_service.clone());
 
     // 1. Create base order with $50 item
@@ -63,4 +67,6 @@ async fn test_exchange_confirm_with_computed_difference() {
     assert_eq!(confirmed_exchange.status, "confirmed");
     assert_eq!(confirmed_exchange.difference_due, Some(dec!(20.00)));
     assert!(confirmed_exchange.allow_backorder);
+
+    db.drop().await;
 }

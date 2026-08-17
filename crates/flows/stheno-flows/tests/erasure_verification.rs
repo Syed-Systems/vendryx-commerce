@@ -2,14 +2,18 @@ use rust_decimal_macros::dec;
 use std::sync::Arc;
 use stheno_auth::AuthService;
 use stheno_customer::{CreateCustomerAddressInput, CreateCustomerInput, CustomerService};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::platform::ErasurePipelineWorkflow;
 use stheno_order::{CreateAddressInput, CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_erasure_verification_no_pii_and_financials_preserved() {
-    let customer_service = Arc::new(CustomerService::new());
-    let auth_service = Arc::new(AuthService::new(None));
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let customer_service = Arc::new(CustomerService::new(pool.clone()));
+    let auth_service = Arc::new(AuthService::new(pool.clone(), None));
+    let order_service = Arc::new(OrderService::new(pool));
 
     let workflow = ErasurePipelineWorkflow::new(
         customer_service.clone(),
@@ -95,7 +99,7 @@ async fn test_erasure_verification_no_pii_and_financials_preserved() {
 
     // Verify Cleanliness (Task P8-19)
     let is_clean = workflow
-        .verify_erasure_cleanliness(&customer.id, &[order.id.clone()])
+        .verify_erasure_cleanliness(&customer.id, std::slice::from_ref(&order.id))
         .await
         .unwrap();
 
@@ -103,4 +107,6 @@ async fn test_erasure_verification_no_pii_and_financials_preserved() {
         is_clean,
         "Erasure verification failed: PII detected in store"
     );
+
+    db.drop().await;
 }

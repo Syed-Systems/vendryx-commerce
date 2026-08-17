@@ -1,11 +1,10 @@
-//! Entitlement quota management, CheckQuotaStep, trial lifecycle, and grandfathering enforcement (ENTITLEMENTS.md §5).
+//! Entitlement quota management, CheckQuotaStep, trial lifecycle, and grandfathering enforcement (ENTITLEMENTS.md §5, §6).
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use stheno_db::QuotaCounter;
 use stheno_types::{Error, Result};
 use stheno_workflow::{Step, StepConfig, StepContext};
 
@@ -17,85 +16,19 @@ pub struct EntitlementUsage {
     pub limit: usize,
 }
 
-#[derive(Clone, Default)]
-pub struct QuotaStore {
-    usages: Arc<Mutex<HashMap<String, EntitlementUsage>>>,
-}
-
-impl QuotaStore {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn set_quota(&self, tenant_id: &str, feature: &str, limit: usize, initial_count: usize) {
-        let key = format!("{}::{}", tenant_id, feature);
-        let mut map = self.usages.lock().unwrap();
-        map.insert(
-            key,
-            EntitlementUsage {
-                tenant_id: tenant_id.to_string(),
-                feature: feature.to_string(),
-                current_count: initial_count,
-                limit,
-            },
-        );
-    }
-
-    /// Atomically increments usage if under limit (P2-21b, P2-21c)
-    pub fn try_increment(&self, tenant_id: &str, feature: &str, count: usize) -> Result<usize> {
-        let key = format!("{}::{}", tenant_id, feature);
-        let mut map = self.usages.lock().unwrap();
-        let usage = map.get_mut(&key).ok_or_else(|| Error::NotFound {
-            entity: "entitlement_usage",
-            id: key.clone(),
-        })?;
-
-        if usage.current_count + count > usage.limit {
-            return Err(Error::Conflict {
-                code: "quota_exceeded",
-                message: format!(
-                    "Quota limit reached for {}: current {}, limit {}, requested {}",
-                    feature, usage.current_count, usage.limit, count
-                ),
-            });
-        }
-
-        usage.current_count += count;
-        Ok(usage.current_count)
-    }
-
-    pub fn get_count(&self, tenant_id: &str, feature: &str) -> usize {
-        let key = format!("{}::{}", tenant_id, feature);
-        let map = self.usages.lock().unwrap();
-        map.get(&key).map(|u| u.current_count).unwrap_or(0)
-    }
-
-    /// Grandfathering test support (P2-21e): sets a new lower limit without mutating current_count
-    pub fn downgrade_limit(&self, tenant_id: &str, feature: &str, new_limit: usize) {
-        let key = format!("{}::{}", tenant_id, feature);
-        let mut map = self.usages.lock().unwrap();
-        if let Some(usage) = map.get_mut(&key) {
-            usage.limit = new_limit;
-        }
-    }
-}
-
+#[derive(Clone)]
 pub struct CheckQuotaStep {
-    quota_store: QuotaStore,
-    tenant_id: String,
-    feature: String,
+    counter: QuotaCounter,
+    resource: String,
+    limit: Option<i64>,
 }
 
 impl CheckQuotaStep {
-    pub fn new(
-        quota_store: QuotaStore,
-        tenant_id: impl Into<String>,
-        feature: impl Into<String>,
-    ) -> Self {
+    pub fn new(counter: QuotaCounter, resource: impl Into<String>, limit: Option<i64>) -> Self {
         Self {
-            quota_store,
-            tenant_id: tenant_id.into(),
-            feature: feature.into(),
+            counter,
+            resource: resource.into(),
+            limit,
         }
     }
 }
@@ -114,14 +47,91 @@ impl Step for CheckQuotaStep {
     }
 
     async fn invoke(&self, _ctx: &StepContext, input: Value) -> Result<Value> {
-        let requested = input["count"].as_u64().unwrap_or(1) as usize;
-        self.quota_store
-            .try_increment(&self.tenant_id, &self.feature, requested)?;
-        Ok(input)
+        let mut conn = self
+            .counter
+            .pool()
+            .get()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+
+        match self
+            .counter
+            .increment(&mut conn, &self.resource, self.limit)
+            .await
+        {
+            Ok(used) => {
+                let mut out = input;
+                if let Value::Object(ref mut map) = out {
+                    map.insert("quota_used".to_string(), serde_json::json!(used));
+                }
+                Ok(out)
+            }
+            Err(Error::Conflict { .. }) => {
+                let resource_title = match self.resource.as_str() {
+                    "products" => "Product",
+                    "users" => "Staff seat",
+                    "regions" => "Region",
+                    _ => &self.resource,
+                };
+                let limit_display = self.limit.unwrap_or(0);
+                Err(Error::Conflict {
+                    code: "not_allowed",
+                    message: format!(
+                        "{} limit reached ({}). Upgrade to Pro for unlimited {}.",
+                        resource_title, limit_display, self.resource
+                    ),
+                })
+            }
+            Err(e) => Err(e),
+        }
     }
 
     async fn compensate(&self, _ctx: &StepContext, _input: Value) -> Result<()> {
+        let mut conn = self
+            .counter
+            .pool()
+            .get()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+
+        self.counter.decrement(&mut conn, &self.resource).await?;
         Ok(())
+    }
+}
+
+pub struct QuotaReconciliationJob {
+    counter: QuotaCounter,
+}
+
+impl QuotaReconciliationJob {
+    pub fn new(counter: QuotaCounter) -> Self {
+        Self { counter }
+    }
+
+    /// Reconcile actual counted rows against entitlement_usage table and alert if drifted
+    pub async fn reconcile_resource(&self, resource: &str, actual_count: i64) -> Result<bool> {
+        let mut conn = self
+            .counter
+            .pool()
+            .get()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+
+        let recorded = self.counter.get_usage(&mut conn, resource).await?;
+        if recorded != actual_count {
+            tracing::warn!(
+                "Quota drift detected for {}: recorded={}, actual={}. Correcting...",
+                resource,
+                recorded,
+                actual_count
+            );
+            self.counter
+                .set_usage(&mut conn, resource, actual_count)
+                .await?;
+            Ok(true) // Drift detected and corrected
+        } else {
+            Ok(false) // No drift
+        }
     }
 }
 

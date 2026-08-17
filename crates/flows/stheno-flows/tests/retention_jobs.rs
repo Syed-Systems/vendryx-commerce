@@ -1,10 +1,14 @@
 use std::sync::Arc;
 use stheno_cart::{CartService, CreateCartInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::platform::RetentionJobWorkflow;
 
 #[tokio::test]
 async fn test_retention_job_cycle_and_staleness_tracking() {
-    let cart_service = Arc::new(CartService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let cart_service = Arc::new(CartService::new(pool));
     let workflow = RetentionJobWorkflow::new(cart_service.clone(), 30);
 
     // 1. Create a guest cart

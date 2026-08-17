@@ -1,4 +1,6 @@
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::FulfillmentWorkflowEngine;
 use stheno_fulfillment::{
     CreateFulfillmentInput, CreateFulfillmentItemInput, CreateServiceZoneInput,
@@ -8,7 +10,9 @@ use stheno_fulfillment_manual::ManualFulfillmentProvider;
 
 #[tokio::test]
 async fn test_all_8_fulfillment_workflows() {
-    let ful_service = Arc::new(FulfillmentService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let ful_service = Arc::new(FulfillmentService::new(pool));
     ful_service.register_provider(Arc::new(ManualFulfillmentProvider::new()));
 
     let engine = FulfillmentWorkflowEngine::new(ful_service.clone());
@@ -134,4 +138,6 @@ async fn test_all_8_fulfillment_workflows() {
         .await
         .expect("shipped");
     assert!(mark_shipped.shipped_at.is_some());
+
+    db.drop().await;
 }

@@ -9,10 +9,12 @@ use stheno_promotion::PromotionService;
 
 #[tokio::test]
 async fn test_no_double_charge_duplicate_complete_returns_same_order() {
-    let cart_service = Arc::new(CartService::new());
-    let order_service = Arc::new(OrderService::new());
-    let payment_service = Arc::new(PaymentService::new());
-    let promotion_service = Arc::new(PromotionService::new());
+    let db = stheno_db::testing::TestDb::migrated().await;
+    let pool = stheno_db::create_pool(&db.url, 5).expect("pool");
+    let cart_service = Arc::new(CartService::new(pool.clone()));
+    let order_service = Arc::new(OrderService::new(pool.clone()));
+    let payment_service = Arc::new(PaymentService::new(pool.clone()));
+    let promotion_service = Arc::new(PromotionService::new(pool.clone()));
     let link_store = Arc::new(LinkStore::new());
 
     let engine = CompleteCartWorkflowEngine::new(

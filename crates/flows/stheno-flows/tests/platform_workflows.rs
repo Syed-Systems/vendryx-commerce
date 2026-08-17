@@ -1,4 +1,8 @@
+//! Test 13: Platform Workflows (File, Translation, Settings).
+
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_file::{CreatePresignedUploadInput, FileService, UploadFileInput};
 use stheno_file_local::LocalFileProvider;
 use stheno_flows::{
@@ -17,9 +21,12 @@ use stheno_translation::{
 
 #[tokio::test]
 async fn test_13_platform_workflows_settings_translation_file() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+
     // ── File Workflows (3) ──────────────────────────────────────────────────
     let local_file_provider = Arc::new(LocalFileProvider::new("uploads", "/static"));
-    let file_service = Arc::new(FileService::new(local_file_provider));
+    let file_service = Arc::new(FileService::new(local_file_provider, pool.clone()));
 
     let upload_wf = UploadFileWorkflow::new(file_service.clone());
     let presigned_wf = CreatePresignedUploadWorkflow::new(file_service.clone());
@@ -53,7 +60,7 @@ async fn test_13_platform_workflows_settings_translation_file() {
     delete_wf.run(&uploaded.id).await.unwrap();
 
     // ── Translation Workflows (5) ───────────────────────────────────────────
-    let translation_service = Arc::new(TranslationService::new());
+    let translation_service = Arc::new(TranslationService::new(pool.clone()));
     let create_locale_wf = CreateLocaleWorkflow::new(translation_service.clone());
     let set_trans_wf = SetTranslationWorkflow::new(translation_service.clone());
     let set_override_wf = SetTranslationOverrideWorkflow::new(translation_service.clone());
@@ -128,7 +135,7 @@ async fn test_13_platform_workflows_settings_translation_file() {
     assert_eq!(batch_res.len(), 2);
 
     // ── Settings Workflows (5) ──────────────────────────────────────────────
-    let settings_service = Arc::new(SettingsService::new());
+    let settings_service = Arc::new(SettingsService::new(pool));
     let set_setting_wf = SetSettingWorkflow::new(settings_service.clone());
     let get_setting_wf = GetSettingWorkflow::new(settings_service.clone());
     let save_view_wf = SaveViewConfigWorkflow::new(settings_service.clone());
@@ -186,4 +193,6 @@ async fn test_13_platform_workflows_settings_translation_file() {
         .await
         .unwrap();
     assert_eq!(layout.layout_key, "sidebar_order");
+
+    db.drop().await;
 }

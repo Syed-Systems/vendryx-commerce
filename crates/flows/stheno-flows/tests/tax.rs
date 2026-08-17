@@ -1,11 +1,15 @@
 use serde_json::json;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::*;
 use stheno_tax::TaxService;
 
 #[tokio::test]
 async fn test_all_9_tax_workflows() {
-    let service = Arc::new(TaxService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = Arc::new(TaxService::new(pool));
 
     // 1. Workflow: create-tax-regions
     let saga_create_region = build_create_tax_region_saga(service.clone());

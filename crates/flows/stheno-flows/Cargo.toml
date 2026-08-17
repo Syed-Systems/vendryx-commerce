@@ -8,6 +8,7 @@ authors.workspace = true
 
 [dependencies]
 stheno-types = { workspace = true }
+stheno-db = { workspace = true }
 stheno-workflow = { workspace = true }
 stheno-links = { workspace = true }
 stheno-http = { workspace = true }
@@ -49,6 +50,7 @@ rust_decimal_macros = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+stheno-db = { workspace = true, features = ["testing"] }
 stheno-payment-offline = { workspace = true }
 stheno-fulfillment-manual = { workspace = true }
 stheno-file-local = { workspace = true }

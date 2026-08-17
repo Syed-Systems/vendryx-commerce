@@ -11,6 +11,8 @@ use std::sync::Arc;
 use stheno_api_key::{ApiKeyService, CreateApiKeyInput};
 use stheno_auth::{AuthService, CreateIdentityInput};
 use stheno_customer::{CreateCustomerInput, CustomerService};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::{
     ApiKeyWorkflows, AuthWorkflows, CustomerWorkflows, RbacWorkflows, UserWorkflows,
 };
@@ -20,11 +22,14 @@ use stheno_user::{CreateUserInput, UserService};
 
 #[tokio::test]
 async fn test_full_authorization_matrix() {
-    let auth_service = Arc::new(AuthService::new(None));
-    let customer_service = Arc::new(CustomerService::new());
-    let user_service = Arc::new(UserService::new());
-    let api_key_service = Arc::new(ApiKeyService::new());
-    let rbac_service = Arc::new(RbacService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let auth_service = Arc::new(AuthService::new(pool.clone(), None));
+    let customer_service = Arc::new(CustomerService::new(pool.clone()));
+    let user_service = Arc::new(UserService::new(pool.clone()));
+    let api_key_service = Arc::new(ApiKeyService::new(pool.clone()));
+    let rbac_service = Arc::new(RbacService::new(pool));
+    rbac_service.seed_default_roles().await.unwrap();
 
     let auth_wf = AuthWorkflows::new(auth_service.clone());
     let customer_wf = CustomerWorkflows::new(customer_service.clone());
@@ -194,46 +199,58 @@ async fn test_full_authorization_matrix() {
 
     // --- CASE 3: Role Inheritance Closure ---
     // Admin inherits Member -> Admin can read orders
-    let admin_read_order = rbac_wf.evaluate_permission(EvaluatePermissionInput {
-        roles: vec![user_admin.role.clone()],
-        resource: "order:ord_123".to_string(),
-        action: "read".to_string(),
-        actor_id: Some(user_admin.id.clone()),
-        mfa_verified: Some(false),
-    });
+    let admin_read_order = rbac_wf
+        .evaluate_permission(EvaluatePermissionInput {
+            roles: vec![user_admin.role.clone()],
+            resource: "order:ord_123".to_string(),
+            action: "read".to_string(),
+            actor_id: Some(user_admin.id.clone()),
+            mfa_verified: Some(false),
+        })
+        .await
+        .unwrap();
     assert!(admin_read_order.is_allowed);
 
     // --- CASE 4: Sensitive MFA Enforcement ---
     // Admin without MFA attempting bulk export -> DENIED
-    let admin_export_no_mfa = rbac_wf.evaluate_permission(EvaluatePermissionInput {
-        roles: vec![user_admin.role.clone()],
-        resource: "customer:export_bulk".to_string(),
-        action: "execute".to_string(),
-        actor_id: Some(user_admin.id.clone()),
-        mfa_verified: Some(false),
-    });
+    let admin_export_no_mfa = rbac_wf
+        .evaluate_permission(EvaluatePermissionInput {
+            roles: vec![user_admin.role.clone()],
+            resource: "customer:export_bulk".to_string(),
+            action: "execute".to_string(),
+            actor_id: Some(user_admin.id.clone()),
+            mfa_verified: Some(false),
+        })
+        .await
+        .unwrap();
     assert!(!admin_export_no_mfa.is_allowed);
     assert!(admin_export_no_mfa.requires_mfa);
 
     // Admin WITH MFA attempting bulk export -> ALLOWED
-    let admin_export_with_mfa = rbac_wf.evaluate_permission(EvaluatePermissionInput {
-        roles: vec![user_admin.role.clone()],
-        resource: "customer:export_bulk".to_string(),
-        action: "execute".to_string(),
-        actor_id: Some(user_admin.id.clone()),
-        mfa_verified: Some(true),
-    });
+    let admin_export_with_mfa = rbac_wf
+        .evaluate_permission(EvaluatePermissionInput {
+            roles: vec![user_admin.role.clone()],
+            resource: "customer:export_bulk".to_string(),
+            action: "execute".to_string(),
+            actor_id: Some(user_admin.id.clone()),
+            mfa_verified: Some(true),
+        })
+        .await
+        .unwrap();
     assert!(admin_export_with_mfa.is_allowed);
 
     // --- CASE 5: Deny-Beats-Allow Precedence ---
     // Member attempting to delete order -> DENIED by explicit deny
-    let member_delete_order = rbac_wf.evaluate_permission(EvaluatePermissionInput {
-        roles: vec![user_member.role.clone()],
-        resource: "order:ord_123".to_string(),
-        action: "delete".to_string(),
-        actor_id: Some(user_member.id.clone()),
-        mfa_verified: Some(true),
-    });
+    let member_delete_order = rbac_wf
+        .evaluate_permission(EvaluatePermissionInput {
+            roles: vec![user_member.role.clone()],
+            resource: "order:ord_123".to_string(),
+            action: "delete".to_string(),
+            actor_id: Some(user_member.id.clone()),
+            mfa_verified: Some(true),
+        })
+        .await
+        .unwrap();
     assert!(!member_delete_order.is_allowed);
     assert!(member_delete_order.reason.contains("deny-beats-allow"));
 

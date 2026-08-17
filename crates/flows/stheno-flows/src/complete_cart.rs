@@ -37,7 +37,6 @@ pub enum StepFailureMode {
 }
 
 /// SAGA context tracking step progress, compensation stack, and recorded side-effects.
-#[derive(Default)]
 pub struct CompleteCartWorkflowEngine {
     pub cart_service: Arc<CartService>,
     pub order_service: Arc<OrderService>,
@@ -50,6 +49,7 @@ pub struct CompleteCartWorkflowEngine {
     checkpoints: Arc<RwLock<HashMap<String, usize>>>,
     // Checkpointed order IDs: cart_id -> created order_id
     cart_to_order: Arc<RwLock<HashMap<String, String>>>,
+    in_flight: Arc<std::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>>,
 }
 
 impl CompleteCartWorkflowEngine {
@@ -69,6 +69,7 @@ impl CompleteCartWorkflowEngine {
             completed_executions: Arc::new(RwLock::new(HashMap::new())),
             checkpoints: Arc::new(RwLock::new(HashMap::new())),
             cart_to_order: Arc::new(RwLock::new(HashMap::new())),
+            in_flight: Arc::new(std::sync::Mutex::new(HashMap::new())),
         }
     }
 
@@ -83,7 +84,29 @@ impl CompleteCartWorkflowEngine {
             .clone()
             .unwrap_or_else(|| input.cart_id.clone());
 
-        // ── 0. Idempotency Check (P5-18) ────────────────────────────────────
+        // Fast path idempotency check
+        {
+            let map = self.completed_executions.read().unwrap();
+            if let Some(existing_order) = map.get(&key) {
+                return Ok(CompleteCartOutput {
+                    order: existing_order.clone(),
+                    resumed_from_step: None,
+                    execution_id: format!("exec_{}", key),
+                });
+            }
+        }
+
+        // Synchronize in-flight executions for the same key / cart
+        let lock = {
+            let mut inflight = self.in_flight.lock().unwrap();
+            inflight
+                .entry(key.clone())
+                .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+                .clone()
+        };
+        let _guard = lock.lock().await;
+
+        // ── 0. Idempotency Check under Lock (P5-18) ─────────────────────────
         {
             let map = self.completed_executions.read().unwrap();
             if let Some(existing_order) = map.get(&key) {

@@ -1,6 +1,8 @@
 //! Return Receive & Confirmation Test (P6-08).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::ReturnWorkflowEngine;
 use stheno_order::{
     CreateAddressInput, CreateLineItemInput, CreateOrderInput, CreateTransactionInput, OrderService,
@@ -8,7 +10,9 @@ use stheno_order::{
 
 #[tokio::test]
 async fn test_return_receive_confirm_and_cancel_lifecycle() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = ReturnWorkflowEngine::new(order_service.clone(), None);
 
     // 1. Create order with $100 payment
@@ -93,4 +97,6 @@ async fn test_return_receive_confirm_and_cancel_lifecycle() {
     assert_eq!(summary.paid_total, dec!(100.00));
     assert_eq!(summary.refunded_total, dec!(50.00));
     assert_eq!(summary.accounting_total, dec!(50.00));
+
+    db.drop().await;
 }

@@ -1,12 +1,16 @@
 //! Order Edit Preview Zero-Writes Test (P6-03).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::OrderEditWorkflowEngine;
 use stheno_order::{CreateAddressInput, CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_order_edit_preview_computed_with_zero_writes() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = OrderEditWorkflowEngine::new(order_service.clone(), None);
 
     // 1. Create order
@@ -71,4 +75,6 @@ async fn test_order_edit_preview_computed_with_zero_writes() {
         initial_summary.current_order_total
     );
     assert_eq!(unchanged_order.items.len(), 1);
+
+    db.drop().await;
 }

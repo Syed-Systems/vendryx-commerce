@@ -1,11 +1,15 @@
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::OrderWorkflowEngine;
 use stheno_order::{CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_order_transfer_request_accept_decline_cancel() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = OrderWorkflowEngine::new(order_service.clone());
 
     // 1. Create order owned by cus_alice
@@ -94,4 +98,6 @@ async fn test_order_transfer_request_accept_decline_cancel() {
         .await
         .expect("transfer canceled");
     assert_eq!(canceled_req.status, "canceled");
+
+    db.drop().await;
 }

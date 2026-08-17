@@ -66,6 +66,7 @@ impl ResolveFieldTranslationWorkflow {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn run(
         &self,
         locale_code: &str,

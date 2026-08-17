@@ -1,12 +1,16 @@
 //! Order Edit Items Integration Test (P6-01).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::OrderEditWorkflowEngine;
 use stheno_order::{CreateAddressInput, CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_order_edit_begin_add_update_remove_items() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = OrderEditWorkflowEngine::new(order_service.clone(), None);
 
     // 1. Create base order with 1 item
@@ -94,4 +98,6 @@ async fn test_order_edit_begin_add_update_remove_items() {
     assert_eq!(final_order.version, 3);
     assert_eq!(final_order.items.len(), 1);
     assert_eq!(final_order.items[0].title, "New Added Item");
+
+    db.drop().await;
 }

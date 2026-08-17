@@ -182,8 +182,92 @@ impl BatchProductService {
     }
 }
 
+use stheno_db::QuotaCounter;
+use stheno_user::{CreateUserInput, UserService};
+
+pub struct CreateUserStep {
+    user_service: Arc<UserService>,
+}
+
+impl CreateUserStep {
+    pub fn new(user_service: Arc<UserService>) -> Self {
+        Self { user_service }
+    }
+}
+
+#[async_trait]
+impl Step for CreateUserStep {
+    fn name(&self) -> &'static str {
+        "CreateUserStep"
+    }
+
+    fn config(&self) -> StepConfig {
+        StepConfig {
+            retries: 3,
+            retry_interval_ms: 10,
+            ..Default::default()
+        }
+    }
+
+    async fn invoke(&self, _ctx: &StepContext, input: Value) -> Result<Value> {
+        let email = input["email"].as_str().ok_or_else(|| Error::Invalid {
+            code: "missing_email",
+            message: "Missing user email in workflow input".to_string(),
+            field: Some("email".to_string()),
+        })?;
+
+        let user = self
+            .user_service
+            .create_user(CreateUserInput {
+                email: email.to_string(),
+                first_name: input["first_name"].as_str().map(|s| s.to_string()),
+                last_name: input["last_name"].as_str().map(|s| s.to_string()),
+                avatar_url: input["avatar_url"].as_str().map(|s| s.to_string()),
+                role: input["role"].as_str().map(|s| s.to_string()),
+                metadata: None,
+            })
+            .await?;
+
+        Ok(json!({
+            "user_id": user.id,
+            "email": user.email,
+            "role": user.role,
+        }))
+    }
+
+    async fn compensate(&self, _ctx: &StepContext, _input: Value) -> Result<()> {
+        Ok(())
+    }
+}
+
 pub fn build_create_product_saga(product_service: Arc<ProductService>) -> SagaCoordinator {
     let mut coordinator = SagaCoordinator::new();
     coordinator.add_step(Arc::new(CreateProductStep::new(product_service)));
+    coordinator
+}
+
+pub fn build_create_product_quota_saga(
+    product_service: Arc<ProductService>,
+    quota_counter: QuotaCounter,
+    limit: Option<i64>,
+) -> SagaCoordinator {
+    let mut coordinator = SagaCoordinator::new();
+    coordinator.add_step(Arc::new(CheckQuotaStep::new(
+        quota_counter,
+        "products",
+        limit,
+    )));
+    coordinator.add_step(Arc::new(CreateProductStep::new(product_service)));
+    coordinator
+}
+
+pub fn build_create_seat_quota_saga(
+    user_service: Arc<UserService>,
+    quota_counter: QuotaCounter,
+    limit: Option<i64>,
+) -> SagaCoordinator {
+    let mut coordinator = SagaCoordinator::new();
+    coordinator.add_step(Arc::new(CheckQuotaStep::new(quota_counter, "users", limit)));
+    coordinator.add_step(Arc::new(CreateUserStep::new(user_service)));
     coordinator
 }

@@ -1,11 +1,15 @@
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::PromotionWorkflows;
 use stheno_promotion::*;
 
 #[tokio::test]
 async fn test_promotion_workflows_lifecycle_and_campaign_budget() {
-    let promo_service = Arc::new(PromotionService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let promo_service = Arc::new(PromotionService::new(pool));
     let workflows = PromotionWorkflows::new(promo_service);
 
     // 1. Create Promotion Workflow

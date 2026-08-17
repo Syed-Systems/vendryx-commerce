@@ -1,6 +1,8 @@
 //! Medusa Fixture Corpus Test for All 4 Mutation Families (P6-19).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::{
     ClaimWorkflowEngine, ExchangeWorkflowEngine, OrderEditWorkflowEngine, ReturnWorkflowEngine,
 };
@@ -10,7 +12,9 @@ use stheno_order::{
 
 #[tokio::test]
 async fn test_medusa_fixture_corpus_for_all_four_mutation_families() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let edit_engine = OrderEditWorkflowEngine::new(order_service.clone(), None);
     let return_engine = ReturnWorkflowEngine::new(order_service.clone(), None);
     let claim_engine = ClaimWorkflowEngine::new(order_service.clone());
@@ -97,12 +101,21 @@ async fn test_medusa_fixture_corpus_for_all_four_mutation_families() {
     assert_eq!(order_v2.items.len(), 3);
 
     // ── Family 2: Return Mutation ──
+    let reason = order_service
+        .create_return_reason(stheno_order::CreateReturnReasonInput {
+            value: "wrong_size".to_string(),
+            label: "Wrong Size".to_string(),
+            description: Some("Item size does not fit".to_string()),
+        })
+        .await
+        .unwrap();
+
     let ret = return_engine
         .request_return(&order.id, Some("loc_wh_main"), Some(dec!(25.00)), None)
         .await
         .unwrap();
     return_engine
-        .add_return_item(&ret.id, &cap_item_id, 1, Some("wrong_size"), None)
+        .add_return_item(&ret.id, &cap_item_id, 1, Some(&reason.id), None)
         .await
         .unwrap();
     return_engine
@@ -152,4 +165,6 @@ async fn test_medusa_fixture_corpus_for_all_four_mutation_families() {
     // Reconstruct full timeline across all four mutation families
     let timeline = order_service.get_order_timeline(&order.id).await.unwrap();
     assert!(timeline.len() >= 6);
+
+    db.drop().await;
 }

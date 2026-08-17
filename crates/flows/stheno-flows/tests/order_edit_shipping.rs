@@ -1,6 +1,8 @@
 //! Order Edit Shipping Integration Test (P6-02).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::OrderEditWorkflowEngine;
 use stheno_order::{
     CreateAddressInput, CreateLineItemInput, CreateOrderInput, CreateShippingMethodInput,
@@ -9,7 +11,9 @@ use stheno_order::{
 
 #[tokio::test]
 async fn test_order_edit_add_update_remove_shipping() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = OrderEditWorkflowEngine::new(order_service.clone(), None);
 
     // 1. Create base order with 1 shipping method
@@ -116,4 +120,6 @@ async fn test_order_edit_add_update_remove_shipping() {
     assert_eq!(updated_order3.version, 4);
     assert_eq!(updated_order3.shipping_methods.len(), 1);
     assert_eq!(updated_order3.shipping_methods[0].name, "Express Priority");
+
+    db.drop().await;
 }

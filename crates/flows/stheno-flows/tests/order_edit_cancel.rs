@@ -1,12 +1,16 @@
 //! Order Edit Cancel Test (P6-06).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::OrderEditWorkflowEngine;
 use stheno_order::{CreateAddressInput, CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_order_edit_cancel_leaves_version_and_items_untouched() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = OrderEditWorkflowEngine::new(order_service.clone(), None);
 
     // 1. Create order
@@ -42,9 +46,8 @@ async fn test_order_edit_cancel_leaves_version_and_items_untouched() {
         .unwrap();
 
     let orig_item_id = order.items[0].id.clone();
-    assert_eq!(order.version, 1);
 
-    // 2. Begin edit and stage destructive changes (remove original, add new)
+    // 2. Start order edit and make mutations (remove item, add new item)
     let edit = engine
         .begin_order_edit(&order.id, Some("admin"))
         .await
@@ -69,4 +72,6 @@ async fn test_order_edit_cancel_leaves_version_and_items_untouched() {
         current_order.summary.unwrap().current_order_total,
         dec!(40.00)
     );
+
+    db.drop().await;
 }

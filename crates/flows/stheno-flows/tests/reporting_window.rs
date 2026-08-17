@@ -1,11 +1,15 @@
 use chrono::{Duration, Utc};
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::platform::PlatformReportingWorkflow;
 use stheno_order::OrderService;
 
 #[tokio::test]
 async fn test_reporting_window_horizon_gate() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     // Tier allows maximum 30 days analytics window
     let reporting = PlatformReportingWorkflow::new(order_service, 30);
 
@@ -26,4 +30,6 @@ async fn test_reporting_window_horizon_gate() {
         }
         other => panic!("Expected Error::Invalid, got {:?}", other),
     }
+
+    db.drop().await;
 }

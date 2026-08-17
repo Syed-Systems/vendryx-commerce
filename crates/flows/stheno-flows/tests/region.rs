@@ -1,11 +1,14 @@
 use serde_json::json;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::*;
 use stheno_region::RegionService;
 
 #[tokio::test]
 async fn test_all_3_region_workflows() {
-    let service = Arc::new(RegionService::new());
+    let db = TestDb::migrated().await;
+    let service = Arc::new(RegionService::new(create_pool(&db.url, 5).expect("pool")));
 
     // 1. Workflow: create-regions
     let saga_create = build_create_region_saga(service.clone());
@@ -56,4 +59,6 @@ async fn test_all_3_region_workflows() {
         .expect("must execute delete-region workflow");
 
     assert_eq!(del_res["deleted"], true);
+
+    db.drop().await;
 }

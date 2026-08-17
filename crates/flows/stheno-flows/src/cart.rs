@@ -143,7 +143,7 @@ impl CartWorkflows {
     }
 
     // 16. cleanup_expired_carts_workflow
-    pub fn cleanup_expired_carts(&self, ttl_days: i64) -> usize {
-        self.cart_service.cleanup_expired_carts(ttl_days)
+    pub async fn cleanup_expired_carts(&self, ttl_days: i64) -> Result<usize> {
+        self.cart_service.cleanup_expired_carts(ttl_days).await
     }
 }

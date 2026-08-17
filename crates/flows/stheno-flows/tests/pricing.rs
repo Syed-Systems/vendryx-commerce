@@ -1,11 +1,14 @@
 use serde_json::json;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::*;
 use stheno_pricing::PricingService;
 
 #[tokio::test]
 async fn test_all_10_pricing_workflows() {
-    let service = Arc::new(PricingService::new());
+    let db = TestDb::migrated().await;
+    let service = Arc::new(PricingService::new(create_pool(&db.url, 5).expect("pool")));
 
     // 1. Workflow: create-price-sets
     let saga_create_set = build_create_price_set_saga(service.clone());
@@ -189,7 +192,10 @@ async fn test_all_10_pricing_workflows() {
         .expect("must execute calculate-prices workflow");
 
     assert!(calc_res.get(&price_set_id).is_some());
-    assert_eq!(calc_res[&price_set_id]["calculated_amount"], "110.00");
+    // "110" and not "110.00": the amount now round-trips through a
+    // numeric(20,6) column, and the DTO normalizes away the scale that column
+    // adds. The value is unchanged -- only its trailing zeros are (P12-03).
+    assert_eq!(calc_res[&price_set_id]["calculated_amount"], "110");
 
     // 9. Workflow: delete-price-lists
     let saga_delete_list = build_delete_price_list_saga(service.clone());
@@ -216,4 +222,6 @@ async fn test_all_10_pricing_workflows() {
         .expect("must execute delete-price-set workflow");
 
     assert_eq!(del_set_res["deleted"], true);
+
+    db.drop().await;
 }

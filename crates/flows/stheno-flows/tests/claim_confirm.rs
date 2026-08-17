@@ -1,6 +1,8 @@
 //! Claim Confirm Test for Replace and Refund Kinds (P6-12).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::ClaimWorkflowEngine;
 use stheno_order::{
     CreateAddressInput, CreateLineItemInput, CreateOrderInput, CreateTransactionInput, OrderService,
@@ -8,7 +10,9 @@ use stheno_order::{
 
 #[tokio::test]
 async fn test_claim_confirm_replace_and_refund_kinds() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = ClaimWorkflowEngine::new(order_service.clone());
 
     // 1. Create order with $200 payment
@@ -52,7 +56,7 @@ async fn test_claim_confirm_replace_and_refund_kinds() {
                 amount: dec!(200.00),
                 currency_code: "usd".to_string(),
                 reference: "payment".to_string(),
-                reference_id: "pay_claim_200".to_string(),
+                reference_id: "pay_espresso_200".to_string(),
                 metadata: None,
             },
         )
@@ -87,4 +91,6 @@ async fn test_claim_confirm_replace_and_refund_kinds() {
 
     let confirmed_replace_claim = engine.confirm_claim(&replace_claim.id).await.unwrap();
     assert_eq!(confirmed_replace_claim.status, "confirmed");
+
+    db.drop().await;
 }

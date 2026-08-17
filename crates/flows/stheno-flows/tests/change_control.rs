@@ -1,6 +1,8 @@
 //! Order Change Control Test (P6-17).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::OrderChangeControlWorkflowEngine;
 use stheno_order::{
     CreateAddressInput, CreateLineItemInput, CreateOrderChangeInput, CreateOrderInput, OrderService,
@@ -8,7 +10,9 @@ use stheno_order::{
 
 #[tokio::test]
 async fn test_order_change_cancel_and_decline_controls() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = OrderChangeControlWorkflowEngine::new(order_service.clone());
 
     // 1. Create base order
@@ -76,4 +80,6 @@ async fn test_order_change_cancel_and_decline_controls() {
     assert_eq!(declined.status, "declined");
     assert_eq!(declined.declined_by, Some("admin".to_string()));
     assert!(declined.declined_at.is_some());
+
+    db.drop().await;
 }

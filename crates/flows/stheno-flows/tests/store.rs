@@ -1,11 +1,15 @@
 use serde_json::json;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::*;
 use stheno_store::StoreService;
 
 #[tokio::test]
 async fn test_all_3_store_workflows() {
-    let service = Arc::new(StoreService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = Arc::new(StoreService::new(pool));
 
     // 1. Workflow: create-stores
     let saga_create = build_create_store_saga(service.clone());

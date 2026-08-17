@@ -14,7 +14,7 @@ pub struct OrderTransferRequest {
     pub status: String, // "pending", "accepted", "declined", "canceled"
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct OrderWorkflowEngine {
     pub order_service: Arc<OrderService>,
     transfers: Arc<RwLock<HashMap<String, OrderTransferRequest>>>,

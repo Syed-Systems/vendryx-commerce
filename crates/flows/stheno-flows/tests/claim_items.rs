@@ -1,12 +1,16 @@
 //! Claim Items with Evidence Images Test (P6-11).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::ClaimWorkflowEngine;
 use stheno_order::{CreateAddressInput, CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_claim_begin_and_add_items_with_images() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = ClaimWorkflowEngine::new(order_service.clone());
 
     // 1. Create order
@@ -74,4 +78,6 @@ async fn test_claim_begin_and_add_items_with_images() {
         claim_item.images[0].url,
         "https://cdn.example.com/claims/screen_defect_1.jpg"
     );
+
+    db.drop().await;
 }

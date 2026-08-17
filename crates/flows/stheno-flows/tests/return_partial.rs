@@ -1,6 +1,8 @@
 //! Return Partial Receipt with Damaged Quantities Test (P6-09).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::ReturnWorkflowEngine;
 use stheno_order::{
     CreateAddressInput, CreateLineItemInput, CreateOrderInput, CreateTransactionInput, OrderService,
@@ -8,7 +10,9 @@ use stheno_order::{
 
 #[tokio::test]
 async fn test_return_partial_receipt_with_damaged_quantities() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = ReturnWorkflowEngine::new(order_service.clone(), None);
 
     // 1. Create order with 10 units @ $10 each = $100 total
@@ -59,6 +63,15 @@ async fn test_return_partial_receipt_with_damaged_quantities() {
         .await
         .unwrap();
 
+    let reason = order_service
+        .create_return_reason(stheno_order::CreateReturnReasonInput {
+            value: "damaged_in_transit".to_string(),
+            label: "Damaged in Transit".to_string(),
+            description: Some("Item damaged in transit".to_string()),
+        })
+        .await
+        .unwrap();
+
     // 2. Request return of 5 vases
     let ret = engine
         .request_return(&order.id, Some("loc_wh1"), None, None)
@@ -66,7 +79,7 @@ async fn test_return_partial_receipt_with_damaged_quantities() {
         .unwrap();
 
     engine
-        .add_return_item(&ret.id, &item_id, 5, Some("damaged_in_transit"), None)
+        .add_return_item(&ret.id, &item_id, 5, Some(&reason.id), None)
         .await
         .unwrap();
 
@@ -93,4 +106,6 @@ async fn test_return_partial_receipt_with_damaged_quantities() {
     let summary = updated_order.summary.unwrap();
     assert_eq!(summary.refunded_total, dec!(50.00));
     assert_eq!(summary.accounting_total, dec!(50.00));
+
+    db.drop().await;
 }

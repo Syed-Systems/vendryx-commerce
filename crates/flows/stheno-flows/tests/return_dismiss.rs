@@ -1,12 +1,16 @@
 //! Return Dismiss / Write-Off Test (P6-10).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::ReturnWorkflowEngine;
 use stheno_order::{CreateAddressInput, CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_return_dismiss_and_write_off() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = ReturnWorkflowEngine::new(order_service.clone(), None);
 
     // 1. Create order
@@ -43,6 +47,15 @@ async fn test_return_dismiss_and_write_off() {
 
     let item_id = order.items[0].id.clone();
 
+    let reason = order_service
+        .create_return_reason(stheno_order::CreateReturnReasonInput {
+            value: "spoiled".to_string(),
+            label: "Spoiled Item".to_string(),
+            description: Some("Item spoiled".to_string()),
+        })
+        .await
+        .unwrap();
+
     // 2. Request return
     let ret = engine
         .request_return(&order.id, Some("loc_wh1"), None, None)
@@ -50,7 +63,7 @@ async fn test_return_dismiss_and_write_off() {
         .unwrap();
 
     engine
-        .add_return_item(&ret.id, &item_id, 1, Some("spoiled"), None)
+        .add_return_item(&ret.id, &item_id, 1, Some(&reason.id), None)
         .await
         .unwrap();
 
@@ -66,4 +79,6 @@ async fn test_return_dismiss_and_write_off() {
     assert_eq!(dismissed_ret.status, "dismissed");
     let meta = dismissed_ret.metadata.unwrap();
     assert!(meta.get("dismiss_reason").is_some());
+
+    db.drop().await;
 }

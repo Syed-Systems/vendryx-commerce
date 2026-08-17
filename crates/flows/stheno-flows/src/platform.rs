@@ -129,7 +129,7 @@ impl PlatformReportingWorkflow {
             })
             .collect();
 
-        top_products.sort_by(|a, b| b.quantity_sold.cmp(&a.quantity_sold));
+        top_products.sort_by_key(|b| std::cmp::Reverse(b.quantity_sold));
         top_products.truncate(10);
 
         Ok(ReportingAggregates {
@@ -346,5 +346,52 @@ impl RetentionJobWorkflow {
             stores_checked,
             staleness_alerts: alerts,
         })
+    }
+}
+
+// ==========================================
+// 4. Data Export / CSV Formatting (P10-03e)
+// ==========================================
+
+#[derive(Default)]
+pub struct CsvExportWorkflow;
+
+impl CsvExportWorkflow {
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Exports rows to a CSV format with a UTF-8 BOM to ensure Windows Excel compatibility
+    pub fn export_to_csv(&self, headers: &[&str], rows: &[Vec<String>]) -> Vec<u8> {
+        let mut out = Vec::new();
+
+        // Write UTF-8 BOM
+        out.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
+
+        let escape_field = |field: &str| -> String {
+            if field.contains(',')
+                || field.contains('"')
+                || field.contains('\n')
+                || field.contains('\r')
+            {
+                format!("\"{}\"", field.replace('"', "\"\""))
+            } else {
+                field.to_string()
+            }
+        };
+
+        // Write headers
+        let header_row: Vec<String> = headers.iter().map(|&h| escape_field(h)).collect();
+        out.extend_from_slice(header_row.join(",").as_bytes());
+        out.extend_from_slice(b"\n");
+
+        // Write rows
+        for row in rows {
+            let row_str: Vec<String> = row.iter().map(|f| escape_field(f)).collect();
+            out.extend_from_slice(row_str.join(",").as_bytes());
+            out.extend_from_slice(b"\n");
+        }
+
+        out
     }
 }

@@ -1,11 +1,15 @@
 use rust_decimal_macros::dec;
 use std::sync::Arc;
 use stheno_cart::{CartService, CreateCartInput, CreateLineItemInput, CreateShippingMethodInput};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::CartWorkflows;
 
 #[tokio::test]
 async fn test_cart_workflows_lifecycle_and_line_items() {
-    let cart_service = Arc::new(CartService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let cart_service = Arc::new(CartService::new(pool));
     let workflows = CartWorkflows::new(cart_service);
 
     // 1. Create Cart Workflow

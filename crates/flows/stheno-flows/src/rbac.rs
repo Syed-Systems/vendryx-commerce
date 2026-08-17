@@ -29,7 +29,10 @@ impl RbacWorkflows {
     }
 
     // 4. evaluate_permission_workflow
-    pub fn evaluate_permission(&self, input: EvaluatePermissionInput) -> PermissionDecision {
-        self.rbac_service.evaluate(input)
+    pub async fn evaluate_permission(
+        &self,
+        input: EvaluatePermissionInput,
+    ) -> Result<PermissionDecision> {
+        self.rbac_service.evaluate(input).await
     }
 }

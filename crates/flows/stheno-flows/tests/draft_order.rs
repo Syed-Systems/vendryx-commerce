@@ -1,6 +1,8 @@
 //! Draft Order Creation and Management Test (P6-15).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::DraftOrderWorkflowEngine;
 use stheno_order::{
     CreateAddressInput, CreateLineItemInput, CreateShippingMethodInput, OrderService,
@@ -8,7 +10,9 @@ use stheno_order::{
 
 #[tokio::test]
 async fn test_draft_order_create_and_manage() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = DraftOrderWorkflowEngine::new(order_service.clone());
 
     // 1. Create a draft order
@@ -65,4 +69,6 @@ async fn test_draft_order_create_and_manage() {
     assert_eq!(draft.items.len(), 2);
     assert_eq!(draft.shipping_methods.len(), 1);
     assert_eq!(draft.summary.unwrap().current_order_total, dec!(115.00));
+
+    db.drop().await;
 }

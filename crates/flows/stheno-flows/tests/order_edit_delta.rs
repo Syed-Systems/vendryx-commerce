@@ -1,6 +1,8 @@
 //! Order Edit Delta Collection & Refund Test (P6-05).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::OrderEditWorkflowEngine;
 use stheno_order::{
     CreateAddressInput, CreateLineItemInput, CreateOrderInput, CreateTransactionInput, OrderService,
@@ -8,7 +10,9 @@ use stheno_order::{
 
 #[tokio::test]
 async fn test_order_edit_delta_collects_on_increase_and_refunds_on_decrease() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = OrderEditWorkflowEngine::new(order_service.clone(), None);
 
     // 1. Create base order with $100 item and capture $100 initial payment
@@ -97,4 +101,6 @@ async fn test_order_edit_delta_collects_on_increase_and_refunds_on_decrease() {
     assert_eq!(summary_down.paid_total, dec!(150.00));
     assert_eq!(summary_down.refunded_total, dec!(100.00)); // Refunded $100 for removed item
     assert_eq!(summary_down.accounting_total, dec!(50.00));
+
+    db.drop().await;
 }

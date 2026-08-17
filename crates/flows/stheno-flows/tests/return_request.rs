@@ -1,12 +1,16 @@
 //! Return Request Test (P6-07).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::ReturnWorkflowEngine;
 use stheno_order::{CreateAddressInput, CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_return_request_and_add_items() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = ReturnWorkflowEngine::new(order_service.clone(), None);
 
     // 1. Create base order with 2 items
@@ -65,13 +69,31 @@ async fn test_return_request_and_add_items() {
     assert_eq!(ret.status, "requested");
     assert_eq!(ret.refund_amount, Some(dec!(90.00)));
 
+    let reason1 = order_service
+        .create_return_reason(stheno_order::CreateReturnReasonInput {
+            value: "reason_size_too_large".to_string(),
+            label: "Size too large".to_string(),
+            description: Some("Item size too large".to_string()),
+        })
+        .await
+        .unwrap();
+
+    let reason2 = order_service
+        .create_return_reason(stheno_order::CreateReturnReasonInput {
+            value: "reason_wrong_color".to_string(),
+            label: "Wrong Color".to_string(),
+            description: Some("Wrong color sent".to_string()),
+        })
+        .await
+        .unwrap();
+
     // 3. Add return items with reason and note
     let ret_item1 = engine
         .add_return_item(
             &ret.id,
             &shoes_item_id,
             1,
-            Some("reason_size_too_large"),
+            Some(&reason1.id),
             Some("Does not fit"),
         )
         .await
@@ -84,7 +106,7 @@ async fn test_return_request_and_add_items() {
             &ret.id,
             &socks_item_id,
             1,
-            Some("reason_wrong_color"),
+            Some(&reason2.id),
             Some("Wanted black socks"),
         )
         .await
@@ -94,4 +116,6 @@ async fn test_return_request_and_add_items() {
     // 4. Retrieve return and check items
     let loaded_ret = order_service.get_return_dto(&ret.id).await.unwrap();
     assert_eq!(loaded_ret.items.len(), 2);
+
+    db.drop().await;
 }

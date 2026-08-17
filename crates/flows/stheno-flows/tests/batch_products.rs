@@ -1,10 +1,13 @@
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::BatchProductService;
 use stheno_product::{CreateProductInput, ProductService};
 
 #[tokio::test]
 async fn test_batch_product_ops_1000_items_with_per_row_errors() {
-    let service = Arc::new(ProductService::new());
+    let db = TestDb::migrated().await;
+    let service = Arc::new(ProductService::new(create_pool(&db.url, 5).expect("pool")));
     let batch_service = BatchProductService::new(service);
 
     let mut batch = Vec::with_capacity(1000);
@@ -39,4 +42,6 @@ async fn test_batch_product_ops_1000_items_with_per_row_errors() {
     assert_eq!(result.succeeded, 990); // Exactly 990 succeeded
     assert_eq!(result.errors.len(), 10);
     assert_eq!(result.errors[0].index, 0);
+
+    db.drop().await;
 }

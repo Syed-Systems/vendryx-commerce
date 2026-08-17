@@ -1,12 +1,16 @@
 //! Draft Order to Live Order Conversion Test (P6-16).
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::DraftOrderWorkflowEngine;
 use stheno_order::{CreateLineItemInput, OrderService};
 
 #[tokio::test]
 async fn test_draft_to_live_order_conversion() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = DraftOrderWorkflowEngine::new(order_service.clone());
 
     // 1. Create a draft order
@@ -45,4 +49,6 @@ async fn test_draft_to_live_order_conversion() {
         live_order.summary.unwrap().current_order_total,
         dec!(450.00)
     );
+
+    db.drop().await;
 }

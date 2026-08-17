@@ -1,27 +1,80 @@
-use stheno_flows::QuotaStore;
+use serde_json::json;
+use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
+use stheno_db::QuotaCounter;
+use stheno_flows::build_create_product_quota_saga;
+use stheno_product::{CreateProductInput, ProductService, UpdateProductInput};
 
-#[test]
-fn test_grandfathering_merchant_keeps_all_existing_products_on_downgrade() {
-    let quota_store = QuotaStore::new();
+#[tokio::test]
+async fn test_grandfathering_412_products_on_limit_100_readable_editable_413th_rejected() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 10).expect("pool");
+    let counter = QuotaCounter::new(pool.clone());
+    let product_service = Arc::new(ProductService::new(pool.clone()));
 
-    // Merchant originally had 412 products created under Pro tier
-    quota_store.set_quota("merchant_1", "max_products", 1000, 412);
-    assert_eq!(quota_store.get_count("merchant_1", "max_products"), 412);
+    // 1. Create a product under existing quota
+    let p1 = product_service
+        .create_product(CreateProductInput {
+            title: "Original Product".to_string(),
+            handle: Some("orig-prod".to_string()),
+            subtitle: None,
+            description: None,
+            discountable: Some(true),
+        })
+        .await
+        .expect("create product");
 
-    // Plan downgraded to Free tier with a limit of 100 products
-    quota_store.downgrade_limit("merchant_1", "max_products", 100);
+    // Set usage to 412 in Postgres entitlement_usage table
+    let mut conn = pool.get().await.expect("conn");
+    counter
+        .set_usage(&mut conn, "products", 412)
+        .await
+        .expect("set usage 412");
+    drop(conn);
 
-    // Grandfathering Rule (ENTITLEMENTS.md §5.3):
-    // 1. All 412 existing products remain live (current_count is NOT truncated or deleted)
-    assert_eq!(
-        quota_store.get_count("merchant_1", "max_products"),
-        412,
-        "All 412 existing live products must be preserved"
+    // Plan downgraded to Free with limit of 100
+    let limit = 100;
+    let saga =
+        build_create_product_quota_saga(product_service.clone(), counter.clone(), Some(limit));
+
+    // 2. Existing product is readable
+    let fetched = product_service
+        .get_product(&p1.id.to_string())
+        .await
+        .expect("must be readable");
+    assert_eq!(fetched.title, "Original Product");
+
+    // 3. Existing product is editable
+    let updated = product_service
+        .update_product(
+            &p1.id.to_string(),
+            UpdateProductInput {
+                title: Some("Edited Original Product".to_string()),
+                handle: None,
+                subtitle: None,
+                description: None,
+                discountable: None,
+                status: None,
+                thumbnail: None,
+            },
+        )
+        .await
+        .expect("must be editable");
+    assert_eq!(updated.title, "Edited Original Product");
+
+    // 4. 413th product create is rejected
+    let res413 = saga
+        .execute(
+            "tx_413",
+            "create-product",
+            json!({ "title": "New Product 413", "handle": "new-prod-413" }),
+        )
+        .await;
+    assert!(
+        res413.is_err(),
+        "413th create must be rejected over limit of 100"
     );
 
-    // 2. Creating any new product (even 1) is blocked by the quota check
-    let create_attempt = quota_store.try_increment("merchant_1", "max_products", 1);
-    assert!(create_attempt.is_err());
-    let err_str = create_attempt.unwrap_err().to_string();
-    assert!(err_str.contains("quota_exceeded"));
+    db.drop().await;
 }

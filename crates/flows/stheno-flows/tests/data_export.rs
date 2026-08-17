@@ -1,14 +1,18 @@
 use std::sync::Arc;
 use stheno_auth::AuthService;
 use stheno_customer::{CreateCustomerAddressInput, CreateCustomerInput, CustomerService};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::platform::ErasurePipelineWorkflow;
 use stheno_order::OrderService;
 
 #[tokio::test]
 async fn test_customer_data_export_archive() {
-    let customer_service = Arc::new(CustomerService::new());
-    let auth_service = Arc::new(AuthService::new(None));
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let customer_service = Arc::new(CustomerService::new(pool.clone()));
+    let auth_service = Arc::new(AuthService::new(pool.clone(), None));
+    let order_service = Arc::new(OrderService::new(pool));
 
     let workflow = ErasurePipelineWorkflow::new(
         customer_service.clone(),
@@ -57,4 +61,6 @@ async fn test_customer_data_export_archive() {
     assert_eq!(export.customer.email, "daniela@example.com");
     assert_eq!(export.addresses.len(), 1);
     assert_eq!(export.addresses[0].address_1, "550 Broadway");
+
+    db.drop().await;
 }

@@ -1,11 +1,15 @@
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::OrderWorkflowEngine;
 use stheno_order::{CreateLineItemInput, CreateOrderInput, OrderService, UpdateOrderInput};
 
 #[tokio::test]
 async fn test_order_lifecycle_workflows() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let engine = OrderWorkflowEngine::new(order_service.clone());
 
     // 1. Create order workflow
@@ -86,4 +90,6 @@ async fn test_order_lifecycle_workflows() {
         .expect("order canceled");
     assert_eq!(canceled.status, "canceled");
     assert!(canceled.canceled_at.is_some());
+
+    db.drop().await;
 }

@@ -1,11 +1,15 @@
 use rust_decimal_macros::dec;
 use std::sync::Arc;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::platform::PlatformReportingWorkflow;
 use stheno_order::{CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_platform_reporting_4_aggregates() {
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order_service = Arc::new(OrderService::new(pool));
     let reporting = PlatformReportingWorkflow::new(order_service.clone(), 90);
 
     // 1. Create orders with different statuses and sources
@@ -72,4 +76,6 @@ async fn test_platform_reporting_4_aggregates() {
     // Aggregate 3: Orders by source
     assert_eq!(report.orders_by_source.get("storefront"), Some(&1));
     assert_eq!(report.orders_by_source.get("social"), Some(&1));
+
+    db.drop().await;
 }

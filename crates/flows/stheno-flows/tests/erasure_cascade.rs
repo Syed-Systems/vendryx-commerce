@@ -2,14 +2,18 @@ use rust_decimal_macros::dec;
 use std::sync::Arc;
 use stheno_auth::AuthService;
 use stheno_customer::{CreateCustomerAddressInput, CreateCustomerInput, CustomerService};
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
 use stheno_flows::platform::ErasurePipelineWorkflow;
 use stheno_order::{CreateAddressInput, CreateLineItemInput, CreateOrderInput, OrderService};
 
 #[tokio::test]
 async fn test_erasure_cascade_pseudonymization_and_financial_integrity() {
-    let customer_service = Arc::new(CustomerService::new());
-    let auth_service = Arc::new(AuthService::new(None));
-    let order_service = Arc::new(OrderService::new());
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let customer_service = Arc::new(CustomerService::new(pool.clone()));
+    let auth_service = Arc::new(AuthService::new(pool.clone(), None));
+    let order_service = Arc::new(OrderService::new(pool));
 
     let workflow = ErasurePipelineWorkflow::new(
         customer_service.clone(),
@@ -123,4 +127,6 @@ async fn test_erasure_cascade_pseudonymization_and_financial_integrity() {
         order_after.summary.unwrap().current_order_total,
         dec!(240.00)
     );
+
+    db.drop().await;
 }
