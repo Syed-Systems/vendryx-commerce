@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS promotion.campaign_budget (
     used numeric(20,6) NOT NULL DEFAULT 0,
     currency_code text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL
 );
 
 -- serves: GET /admin/campaigns/:id/budget
@@ -43,7 +44,8 @@ CREATE TABLE IF NOT EXISTS promotion.campaign_budget_usage (
     cart_id text NULL,
     amount numeric(20,6) NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL
 );
 
 -- serves: GET /admin/campaigns/:id/usage
@@ -82,6 +84,7 @@ CREATE TABLE IF NOT EXISTS promotion.application_method (
     buy_rules_min_quantity integer NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL,
     metadata jsonb NULL
 );
 
@@ -98,7 +101,8 @@ CREATE TABLE IF NOT EXISTS promotion.promotion_rule (
     operator text NOT NULL, -- 'eq', 'ne', 'in', 'nin', 'gt', 'gte', 'lt', 'lte'
     description text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL
 );
 
 -- serves: GET /store/promotions/:id/rules
@@ -112,7 +116,8 @@ CREATE TABLE IF NOT EXISTS promotion.promotion_rule_value (
     promotion_rule_id text NOT NULL REFERENCES promotion.promotion_rule(id) ON DELETE CASCADE,
     value text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL
 );
 
 -- serves: JOIN promotion rule value resolution

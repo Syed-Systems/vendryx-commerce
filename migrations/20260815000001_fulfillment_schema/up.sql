@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS "fulfillment"."fulfillment_provider" (
     deleted_at TIMESTAMPTZ
 );
 
+INSERT INTO "fulfillment"."fulfillment_provider" (id, name)
+VALUES ('manual', 'Manual Fulfillment Provider')
+ON CONFLICT (id) DO NOTHING;
+
 -- 3. ShippingProfile
 CREATE TABLE IF NOT EXISTS "fulfillment"."shipping_profile" (
     id VARCHAR(255) PRIMARY KEY,
@@ -91,7 +95,8 @@ CREATE TABLE IF NOT EXISTS "fulfillment"."geo_zone" (
     postal_expression JSONB,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/service-zones/{id}/geo-zones
@@ -127,7 +132,8 @@ CREATE TABLE IF NOT EXISTS "fulfillment"."shipping_option_rule" (
     value JSONB NOT NULL,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /store/shipping-options (eligibility filter)
@@ -166,7 +172,8 @@ CREATE TABLE IF NOT EXISTS "fulfillment"."fulfillment_item" (
     quantity INT NOT NULL,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/fulfillments/{id}/items

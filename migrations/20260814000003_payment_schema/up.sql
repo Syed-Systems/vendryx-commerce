@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS payment.payment_provider (
     id text PRIMARY KEY, -- e.g. 'pp_stripe_stripe', 'pp_system_default'
     is_enabled boolean NOT NULL DEFAULT true,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL
 );
 
 -- 3. payment_session
@@ -76,7 +77,8 @@ CREATE TABLE IF NOT EXISTS payment.refund_reason (
     description text NULL,
     metadata jsonb NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL
 );
 
 -- 6. capture (0 <= sum(captures) <= payment.amount)
@@ -86,11 +88,12 @@ CREATE TABLE IF NOT EXISTS payment.capture (
     amount numeric(20,6) NOT NULL,
     created_by text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL,
     metadata jsonb NULL
 );
 
 -- serves: GET /admin/payments/:id/captures
-CREATE INDEX IF NOT EXISTS idx_capture_payment_id ON payment.capture (payment_id);
+CREATE INDEX IF NOT EXISTS idx_capture_payment_id ON payment.capture (payment_id) WHERE deleted_at IS NULL;
 
 -- 7. refund (0 <= sum(refunds) <= sum(captures))
 CREATE TABLE IF NOT EXISTS payment.refund (
@@ -101,11 +104,12 @@ CREATE TABLE IF NOT EXISTS payment.refund (
     note text NULL,
     created_by text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL,
     metadata jsonb NULL
 );
 
 -- serves: GET /admin/payments/:id/refunds
-CREATE INDEX IF NOT EXISTS idx_refund_payment_id ON payment.refund (payment_id);
+CREATE INDEX IF NOT EXISTS idx_refund_payment_id ON payment.refund (payment_id) WHERE deleted_at IS NULL;
 
 -- 8. account_holder
 CREATE TABLE IF NOT EXISTS payment.account_holder (
@@ -139,13 +143,14 @@ CREATE TABLE IF NOT EXISTS payment.payment_provider_request (
     error jsonb NULL,
     attempts integer NOT NULL DEFAULT 1,
     first_sent_at timestamptz NOT NULL DEFAULT now(),
-    settled_at timestamptz NULL
+    settled_at timestamptz NULL,
+    deleted_at timestamptz NULL
 );
 
 -- serves: Outbound idempotency check on provider mutation
-CREATE INDEX IF NOT EXISTS idx_provider_req_key ON payment.payment_provider_request (idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_provider_req_key ON payment.payment_provider_request (idempotency_key) WHERE deleted_at IS NULL;
 -- serves: Ambiguous request sweep & reconciliation
-CREATE INDEX IF NOT EXISTS idx_provider_req_state ON payment.payment_provider_request (state) WHERE state = 'unknown' OR state = 'in_flight';
+CREATE INDEX IF NOT EXISTS idx_provider_req_state ON payment.payment_provider_request (state) WHERE (state = 'unknown' OR state = 'in_flight') AND deleted_at IS NULL;
 
 -- 10. payment_webhook_event (Raw Webhook Event Store & Replay Guard, PAYMENTS §7)
 CREATE TABLE IF NOT EXISTS payment.payment_webhook_event (
@@ -160,11 +165,12 @@ CREATE TABLE IF NOT EXISTS payment.payment_webhook_event (
     processed_at timestamptz NULL,
     error text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL,
     CONSTRAINT uq_provider_event UNIQUE (provider_id, provider_event_id)
 );
 
 -- serves: Webhook replay guard deduplication
-CREATE INDEX IF NOT EXISTS idx_webhook_provider_event ON payment.payment_webhook_event (provider_id, provider_event_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_provider_event ON payment.payment_webhook_event (provider_id, provider_event_id) WHERE deleted_at IS NULL;
 
 -- 11. payment_reconciliation_run (Nightly Drift Detection Ledger, PAYMENTS §9)
 CREATE TABLE IF NOT EXISTS payment.payment_reconciliation_run (
@@ -177,8 +183,9 @@ CREATE TABLE IF NOT EXISTS payment.payment_reconciliation_run (
     drifts jsonb NULL,
     state text NOT NULL DEFAULT 'running', -- 'running', 'clean', 'drift_found', 'failed'
     created_at timestamptz NOT NULL DEFAULT now(),
-    completed_at timestamptz NULL
+    completed_at timestamptz NULL,
+    deleted_at timestamptz NULL
 );
 
 -- serves: GET /admin/payment-reconciliations?provider_id=
-CREATE INDEX IF NOT EXISTS idx_reconciliation_provider ON payment.payment_reconciliation_run (provider_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_provider ON payment.payment_reconciliation_run (provider_id, created_at DESC) WHERE deleted_at IS NULL;

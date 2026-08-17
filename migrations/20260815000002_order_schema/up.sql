@@ -1,4 +1,4 @@
--- Migration for stheno-order schema (DATA_MODEL §2.4, TASKS P5-01)
+-- Migration for stheno-order schema (DATA_MODEL §2.4, TASKS P5-01, P13-14)
 CREATE SCHEMA IF NOT EXISTS "order";
 
 -- 1. Address
@@ -99,7 +99,8 @@ CREATE TABLE IF NOT EXISTS "order"."order_item" (
     written_off_quantity INT NOT NULL DEFAULT 0,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/orders/{id}?version=
@@ -115,7 +116,8 @@ CREATE TABLE IF NOT EXISTS "order"."line_item_adjustment" (
     promotion_id VARCHAR(255),
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- 6. LineItemTaxLine
@@ -129,7 +131,8 @@ CREATE TABLE IF NOT EXISTS "order"."line_item_tax_line" (
     description TEXT,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- 7. ShippingMethod
@@ -154,7 +157,8 @@ CREATE TABLE IF NOT EXISTS "order"."order_shipping_method" (
     shipping_method_id VARCHAR(255) NOT NULL REFERENCES "order"."shipping_method"(id) ON DELETE CASCADE,
     version INT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/orders/{id}/shipping-methods?version=
@@ -170,7 +174,8 @@ CREATE TABLE IF NOT EXISTS "order"."shipping_method_adjustment" (
     promotion_id VARCHAR(255),
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- 10. ShippingMethodTaxLine
@@ -184,7 +189,8 @@ CREATE TABLE IF NOT EXISTS "order"."shipping_method_tax_line" (
     description TEXT,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- 11. OrderSummary
@@ -202,7 +208,8 @@ CREATE TABLE IF NOT EXISTS "order"."order_summary" (
     accounting_total NUMERIC(20, 4) NOT NULL DEFAULT 0,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/orders/{id}/summary?version=
@@ -225,7 +232,8 @@ CREATE TABLE IF NOT EXISTS "order"."order_change" (
     canceled_at TIMESTAMPTZ,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/orders/{id}/changes
@@ -243,7 +251,8 @@ CREATE TABLE IF NOT EXISTS "order"."order_change_action" (
     applied BOOLEAN NOT NULL DEFAULT FALSE,
     details JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/orders/{id}/timeline
@@ -259,7 +268,8 @@ CREATE TABLE IF NOT EXISTS "order"."transaction" (
     reference_id VARCHAR(255) NOT NULL,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/orders/{id}/transactions
@@ -274,7 +284,8 @@ CREATE TABLE IF NOT EXISTS "order"."credit_line" (
     amount NUMERIC(20, 4) NOT NULL,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- 16. ReturnReason
@@ -304,7 +315,8 @@ CREATE TABLE IF NOT EXISTS "order"."return" (
     canceled_at TIMESTAMPTZ,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/returns?order_id=
@@ -322,7 +334,8 @@ CREATE TABLE IF NOT EXISTS "order"."return_item" (
     note TEXT,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- 19. Claim
@@ -338,7 +351,8 @@ CREATE TABLE IF NOT EXISTS "order"."claim" (
     created_by VARCHAR(255),
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/claims?order_id=
@@ -354,7 +368,8 @@ CREATE TABLE IF NOT EXISTS "order"."claim_item" (
     raw_quantity JSONB,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- 21. ClaimItemImage
@@ -364,7 +379,8 @@ CREATE TABLE IF NOT EXISTS "order"."claim_item_image" (
     url VARCHAR(1024) NOT NULL,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- 22. Exchange
@@ -379,7 +395,8 @@ CREATE TABLE IF NOT EXISTS "order"."exchange" (
     canceled_at TIMESTAMPTZ,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- serves: GET /admin/exchanges?order_id=
@@ -393,5 +410,6 @@ CREATE TABLE IF NOT EXISTS "order"."exchange_item" (
     quantity INT NOT NULL,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );

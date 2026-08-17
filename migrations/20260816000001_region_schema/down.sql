@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS region.country;
+DROP TABLE IF EXISTS region.region;
+DROP SCHEMA IF EXISTS region;

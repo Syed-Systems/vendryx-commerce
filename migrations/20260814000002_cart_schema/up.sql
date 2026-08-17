@@ -93,7 +93,8 @@ CREATE TABLE IF NOT EXISTS cart.line_item_adjustment (
     code text NULL,
     description text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL
 );
 
 -- serves: GET /store/carts/:id/line-item-adjustments
@@ -109,7 +110,8 @@ CREATE TABLE IF NOT EXISTS cart.line_item_tax_line (
     provider_id text NULL,
     description text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL
 );
 
 -- serves: GET /store/carts/:id/line-item-taxes
@@ -126,6 +128,7 @@ CREATE TABLE IF NOT EXISTS cart.shipping_method (
     data jsonb NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL,
     metadata jsonb NULL
 );
 
@@ -141,7 +144,8 @@ CREATE TABLE IF NOT EXISTS cart.shipping_method_adjustment (
     code text NULL,
     description text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL
 );
 
 -- serves: GET /store/carts/:id/shipping-adjustments
@@ -157,7 +161,8 @@ CREATE TABLE IF NOT EXISTS cart.shipping_method_tax_line (
     provider_id text NULL,
     description text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL
 );
 
 -- serves: GET /store/carts/:id/shipping-taxes
@@ -172,6 +177,7 @@ CREATE TABLE IF NOT EXISTS cart.credit_line (
     reference_id text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz NULL,
     metadata jsonb NULL
 );
 
