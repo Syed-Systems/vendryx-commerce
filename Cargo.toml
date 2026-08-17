@@ -41,6 +41,7 @@ members = [
     "crates/modules/stheno-settings",
     "crates/modules/stheno-analytics",
     "crates/modules/stheno-order-change",
+    "crates/modules/stheno-reporting",
     "crates/modules/stheno-demo",
     "crates/providers/stheno-payment-stripe",
     "crates/providers/stheno-payment-offline",
@@ -119,6 +120,7 @@ stheno-translation = { path = "crates/modules/stheno-translation", version = "0.
 stheno-settings = { path = "crates/modules/stheno-settings", version = "0.1.0" }
 stheno-analytics = { path = "crates/modules/stheno-analytics", version = "0.1.0" }
 stheno-order-change = { path = "crates/modules/stheno-order-change", version = "0.1.0" }
+stheno-reporting = { path = "crates/modules/stheno-reporting", version = "0.1.0" }
 stheno-payment-offline = { path = "crates/providers/stheno-payment-offline", version = "0.1.0" }
 stheno-payment-stripe = { path = "crates/providers/stheno-payment-stripe", version = "0.1.0" }
 stheno-fulfillment-manual = { path = "crates/providers/stheno-fulfillment-manual", version = "0.1.0" }
@@ -148,18 +150,23 @@ url = "2.5"
 
 # Serialization & Validation
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+# arbitrary_precision keeps numeric literals as their exact digits instead of
+# parsing them into f64. Without it, money read back through the repository's
+# JSON bridge loses precision (ADR-006): 12345678901234.567891 became
+# 12345678901234.566.
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+toml = "0.8"
 garde = { version = "0.20", features = ["derive", "email", "url"] }
 
 # Data, Money & Identifiers
-rust_decimal = { version = "1.36", features = ["serde", "serde-with-str"] }
+rust_decimal = { version = "1.36", features = ["serde", "serde-with-str", "serde-with-arbitrary-precision"] }
 rust_decimal_macros = "1.36"
 ulid = { version = "1.1", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # Database & ORM
 diesel = { version = "2.2", default-features = false, features = ["postgres_backend", "chrono", "serde_json", "numeric", "uuid", "r2d2", "32-column-tables", "64-column-tables"] }
-diesel-async = { version = "0.5", features = ["postgres", "deadpool"] }
+diesel-async = { version = "0.5", features = ["postgres", "deadpool", "async-connection-wrapper"] }
 diesel_migrations = { version = "2.2", default-features = false }
 deadpool = "0.12"
 
@@ -195,3 +202,14 @@ proptest = "1.5"
 wiremock = "0.6"
 testcontainers = "0.23"
 insta = { version = "1.39", features = ["json"] }
+
+[profile.dev]
+# Every integration test file links its own executable -- 239 of them here --
+# and each embeds the whole dependency graph. Full debug info made the build
+# cache reach 95 GB and fill the disk mid-run, which surfaces as linker errors
+# rather than as "out of space".
+#
+# "line-tables-only" keeps file and line numbers in panic backtraces, which is
+# what test failures are actually read with. It drops variable-inspection data,
+# so a step debugger can still show a stack but not local values.
+debug = "line-tables-only"

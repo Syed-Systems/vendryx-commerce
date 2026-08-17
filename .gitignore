@@ -1,3 +1,6 @@
 /target/
 **/*.rs.bk
 .DS_Store
+
+# Binary staged by scripts/restart-durability.sh
+target-bin/

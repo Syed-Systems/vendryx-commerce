@@ -97,13 +97,29 @@ Modules never call each other. Cross-module interaction happens through exactly 
 `scripts/check-module-isolation.sh` fails the build on anything else. See
 [TRD §3](docs/TRD.md).
 
-## Getting started (once P0 lands)
+## Getting started
 
 ```bash
 docker compose up -d postgres redis
+export DATABASE_URL=postgres://stheno:stheno@localhost:5432/stheno
 cargo run -p stheno-server -- migrate
 cargo run -p stheno-server -- seed --demo
 cargo run -p stheno-server                    # :9000
 cd apps/admin && npm run dev                  # :7001
 cd apps/storefront && npm run dev             # :8000
 ```
+
+### Running the tests
+
+`DATABASE_URL` must point at a real Postgres. A test run without it proves
+nothing, so the suite fails rather than falling back to in-memory storage:
+
+```bash
+docker compose up -d postgres
+export DATABASE_URL=postgres://stheno:stheno@localhost:5432/stheno
+cargo test --workspace
+```
+
+CI provisions the same Postgres major version as a service container; see
+[.github/workflows/ci.yml](.github/workflows/ci.yml). `./scripts/check-ci-postgres.sh`
+verifies the two stay in step.
