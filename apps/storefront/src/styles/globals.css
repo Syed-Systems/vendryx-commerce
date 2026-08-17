@@ -51,11 +51,23 @@
 
 @layer components {
   .content-container {
-    @apply max-w-[1440px] w-full mx-auto px-6;
+    @apply max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8;
   }
 
   .contrast-btn {
-    @apply px-4 py-2 border border-black rounded-full hover:bg-black hover:text-white transition-colors duration-200 ease-in;
+    @apply px-5 py-2.5 border border-zinc-900 rounded-full hover:bg-zinc-900 hover:text-white transition-all duration-200 ease-in text-sm font-medium tracking-wide;
+  }
+
+  .primary-btn {
+    @apply px-6 py-3 bg-zinc-900 text-white rounded-full hover:bg-zinc-800 active:scale-[0.99] transition-all duration-200 text-sm font-medium tracking-wide shadow-sm flex items-center justify-center gap-2;
+  }
+
+  .secondary-btn {
+    @apply px-6 py-3 bg-white text-zinc-900 border border-zinc-200 rounded-full hover:border-zinc-900 hover:bg-zinc-50 active:scale-[0.99] transition-all duration-200 text-sm font-medium tracking-wide flex items-center justify-center gap-2;
+  }
+
+  .badge-tag {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wider uppercase backdrop-blur-md;
   }
 
   .text-xsmall-regular {

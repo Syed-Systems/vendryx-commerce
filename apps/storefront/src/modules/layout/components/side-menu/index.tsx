@@ -1,22 +1,23 @@
 "use client"
 
-import { Popover, PopoverPanel, Transition } from "@headlessui/react"
+import { Dialog, DialogPanel, Transition, TransitionChild } from "@headlessui/react"
 import { ArrowRightMini, XMark } from "@medusajs/icons"
-import { Text, clx, useToggleState } from "@medusajs/ui"
-import { Fragment } from "react"
-
+import { clx, useToggleState } from "@medusajs/ui"
+import { Fragment, useState } from "react"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import CountrySelect from "../country-select"
 import LanguageSelect from "../language-select"
 import { HttpTypes } from "@medusajs/types"
 import { Locale } from "@lib/data/locales"
 
-const SideMenuItems = {
-  Home: "/",
-  Store: "/store",
-  Account: "/account",
-  Cart: "/cart",
-}
+const SideMenuItems = [
+  { name: "Home", href: "/" },
+  { name: "Shop All", href: "/store" },
+  { name: "New Arrivals", href: "/store?sortBy=created_at" },
+  { name: "Collections", href: "/collections/summer-collection" },
+  { name: "Account", href: "/account" },
+  { name: "Shopping Bag", href: "/cart" },
+]
 
 type SideMenuProps = {
   regions: HttpTypes.StoreRegion[] | null
@@ -25,72 +26,108 @@ type SideMenuProps = {
 }
 
 const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const openMenu = () => setIsOpen(true)
+  const closeMenu = () => setIsOpen(false)
+
   const countryToggleState = useToggleState()
   const languageToggleState = useToggleState()
 
   return (
-    <div className="h-full">
-      <div className="flex items-center h-full">
-        <Popover className="h-full flex">
-          {({ open, close }) => (
-            <>
-              <div className="relative flex h-full">
-                <Popover.Button
-                  data-testid="nav-menu-button"
-                  className="relative h-full flex items-center transition-all ease-out duration-200 focus:outline-none hover:text-ui-fg-base"
+    <div className="h-full flex items-center">
+      {/* Menu Trigger Button */}
+      <button
+        type="button"
+        onClick={openMenu}
+        data-testid="nav-menu-button"
+        className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-zinc-800 hover:text-zinc-950 transition-colors focus:outline-none py-2 px-1 cursor-pointer"
+      >
+        <span className="flex flex-col gap-1 w-4">
+          <span className="h-0.5 w-4 bg-zinc-900 rounded-full" />
+          <span className="h-0.5 w-3 bg-zinc-900 rounded-full" />
+          <span className="h-0.5 w-4 bg-zinc-900 rounded-full" />
+        </span>
+        <span>Menu</span>
+      </button>
+
+      {/* Slide-Over Drawer using Dialog (Portaled to Body) */}
+      <Transition show={isOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-[1000]" onClose={closeMenu}>
+          {/* Backdrop */}
+          <TransitionChild
+            as={Fragment}
+            enter="transition-opacity ease-linear duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="transition-opacity ease-linear duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div
+              className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+              data-testid="side-menu-backdrop"
+            />
+          </TransitionChild>
+
+          <div className="fixed inset-0 overflow-hidden">
+            <div className="absolute inset-0 overflow-hidden">
+              <div className="pointer-events-none fixed inset-y-0 left-0 flex max-w-full">
+                <TransitionChild
+                  as={Fragment}
+                  enter="transform transition ease-in-out duration-300"
+                  enterFrom="-translate-x-full"
+                  enterTo="translate-x-0"
+                  leave="transform transition ease-in-out duration-300"
+                  leaveFrom="translate-x-0"
+                  leaveTo="-translate-x-full"
                 >
-                  Menu
-                </Popover.Button>
-              </div>
-
-              {open && (
-                <div
-                  className="fixed inset-0 z-[50] bg-black/0 pointer-events-auto"
-                  onClick={close}
-                  data-testid="side-menu-backdrop"
-                />
-              )}
-
-              <Transition
-                show={open}
-                as={Fragment}
-                enter="transition ease-out duration-150"
-                enterFrom="opacity-0"
-                enterTo="opacity-100 backdrop-blur-2xl"
-                leave="transition ease-in duration-150"
-                leaveFrom="opacity-100 backdrop-blur-2xl"
-                leaveTo="opacity-0"
-              >
-                <PopoverPanel className="flex flex-col absolute w-full pr-4 sm:pr-0 sm:w-1/3 2xl:w-1/4 sm:min-w-min h-[calc(100vh-1rem)] z-[51] inset-x-0 text-sm text-ui-fg-on-color m-2 backdrop-blur-2xl">
-                  <div
+                  <DialogPanel
+                    className="pointer-events-auto w-screen max-w-sm sm:max-w-md bg-zinc-950 text-white shadow-2xl flex flex-col justify-between p-6 sm:p-10 overflow-y-auto no-scrollbar"
                     data-testid="nav-menu-popup"
-                    className="flex flex-col h-full bg-[rgba(3,7,18,0.5)] rounded-rounded justify-between p-6"
                   >
-                    <div className="flex justify-end" id="xmark">
-                      <button data-testid="close-menu-button" onClick={close}>
-                        <XMark />
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-6 border-b border-zinc-800">
+                      <div className="flex flex-col">
+                        <span className="text-xl sm:text-2xl font-serif tracking-[0.25em] uppercase font-bold text-white leading-tight">
+                          STHENO
+                        </span>
+                        <span className="text-[10px] tracking-[0.35em] text-zinc-400 uppercase font-sans mt-1">
+                          Atelier • Edition
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        data-testid="close-menu-button"
+                        onClick={closeMenu}
+                        className="p-2.5 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors focus:outline-none cursor-pointer"
+                      >
+                        <XMark className="w-5 h-5" />
                       </button>
                     </div>
-                    <ul className="flex flex-col gap-6 items-start justify-start">
-                      {Object.entries(SideMenuItems).map(([name, href]) => {
-                        return (
-                          <li key={name}>
+
+                    {/* Navigation Links */}
+                    <nav className="flex-1 py-8 sm:py-12 flex flex-col justify-center">
+                      <ul className="flex flex-col gap-5 sm:gap-6">
+                        {SideMenuItems.map((item) => (
+                          <li key={item.name}>
                             <LocalizedClientLink
-                              href={href}
-                              className="text-3xl leading-10 hover:text-ui-fg-disabled"
-                              onClick={close}
-                              data-testid={`${name.toLowerCase()}-link`}
+                              href={item.href}
+                              className="text-2xl sm:text-3xl font-serif font-bold text-zinc-200 hover:text-white hover:translate-x-2 transition-all block"
+                              onClick={closeMenu}
+                              data-testid={`${item.name.toLowerCase().replace(/\s+/g, "-")}-link`}
                             >
-                              {name}
+                              {item.name}
                             </LocalizedClientLink>
                           </li>
-                        )
-                      })}
-                    </ul>
-                    <div className="flex flex-col gap-y-6">
+                        ))}
+                      </ul>
+                    </nav>
+
+                    {/* Footer / Locale / Currency */}
+                    <div className="flex flex-col gap-y-4 pt-6 border-t border-zinc-800 text-xs">
                       {!!locales?.length && (
                         <div
-                          className="flex justify-between"
+                          className="flex justify-between items-center py-2.5 px-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800"
                           onMouseEnter={languageToggleState.open}
                           onMouseLeave={languageToggleState.close}
                         >
@@ -101,14 +138,15 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                           />
                           <ArrowRightMini
                             className={clx(
-                              "transition-transform duration-150",
+                              "transition-transform duration-150 text-zinc-400",
                               languageToggleState.state ? "-rotate-90" : ""
                             )}
                           />
                         </div>
                       )}
+
                       <div
-                        className="flex justify-between"
+                        className="flex justify-between items-center py-2.5 px-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800"
                         onMouseEnter={countryToggleState.open}
                         onMouseLeave={countryToggleState.close}
                       >
@@ -120,23 +158,24 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                         )}
                         <ArrowRightMini
                           className={clx(
-                            "transition-transform duration-150",
+                            "transition-transform duration-150 text-zinc-400",
                             countryToggleState.state ? "-rotate-90" : ""
                           )}
                         />
                       </div>
-                      <Text className="flex justify-between txt-compact-small">
-                        © {new Date().getFullYear()} Medusa Store. All rights
-                        reserved.
-                      </Text>
+
+                      <div className="pt-2 text-zinc-500 text-[11px] flex items-center justify-between font-light">
+                        <span>© {new Date().getFullYear()} STHENO Atelier.</span>
+                        <span>All rights reserved.</span>
+                      </div>
                     </div>
-                  </div>
-                </PopoverPanel>
-              </Transition>
-            </>
-          )}
-        </Popover>
-      </div>
+                  </DialogPanel>
+                </TransitionChild>
+              </div>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
     </div>
   )
 }

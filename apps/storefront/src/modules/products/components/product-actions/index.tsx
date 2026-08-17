@@ -3,15 +3,13 @@
 import { addToCart } from "@lib/data/cart"
 import { useIntersection } from "@lib/hooks/use-in-view"
 import { HttpTypes } from "@medusajs/types"
-import { Button } from "@medusajs/ui"
 import Divider from "@modules/common/components/divider"
 import OptionSelect from "@modules/products/components/product-actions/option-select"
 import { isEqual } from "lodash"
-import { useParams, usePathname, useSearchParams } from "next/navigation"
+import { useParams, usePathname, useSearchParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import ProductPrice from "../product-price"
 import MobileActions from "./mobile-actions"
-import { useRouter } from "next/navigation"
 
 type ProductActionsProps = {
   product: HttpTypes.StoreProduct
@@ -67,7 +65,7 @@ export default function ProductActions({
     }))
   }
 
-  //check if the selected options produce a valid variant
+  // check if the selected options produce a valid variant
   const isValidVariant = useMemo(() => {
     return product.variants?.some((v) => {
       const variantOptions = optionsAsKeymap(v.options)
@@ -94,17 +92,14 @@ export default function ProductActions({
 
   // check if the selected variant is in stock
   const inStock = useMemo(() => {
-    // If we don't manage inventory, we can always add to cart
     if (selectedVariant && !selectedVariant.manage_inventory) {
       return true
     }
 
-    // If we allow back orders on the variant, we can add to cart
     if (selectedVariant?.allow_backorder) {
       return true
     }
 
-    // If there is inventory available, we can add to cart
     if (
       selectedVariant?.manage_inventory &&
       (selectedVariant?.inventory_quantity || 0) > 0
@@ -112,12 +107,10 @@ export default function ProductActions({
       return true
     }
 
-    // Otherwise, we can't add to cart
     return false
   }, [selectedVariant])
 
   const actionsRef = useRef<HTMLDivElement>(null)
-
   const inView = useIntersection(actionsRef, "0px")
 
   // add the selected variant to the cart
@@ -137,51 +130,78 @@ export default function ProductActions({
 
   return (
     <>
-      <div className="flex flex-col gap-y-2" ref={actionsRef}>
-        <div>
-          {(product.variants?.length ?? 0) > 1 && (
-            <div className="flex flex-col gap-y-4">
-              {(product.options || []).map((option) => {
-                return (
-                  <div key={option.id}>
-                    <OptionSelect
-                      option={option}
-                      current={options[option.id]}
-                      updateOption={setOptionValue}
-                      title={option.title ?? ""}
-                      data-testid="product-options"
-                      disabled={!!disabled || isAdding}
-                    />
-                  </div>
-                )
-              })}
-              <Divider />
-            </div>
-          )}
+      <div className="flex flex-col gap-y-4" ref={actionsRef}>
+        {/* Product Price */}
+        <div className="py-2 border-y border-zinc-200/80">
+          <ProductPrice product={product} variant={selectedVariant} />
         </div>
 
-        <ProductPrice product={product} variant={selectedVariant} />
+        {/* Variant Options */}
+        {(product.variants?.length ?? 0) > 1 && (
+          <div className="flex flex-col gap-y-4 pt-1">
+            {(product.options || []).map((option) => {
+              return (
+                <div key={option.id}>
+                  <OptionSelect
+                    option={option}
+                    current={options[option.id]}
+                    updateOption={setOptionValue}
+                    title={option.title ?? ""}
+                    data-testid="product-options"
+                    disabled={!!disabled || isAdding}
+                  />
+                </div>
+              )
+            })}
+            <Divider />
+          </div>
+        )}
 
-        <Button
-          onClick={handleAddToCart}
-          disabled={
-            !inStock ||
-            !selectedVariant ||
-            !!disabled ||
-            isAdding ||
-            !isValidVariant
-          }
-          variant="primary"
-          className="w-full h-10"
-          isLoading={isAdding}
-          data-testid="add-product-button"
-        >
-          {!selectedVariant && !options
-            ? "Select variant"
-            : !inStock || !isValidVariant
-            ? "Out of stock"
-            : "Add to cart"}
-        </Button>
+        {/* Primary Action Button: Add to Bag */}
+        <div className="flex flex-col gap-2.5 pt-2">
+          <button
+            onClick={handleAddToCart}
+            disabled={
+              !inStock ||
+              !selectedVariant ||
+              !!disabled ||
+              isAdding ||
+              !isValidVariant
+            }
+            className="w-full py-3.5 px-6 rounded-full bg-zinc-950 text-white font-semibold text-xs uppercase tracking-widest hover:bg-zinc-800 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
+            data-testid="add-product-button"
+          >
+            {isAdding ? (
+              <span className="inline-flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Adding to Bag...
+              </span>
+            ) : !selectedVariant && !options ? (
+              "Select options"
+            ) : !inStock || !isValidVariant ? (
+              "Out of stock"
+            ) : (
+              "Add to Shopping Bag"
+            )}
+          </button>
+
+          {/* Value Perks Mini Bar */}
+          <div className="flex items-center justify-between text-[11px] text-zinc-500 font-light px-2 pt-2">
+            <span className="flex items-center gap-1">
+              <span>✓</span> Free Express Shipping
+            </span>
+            <span className="flex items-center gap-1">
+              <span>✓</span> 30-Day Free Returns
+            </span>
+            <span className="flex items-center gap-1">
+              <span>✓</span> Atelier Quality Guarantee
+            </span>
+          </div>
+        </div>
+
         <MobileActions
           product={product}
           variant={selectedVariant}

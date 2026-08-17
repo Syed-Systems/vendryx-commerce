@@ -1,5 +1,4 @@
 import { HttpTypes } from "@medusajs/types"
-import { Heading, Text } from "@medusajs/ui"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 
 type ProductInfoProps = {
@@ -8,31 +7,40 @@ type ProductInfoProps = {
 
 const ProductInfo = ({ product }: ProductInfoProps) => {
   return (
-    <div id="product-info">
-      <div className="flex flex-col gap-y-4 lg:max-w-[500px] mx-auto">
-        {product.collection && (
+    <div id="product-info" className="flex flex-col gap-y-3">
+      {/* Category / Collection Breadcrumb Badge */}
+      <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500 font-medium">
+        {product.collection ? (
           <LocalizedClientLink
             href={`/collections/${product.collection.handle}`}
-            className="text-medium text-ui-fg-muted hover:text-ui-fg-subtle"
+            className="hover:text-zinc-950 transition-colors text-amber-800/90 font-semibold"
           >
             {product.collection.title}
           </LocalizedClientLink>
+        ) : (
+          <span>Atelier Collection</span>
         )}
-        <Heading
-          level="h2"
-          className="text-3xl leading-10 text-ui-fg-base"
-          data-testid="product-title"
-        >
-          {product.title}
-        </Heading>
+        <span>•</span>
+        <span>In Stock</span>
+      </div>
 
-        <Text
-          className="text-medium text-ui-fg-subtle whitespace-pre-line"
+      {/* Product Heading */}
+      <h1
+        className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-zinc-950 tracking-tight leading-tight"
+        data-testid="product-title"
+      >
+        {product.title}
+      </h1>
+
+      {/* Description */}
+      {product.description && (
+        <p
+          className="text-sm text-zinc-600 font-light leading-relaxed whitespace-pre-line pt-1"
           data-testid="product-description"
         >
           {product.description}
-        </Text>
-      </div>
+        </p>
+      )}
     </div>
   )
 }

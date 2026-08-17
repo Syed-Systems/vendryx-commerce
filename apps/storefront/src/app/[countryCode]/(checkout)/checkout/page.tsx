@@ -7,7 +7,7 @@ import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 export const metadata: Metadata = {
-  title: "Checkout",
+  title: "Checkout | STHENO Atelier",
 }
 
 export default async function Checkout() {
@@ -20,11 +20,15 @@ export default async function Checkout() {
   const customer = await retrieveCustomer()
 
   return (
-    <div className="grid grid-cols-1 small:grid-cols-[1fr_416px] content-container gap-x-40 py-12">
-      <PaymentWrapper cart={cart}>
-        <CheckoutForm cart={cart} customer={customer} />
-      </PaymentWrapper>
-      <CheckoutSummary cart={cart} />
+    <div className="grid grid-cols-1 lg:grid-cols-12 content-container gap-8 lg:gap-12 py-10 sm:py-16">
+      <div className="lg:col-span-7">
+        <PaymentWrapper cart={cart}>
+          <CheckoutForm cart={cart} customer={customer} />
+        </PaymentWrapper>
+      </div>
+      <div className="lg:col-span-5 lg:sticky lg:top-24">
+        <CheckoutSummary cart={cart} />
+      </div>
     </div>
   )
 }

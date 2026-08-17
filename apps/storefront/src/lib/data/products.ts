@@ -34,16 +34,15 @@ export const listProducts = async ({
 
   if (countryCode) {
     region = await getRegion(countryCode)
-  } else {
-    region = await retrieveRegion(regionId!)
+  } else if (regionId) {
+    region = await retrieveRegion(regionId).catch(() => null)
   }
 
   if (!region) {
-    return {
-      response: { products: [], count: 0 },
-      nextPage: null,
-    }
+    region = await getRegion(process.env.NEXT_PUBLIC_DEFAULT_REGION || "us")
   }
+
+  const targetRegionId = region?.id || regionId
 
   const headers = {
     ...(await getAuthHeaders()),
@@ -61,7 +60,7 @@ export const listProducts = async ({
         query: {
           limit,
           offset,
-          region_id: region?.id,
+          ...(targetRegionId ? { region_id: targetRegionId } : {}),
           fields:
             "*variants.calculated_price,+variants.inventory_quantity,*variants.images,+metadata,+tags,",
           ...queryParams,
@@ -83,6 +82,11 @@ export const listProducts = async ({
         queryParams,
       }
     })
+    .catch(() => ({
+      response: { products: [], count: 0 },
+      nextPage: null,
+      queryParams,
+    }))
 }
 
 /**
