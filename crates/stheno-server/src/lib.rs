@@ -10,6 +10,7 @@ use tower_http::cors::{Any, CorsLayer};
 use stheno_api_admin::{
     admin_catalog_routes, admin_config_routes, admin_customer_routes, admin_inventory_routes,
     admin_order_routes, admin_pricing_routes, admin_promotion_routes, admin_reports_routes,
+    admin_user_routes,
 };
 use stheno_api_admin_platform::{admin_platform_routes, AdminPlatformContext, UsageSnapshot};
 use stheno_api_auth::{auth_routes, AuthApiContext};
@@ -242,6 +243,7 @@ impl AppServer {
             .merge(admin_inventory_routes(inventory_service.clone(), stock_location_service.clone()))
             .merge(admin_pricing_routes(pricing_service.clone()))
             .merge(admin_promotion_routes(promotion_service.clone()))
+            .merge(admin_user_routes(user_service.clone()))
             .merge(admin_config_routes(region_service.clone(), currency_service.clone(), tax_service.clone(), sales_channel_service.clone()))
             .merge(admin_reports_routes(reporting_service.clone()))
             .merge(auth_routes(AuthApiContext { auth_flows }))
