@@ -2,7 +2,7 @@ use stheno_db::filter::FilterSpec;
 use stheno_db::service::{CrudEntity, InMemoryCrudStore};
 use stheno_db::stheno_service_crud;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct TestProduct {
     id: String,
     title: String,
@@ -10,8 +10,11 @@ struct TestProduct {
 }
 
 impl CrudEntity for TestProduct {
-    fn id(&self) -> &str {
-        &self.id
+    const TABLE: &'static str = "product.product";
+    const ENTITY: &'static str = "product";
+
+    fn id(&self) -> String {
+        self.id.clone()
     }
 
     fn is_deleted(&self) -> bool {

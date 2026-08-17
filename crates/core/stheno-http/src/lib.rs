@@ -72,12 +72,18 @@ impl IntoResponse for HttpError {
                 ),
                 Some("not_found".to_string()),
             ),
-            Error::Conflict { code, message } => (
-                StatusCode::CONFLICT,
-                "conflict",
-                message,
-                Some(code.to_string()),
-            ),
+            Error::Conflict { code, message } => {
+                if code == "not_allowed" {
+                    (StatusCode::FORBIDDEN, "not_allowed", message, None)
+                } else {
+                    (
+                        StatusCode::CONFLICT,
+                        "conflict",
+                        message,
+                        Some(code.to_string()),
+                    )
+                }
+            }
             Error::CurrencyMismatch { expected, found } => (
                 StatusCode::BAD_REQUEST,
                 "invalid_data",

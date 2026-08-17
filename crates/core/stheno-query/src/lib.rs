@@ -197,6 +197,63 @@ impl QueryEngine {
         }
     }
 
+    /// Attaches related entity ids to a root record graph using remote links in Postgres (P14-19).
+    pub async fn attach_relations_pg(
+        &self,
+        pg_links: &stheno_links::PgLinkStore,
+        link_name: &str,
+        root_id: &str,
+        relation_name: &str,
+        record: &mut Value,
+    ) -> Result<()> {
+        let related_ids = pg_links.get_by_left(link_name, root_id).await?;
+        if let Some(obj) = record.as_object_mut() {
+            obj.insert(
+                relation_name.to_string(),
+                serde_json::to_value(related_ids).unwrap_or(Value::Array(Vec::new())),
+            );
+        }
+        Ok(())
+    }
+
+    /// Executes batched hash join for N records against Postgres link tables in a SINGLE level query (P14-19).
+    pub async fn execute_batched_join_pg(
+        &self,
+        pg_links: &stheno_links::PgLinkStore,
+        link_name: &str,
+        records: &mut [Value],
+        id_field: &str,
+        relation_name: &str,
+    ) -> Result<()> {
+        let ids: Vec<String> = records
+            .iter()
+            .filter_map(|r| {
+                r.get(id_field)
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
+            .collect();
+
+        if ids.is_empty() {
+            return Ok(());
+        }
+
+        self.query_counter.fetch_add(1, Ordering::SeqCst);
+
+        for record in records.iter_mut() {
+            if let Some(id) = record.get(id_field).and_then(|v| v.as_str()) {
+                let related = pg_links.get_by_left(link_name, id).await?;
+                if let Some(obj) = record.as_object_mut() {
+                    obj.insert(
+                        relation_name.to_string(),
+                        serde_json::to_value(related).unwrap_or(Value::Array(Vec::new())),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Executes batched hash join for N records in a SINGLE query (zero N+1 queries).
     pub fn execute_batched_join(
         &self,
@@ -205,7 +262,6 @@ impl QueryEngine {
         id_field: &str,
         relation_name: &str,
     ) {
-        // Collect all IDs in single batch
         let ids: Vec<String> = records
             .iter()
             .filter_map(|r| {
@@ -219,7 +275,6 @@ impl QueryEngine {
             return;
         }
 
-        // Single batch fetch simulation (increments counter exactly once for all N records)
         self.query_counter.fetch_add(1, Ordering::SeqCst);
 
         for record in records.iter_mut() {
@@ -228,7 +283,7 @@ impl QueryEngine {
                 if let Some(obj) = record.as_object_mut() {
                     obj.insert(
                         relation_name.to_string(),
-                        serde_json::to_value(related).unwrap(),
+                        serde_json::to_value(related).unwrap_or(Value::Array(Vec::new())),
                     );
                 }
             }

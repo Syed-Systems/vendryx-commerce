@@ -11,7 +11,7 @@ pub mod money;
 pub use currency::CurrencyCode;
 pub use entitlements::{Entitlements, Feature, PlanTier};
 pub use error::Error;
-pub use id::Id;
+pub use id::{Id, Prefixed};
 pub use money::Money;
 
 pub type Result<T> = std::result::Result<T, Error>;

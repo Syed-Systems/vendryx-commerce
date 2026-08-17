@@ -1,7 +1,6 @@
 //! `stheno-db::filter`: Type-safe FilterSpec query builder with strict limits and index protection.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use stheno_types::{Error, Result};
 
 pub const MAX_IN_ELEMENTS: usize = 100;
@@ -38,7 +37,13 @@ pub struct OrderBy {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FilterSpec {
-    pub predicates: HashMap<String, FilterOp>,
+    /// Predicates in the order they were added, `AND`-ed together.
+    ///
+    /// A list and not a map keyed by field: a range needs two operators on one
+    /// column (`created_at >= x AND created_at <= y`), which every order and
+    /// product list filter in the admin API uses. Keying by field silently
+    /// dropped the first of the pair.
+    pub predicates: Vec<(String, FilterOp)>,
     pub order_by: Vec<OrderBy>,
     pub offset: Option<usize>,
     pub limit: Option<usize>,
@@ -51,7 +56,7 @@ impl FilterSpec {
     }
 
     pub fn with_predicate(mut self, field: impl Into<String>, op: FilterOp) -> Self {
-        self.predicates.insert(field.into(), op);
+        self.predicates.push((field.into(), op));
         self
     }
 
@@ -75,20 +80,20 @@ impl FilterSpec {
             for (k, v) in obj {
                 if let Some(s) = v.as_str() {
                     spec.predicates
-                        .insert(k.clone(), FilterOp::Eq(s.to_string()));
+                        .push((k.clone(), FilterOp::Eq(s.to_string())));
                 } else if let Some(sub_obj) = v.as_object() {
                     for (op_k, op_v) in sub_obj {
                         match op_k.as_str() {
                             "$eq" => {
                                 if let Some(s) = op_v.as_str() {
                                     spec.predicates
-                                        .insert(k.clone(), FilterOp::Eq(s.to_string()));
+                                        .push((k.clone(), FilterOp::Eq(s.to_string())));
                                 }
                             }
                             "$ne" => {
                                 if let Some(s) = op_v.as_str() {
                                     spec.predicates
-                                        .insert(k.clone(), FilterOp::Ne(s.to_string()));
+                                        .push((k.clone(), FilterOp::Ne(s.to_string())));
                                 }
                             }
                             "$in" => {
@@ -97,37 +102,37 @@ impl FilterSpec {
                                         .iter()
                                         .filter_map(|item| item.as_str().map(ToString::to_string))
                                         .collect();
-                                    spec.predicates.insert(k.clone(), FilterOp::In(items));
+                                    spec.predicates.push((k.clone(), FilterOp::In(items)));
                                 }
                             }
                             "$gt" => {
                                 if let Some(s) = op_v.as_str() {
                                     spec.predicates
-                                        .insert(k.clone(), FilterOp::Gt(s.to_string()));
+                                        .push((k.clone(), FilterOp::Gt(s.to_string())));
                                 }
                             }
                             "$gte" => {
                                 if let Some(s) = op_v.as_str() {
                                     spec.predicates
-                                        .insert(k.clone(), FilterOp::Gte(s.to_string()));
+                                        .push((k.clone(), FilterOp::Gte(s.to_string())));
                                 }
                             }
                             "$lt" => {
                                 if let Some(s) = op_v.as_str() {
                                     spec.predicates
-                                        .insert(k.clone(), FilterOp::Lt(s.to_string()));
+                                        .push((k.clone(), FilterOp::Lt(s.to_string())));
                                 }
                             }
                             "$lte" => {
                                 if let Some(s) = op_v.as_str() {
                                     spec.predicates
-                                        .insert(k.clone(), FilterOp::Lte(s.to_string()));
+                                        .push((k.clone(), FilterOp::Lte(s.to_string())));
                                 }
                             }
                             "$like" | "$ilike" => {
                                 if let Some(s) = op_v.as_str() {
                                     spec.predicates
-                                        .insert(k.clone(), FilterOp::Like(s.to_string()));
+                                        .push((k.clone(), FilterOp::Like(s.to_string())));
                                 }
                             }
                             _ => {}

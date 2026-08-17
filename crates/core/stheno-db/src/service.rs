@@ -12,8 +12,28 @@ use stheno_types::{Error, Result};
 use crate::filter::FilterSpec;
 use crate::transaction::Conn;
 
-pub trait CrudEntity: Clone + Send + Sync + 'static {
-    fn id(&self) -> &str;
+pub trait CrudEntity:
+    Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static
+{
+    /// Schema-qualified table backing this entity, e.g. `product.product`.
+    ///
+    /// A constant rather than a method so `PgCrudRepository` can build SQL
+    /// without an instance -- `list` and `retrieve` have none.
+    const TABLE: &'static str;
+
+    /// Entity name used in `NotFound` and `Conflict` errors, e.g. `product`.
+    const ENTITY: &'static str;
+
+    /// Primary-key column. Defaults to `id`.
+    ///
+    /// Overridden by entities with a natural key -- `currency` is keyed by its
+    /// ISO 4217 `code`, and reference tables generally are. Without this the
+    /// repository would silently query a column that does not exist.
+    const ID_COLUMN: &'static str = "id";
+
+    /// Owned rather than borrowed: entities key on `Id<T>`, which renders
+    /// `{prefix}_{ulid}` on demand and has no `&str` to lend out.
+    fn id(&self) -> String;
     fn is_deleted(&self) -> bool;
     fn set_deleted(&mut self, deleted: bool);
 }
@@ -48,6 +68,12 @@ impl<T: CrudEntity> InMemoryCrudStore<T> {
             entity_name,
             items: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+}
+
+impl<T: CrudEntity> Default for InMemoryCrudStore<T> {
+    fn default() -> Self {
+        Self::new(T::ENTITY)
     }
 }
 
@@ -96,13 +122,13 @@ impl<T: CrudEntity> CrudRepository<T> for InMemoryCrudStore<T> {
             .items
             .write()
             .map_err(|_| Error::Database("Lock poisoned".into()))?;
-        if map.contains_key(item.id()) {
+        if map.contains_key(&item.id()) {
             return Err(Error::Conflict {
                 code: "entity_already_exists",
                 message: format!("{} with id {} already exists", self.entity_name, item.id()),
             });
         }
-        map.insert(item.id().to_string(), item.clone());
+        map.insert(item.id(), item.clone());
         Ok(item)
     }
 
@@ -112,7 +138,7 @@ impl<T: CrudEntity> CrudRepository<T> for InMemoryCrudStore<T> {
             .write()
             .map_err(|_| Error::Database("Lock poisoned".into()))?;
         for item in &items {
-            if map.contains_key(item.id()) {
+            if map.contains_key(&item.id()) {
                 return Err(Error::Conflict {
                     code: "entity_already_exists",
                     message: format!("{} with id {} already exists", self.entity_name, item.id()),
@@ -120,7 +146,7 @@ impl<T: CrudEntity> CrudRepository<T> for InMemoryCrudStore<T> {
             }
         }
         for item in &items {
-            map.insert(item.id().to_string(), item.clone());
+            map.insert(item.id(), item.clone());
         }
         Ok(items)
     }
@@ -145,7 +171,7 @@ impl<T: CrudEntity> CrudRepository<T> for InMemoryCrudStore<T> {
             .items
             .write()
             .map_err(|_| Error::Database("Lock poisoned".into()))?;
-        map.insert(item.id().to_string(), item.clone());
+        map.insert(item.id(), item.clone());
         Ok(item)
     }
 

@@ -20,3 +20,4 @@ diesel-async = { workspace = true }
 
 [dev-dependencies]
 croner = { workspace = true }
+stheno-db = { workspace = true, features = ["testing"] }

@@ -1,6 +1,8 @@
 use serde_json::json;
 use std::sync::Arc;
-use stheno_links::LinkStore;
+use stheno_db::create_pool;
+use stheno_db::testing::TestDb;
+use stheno_links::{LinkStore, PgLinkStore};
 use stheno_query::{FieldSelection, QueryEngine};
 
 #[test]
@@ -60,4 +62,61 @@ fn test_remote_join_relation_attachment() {
     assert_eq!(price_sets.len(), 2);
     assert_eq!(price_sets[0], "pset_200");
     assert_eq!(price_sets[1], "pset_201");
+}
+
+#[tokio::test]
+async fn test_remote_join_postgres_link_traversal() {
+    // P14-19: QueryEngine traversing Postgres link tables in a single batched join query
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let pg_links = PgLinkStore::new(pool);
+
+    // Setup links in Postgres
+    pg_links
+        .link("product_variant_price_set", "var_pg_10", "pset_pg_100")
+        .await
+        .unwrap();
+    pg_links
+        .link("product_variant_price_set", "var_pg_10", "pset_pg_101")
+        .await
+        .unwrap();
+    pg_links
+        .link("product_variant_price_set", "var_pg_20", "pset_pg_200")
+        .await
+        .unwrap();
+
+    let engine = QueryEngine::default();
+
+    let mut records = vec![
+        json!({ "id": "var_pg_10", "sku": "BOOTS-BLACK-42" }),
+        json!({ "id": "var_pg_20", "sku": "BOOTS-BROWN-42" }),
+    ];
+
+    engine
+        .execute_batched_join_pg(
+            &pg_links,
+            "product_variant_price_set",
+            &mut records,
+            "id",
+            "price_set_ids",
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        engine.query_count(),
+        1,
+        "Must execute in a single batched level join"
+    );
+
+    let var10_price_sets = records[0]["price_set_ids"].as_array().unwrap();
+    assert_eq!(var10_price_sets.len(), 2);
+    assert!(var10_price_sets.contains(&json!("pset_pg_100")));
+    assert!(var10_price_sets.contains(&json!("pset_pg_101")));
+
+    let var20_price_sets = records[1]["price_set_ids"].as_array().unwrap();
+    assert_eq!(var20_price_sets.len(), 1);
+    assert_eq!(var20_price_sets[0], "pset_pg_200");
+
+    db.drop().await;
 }
