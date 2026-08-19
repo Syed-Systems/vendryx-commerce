@@ -23,6 +23,11 @@ stheno-api-core = { workspace = true }
 stheno-api-store = { workspace = true }
 stheno-api-admin = { workspace = true }
 stheno-api-admin-platform = { workspace = true }
+stheno-api-router = { workspace = true }
+stheno-platform = { workspace = true }
+stheno-rbac = { workspace = true }
+stheno-settings = { workspace = true }
+stheno-api-platform = { workspace = true }
 stheno-api-auth = { workspace = true }
 stheno-auth = { workspace = true }
 stheno-product = { workspace = true }
@@ -33,11 +38,14 @@ stheno-order = { workspace = true }
 stheno-payment = { workspace = true }
 stheno-fulfillment = { workspace = true }
 stheno-fulfillment-manual = { workspace = true }
+stheno-payment-offline = { workspace = true }
+stheno-payment-stripe = { workspace = true }
 stheno-pricing = { workspace = true }
 stheno-promotion = { workspace = true }
 stheno-customer = { workspace = true }
 stheno-user = { workspace = true }
 stheno-inventory = { workspace = true }
+stheno-links = { workspace = true }
 stheno-stock-location = { workspace = true }
 stheno-sales-channel = { workspace = true }
 stheno-tax = { workspace = true }
@@ -48,6 +56,7 @@ stheno-flows = { workspace = true }
 stheno-flows-order = { workspace = true }
 tower-http = { workspace = true }
 serde_json = { workspace = true }
+chrono = { workspace = true }
 rust_decimal = { workspace = true }
 rust_decimal_macros = { workspace = true }
 clap = { workspace = true }

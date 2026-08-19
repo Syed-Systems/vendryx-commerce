@@ -27,10 +27,23 @@ struct Args {
     #[arg(long)]
     migrate: bool,
 
+    /// Populates the database with a demo catalogue, regions, locales and an owner
+    /// account, then exits. Explicit because seeding used to run on every boot.
+    #[arg(long)]
+    seed_demo: bool,
+
     /// Reports whether the database schema matches the embedded migrations, then exits.
     /// Exits non-zero on drift.
     #[arg(long)]
     check_migrations: bool,
+
+    /// Registers a tenant, its subscription and its domain, then exits.
+    ///
+    /// Format: `<id>:<name>:<tier>:<domain>`, e.g.
+    /// `ten_acme:Acme:pro:acme.localhost`. Creating a merchant is a platform
+    /// operation, which is why there is no `POST /admin/stores` (ADR-012).
+    #[arg(long, value_name = "ID:NAME:TIER:DOMAIN")]
+    create_tenant: Option<String>,
 
     /// Bind address
     #[arg(short, long, default_value = "127.0.0.1:9000")]
@@ -84,6 +97,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("  - {name}");
         }
         std::process::exit(1);
+    }
+
+    if let Some(spec) = args.create_tenant.as_deref() {
+        let parts: Vec<&str> = spec.split(':').collect();
+        if parts.len() < 3 {
+            eprintln!("--create-tenant expects ID:NAME:TIER[:DOMAIN]");
+            std::process::exit(2);
+        }
+        let platform = stheno_platform::PlatformService::new(pool.clone());
+        let created = platform
+            .create_tenant(stheno_platform::NewTenant {
+                id: parts[0].to_string(),
+                name: parts[1].to_string(),
+                tier: parts[2].to_string(),
+                domain: parts.get(3).map(|d| d.to_string()),
+            })
+            .await?;
+        println!(
+            "Created tenant {} ({}) on tier {}.",
+            created.id, created.name, parts[2]
+        );
+        return Ok(());
+    }
+
+    if args.seed_demo {
+        // Seeding writes tenant-owned rows, so it must run inside a tenant scope
+        // (ADR-012) — otherwise every insert takes its tenant_id DEFAULT from an unset
+        // setting and violates NOT NULL.
+        let tenant_id = std::env::var("STHENO_TENANT").unwrap_or_else(|_| "ten_default".into());
+        stheno_db::tenant::scope(tenant_id.clone(), stheno_server::seed_demo(pool.clone())).await;
+        println!("Demo data seeded for tenant {tenant_id}.");
+        return Ok(());
     }
 
     let entitlements = load_entitlements()?;

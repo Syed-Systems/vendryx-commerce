@@ -1,31 +1,41 @@
 //! `stheno-server`: Server application, router mounting, and universal test harness.
 
 pub mod db;
+pub mod tenant_layer;
 
-use axum::{routing::get, Json, Router};
+use axum::http::{HeaderValue, Method};
+use axum::{middleware, routing::get, Json, Router};
 use serde_json::json;
 use std::sync::Arc;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 
+use crate::tenant_layer::TenantLayerState;
 use stheno_api_admin::{
     admin_api_key_routes, admin_catalog_routes, admin_config_routes, admin_customer_routes,
-    admin_inventory_routes, admin_order_routes, admin_pricing_routes, admin_promotion_routes,
-    admin_reports_routes, admin_store_routes, admin_user_routes,
+    admin_fulfillment_settings_routes, admin_inventory_routes, admin_localisation_routes,
+    admin_order_routes, admin_pricing_routes, admin_promotion_routes, admin_rbac_routes,
+    admin_reports_routes, admin_store_routes, admin_user_routes, auth_guard::require_admin,
 };
 use stheno_api_admin_platform::{admin_platform_routes, AdminPlatformContext, UsageSnapshot};
 use stheno_api_auth::{auth_routes, AuthApiContext};
-use stheno_api_core::{Entitlements, EntitlementsError, Tier, TierConfig};
+use stheno_api_core::{Entitlements, EntitlementsError, Feature, Tier, TierConfig};
+use stheno_api_platform::{platform_routes, PlatformApiContext};
+use stheno_api_router::{mount_gated, GatedGroup};
 use stheno_api_store::{store_routes, StoreApiContext};
 use stheno_auth::AuthService;
 use stheno_cart::CartService;
 use stheno_currency::CurrencyService;
 use stheno_customer::CustomerService;
+use stheno_db::QuotaCounter;
 use stheno_flows::{AuthWorkflows, OrderWorkflowEngine, ReturnWorkflowEngine};
 use stheno_fulfillment::FulfillmentService;
 use stheno_fulfillment_manual::ManualFulfillmentProvider;
 use stheno_inventory::InventoryService;
 use stheno_order::OrderService;
 use stheno_payment::PaymentService;
+use stheno_payment_offline::OfflinePaymentProvider;
+use stheno_payment_stripe::StripePaymentProvider;
+use stheno_platform::PlatformService;
 use stheno_pricing::PricingService;
 use stheno_product::{CreateCollectionInput, CreateProductInput, ProductService};
 use stheno_promotion::PromotionService;
@@ -41,6 +51,15 @@ use stheno_workflow::WorkflowStore;
 
 /// Tier definitions ship with the binary, overridable per deployment (ENTITLEMENTS.md 5b).
 const DEFAULT_TIERS_TOML: &str = include_str!("../../../config/tiers.toml");
+
+/// The tier *definitions*, loaded once. What a tier means is deployment config
+/// (ENTITLEMENTS.md 5b); which tier a tenant is on is a `platform.subscription` row.
+pub fn load_tier_config() -> Result<TierConfig, EntitlementsError> {
+    match std::fs::read_to_string("config/tiers.toml") {
+        Ok(src) => TierConfig::from_toml(&src),
+        Err(_) => TierConfig::from_toml(DEFAULT_TIERS_TOML),
+    }
+}
 
 /// Resolves this deployment's entitlements from tier config plus env overrides.
 ///
@@ -63,6 +82,461 @@ pub fn load_entitlements() -> Result<Entitlements, EntitlementsError> {
     config.resolve(tier, &env)
 }
 
+/// Origins allowed to call this deployment, from `STORE_CORS`, `ADMIN_CORS`, and
+/// `AUTH_CORS` (SECURITY.md 6). Each is a comma-separated list.
+///
+/// An unset variable contributes nothing, so a deployment that configures none of
+/// them accepts no cross-origin browser traffic at all. That is the safe direction
+/// to fail: a same-origin deployment and every server-to-server client keep working,
+/// and a misconfigured browser client fails visibly in preflight rather than silently
+/// exposing the admin surface to every origin on the internet.
+fn cors_layer() -> CorsLayer {
+    let origins: Vec<HeaderValue> = ["STORE_CORS", "ADMIN_CORS", "AUTH_CORS"]
+        .iter()
+        .filter_map(|key| std::env::var(key).ok())
+        .flat_map(|value| {
+            value
+                .split(',')
+                .filter_map(|origin| HeaderValue::from_str(origin.trim()).ok())
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_credentials(true)
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        // The requested headers are mirrored rather than allowlisted. The origin list
+        // above is the security boundary — only origins on it get a response at all —
+        // and a hand-maintained header list silently breaks clients as they evolve.
+        // A fixed list here omitted `x-medusa-locale`, which `@medusajs/js-sdk` sends
+        // on every call, so the dashboard could not even read its own auth providers
+        // and rendered a login screen with no form on it.
+        .allow_headers(AllowHeaders::mirror_request())
+}
+
+/// Populates an empty deployment with a demo catalogue, regions, tax, locales, and an
+/// owner account. Invoked by `stheno-server --seed-demo`, never on boot.
+///
+/// This used to run unconditionally inside `AppServer::new`, which meant every restart
+/// created another copy of everything and every failure was discarded. Seeding is an
+/// operator action, so it is a command with an exit code.
+pub async fn seed_demo(pool: stheno_db::DbPool) {
+    use chrono::Datelike;
+    let product_service = ProductService::new(pool.clone());
+    let region_service = RegionService::new(pool.clone());
+    let user_service = UserService::new(pool.clone());
+    let translation_service = TranslationService::new(pool.clone());
+    let sales_channel_service = SalesChannelService::new(pool.clone());
+    let stock_location_service = StockLocationService::new(pool.clone());
+    let store_service = StoreService::new(pool.clone());
+    let pricing_service = stheno_pricing::PricingService::new(pool.clone());
+    let inventory_service = stheno_inventory::InventoryService::new(pool.clone());
+    let link_store = stheno_links::PgLinkStore::new(pool.clone());
+    let tax_service = TaxService::new(pool.clone());
+
+    let sc_res = sales_channel_service
+        .create_channel(CreateSalesChannelInput {
+            name: "Default Web Channel".to_string(),
+            description: Some("Main online storefront".to_string()),
+            is_disabled: Some(false),
+        })
+        .await;
+
+    let sl_res = stock_location_service
+        .create_location(CreateStockLocationInput {
+            name: "Main Fulfillment Center".to_string(),
+            address_id: None,
+        })
+        .await;
+
+    let reg_na = region_service
+        .create_region(CreateRegionInput {
+            name: "North America".to_string(),
+            currency_code: "USD".to_string(),
+            automatic_taxes: Some(true),
+            countries: vec!["us".to_string(), "ca".to_string()],
+        })
+        .await;
+
+    let _ = region_service
+        .create_region(CreateRegionInput {
+            name: "Europe".to_string(),
+            currency_code: "EUR".to_string(),
+            automatic_taxes: Some(true),
+            countries: vec!["de".to_string(), "fr".to_string(), "gb".to_string()],
+        })
+        .await;
+
+    // The seed is written `let _ =` throughout so re-running it is a no-op. That is
+    // deliberate, but it hid a total outage once: a global unique index on country ISO
+    // codes meant only the first tenant to seed got any, the rest silently got regions
+    // with no countries, and the storefront's middleware — which builds its region map
+    // from exactly this — answered 500 on every page. Regions without countries are not
+    // a partial seed, they are an unusable storefront, so this one result is checked.
+    if let Ok(region) = &reg_na {
+        if region.countries.is_empty() {
+            eprintln!(
+                "seed: region {} has no countries — the storefront cannot route any page.                  Check region.country for a constraint rejecting this tenant's rows.",
+                region.id
+            );
+        }
+    }
+
+    // Delivery. Without a fulfillment set, a service zone covering the region's countries
+    // and a shipping option inside it, `GET /store/shipping-options` returns an empty list
+    // and the storefront's checkout stops dead at the delivery step — the buyer can fill in
+    // an address and then has nothing to pick. Every piece of this existed as an admin
+    // route; nothing seeded it, so no checkout had ever been completed end to end.
+    let fulfillment_service = stheno_fulfillment::FulfillmentService::new(pool.clone());
+    let shipping = async {
+        let profile = fulfillment_service
+            .create_shipping_profile(stheno_fulfillment::CreateShippingProfileInput {
+                name: "Default".to_string(),
+                r#type: Some("default".to_string()),
+                metadata: None,
+            })
+            .await
+            .ok()?;
+        let set = fulfillment_service
+            .create_fulfillment_set(stheno_fulfillment::CreateFulfillmentSetInput {
+                name: "Default Delivery".to_string(),
+                r#type: "shipping".to_string(),
+                metadata: None,
+            })
+            .await
+            .ok()?;
+        let zone = fulfillment_service
+            .create_service_zone(stheno_fulfillment::CreateServiceZoneInput {
+                fulfillment_set_id: set.id.clone(),
+                name: "Everywhere".to_string(),
+                metadata: None,
+            })
+            .await
+            .ok()?;
+
+        // The countries the two seeded regions cover, so a cart in either resolves an
+        // option rather than only the US one.
+        for country in ["us", "ca", "de", "fr", "gb"] {
+            let _ = fulfillment_service
+                .create_geo_zone(stheno_fulfillment::CreateGeoZoneInput {
+                    service_zone_id: zone.id.clone(),
+                    r#type: "country".to_string(),
+                    country_code: country.to_string(),
+                    province_code: None,
+                    city: None,
+                    postal_expression: None,
+                    metadata: None,
+                })
+                .await;
+        }
+
+        // Priced, in both seeded currencies. An unpriced shipping option is legitimate
+        // (free delivery) but makes "is shipping actually charged" untestable, and the
+        // cart used to hardcode zero regardless.
+        for (name, usd, eur) in [
+            (
+                "Standard Delivery",
+                rust_decimal_macros::dec!(10.00),
+                rust_decimal_macros::dec!(9.00),
+            ),
+            (
+                "Express Delivery",
+                rust_decimal_macros::dec!(25.00),
+                rust_decimal_macros::dec!(22.00),
+            ),
+        ] {
+            let Ok(option) = fulfillment_service
+                .create_shipping_option(stheno_fulfillment::CreateShippingOptionInput {
+                    name: name.to_string(),
+                    price_type: "flat".to_string(),
+                    service_zone_id: zone.id.clone(),
+                    shipping_profile_id: profile.id.clone(),
+                    provider_id: "manual".to_string(),
+                    shipping_option_type_id: None,
+                    data: None,
+                    metadata: None,
+                })
+                .await
+            else {
+                continue;
+            };
+
+            let _ = pricing_service
+                .set_shipping_option_prices(
+                    &option.id,
+                    vec![
+                        stheno_pricing::CreatePriceInput {
+                            currency_code: "usd".to_string(),
+                            amount: usd,
+                            min_quantity: None,
+                            max_quantity: None,
+                            price_list_id: None,
+                            rules: None,
+                        },
+                        stheno_pricing::CreatePriceInput {
+                            currency_code: "eur".to_string(),
+                            amount: eur,
+                            min_quantity: None,
+                            max_quantity: None,
+                            price_list_id: None,
+                            rules: None,
+                        },
+                    ],
+                )
+                .await;
+        }
+        Some(())
+    }
+    .await;
+    if shipping.is_none() {
+        eprintln!("seed: no shipping option was created — checkout cannot reach payment.");
+    }
+
+    let tr_res = tax_service
+        .create_tax_region(CreateTaxRegionInput {
+            country_code: "us".to_string(),
+            province_code: None,
+            parent_id: None,
+            provider_id: None,
+        })
+        .await;
+
+    if let Ok(tr) = tr_res {
+        let _ = tax_service
+            .create_tax_rate(CreateTaxRateInput {
+                tax_region_id: tr.id.to_string(),
+                rate: rust_decimal_macros::dec!(0.10),
+                code: "STANDARD_VAT".to_string(),
+                name: "Standard Sales Tax (10%)".to_string(),
+                is_default: Some(true),
+                is_combinable: Some(false),
+                rules: None,
+            })
+            .await;
+    }
+
+    let _ = store_service
+        .create_store(CreateStoreInput {
+            name: "Stheno Store".to_string(),
+            default_sales_channel_id: sc_res.ok().map(|s| s.id.to_string()),
+            default_region_id: reg_na.ok().map(|r| r.id.to_string()),
+            default_location_id: sl_res.as_ref().ok().map(|l| l.id.to_string()),
+            supported_currencies: Some(vec!["usd".to_string(), "eur".to_string()]),
+            default_currency_code: Some("usd".to_string()),
+            supported_locales: Some(vec!["en".to_string()]),
+            default_locale: Some("en".to_string()),
+        })
+        .await;
+
+    // Products are seeded with a size option, one variant per size, and a price per
+    // variant. Previously they were seeded bare: no options, no variants, no prices — so
+    // the storefront rendered a catalogue nothing could be selected from or added to a
+    // cart, and every checkout journey was untestable end to end.
+    let demo_products = [
+        (
+            "Stheno Performance Hoodie",
+            "stheno-performance-hoodie",
+            "Heavyweight Organic Cotton Fleece",
+            "Engineered for comfort and durability with signature flatlock stitching.",
+            "HOODIE",
+            rust_decimal_macros::dec!(120.00),
+            rust_decimal_macros::dec!(110.00),
+        ),
+        (
+            "Stheno Signature Tee",
+            "stheno-signature-tee",
+            "240 GSM Combed Jersey",
+            "Relaxed fit premium daily essential.",
+            "TEE",
+            rust_decimal_macros::dec!(45.00),
+            rust_decimal_macros::dec!(40.00),
+        ),
+    ];
+
+    for (title, handle, subtitle, description, sku_prefix, usd, eur) in demo_products {
+        let Ok(product) = product_service
+            .create_product(CreateProductInput {
+                title: title.to_string(),
+                handle: Some(handle.to_string()),
+                subtitle: Some(subtitle.to_string()),
+                description: Some(description.to_string()),
+                discountable: Some(true),
+            })
+            .await
+        else {
+            // Already seeded — the handle is unique per tenant.
+            continue;
+        };
+
+        let product_id = product.id.to_string();
+        let Ok(option_id) = product_service.create_option(&product_id, "Size").await else {
+            continue;
+        };
+
+        for size in ["S", "M", "L"] {
+            let Ok(value_id) = product_service.create_option_value(&option_id, size).await else {
+                continue;
+            };
+            let Ok(variant) = product_service
+                .create_variant(stheno_product::CreateVariantInput {
+                    product_id: product_id.clone(),
+                    title: format!("{title} / {size}"),
+                    sku: Some(format!("{sku_prefix}-{size}")),
+                    barcode: None,
+                    option_value_ids: vec![value_id],
+                })
+                .await
+            else {
+                continue;
+            };
+
+            // Stock, linked to the variant. Without an inventory item every variant is
+            // stock-tracked with an unknown quantity, which the storefront renders as
+            // "Out of stock" — so the catalogue looked entirely sold out.
+            if let Ok(location) = &sl_res {
+                if let Ok(item) = inventory_service
+                    .create_item(stheno_inventory::CreateInventoryItemInput {
+                        sku: Some(format!("{sku_prefix}-{size}")),
+                        requires_shipping: Some(true),
+                    })
+                    .await
+                {
+                    let item_id = item.id.to_string();
+                    let _ = link_store
+                        .link(
+                            "product_variant_inventory_item",
+                            &variant.id.to_string(),
+                            &item_id,
+                        )
+                        .await;
+                    let _ = inventory_service
+                        .create_level(stheno_inventory::CreateInventoryLevelInput {
+                            inventory_item_id: item_id,
+                            location_id: location.id.to_string(),
+                            stocked_quantity: 100,
+                        })
+                        .await;
+                }
+            }
+
+            // Both seeded currencies, because the storefront prices from the shopper's
+            // region and a variant priced only in USD is invisible in the EU store.
+            let _ = pricing_service
+                .set_variant_prices(
+                    &variant.id.to_string(),
+                    vec![
+                        stheno_pricing::CreatePriceInput {
+                            currency_code: "usd".to_string(),
+                            amount: usd,
+                            min_quantity: None,
+                            max_quantity: None,
+                            price_list_id: None,
+                            rules: None,
+                        },
+                        stheno_pricing::CreatePriceInput {
+                            currency_code: "eur".to_string(),
+                            amount: eur,
+                            min_quantity: None,
+                            max_quantity: None,
+                            price_list_id: None,
+                            rules: None,
+                        },
+                    ],
+                )
+                .await;
+        }
+    }
+
+    for (title, handle) in [("Featured", "featured"), ("Latest Drops", "latest-drops")] {
+        let _ = product_service
+            .create_collection(CreateCollectionInput {
+                title: title.to_string(),
+                handle: Some(handle.to_string()),
+                metadata: None,
+            })
+            .await;
+    }
+
+    for (code, name, is_default) in [("en", "English", true), ("de", "Deutsch", false)] {
+        let _ = translation_service
+            .create_locale(CreateLocaleInput {
+                code: code.to_string(),
+                name: name.to_string(),
+                is_default: Some(is_default),
+                is_enabled: Some(true),
+            })
+            .await;
+    }
+
+    // Reporting rollups, so a demo deployment's analytics screen has something to plot.
+    // Without these the charts render their empty state and nothing about the reporting
+    // path is exercised end to end.
+    let reporting_service = stheno_reporting::ReportingService::new(pool.clone());
+    let today = chrono::Utc::now().date_naive();
+    let titles = [
+        "Stheno Performance Hoodie",
+        "Stheno Signature Tee",
+        "Selvedge Denim Overshirt",
+    ];
+    for day_offset in 0..45i64 {
+        let date = today - chrono::Duration::days(day_offset);
+        // A weekly rhythm rather than a flat line, so the chart shows shape.
+        let weekday_factor = match date.weekday() {
+            chrono::Weekday::Sat | chrono::Weekday::Sun => 60i64,
+            chrono::Weekday::Wed | chrono::Weekday::Thu => 130,
+            _ => 100,
+        };
+        let orders_today = 2 + (day_offset * 7 % 5) + weekday_factor / 65;
+        for order in 0..orders_today {
+            let revenue = rust_decimal::Decimal::from(
+                (45 + order * 17 + (day_offset % 11) * 6) * weekday_factor / 100,
+            );
+            let units = 1 + order % 3;
+            let index = (order % 3) as usize;
+            let _ = reporting_service
+                .record_order_placed(stheno_reporting::RecordOrderPlacedInput {
+                    date,
+                    currency: "USD".to_string(),
+                    total_revenue: revenue,
+                    units,
+                    items: vec![stheno_reporting::OrderPlacedRollupItem {
+                        product_id: format!("prod_demo_{index}"),
+                        title: titles[index].to_string(),
+                        units,
+                        total_revenue: revenue,
+                    }],
+                })
+                .await;
+        }
+    }
+
+    // Default RBAC roles per tenant. `seed_default_roles` has existed since P7-18 and
+    // was never called, which is why the roles screen had nothing real to show.
+    let rbac_service = stheno_rbac::RbacService::new(pool.clone());
+    if let Err(e) = rbac_service.seed_default_roles().await {
+        tracing::warn!("could not seed default roles: {e}");
+    }
+
+    let _ = user_service
+        .create_user(CreateUserInput {
+            email: "admin@stheno.store".to_string(),
+            first_name: Some("System".to_string()),
+            last_name: Some("Administrator".to_string()),
+            avatar_url: None,
+            role: Some("admin".to_string()),
+            metadata: None,
+        })
+        .await;
+}
+
 pub struct AppServer {
     pub context: AppContext,
     pub router: Router,
@@ -81,6 +555,21 @@ impl AppServer {
         let pricing_service = Arc::new(PricingService::new(pool.clone()));
         let cart_service = Arc::new(CartService::new(pool.clone()));
         let payment_service = Arc::new(PaymentService::new(pool.clone()));
+        // Cash on delivery costs nothing to run, so it is never gated (ENTITLEMENTS.md 4.1).
+        payment_service.register_provider(Arc::new(OfflinePaymentProvider::default()));
+        // The gateway burns per-transaction fees, so it is the Pro line (ENTITLEMENTS.md 4.3).
+        // Enforced by registration, not by a branch in checkout: a tier without it simply
+        // has no gateway provider to select, and the storefront falls back to COD.
+        if entitlements.has(Feature::PaymentGateway) {
+            if let Ok(api_key) = std::env::var("STRIPE_API_KEY") {
+                payment_service.register_provider(Arc::new(StripePaymentProvider::new(
+                    &api_key,
+                    &std::env::var("STRIPE_WEBHOOK_SECRET").unwrap_or_default(),
+                    None,
+                    std::env::var("STRIPE_LIVEMODE").is_ok_and(|v| v == "true"),
+                )));
+            }
+        }
         let order_service = Arc::new(OrderService::new(pool.clone()));
         let fulfillment_service = Arc::new(FulfillmentService::new(pool.clone()));
         fulfillment_service.register_provider(Arc::new(ManualFulfillmentProvider::new()));
@@ -96,152 +585,96 @@ impl AppServer {
         let translation_service = Arc::new(TranslationService::new(pool.clone()));
         let reporting_service = Arc::new(stheno_reporting::ReportingService::new(pool.clone()));
         let workflow_store = Arc::new(WorkflowStore::from_pool(pool.clone()));
+        let platform_service = Arc::new(PlatformService::new(pool.clone()));
+        let rbac_service = Arc::new(stheno_rbac::RbacService::new(pool.clone()));
+        let settings_service = Arc::new(stheno_settings::SettingsService::new(pool.clone()));
         let auth_flows = Arc::new(AuthWorkflows::new(auth_service.clone()));
         let order_flow = Arc::new(OrderWorkflowEngine::new(order_service.clone()));
+        let social_flows = Arc::new(stheno_flows_order::SocialDraftWorkflow::new(
+            order_service.clone(),
+        ));
         let return_flow = Arc::new(ReturnWorkflowEngine::new(
             order_service.clone(),
             Some(inventory_service.clone()),
         ));
 
-        // Seed default store catalog & demo items
-        let ps = product_service.clone();
-        let rs = region_service.clone();
-        let us = user_service.clone();
-        let ts = translation_service.clone();
-        let sc = sales_channel_service.clone();
-        let sl = stock_location_service.clone();
-        let ss = store_service.clone();
-        let tax_s = tax_service.clone();
-        tokio::spawn(async move {
-            let sc_res = sc
-                .create_channel(CreateSalesChannelInput {
-                    name: "Default Web Channel".to_string(),
-                    description: Some("Main online storefront".to_string()),
-                    is_disabled: Some(false),
-                })
-                .await;
+        // Quota usage is read from the counter table on every request, so the
+        // dashboard's quota bars and grace banner reflect the database rather than
+        // a value fixed at boot (ENTITLEMENTS.md 6.2).
+        let usage_snapshot = Arc::new(UsageSnapshot::from_counter(QuotaCounter::new(pool.clone())));
 
-            let sl_res = sl
-                .create_location(CreateStockLocationInput {
-                    name: "Main Fulfillment Center".to_string(),
-                    address_id: None,
-                })
-                .await;
+        let cors = cors_layer();
 
-            let reg_na = rs
-                .create_region(CreateRegionInput {
-                    name: "North America".to_string(),
-                    currency_code: "USD".to_string(),
-                    automatic_taxes: Some(true),
-                    countries: vec!["us".to_string(), "ca".to_string()],
-                })
-                .await;
+        // The never-gateable admin surface (ENTITLEMENTS.md 4.1). None of it costs
+        // marginal money, so none of it is sellable.
+        let admin_core = Router::new()
+            .merge(admin_catalog_routes(
+                product_service.clone(),
+                pricing_service.clone(),
+            ))
+            .merge(admin_order_routes(
+                order_service.clone(),
+                fulfillment_service.clone(),
+                payment_service.clone(),
+            ))
+            .merge(admin_customer_routes(customer_service.clone()))
+            .merge(admin_inventory_routes(
+                inventory_service.clone(),
+                stock_location_service.clone(),
+            ))
+            .merge(admin_pricing_routes(pricing_service.clone()))
+            .merge(admin_promotion_routes(promotion_service.clone()))
+            .merge(admin_user_routes(user_service.clone()))
+            .merge(admin_store_routes(store_service.clone()))
+            .merge(admin_config_routes(
+                region_service.clone(),
+                currency_service.clone(),
+                tax_service.clone(),
+                sales_channel_service.clone(),
+            ))
+            .merge(admin_api_key_routes())
+            .merge(admin_rbac_routes(rbac_service.clone()))
+            .merge(admin_fulfillment_settings_routes(
+                fulfillment_service.clone(),
+            ))
+            .merge(admin_localisation_routes(
+                translation_service.clone(),
+                settings_service.clone(),
+            ))
+            // The platform surface is never gated: the dashboard has to be able to
+            // read its own entitlements in order to hide what it may not show.
+            .merge(admin_platform_routes(AdminPlatformContext {
+                entitlements: entitlements.clone(),
+                usage: usage_snapshot.clone(),
+                workflows: workflow_store.clone(),
+            }));
 
-            let _ = rs
-                .create_region(CreateRegionInput {
-                    name: "Europe".to_string(),
-                    currency_code: "EUR".to_string(),
-                    automatic_taxes: Some(true),
-                    countries: vec!["de".to_string(), "fr".to_string(), "gb".to_string()],
-                })
-                .await;
-
-            let tr_res = tax_s
-                .create_tax_region(CreateTaxRegionInput {
-                    country_code: "us".to_string(),
-                    province_code: None,
-                    parent_id: None,
-                    provider_id: None,
-                })
-                .await;
-
-            if let Ok(tr) = tr_res {
-                let _ = tax_s
-                    .create_tax_rate(CreateTaxRateInput {
-                        tax_region_id: tr.id.to_string(),
-                        rate: rust_decimal_macros::dec!(0.10),
-                        code: "STANDARD_VAT".to_string(),
-                        name: "Standard Sales Tax (10%)".to_string(),
-                        is_default: Some(true),
-                        is_combinable: Some(false),
-                        rules: None,
-                    })
-                    .await;
-            }
-
-            let _ = ss
-                .create_store(CreateStoreInput {
-                    name: "Stheno Store".to_string(),
-                    default_sales_channel_id: sc_res.ok().map(|s| s.id.to_string()),
-                    default_region_id: reg_na.ok().map(|r| r.id.to_string()),
-                    default_location_id: sl_res.ok().map(|l| l.id.to_string()),
-                    supported_currencies: Some(vec!["usd".to_string(), "eur".to_string()]),
-                    default_currency_code: Some("usd".to_string()),
-                    supported_locales: Some(vec!["en".to_string()]),
-                    default_locale: Some("en".to_string()),
-                })
-                .await;
-
-            let _ = ps
-                .create_product(CreateProductInput {
-                    title: "Stheno Performance Hoodie".to_string(),
-                    handle: Some("stheno-performance-hoodie".to_string()),
-                    subtitle: Some("Heavyweight Organic Cotton Fleece".to_string()),
-                    description: Some(
-                        "Engineered for comfort and durability with signature flatlock stitching."
-                            .to_string(),
-                    ),
-                    discountable: Some(true),
-                })
-                .await;
-
-            let _ = ps
-                .create_product(CreateProductInput {
-                    title: "Stheno Signature Tee".to_string(),
-                    handle: Some("stheno-signature-tee".to_string()),
-                    subtitle: Some("240 GSM Combed Jersey".to_string()),
-                    description: Some("Relaxed fit premium daily essential.".to_string()),
-                    discountable: Some(true),
-                })
-                .await;
-
-            for (title, handle) in [("Featured", "featured"), ("Latest Drops", "latest-drops")] {
-                let _ = ps
-                    .create_collection(CreateCollectionInput {
-                        title: title.to_string(),
-                        handle: Some(handle.to_string()),
-                        metadata: None,
-                    })
-                    .await;
-            }
-
-            for (code, name, is_default) in [("en", "English", true), ("de", "Deutsch", false)] {
-                let _ = ts
-                    .create_locale(CreateLocaleInput {
-                        code: code.to_string(),
-                        name: name.to_string(),
-                        is_default: Some(is_default),
-                        is_enabled: Some(true),
-                    })
-                    .await;
-            }
-
-            let _ = us
-                .create_user(CreateUserInput {
-                    email: "admin@stheno.store".to_string(),
-                    first_name: Some("System".to_string()),
-                    last_name: Some("Administrator".to_string()),
-                    avatar_url: None,
-                    role: Some("admin".to_string()),
-                    metadata: None,
-                })
-                .await;
-        });
-
-        let cors = CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any);
+        // A gate is a mount-point decision, never an `if` inside domain logic
+        // (ENTITLEMENTS.md 6.1). An unentitled route 404s, which is axum's default
+        // for something that was never mounted -- deliberately not a 403, because a
+        // 403 confirms the feature exists and invites probing.
+        //
+        // Reporting carries `analytics_basic`, which every tier holds today, so this
+        // group mounts everywhere. It is wired through the gate anyway because the
+        // tier-matrix test (ENTITLEMENTS.md 8) asserts against the mounted set: the
+        // day a tier drops the feature, this fails loudly instead of leaking it.
+        // What actually separates Free from Pro on the reporting surface is the
+        // window clamp inside `admin_reports_routes`, not the mount.
+        let admin_routes = mount_gated(
+            admin_core,
+            &entitlements,
+            vec![GatedGroup::new(
+                Feature::AnalyticsBasic,
+                admin_reports_routes(reporting_service.clone()),
+            )],
+        )
+        // Every /admin route routes through one credential check rather than
+        // eighty-five (SECURITY.md 6). Auth and store routes are mounted outside
+        // it: /auth is how you obtain the token in the first place.
+        .layer(middleware::from_fn_with_state(
+            auth_service.clone(),
+            require_admin,
+        ));
 
         let router = Router::new()
             .route("/health", get({
@@ -280,9 +713,15 @@ impl AppServer {
                 }))
             }))
             .merge(store_routes(StoreApiContext {
+                social_flows: social_flows.clone(),
+                store_service: store_service.clone(),
+                store_name: std::env::var("STHENO_STORE_NAME")
+                    .unwrap_or_else(|_| "Stheno Store".to_string()),
                 product_service: product_service.clone(),
                 region_service: region_service.clone(),
                 currency_service: currency_service.clone(),
+                inventory_service: inventory_service.clone(),
+                links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
                 pricing_service: pricing_service.clone(),
                 cart_service: cart_service.clone(),
                 payment_service: payment_service.clone(),
@@ -295,24 +734,34 @@ impl AppServer {
                 translation_service: translation_service.clone(),
                 promotion_service: Some(promotion_service.clone()),
             }))
-            .merge(admin_catalog_routes(product_service.clone()))
-            .merge(admin_order_routes(order_service.clone(), fulfillment_service.clone(), payment_service.clone()))
-            .merge(admin_customer_routes(customer_service.clone()))
-            .merge(admin_inventory_routes(inventory_service.clone(), stock_location_service.clone()))
-            .merge(admin_pricing_routes(pricing_service.clone()))
-            .merge(admin_promotion_routes(promotion_service.clone()))
-            .merge(admin_user_routes(user_service.clone()))
-            .merge(admin_store_routes(store_service.clone()))
-            .merge(admin_config_routes(region_service.clone(), currency_service.clone(), tax_service.clone(), sales_channel_service.clone()))
-            .merge(admin_reports_routes(reporting_service.clone()))
-            .merge(admin_api_key_routes())
+            .merge(admin_routes)
             .merge(auth_routes(AuthApiContext { auth_flows }))
-            .merge(admin_platform_routes(AdminPlatformContext {
-                entitlements: entitlements.clone(),
-                // ponytail: usage is reported as zero until the quota counter table
-                // lands with persistence (ENTITLEMENTS.md 6.2).
-                usage: Arc::new(UsageSnapshot::new()),
-                workflows: workflow_store.clone(),
+            // Outermost after CORS: every route below this point runs inside a tenant
+            // scope, so nothing downstream has to know tenancy exists (ADR-012).
+            // `/health` and `/` opt out inside the layer — they report on the process,
+            // not on a merchant.
+            .layer(middleware::from_fn_with_state(
+                TenantLayerState {
+                    platform: platform_service.clone(),
+                    tier_config: Arc::new(
+                        load_tier_config().expect("config/tiers.toml must parse"),
+                    ),
+                    // The boot-time value, used only when a subscription cannot be read.
+                    fallback_entitlements: entitlements.clone(),
+                    // `STHENO_TENANT` keeps a single-merchant self-hosted install working
+                    // with no domain registry, which is the deployment shape ADR-009
+                    // described and which remains supported.
+                    fallback_tenant: std::env::var("STHENO_TENANT").ok(),
+                },
+                crate::tenant_layer::resolve_tenant,
+            ))
+            // Mounted OUTSIDE the tenant layer on purpose: the control plane reads across
+            // every merchant, so scoping it to one would defeat it. It carries its own
+            // credential and 404s without it (ADR-012).
+            .merge(platform_routes(PlatformApiContext {
+                platform: platform_service.clone(),
+                tier_config: Arc::new(load_tier_config().expect("config/tiers.toml must parse")),
+                operator_token: std::env::var("STHENO_PLATFORM_TOKEN").ok(),
             }))
             .layer(cors);
 
