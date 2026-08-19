@@ -31,7 +31,9 @@ use stheno_tax::TaxService;
 #[tokio::test]
 async fn test_admin_catalog_endpoints_parity() {
     let db = TestDb::migrated().await;
-    let service = Arc::new(ProductService::new(create_pool(&db.url, 5).expect("pool")));
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = Arc::new(ProductService::new(pool.clone()));
+    let pricing = Arc::new(PricingService::new(pool));
 
     // 1. Seed product
     let prod = service
@@ -56,7 +58,7 @@ async fn test_admin_catalog_endpoints_parity() {
         .await
         .unwrap();
 
-    let app = admin_catalog_routes(service.clone());
+    let app = admin_catalog_routes(service.clone(), pricing);
 
     // 3. GET /admin/products
     let response = app

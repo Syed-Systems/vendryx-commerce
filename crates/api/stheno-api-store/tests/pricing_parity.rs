@@ -61,6 +61,16 @@ async fn test_store_pricing_endpoints_parity() {
     let translation_service = Arc::new(stheno_translation::TranslationService::new(pool.clone()));
 
     let ctx = StoreApiContext {
+        // Social checkout is not what this suite exercises, but the context needs them.
+        social_flows: std::sync::Arc::new(stheno_flows_order::SocialDraftWorkflow::new(
+            order_service.clone(),
+        )),
+        store_service: std::sync::Arc::new(stheno_store::StoreService::new(pool.clone())),
+        store_name: "Test Store".to_string(),
+        inventory_service: std::sync::Arc::new(stheno_inventory::InventoryService::new(
+            pool.clone(),
+        )),
+        links: std::sync::Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
         product_service,
         region_service,
         currency_service,

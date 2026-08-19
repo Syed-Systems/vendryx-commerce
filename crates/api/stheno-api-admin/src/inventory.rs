@@ -9,7 +9,7 @@ use serde_json::json;
 use std::sync::Arc;
 use stheno_api_core::ErrorResponse;
 use stheno_inventory::{
-    CreateInventoryItemInput, CreateReservationInput, InventoryService,
+    CreateInventoryItemInput, CreateInventoryLevelInput, CreateReservationInput, InventoryService,
 };
 use stheno_stock_location::{CreateStockLocationInput, StockLocationService};
 
@@ -34,39 +34,66 @@ pub struct UpdateStockLocationPayload {
 }
 
 // 1. Inventory Items Handlers
+fn internal(e: &stheno_types::Error) -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+    )
+        .into_response()
+}
+
+fn not_found(e: &stheno_types::Error) -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ErrorResponse::new("not_found", &e.to_string())),
+    )
+        .into_response()
+}
+
+fn bad_request(e: &stheno_types::Error) -> Response {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ErrorResponse::new("invalid_data", &e.to_string())),
+    )
+        .into_response()
+}
+
 pub async fn list_inventory_items(
-    State(_ctx): State<InventoryContext>,
+    State(ctx): State<InventoryContext>,
 ) -> Result<impl IntoResponse, Response> {
+    let items = ctx
+        .inventory_service
+        .list_items()
+        .await
+        .map_err(|e| internal(&e))?;
+    let count = items.len();
     Ok((
         StatusCode::OK,
         Json(json!({
-            "inventory_items": [],
-            "data": [],
-            "count": 0,
-            "offset": 0,
-            "limit": 50,
+            "inventory_items": items, "data": items,
+            "count": count, "offset": 0, "limit": count,
         })),
     ))
 }
 
 pub async fn get_inventory_item(
-    State(_ctx): State<InventoryContext>,
+    State(ctx): State<InventoryContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, Response> {
-    let mock_item = json!({
-        "id": id,
-        "sku": "SKU-DEFAULT",
-        "origin_country": null,
-        "hs_code": null,
-        "requires_shipping": true,
-        "location_levels": []
-    });
-
+    let item = ctx
+        .inventory_service
+        .get_item(&id)
+        .await
+        .map_err(|e| not_found(&e))?;
+    let levels = ctx
+        .inventory_service
+        .list_levels(&id)
+        .await
+        .map_err(|e| internal(&e))?;
     Ok((
         StatusCode::OK,
         Json(json!({
-            "inventory_item": mock_item,
-            "data": mock_item,
+            "inventory_item": item, "data": item, "location_levels": levels,
         })),
     ))
 }
@@ -96,43 +123,113 @@ pub async fn create_inventory_item(
 }
 
 pub async fn create_location_level(
-    State(_ctx): State<InventoryContext>,
+    State(ctx): State<InventoryContext>,
     Path(id): Path<String>,
     Json(payload): Json<CreateLocationLevelPayload>,
 ) -> Result<impl IntoResponse, Response> {
-    let location_level = json!({
-        "id": format!("i_lvl_{}", ulid::Ulid::new()),
-        "inventory_item_id": id,
-        "location_id": payload.location_id,
-        "stocked_quantity": payload.stocked_quantity.unwrap_or(0),
-        "reserved_quantity": 0,
-        "incoming_quantity": payload.incoming_quantity.unwrap_or(0),
-    });
+    // This previously built a plausible-looking level in JSON — with its own invented id
+    // prefix — and stored nothing. The admin showed stock that did not exist, and the
+    // very next read returned an empty list. `create_level` was there the whole time.
+    let level = ctx
+        .inventory_service
+        .create_level(CreateInventoryLevelInput {
+            inventory_item_id: id.clone(),
+            location_id: payload.location_id,
+            stocked_quantity: payload.stocked_quantity.unwrap_or(0) as i32,
+        })
+        .await
+        .map_err(|e| bad_request(&e))?;
 
     Ok((
-        StatusCode::OK,
+        StatusCode::CREATED,
         Json(json!({
-            "inventory_item": {
-                "id": id,
-                "location_levels": [location_level]
-            }
+            "inventory_level": level,
+            "data": level,
+            "inventory_item": { "id": id, "location_levels": [level] },
         })),
     ))
 }
 
 // 2. Reservations Handlers
+#[derive(serde::Deserialize)]
+pub struct ReservationQuery {
+    pub inventory_item_id: Option<String>,
+}
+
 pub async fn list_reservations(
-    State(_ctx): State<InventoryContext>,
+    State(ctx): State<InventoryContext>,
+    axum::extract::Query(query): axum::extract::Query<ReservationQuery>,
 ) -> Result<impl IntoResponse, Response> {
+    let reservations = ctx
+        .inventory_service
+        .list_reservations(query.inventory_item_id.as_deref())
+        .await
+        .map_err(|e| internal(&e))?;
+    let count = reservations.len();
     Ok((
         StatusCode::OK,
         Json(json!({
-            "reservations": [],
-            "data": [],
-            "count": 0,
-            "offset": 0,
-            "limit": 50,
+            "reservations": reservations, "data": reservations,
+            "count": count, "offset": 0, "limit": count,
         })),
+    ))
+}
+
+pub async fn get_reservation(
+    State(ctx): State<InventoryContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let reservation = ctx
+        .inventory_service
+        .get_reservation(&id)
+        .await
+        .map_err(|e| not_found(&e))?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "reservation": reservation, "data": reservation })),
+    ))
+}
+
+pub async fn delete_reservation(
+    State(ctx): State<InventoryContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    // Releasing returns the quantity to available stock; deleting the row without
+    // releasing would strand the reservation and permanently lose the stock.
+    ctx.inventory_service
+        .release_reservation(&id)
+        .await
+        .map_err(|e| not_found(&e))?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": id, "object": "reservation", "deleted": true })),
+    ))
+}
+
+#[derive(serde::Deserialize)]
+pub struct SetStockRequest {
+    pub stocked_quantity: i32,
+}
+
+/// `POST /admin/inventory-items/{id}/location-levels/{location_id}` — stock adjustment.
+///
+/// A receipt, a stock count, or shrinkage. There was previously no way to change stock
+/// after a level was created, which left the admin's inventory screens read-only against
+/// a number nothing could move.
+pub async fn set_stock_level(
+    State(ctx): State<InventoryContext>,
+    Path((id, location_id)): Path<(String, String)>,
+    Json(body): Json<SetStockRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let level = ctx
+        .inventory_service
+        .set_stocked_quantity(&id, &location_id, body.stocked_quantity)
+        .await
+        // Refusing to drop stock below what is reserved is a 400, not a missing record.
+        .map_err(|e| bad_request(&e))?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "inventory_level": level, "data": level })),
     ))
 }
 

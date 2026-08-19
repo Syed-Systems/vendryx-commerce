@@ -18,8 +18,56 @@ async fn test_store_cart_and_payment_endpoints_parity() {
     payment_service.register_provider(offline_provider);
 
     let app = axum::Router::new()
-        .merge(store_cart_routes(cart_service.clone()))
-        .merge(store_payment_routes(payment_service.clone()));
+        .merge(store_cart_routes(cart_context(
+            &pool,
+            cart_service.clone(),
+            None,
+        )))
+        .merge(store_payment_routes(
+            stheno_api_store::StorePaymentContext {
+                payment_service: payment_service.clone(),
+                cart_service: cart_service.clone(),
+                links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+            },
+        ));
+
+    // A priced variant to add. The old payload named a title and a `unit_price` and no
+    // variant at all, which passed only because the endpoint took the price from the
+    // request body — a shopper could name their own. Prices come from the catalogue now,
+    // so the fixture has to exist.
+    let product_service = stheno_product::ProductService::new(pool.clone());
+    let pricing_service = stheno_pricing::PricingService::new(pool.clone());
+    let product = product_service
+        .create_product(stheno_product::CreateProductInput {
+            title: "Merino Wool Beanie".to_string(),
+            handle: Some("merino-wool-beanie".to_string()),
+            ..Default::default()
+        })
+        .await
+        .expect("product");
+    let variant = product_service
+        .create_variant(stheno_product::CreateVariantInput {
+            product_id: product.id.to_string(),
+            title: "Merino Wool Beanie".to_string(),
+            sku: Some("BEANIE".to_string()),
+            ..Default::default()
+        })
+        .await
+        .expect("variant");
+    pricing_service
+        .set_variant_prices(
+            &variant.id.to_string(),
+            vec![stheno_pricing::CreatePriceInput {
+                currency_code: "usd".to_string(),
+                amount: rust_decimal_macros::dec!(25.00),
+                min_quantity: None,
+                max_quantity: None,
+                price_list_id: None,
+                rules: None,
+            }],
+        )
+        .await
+        .expect("price");
 
     // 1. POST /store/carts
     let create_payload = json!({
@@ -64,10 +112,10 @@ async fn test_store_cart_and_payment_endpoints_parity() {
     assert_eq!(get_resp.status(), StatusCode::OK);
 
     // 3. POST /store/carts/{id}/line-items
+    // No `unit_price`: the server resolves it, and a client-supplied one is ignored.
     let add_item_payload = json!({
-        "title": "Merino Wool Beanie",
+        "variant_id": variant.id.to_string(),
         "quantity": 2,
-        "unit_price": 25.0
     });
 
     let item_resp = app
@@ -89,6 +137,18 @@ async fn test_store_cart_and_payment_endpoints_parity() {
         .unwrap();
     let item_body: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(item_body["cart"]["items"].as_array().unwrap().len(), 1);
+    // The price came from the price set, not from the request.
+    //
+    // Compared by value, not by JSON token: decimals serialize as strings across this API
+    // and the cart does not normalize scale the way the pricing DTO does, so this arrives
+    // as "25.000000" while the same price on a product reads "25". Asserting the literal
+    // would be asserting the scale, which is a property of the column.
+    let unit_price: rust_decimal::Decimal = item_body["cart"]["items"][0]["unit_price"]
+        .as_str()
+        .expect("unit_price is serialized as a string")
+        .parse()
+        .expect("decimal");
+    assert_eq!(unit_price, rust_decimal_macros::dec!(25));
     let line_id = item_body["cart"]["items"][0]["id"]
         .as_str()
         .unwrap()
@@ -132,4 +192,26 @@ async fn test_store_cart_and_payment_endpoints_parity() {
         .unwrap();
     let pp_body: Value = serde_json::from_slice(&bytes).unwrap();
     assert!(!pp_body["payment_providers"].as_array().unwrap().is_empty());
+}
+
+/// Line items are priced from the catalogue now, so the cart router needs pricing, region
+/// and product services alongside the cart. Built here so tests that are not about
+/// pricing do not each have to assemble one.
+fn cart_context(
+    pool: &stheno_db::DbPool,
+    cart_service: std::sync::Arc<CartService>,
+    promotion_service: Option<std::sync::Arc<stheno_promotion::PromotionService>>,
+) -> stheno_api_store::StoreCartContext {
+    stheno_api_store::StoreCartContext {
+        cart_service,
+        promotion_service,
+        pricing_service: std::sync::Arc::new(stheno_pricing::PricingService::new(pool.clone())),
+        region_service: std::sync::Arc::new(stheno_region::RegionService::new(pool.clone())),
+        product_service: std::sync::Arc::new(stheno_product::ProductService::new(pool.clone())),
+        fulfillment_service: std::sync::Arc::new(stheno_fulfillment::FulfillmentService::new(
+            pool.clone(),
+        )),
+        links: std::sync::Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+        payment_service: std::sync::Arc::new(stheno_payment::PaymentService::new(pool.clone())),
+    }
 }

@@ -12,6 +12,59 @@ use crate::products::ErrorResponse;
 #[derive(Clone)]
 pub struct StorePaymentContext {
     pub payment_service: Arc<PaymentService>,
+    /// Supplies the amount and currency to collect. A payment collection created from
+    /// client-supplied figures would be a shopper naming what they pay.
+    pub cart_service: Arc<stheno_cart::CartService>,
+    /// Records which cart the collection belongs to.
+    pub links: Arc<stheno_links::PgLinkStore>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreatePaymentCollectionRequest {
+    pub cart_id: String,
+}
+
+/// `POST /store/payment-collections` — open a payment collection for a cart.
+///
+/// This route did not exist. `@medusajs/js-sdk`'s `initiatePaymentSession` calls it first
+/// and uses the id it returns to create the session, so with it absent the call 404'd, no
+/// session was ever created, and the checkout's review step — which renders only once
+/// `cart.payment_collection` is present — stayed empty. The last step of the checkout was
+/// unreachable and nothing said so.
+pub async fn create_payment_collection(
+    State(ctx): State<StorePaymentContext>,
+    Json(body): Json<CreatePaymentCollectionRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let cart = ctx
+        .cart_service
+        .get_cart(&body.cart_id)
+        .await
+        .map_err(map_error)?;
+
+    let collection = ctx
+        .payment_service
+        .create_payment_collection(stheno_payment::CreatePaymentCollectionInput {
+            currency_code: cart.currency_code.clone(),
+            // The cart's own total, never the request's.
+            amount: cart.totals.total,
+            metadata: None,
+        })
+        .await
+        .map_err(map_error)?;
+
+    // Without this the collection exists but belongs to nothing, and the cart can never
+    // report it.
+    ctx.links
+        .link("cart_payment_collection", &body.cart_id, &collection.id)
+        .await
+        .map_err(map_error)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(PaymentCollectionResponse {
+            payment_collection: collection,
+        }),
+    ))
 }
 
 #[derive(Debug, Serialize)]

@@ -3,7 +3,7 @@ use axum::http::{Request, StatusCode};
 use rust_decimal_macros::dec;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use stheno_api_store::store_cart_routes_with_promotions;
+use stheno_api_store::store_cart_routes;
 use stheno_cart::CartService;
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
@@ -16,7 +16,44 @@ async fn test_store_cart_promotion_application_parity() {
     let pool = create_pool(&db.url, 5).expect("pool");
 
     let cart_service = Arc::new(CartService::new(pool.clone()));
-    let promo_service = Arc::new(PromotionService::new(pool));
+    let promo_service = Arc::new(PromotionService::new(pool.clone()));
+
+    // A priced variant to discount. Line items are priced from the catalogue now, so a
+    // request naming only a title and a price is refused — which is the fix, not a
+    // regression: it was how a shopper could set their own price.
+    let product_service = stheno_product::ProductService::new(pool.clone());
+    let pricing_service = stheno_pricing::PricingService::new(pool.clone());
+    let product = product_service
+        .create_product(stheno_product::CreateProductInput {
+            title: "Winter Jacket".to_string(),
+            handle: Some("winter-jacket".to_string()),
+            ..Default::default()
+        })
+        .await
+        .expect("product");
+    let variant = product_service
+        .create_variant(stheno_product::CreateVariantInput {
+            product_id: product.id.to_string(),
+            title: "Winter Jacket".to_string(),
+            sku: Some("JACKET".to_string()),
+            ..Default::default()
+        })
+        .await
+        .expect("variant");
+    pricing_service
+        .set_variant_prices(
+            &variant.id.to_string(),
+            vec![stheno_pricing::CreatePriceInput {
+                currency_code: "usd".to_string(),
+                amount: rust_decimal_macros::dec!(100.00),
+                min_quantity: None,
+                max_quantity: None,
+                price_list_id: None,
+                rules: None,
+            }],
+        )
+        .await
+        .expect("price");
 
     // 1. Create a 20% discount promotion
     promo_service
@@ -45,7 +82,11 @@ async fn test_store_cart_promotion_application_parity() {
         .await
         .expect("promotion created");
 
-    let app = store_cart_routes_with_promotions(cart_service.clone(), Some(promo_service));
+    let app = store_cart_routes(cart_context(
+        &pool,
+        cart_service.clone(),
+        Some(promo_service),
+    ));
 
     // 2. Create Cart: POST /store/carts
     let create_cart_payload = json!({
@@ -75,9 +116,8 @@ async fn test_store_cart_promotion_application_parity() {
 
     // 3. Add Line Item: POST /store/carts/{id}/line-items ($100 x 2 = $200)
     let add_item_payload = json!({
-        "title": "Winter Jacket",
+        "variant_id": variant.id.to_string(),
         "quantity": 2,
-        "unit_price": 100.0
     });
 
     let item_resp = app
@@ -120,15 +160,37 @@ async fn test_store_cart_promotion_application_parity() {
     let res: stheno_api_store::carts::CartResponse =
         serde_json::from_slice(&promo_bytes).expect("deserialise CartResponse");
 
-    assert_eq!(res.cart.items.len(), 1);
-    assert_eq!(res.cart.items[0].adjustments.len(), 1);
+    assert_eq!(res.cart.base.items.len(), 1);
+    assert_eq!(res.cart.base.items[0].adjustments.len(), 1);
     assert_eq!(
-        res.cart.items[0].adjustments[0].code.as_deref(),
+        res.cart.base.items[0].adjustments[0].code.as_deref(),
         Some("PROMO20")
     );
-    assert_eq!(res.cart.items[0].adjustments[0].amount, dec!(40));
+    assert_eq!(res.cart.base.items[0].adjustments[0].amount, dec!(40));
 
     // Totals verification
-    assert_eq!(res.cart.totals.discount_total, dec!(40));
-    assert_eq!(res.cart.totals.total, dec!(160));
+    assert_eq!(res.cart.base.totals.discount_total, dec!(40));
+    assert_eq!(res.cart.base.totals.total, dec!(160));
+}
+
+/// Line items are priced from the catalogue now, so the cart router needs pricing, region
+/// and product services alongside the cart. Built here so tests that are not about
+/// pricing do not each have to assemble one.
+fn cart_context(
+    pool: &stheno_db::DbPool,
+    cart_service: std::sync::Arc<CartService>,
+    promotion_service: Option<std::sync::Arc<stheno_promotion::PromotionService>>,
+) -> stheno_api_store::StoreCartContext {
+    stheno_api_store::StoreCartContext {
+        cart_service,
+        promotion_service,
+        pricing_service: std::sync::Arc::new(stheno_pricing::PricingService::new(pool.clone())),
+        region_service: std::sync::Arc::new(stheno_region::RegionService::new(pool.clone())),
+        product_service: std::sync::Arc::new(stheno_product::ProductService::new(pool.clone())),
+        fulfillment_service: std::sync::Arc::new(stheno_fulfillment::FulfillmentService::new(
+            pool.clone(),
+        )),
+        links: std::sync::Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+        payment_service: std::sync::Arc::new(stheno_payment::PaymentService::new(pool.clone())),
+    }
 }

@@ -1,6 +1,7 @@
 //! `stheno-api-core`: Shared response envelopes and DTO wrappers for Medusa v2 wire-compatibility.
 
 pub mod entitlements;
+pub mod tenant_entitlements;
 
 pub use entitlements::{
     Entitlements, EntitlementsError, Feature, QuotaKey, QuotaState, Tier, TierConfig,

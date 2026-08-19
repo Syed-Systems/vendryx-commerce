@@ -20,11 +20,16 @@ fn app(tier: Tier, usage: UsageSnapshot) -> axum::Router {
         .resolve(tier, &BTreeMap::new())
         .expect("tier must resolve");
 
+    // The handlers read the caller's entitlements from a request extension, because one
+    // process now serves tenants on different tiers (ADR-012). In the server the tenant
+    // layer sets it; here the test supplies it directly.
+    let entitlements = Arc::new(entitlements);
     admin_platform_routes(AdminPlatformContext {
-        entitlements: Arc::new(entitlements),
+        entitlements: entitlements.clone(),
         usage: Arc::new(usage),
         workflows: Arc::new(WorkflowStore::new()),
     })
+    .layer(axum::Extension(entitlements))
 }
 
 async fn get_json(app: axum::Router, uri: &str) -> (StatusCode, Value) {
@@ -53,7 +58,35 @@ async fn feature_flags_use_medusas_exact_shape() {
     let flags = json["feature_flags"]
         .as_object()
         .expect("feature_flags must be an object");
-    assert_eq!(flags.len(), 8, "the map must be total, not sparse");
+
+    // Totality is the property that matters: the dashboard's hook reads an absent flag
+    // as `false`, so a name it asks for and does not get silently hides a screen. This
+    // used to be `len() == 8`, which asserted totality only by coincidence — it also
+    // forbade any *other* flag from appearing, and so failed the moment the capability
+    // flags the fork actually reads were added. Naming both sets keeps the real
+    // guarantee and drops the accidental one.
+    for name in [
+        "spreadsheet_import",
+        "csv_export",
+        "web_push",
+        "analytics_basic",
+        "payment_gateway",
+        "courier_dispatch",
+        "fraud_score",
+        "custom_domain",
+    ] {
+        assert!(
+            flags[name].is_boolean(),
+            "tier feature {name} must be present"
+        );
+    }
+    for name in ["rbac", "translation", "view_configurations"] {
+        assert!(
+            flags[name].is_boolean(),
+            "capability flag {name} must be present — the dashboard reads it"
+        );
+    }
+
     assert_eq!(flags["web_push"], Value::Bool(true));
     assert_eq!(flags["payment_gateway"], Value::Bool(false));
 }

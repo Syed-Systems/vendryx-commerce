@@ -8,10 +8,12 @@ pub mod customers;
 pub mod locales;
 pub mod orders;
 pub mod payment_collections;
+pub mod product_expand;
 pub mod products;
 pub mod regions;
 pub mod returns;
 pub mod shipping_options;
+pub mod social;
 pub mod variants;
 
 use axum::routing::{get, post};
@@ -30,19 +32,28 @@ use stheno_product::ProductService;
 use stheno_region::RegionService;
 use stheno_translation::TranslationService;
 
-use carts::StoreCartContext;
+pub use carts::StoreCartContext;
 use customers::StoreCustomerContext;
 use orders::StoreOrderContext;
-use payment_collections::StorePaymentContext;
+pub use payment_collections::StorePaymentContext;
 use returns::StoreReturnContext;
 use shipping_options::StoreShippingOptionContext;
 
 #[derive(Clone)]
 pub struct StoreApiContext {
+    /// Queues social drafts (PRODUCT.md §5.2). `SocialDraftWorkflow` existed with tests
+    /// and no HTTP surface until this was wired.
+    pub social_flows: Arc<stheno_flows_order::SocialDraftWorkflow>,
+    pub store_name: String,
+    pub store_service: Arc<stheno_store::StoreService>,
     pub product_service: Arc<ProductService>,
     pub region_service: Arc<RegionService>,
     pub currency_service: Arc<CurrencyService>,
     pub pricing_service: Arc<PricingService>,
+    pub inventory_service: Arc<stheno_inventory::InventoryService>,
+    /// Resolves cross-module associations the store API has to expand — a cart's payment
+    /// collection, a variant's price set.
+    pub links: Arc<stheno_links::PgLinkStore>,
     pub cart_service: Arc<CartService>,
     pub promotion_service: Option<Arc<stheno_promotion::PromotionService>>,
     pub payment_service: Arc<PaymentService>,
@@ -56,10 +67,20 @@ pub struct StoreApiContext {
 }
 
 /// Mounts all store catalog API routes (products & categories).
-pub fn store_catalog_routes(product_service: Arc<ProductService>) -> Router {
+pub fn store_catalog_routes(ctx: products::CatalogContext) -> Router {
+    // Products carry prices, so this router needs the pricing and region services too.
+    // Collections, variants and categories still only need the product service, so they
+    // keep their own state rather than being widened along with it.
+    let product_service = ctx.product_service.clone();
     Router::new()
         .route("/store/products", get(products::list_products))
         .route("/store/products/{id}", get(products::get_product))
+        .with_state(ctx)
+        .merge(store_catalog_secondary_routes(product_service))
+}
+
+fn store_catalog_secondary_routes(product_service: Arc<ProductService>) -> Router {
+    Router::new()
         .route("/store/collections", get(collections::list_collections))
         .route("/store/collections/{id}", get(collections::get_collection))
         .route("/store/product-variants/{id}", get(variants::get_variant))
@@ -91,19 +112,10 @@ pub fn store_currency_routes(currency_service: Arc<CurrencyService>) -> Router {
 }
 
 /// Mounts store cart and line-item API routes (TASKS P4-29).
-pub fn store_cart_routes(cart_service: Arc<CartService>) -> Router {
-    store_cart_routes_with_promotions(cart_service, None)
-}
-
-/// Mounts store cart and line-item API routes with promotions (TASKS P13-10).
-pub fn store_cart_routes_with_promotions(
-    cart_service: Arc<CartService>,
-    promotion_service: Option<Arc<stheno_promotion::PromotionService>>,
-) -> Router {
-    let ctx = StoreCartContext {
-        cart_service,
-        promotion_service,
-    };
+///
+/// Takes the whole context rather than a cart service: line items are priced from the
+/// catalogue now, so the router needs pricing, region and product alongside the cart.
+pub fn store_cart_routes(ctx: StoreCartContext) -> Router {
     Router::new()
         .route("/store/carts", post(carts::create_cart))
         .route(
@@ -127,9 +139,12 @@ pub fn store_cart_routes_with_promotions(
 }
 
 /// Mounts store payment collection and provider routes (TASKS P4-29).
-pub fn store_payment_routes(payment_service: Arc<PaymentService>) -> Router {
-    let ctx = StorePaymentContext { payment_service };
+pub fn store_payment_routes(ctx: StorePaymentContext) -> Router {
     Router::new()
+        .route(
+            "/store/payment-collections",
+            post(payment_collections::create_payment_collection),
+        )
         .route(
             "/store/payment-collections/{id}/payment-sessions",
             post(payment_collections::create_payment_session),
@@ -227,14 +242,36 @@ pub fn store_locale_routes(translation_service: Arc<TranslationService>) -> Rout
 /// Mounts all Store API routes (catalog, regions, currencies, carts, payments, orders, shipping options, returns).
 pub fn store_routes(ctx: StoreApiContext) -> Router {
     Router::new()
-        .merge(store_catalog_routes(ctx.product_service))
-        .merge(store_region_routes(ctx.region_service))
-        .merge(store_currency_routes(ctx.currency_service))
-        .merge(store_cart_routes_with_promotions(
-            ctx.cart_service,
-            ctx.promotion_service,
+        .merge(crate::social::store_social_routes(
+            crate::social::SocialContext {
+                social_flows: ctx.social_flows,
+                store_name: ctx.store_name,
+                store_service: ctx.store_service,
+            },
         ))
-        .merge(store_payment_routes(ctx.payment_service))
+        .merge(store_catalog_routes(products::CatalogContext {
+            product_service: ctx.product_service.clone(),
+            pricing_service: ctx.pricing_service.clone(),
+            region_service: ctx.region_service.clone(),
+            inventory_service: ctx.inventory_service.clone(),
+        }))
+        .merge(store_region_routes(ctx.region_service.clone()))
+        .merge(store_currency_routes(ctx.currency_service))
+        .merge(store_cart_routes(StoreCartContext {
+            cart_service: ctx.cart_service.clone(),
+            promotion_service: ctx.promotion_service,
+            pricing_service: ctx.pricing_service,
+            region_service: ctx.region_service,
+            product_service: ctx.product_service,
+            fulfillment_service: ctx.fulfillment_service.clone(),
+            links: ctx.links.clone(),
+            payment_service: ctx.payment_service.clone(),
+        }))
+        .merge(store_payment_routes(StorePaymentContext {
+            payment_service: ctx.payment_service,
+            cart_service: ctx.cart_service.clone(),
+            links: ctx.links.clone(),
+        }))
         .merge(store_order_routes(
             ctx.order_service.clone(),
             ctx.order_flows,
@@ -251,7 +288,12 @@ pub fn store_routes(ctx: StoreApiContext) -> Router {
 /// Mounts Store API routes for Phase P3 (catalog, regions, currencies).
 pub fn store_pricing_routes(ctx: StoreApiContext) -> Router {
     Router::new()
-        .merge(store_catalog_routes(ctx.product_service))
+        .merge(store_catalog_routes(products::CatalogContext {
+            product_service: ctx.product_service,
+            pricing_service: ctx.pricing_service.clone(),
+            region_service: ctx.region_service.clone(),
+            inventory_service: ctx.inventory_service.clone(),
+        }))
         .merge(store_region_routes(ctx.region_service))
         .merge(store_currency_routes(ctx.currency_service))
 }

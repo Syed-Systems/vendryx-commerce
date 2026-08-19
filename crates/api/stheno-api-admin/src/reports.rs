@@ -4,15 +4,30 @@ use axum::extract::{Query, State};
 use axum::http::header::{HeaderMap, CONTENT_TYPE};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::Extension;
 use axum::Json;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use stheno_api_core::{Entitlements, WindowKey};
 use stheno_reporting::ReportingService;
 
 #[derive(Clone)]
 pub struct AdminReportingContext {
     pub reporting_service: Arc<ReportingService>,
+}
+
+/// Clamps a requested reporting horizon to the caller's entitled window.
+///
+/// Free function taking the *request's* entitlements rather than a method on a context
+/// built at boot: one process serves tenants on different tiers, so a captured
+/// `Arc<Entitlements>` would apply one tenant's window to everyone (ADR-012).
+fn clamp_window(entitlements: &Entitlements, requested: Option<u32>) -> Option<u32> {
+    let Some(limit) = entitlements.window(WindowKey::AnalyticsWindowDays) else {
+        return requested;
+    };
+    let limit = limit as u32;
+    Some(requested.map_or(limit, |days| days.min(limit)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,13 +55,15 @@ pub struct ReportBody<T> {
 
 pub async fn revenue_over_time_handler(
     State(ctx): State<AdminReportingContext>,
+    Extension(entitlements): Extension<Arc<Entitlements>>,
     headers: HeaderMap,
     Query(params): Query<ReportQueryParams>,
 ) -> Response {
     let currency = params.currency.as_deref().unwrap_or("USD");
+    let window_days = clamp_window(&entitlements, params.window_days);
     match ctx
         .reporting_service
-        .get_revenue_over_time(params.from, params.to, currency, params.window_days)
+        .get_revenue_over_time(params.from, params.to, currency, window_days)
         .await
     {
         Ok(data) => {
@@ -69,7 +86,7 @@ pub async fn revenue_over_time_handler(
                 Json(ReportEnvelope {
                     report: ReportBody {
                         report_type: "revenue_over_time".to_string(),
-                        window_days: params.window_days,
+                        window_days,
                         data,
                     },
                 })
@@ -82,12 +99,14 @@ pub async fn revenue_over_time_handler(
 
 pub async fn orders_over_time_handler(
     State(ctx): State<AdminReportingContext>,
+    Extension(entitlements): Extension<Arc<Entitlements>>,
     headers: HeaderMap,
     Query(params): Query<ReportQueryParams>,
 ) -> Response {
+    let window_days = clamp_window(&entitlements, params.window_days);
     match ctx
         .reporting_service
-        .get_orders_over_time(params.from, params.to, params.window_days)
+        .get_orders_over_time(params.from, params.to, window_days)
         .await
     {
         Ok(data) => {
@@ -110,7 +129,7 @@ pub async fn orders_over_time_handler(
                 Json(ReportEnvelope {
                     report: ReportBody {
                         report_type: "orders_over_time".to_string(),
-                        window_days: params.window_days,
+                        window_days,
                         data,
                     },
                 })
@@ -123,13 +142,15 @@ pub async fn orders_over_time_handler(
 
 pub async fn top_products_handler(
     State(ctx): State<AdminReportingContext>,
+    Extension(entitlements): Extension<Arc<Entitlements>>,
     headers: HeaderMap,
     Query(params): Query<ReportQueryParams>,
 ) -> Response {
     let limit = params.limit.unwrap_or(10);
+    let window_days = clamp_window(&entitlements, params.window_days);
     match ctx
         .reporting_service
-        .get_top_products(params.from, params.to, limit, params.window_days)
+        .get_top_products(params.from, params.to, limit, window_days)
         .await
     {
         Ok(data) => {
@@ -152,7 +173,7 @@ pub async fn top_products_handler(
                 Json(ReportEnvelope {
                     report: ReportBody {
                         report_type: "top_products".to_string(),
-                        window_days: params.window_days,
+                        window_days,
                         data,
                     },
                 })
@@ -165,13 +186,15 @@ pub async fn top_products_handler(
 
 pub async fn average_order_value_handler(
     State(ctx): State<AdminReportingContext>,
+    Extension(entitlements): Extension<Arc<Entitlements>>,
     headers: HeaderMap,
     Query(params): Query<ReportQueryParams>,
 ) -> Response {
     let currency = params.currency.as_deref().unwrap_or("USD");
+    let window_days = clamp_window(&entitlements, params.window_days);
     match ctx
         .reporting_service
-        .get_average_order_value(params.from, params.to, currency, params.window_days)
+        .get_average_order_value(params.from, params.to, currency, window_days)
         .await
     {
         Ok(data) => {
@@ -194,7 +217,7 @@ pub async fn average_order_value_handler(
                 Json(ReportEnvelope {
                     report: ReportBody {
                         report_type: "average_order_value".to_string(),
-                        window_days: params.window_days,
+                        window_days,
                         data,
                     },
                 })

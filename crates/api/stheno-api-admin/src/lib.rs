@@ -1,13 +1,17 @@
 //! `stheno-api-admin`: Medusa v2 wire-compatible Admin API routes.
 
 pub mod api_keys;
+pub mod auth_guard;
 pub mod catalog;
 pub mod config;
 pub mod customers;
+pub mod fulfillment_settings;
 pub mod inventory;
+pub mod localisation;
 pub mod orders;
 pub mod pricing;
 pub mod promotions;
+pub mod rbac;
 pub mod reports;
 pub mod store;
 pub mod users;
@@ -15,8 +19,6 @@ pub mod users;
 use axum::routing::{get, post};
 use axum::Router;
 use std::sync::Arc;
-use stheno_store::StoreService;
-use stheno_user::UserService;
 use stheno_currency::CurrencyService;
 use stheno_customer::CustomerService;
 use stheno_fulfillment::FulfillmentService;
@@ -29,7 +31,9 @@ use stheno_promotion::PromotionService;
 use stheno_region::RegionService;
 use stheno_sales_channel::SalesChannelService;
 use stheno_stock_location::StockLocationService;
+use stheno_store::StoreService;
 use stheno_tax::TaxService;
+use stheno_user::UserService;
 
 use config::ConfigContext;
 use inventory::InventoryContext;
@@ -54,7 +58,28 @@ pub struct AdminApiContext {
 }
 
 /// Mounts admin catalog API routes (products, categories, variants).
-pub fn admin_catalog_routes(product_service: Arc<ProductService>) -> Router {
+pub fn admin_catalog_routes(
+    product_service: Arc<ProductService>,
+    pricing_service: Arc<stheno_pricing::PricingService>,
+) -> Router {
+    // Variant routes need pricing — a variant's price is set on the variant form — so
+    // they carry their own state. Everything else here is products only.
+    let variant_routes: Router = Router::new()
+        .route(
+            "/admin/products/{id}/variants",
+            get(catalog::list_product_variants).post(catalog::create_variant),
+        )
+        .route(
+            "/admin/products/{id}/variants/{variant_id}",
+            get(catalog::get_variant)
+                .post(catalog::update_variant)
+                .delete(catalog::delete_variant),
+        )
+        .with_state(catalog::VariantContext {
+            product_service: product_service.clone(),
+            pricing_service,
+        });
+
     Router::new()
         .route(
             "/admin/products",
@@ -65,16 +90,6 @@ pub fn admin_catalog_routes(product_service: Arc<ProductService>) -> Router {
             get(catalog::get_product)
                 .post(catalog::update_product)
                 .delete(catalog::delete_product),
-        )
-        .route(
-            "/admin/products/{id}/variants",
-            get(catalog::list_product_variants).post(catalog::create_variant),
-        )
-        .route(
-            "/admin/products/{id}/variants/{variant_id}",
-            get(catalog::get_variant)
-                .post(catalog::update_variant)
-                .delete(catalog::delete_variant),
         )
         .route(
             "/admin/products/{id}/options",
@@ -106,10 +121,28 @@ pub fn admin_catalog_routes(product_service: Arc<ProductService>) -> Router {
                 .post(catalog::update_collection)
                 .delete(catalog::delete_collection),
         )
-        .route("/admin/product-types", get(catalog::list_product_types))
-        .route("/admin/product-tags", get(catalog::list_product_tags))
-        .route("/admin/shipping-profiles", get(catalog::list_shipping_profiles))
+        .route(
+            "/admin/product-types",
+            get(catalog::list_product_types).post(catalog::create_product_type),
+        )
+        .route(
+            "/admin/product-types/{id}",
+            get(catalog::get_product_type)
+                .post(catalog::update_product_type)
+                .delete(catalog::delete_product_type),
+        )
+        .route(
+            "/admin/product-tags",
+            get(catalog::list_product_tags).post(catalog::create_product_tag),
+        )
+        .route(
+            "/admin/product-tags/{id}",
+            get(catalog::get_product_tag)
+                .post(catalog::update_product_tag)
+                .delete(catalog::delete_product_tag),
+        )
         .with_state(product_service)
+        .merge(variant_routes)
 }
 
 /// Mounts admin inventory, stock locations, and reservations routes.
@@ -134,9 +167,19 @@ pub fn admin_inventory_routes(
             "/admin/inventory-items/{id}/location-levels",
             post(inventory::create_location_level),
         )
+        // Stock adjustment: the operation the whole inventory surface exists for, and
+        // the one that had no endpoint at all.
+        .route(
+            "/admin/inventory-items/{id}/location-levels/{location_id}",
+            post(inventory::set_stock_level),
+        )
         .route(
             "/admin/reservations",
             get(inventory::list_reservations).post(inventory::create_reservation),
+        )
+        .route(
+            "/admin/reservations/{id}",
+            get(inventory::get_reservation).delete(inventory::delete_reservation),
         )
         .route(
             "/admin/stock-locations",
@@ -236,9 +279,14 @@ pub fn admin_customer_routes(customer_service: Arc<CustomerService>) -> Router {
             "/admin/customer-groups",
             get(customers::list_customer_groups).post(customers::create_customer_group),
         )
+        // `update_customer_group` extracts `Json<UpdateCustomerGroupInput>`, so binding it
+        // to GET made updating a customer group impossible: a GET carrying a body is not
+        // something axum will extract, and there was no other verb on the route.
         .route(
             "/admin/customer-groups/{id}",
-            get(customers::update_customer_group),
+            get(customers::get_customer_group)
+                .post(customers::update_customer_group)
+                .delete(customers::delete_customer_group),
         )
         .with_state(customer_service)
 }
@@ -333,19 +381,6 @@ pub fn admin_config_routes(
             "/admin/shipping-options",
             get(config::list_shipping_options).post(config::create_shipping_option),
         )
-        .route(
-            "/admin/shipping-option-types",
-            get(config::list_shipping_option_types),
-        )
-        // Fulfillment Sets & Providers
-        .route(
-            "/admin/fulfillment-sets",
-            get(config::list_fulfillment_sets),
-        )
-        .route(
-            "/admin/fulfillment-providers",
-            get(config::list_fulfillment_providers),
-        )
         // Payment Providers & Collections
         .route(
             "/admin/payment-providers",
@@ -356,18 +391,17 @@ pub fn admin_config_routes(
             get(config::list_payment_collections),
         )
         // RBAC Roles & Policies
-        .route("/admin/rbac/roles", get(config::list_rbac_roles))
-        .route("/admin/rbac/policies", get(config::list_rbac_policies))
         // Locales & Translations
-        .route("/admin/locales", get(config::list_locales))
-        .route("/admin/translations", get(config::list_translations))
         .with_state(ctx)
 }
 
 /// Mounts all Admin API routes.
 pub fn admin_routes(ctx: AdminApiContext) -> Router {
     let mut router = Router::new()
-        .merge(admin_catalog_routes(ctx.product_service))
+        .merge(admin_catalog_routes(
+            ctx.product_service,
+            ctx.pricing_service.clone(),
+        ))
         .merge(admin_inventory_routes(
             ctx.inventory_service,
             ctx.stock_location_service,
@@ -422,7 +456,10 @@ pub fn admin_user_routes(user_service: Arc<UserService>) -> Router {
     let ctx = users::AdminUserContext { user_service };
     Router::new()
         .route("/admin/users/me", get(users::get_me))
-        .route("/admin/users", get(users::list_users).post(users::create_user))
+        .route(
+            "/admin/users",
+            get(users::list_users).post(users::create_user),
+        )
         .route(
             "/admin/users/{id}",
             get(users::get_user)
@@ -446,7 +483,10 @@ pub fn admin_store_routes(store_service: Arc<StoreService>) -> Router {
             "/admin/stores/{id}",
             get(store::get_store).post(store::update_store),
         )
-        .route("/admin/price-preferences", get(store::list_price_preferences))
+        .route(
+            "/admin/price-preferences",
+            get(store::list_price_preferences),
+        )
         .route("/admin/notifications", get(store::list_notifications))
         .with_state(ctx)
 }
@@ -478,6 +518,118 @@ pub fn admin_api_key_routes() -> Router {
         .route(
             "/admin/publishable-api-keys/{id}/revoke",
             post(api_keys::revoke_api_key),
+        )
+        .with_state(ctx)
+}
+
+/// Mounts the clean-room RBAC routes (ADR-008).
+///
+/// `stheno-rbac` had a complete service and no HTTP surface; these routes are what
+/// connect the admin's roles and policy screens to real data instead of the stubs that
+/// previously answered them.
+pub fn admin_rbac_routes(rbac_service: Arc<stheno_rbac::RbacService>) -> Router {
+    let ctx = rbac::RbacContext { rbac_service };
+    Router::new()
+        .route(
+            "/admin/rbac/roles",
+            get(rbac::list_roles).post(rbac::create_role),
+        )
+        .route(
+            "/admin/rbac/roles/{name}",
+            get(rbac::get_role).delete(rbac::delete_role),
+        )
+        .route(
+            "/admin/rbac/policies",
+            get(rbac::list_policies).post(rbac::create_policy),
+        )
+        .route(
+            "/admin/rbac/policies/{id}",
+            axum::routing::delete(rbac::delete_policy),
+        )
+        .route("/admin/rbac/evaluate", post(rbac::evaluate))
+        .route("/admin/rbac/audit", get(rbac::list_audit_records))
+        .with_state(ctx)
+}
+
+/// Mounts the fulfillment settings surface — shipping profiles, fulfillment sets,
+/// service zones, option types and the provider registry.
+///
+/// Every route here previously answered from a hardcoded literal in `catalog.rs` or
+/// `config.rs`; none of it was stored, so nothing the admin created could persist.
+pub fn admin_fulfillment_settings_routes(fulfillment_service: Arc<FulfillmentService>) -> Router {
+    let ctx = fulfillment_settings::FulfillmentSettingsContext {
+        fulfillment_service,
+    };
+    Router::new()
+        .route(
+            "/admin/shipping-profiles",
+            get(fulfillment_settings::list_shipping_profiles)
+                .post(fulfillment_settings::create_shipping_profile),
+        )
+        .route(
+            "/admin/shipping-profiles/{id}",
+            get(fulfillment_settings::get_shipping_profile)
+                .delete(fulfillment_settings::delete_shipping_profile),
+        )
+        .route(
+            "/admin/fulfillment-sets",
+            get(fulfillment_settings::list_fulfillment_sets)
+                .post(fulfillment_settings::create_fulfillment_set),
+        )
+        .route(
+            "/admin/fulfillment-sets/{id}",
+            get(fulfillment_settings::get_fulfillment_set),
+        )
+        .route(
+            "/admin/fulfillment-sets/{id}/service-zones",
+            get(fulfillment_settings::list_service_zones),
+        )
+        .route(
+            "/admin/service-zones",
+            post(fulfillment_settings::create_service_zone),
+        )
+        .route(
+            "/admin/shipping-option-types",
+            get(fulfillment_settings::list_shipping_option_types)
+                .post(fulfillment_settings::create_shipping_option_type),
+        )
+        .route(
+            "/admin/fulfillment-providers",
+            get(fulfillment_settings::list_fulfillment_providers),
+        )
+        .with_state(ctx)
+}
+
+/// Mounts locales, translations, property labels and store settings.
+///
+/// `stheno-translation` and `stheno-settings` both had complete services and no routes;
+/// the endpoints that existed answered from hardcoded literals.
+pub fn admin_localisation_routes(
+    translation_service: Arc<stheno_translation::TranslationService>,
+    settings_service: Arc<stheno_settings::SettingsService>,
+) -> Router {
+    let ctx = localisation::LocalisationContext {
+        translation_service,
+        settings_service,
+    };
+    Router::new()
+        .route(
+            "/admin/locales",
+            get(localisation::list_locales).post(localisation::create_locale),
+        )
+        .route("/admin/locales/{code}", get(localisation::get_locale))
+        .route("/admin/translations", post(localisation::set_translation))
+        .route(
+            "/admin/translations/resolve",
+            get(localisation::resolve_translation),
+        )
+        .route(
+            "/admin/property-labels",
+            get(localisation::get_property_label).post(localisation::set_property_label),
+        )
+        .route(
+            "/admin/settings",
+            get(localisation::list_settings).post(localisation::set_setting),
         )
         .with_state(ctx)
 }

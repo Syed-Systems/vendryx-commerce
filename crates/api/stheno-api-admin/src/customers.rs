@@ -8,8 +8,8 @@ use serde_json::json;
 use std::sync::Arc;
 use stheno_api_core::ErrorResponse;
 use stheno_customer::{
-    CreateCustomerGroupInput, CreateCustomerInput, CustomerService,
-    UpdateCustomerGroupInput, UpdateCustomerInput,
+    CreateCustomerGroupInput, CreateCustomerInput, CustomerService, UpdateCustomerGroupInput,
+    UpdateCustomerInput,
 };
 
 // 1. Customer Handlers
@@ -186,5 +186,39 @@ pub async fn update_customer_group(
             "customer_group": group,
             "data": group,
         })),
+    ))
+}
+
+pub async fn get_customer_group(
+    State(service): State<Arc<CustomerService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let group = service.get_customer_group(&id).await.map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("not_found", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "customer_group": group, "data": group })),
+    ))
+}
+
+pub async fn delete_customer_group(
+    State(service): State<Arc<CustomerService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    service.delete_customer_group(&id).await.map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("not_found", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": id, "object": "customer_group", "deleted": true })),
     ))
 }

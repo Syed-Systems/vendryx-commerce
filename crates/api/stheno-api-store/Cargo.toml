@@ -21,9 +21,11 @@ stheno-pricing = { workspace = true }
 stheno-store = { workspace = true }
 stheno-cart = { workspace = true }
 stheno-order = { workspace = true }
+stheno-flows-order = { workspace = true }
 stheno-fulfillment = { workspace = true }
 stheno-promotion = { workspace = true }
 stheno-payment = { workspace = true }
+stheno-links = { workspace = true }
 stheno-customer = { workspace = true }
 stheno-auth = { workspace = true }
 stheno-translation = { workspace = true }

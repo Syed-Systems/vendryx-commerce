@@ -350,7 +350,7 @@ pub async fn get_return_reason(
         )
             .into_response()
     })?;
-    if let Some(r) = reasons.into_iter().find(|item| item.id.to_string() == id) {
+    if let Some(r) = reasons.into_iter().find(|item| item.id == id) {
         Ok((
             StatusCode::OK,
             Json(json!({
@@ -361,7 +361,10 @@ pub async fn get_return_reason(
     } else {
         Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &format!("Return reason {} not found", id))),
+            Json(ErrorResponse::new(
+                "not_found",
+                &format!("Return reason {} not found", id),
+            )),
         )
             .into_response())
     }
@@ -417,7 +420,10 @@ pub async fn create_refund_reason(
     let mut obj = input;
     if obj.get("id").is_none() {
         if let Some(map) = obj.as_object_mut() {
-            map.insert("id".to_string(), json!(format!("refr_{}", ulid::Ulid::new())));
+            map.insert(
+                "id".to_string(),
+                json!(format!("refr_{}", ulid::Ulid::new())),
+            );
         }
     }
     Ok((
@@ -499,4 +505,3 @@ pub async fn list_exchanges() -> Result<impl IntoResponse, Response> {
         })),
     ))
 }
-

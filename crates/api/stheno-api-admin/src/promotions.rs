@@ -8,8 +8,8 @@ use serde_json::json;
 use std::sync::Arc;
 use stheno_api_core::ErrorResponse;
 use stheno_promotion::{
-    CreateCampaignInput, CreatePromotionInput, PromotionService,
-    UpdateCampaignInput, UpdatePromotionInput,
+    CreateCampaignInput, CreatePromotionInput, PromotionService, UpdateCampaignInput,
+    UpdatePromotionInput,
 };
 
 // 1. Promotion Handlers

@@ -18,11 +18,81 @@ use crate::products::ErrorResponse;
 pub struct StoreCartContext {
     pub cart_service: Arc<CartService>,
     pub promotion_service: Option<Arc<PromotionService>>,
+    /// Prices line items server-side.
+    ///
+    /// `add_line_item` took `unit_price` from the request body and defaulted it to zero,
+    /// so a shopper could name their own price — or omit the field and get the item free.
+    /// A price is not client input, and a store endpoint is an untrusted boundary.
+    pub pricing_service: Arc<stheno_pricing::PricingService>,
+    /// Supplies the currency to price in, from the cart's region.
+    pub region_service: Arc<stheno_region::RegionService>,
+    pub product_service: Arc<stheno_product::ProductService>,
+    /// Supplies a shipping option's name and identity when one is attached to a cart.
+    pub fulfillment_service: Arc<stheno_fulfillment::FulfillmentService>,
+    pub links: Arc<stheno_links::PgLinkStore>,
+    pub payment_service: Arc<stheno_payment::PaymentService>,
+}
+
+/// A cart as a storefront expects it: the DTO plus its expanded `region`.
+///
+/// Medusa's `StoreCart` carries the whole region object, and the storefront depends on it
+/// structurally — the cart page renders its summary (and therefore the "Proceed to
+/// Checkout" button) only `if (cart && cart.region)`. Returning `region_id` alone left a
+/// cart that listed its items correctly and offered no way to buy them.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StoreCart {
+    /// Flattened, so the wire shape is one object — `region` sits alongside the cart's own
+    /// fields exactly as Medusa returns it.
+    #[serde(flatten)]
+    pub base: CartDTO,
+    /// `None` for a cart with no region yet, rather than omitted: clients test for its
+    /// presence.
+    pub region: Option<stheno_region::RegionDTO>,
+    /// The cart's open payment collection, once one exists.
+    ///
+    /// The checkout's review step renders only `if (cart.payment_collection)`, and the
+    /// place-order button reads its `payment_sessions`. Both live behind
+    /// `links.link_cart_payment_collection`, which nothing expanded — so the final step of
+    /// the checkout never appeared.
+    pub payment_collection: Option<stheno_payment::PaymentCollectionDTO>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CartResponse {
-    pub cart: CartDTO,
+    pub cart: StoreCart,
+}
+
+/// Attaches the region to a cart on its way out.
+///
+/// A failed region lookup yields `None` rather than an error: a cart whose region was
+/// deleted should still be readable, so the shopper can pick another.
+async fn with_region(ctx: &StoreCartContext, cart: CartDTO) -> CartResponse {
+    let region = match &cart.region_id {
+        Some(id) => ctx.region_service.get_region(id).await.ok(),
+        None => None,
+    };
+
+    // A cart has at most one open collection; a missing link simply means checkout has not
+    // reached the payment step yet.
+    let payment_collection = match ctx
+        .links
+        .get_by_left("cart_payment_collection", &cart.id)
+        .await
+    {
+        Ok(ids) => match ids.first() {
+            Some(id) => ctx.payment_service.get_payment_collection(id).await.ok(),
+            None => None,
+        },
+        Err(_) => None,
+    };
+
+    CartResponse {
+        cart: StoreCart {
+            base: cart,
+            region,
+            payment_collection,
+        },
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -30,7 +100,9 @@ pub struct DeleteLineItemResponse {
     pub id: String,
     pub object: String,
     pub deleted: bool,
-    pub parent: CartDTO,
+    /// The cart the item was removed from — same expanded shape as everywhere else, so a
+    /// client can render straight from it without a second request.
+    pub parent: StoreCart,
 }
 
 #[derive(Debug, Deserialize)]
@@ -104,7 +176,7 @@ pub async fn create_cart(
         .await
         .map_err(map_error)?;
 
-    Ok(Json(CartResponse { cart }))
+    Ok(Json(with_region(&ctx, cart).await))
 }
 
 pub async fn get_cart(
@@ -112,7 +184,7 @@ pub async fn get_cart(
     Path(id): Path<String>,
 ) -> Result<Json<CartResponse>, Response> {
     let cart = ctx.cart_service.get_cart(&id).await.map_err(map_error)?;
-    Ok(Json(CartResponse { cart }))
+    Ok(Json(with_region(&ctx, cart).await))
 }
 
 pub async fn update_cart(
@@ -138,7 +210,67 @@ pub async fn update_cart(
         .await
         .map_err(map_error)?;
 
-    Ok(Json(CartResponse { cart }))
+    Ok(Json(with_region(&ctx, cart).await))
+}
+
+/// Resolves what a variant costs in this cart, from the catalogue rather than the request.
+/// The currency a cart prices in: its own, else its region's.
+///
+/// Never the request's — the same reason line-item prices are not the request's.
+async fn cart_currency(ctx: &StoreCartContext, cart: &CartDTO) -> String {
+    if !cart.currency_code.is_empty() {
+        return cart.currency_code.to_lowercase();
+    }
+    match &cart.region_id {
+        Some(region_id) => ctx
+            .region_service
+            .get_region(region_id)
+            .await
+            .map(|r| r.currency_code.to_lowercase())
+            .unwrap_or_else(|_| "usd".to_string()),
+        None => "usd".to_string(),
+    }
+}
+
+async fn price_for_variant(
+    ctx: &StoreCartContext,
+    cart: &CartDTO,
+    variant_id: &str,
+    quantity: i32,
+) -> Result<Decimal, Response> {
+    let currency = cart_currency(ctx, cart).await;
+
+    let prices = ctx
+        .pricing_service
+        .calculate_for_variants(
+            &[variant_id.to_string()],
+            &stheno_pricing::PricingContext {
+                currency_code: currency,
+                region_id: cart.region_id.clone(),
+                customer_group_id: None,
+                sales_channel_id: None,
+                quantity: Some(quantity),
+                as_of: None,
+            },
+        )
+        .await
+        .map_err(map_error)?;
+
+    // No price is a refusal, not a zero. Adding an unpriced variant to a cart silently at
+    // 0.00 is how a store gives away stock.
+    prices
+        .get(variant_id)
+        .map(|p| p.calculated_amount)
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    r#type: "invalid_data".to_string(),
+                    message: format!("Variant {variant_id} has no price in this currency."),
+                }),
+            )
+                .into_response()
+        })
 }
 
 pub async fn add_line_item(
@@ -146,16 +278,44 @@ pub async fn add_line_item(
     Path(cart_id): Path<String>,
     Json(body): Json<StoreAddLineItemRequest>,
 ) -> Result<Json<CartResponse>, Response> {
+    let cart = ctx
+        .cart_service
+        .get_cart(&cart_id)
+        .await
+        .map_err(map_error)?;
+
+    // A line item must name a variant: it is the only thing that has a price, and without
+    // one there is nothing to look up.
+    let variant_id = body.variant_id.clone().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                r#type: "invalid_data".to_string(),
+                message: "A line item requires variant_id.".to_string(),
+            }),
+        )
+            .into_response()
+    })?;
+
+    let unit_price = price_for_variant(&ctx, &cart, &variant_id, body.quantity).await?;
+
+    // Titles are cosmetic and may come from the client; the variant is the source for the
+    // ones that identify what was bought.
+    let variant = ctx.product_service.get_variant(&variant_id).await.ok();
+
     ctx.cart_service
         .add_line_item(
             &cart_id,
             CreateLineItemInput {
-                title: body.title.unwrap_or_else(|| "Item".to_string()),
+                title: body
+                    .title
+                    .or_else(|| variant.as_ref().map(|v| v.title.clone()))
+                    .unwrap_or_else(|| "Item".to_string()),
                 subtitle: None,
                 thumbnail: None,
                 quantity: body.quantity,
-                unit_price: body.unit_price.unwrap_or(Decimal::ZERO),
-                variant_id: body.variant_id,
+                unit_price,
+                variant_id: Some(variant_id),
                 product_id: None,
                 product_title: None,
                 product_description: None,
@@ -163,9 +323,9 @@ pub async fn add_line_item(
                 product_type: None,
                 product_collection: None,
                 product_handle: None,
-                variant_sku: None,
-                variant_barcode: None,
-                variant_title: None,
+                variant_sku: variant.as_ref().and_then(|v| v.sku.clone()),
+                variant_barcode: variant.as_ref().and_then(|v| v.barcode.clone()),
+                variant_title: variant.as_ref().map(|v| v.title.clone()),
                 variant_option_values: None,
                 requires_shipping: Some(true),
                 is_discountable: Some(true),
@@ -183,7 +343,7 @@ pub async fn add_line_item(
         .get_cart(&cart_id)
         .await
         .map_err(map_error)?;
-    Ok(Json(CartResponse { cart }))
+    Ok(Json(with_region(&ctx, cart).await))
 }
 
 pub async fn update_line_item(
@@ -197,7 +357,9 @@ pub async fn update_line_item(
             &line_id,
             UpdateLineItemInput {
                 quantity: body.quantity,
-                unit_price: body.unit_price,
+                // Same reason as `add_line_item`: a shopper changing the quantity must not
+                // be able to change the price on the way through.
+                unit_price: None,
                 metadata: body.metadata,
                 ..Default::default()
             },
@@ -210,7 +372,7 @@ pub async fn update_line_item(
         .get_cart(&cart_id)
         .await
         .map_err(map_error)?;
-    Ok(Json(CartResponse { cart }))
+    Ok(Json(with_region(&ctx, cart).await))
 }
 
 pub async fn delete_line_item(
@@ -231,7 +393,7 @@ pub async fn delete_line_item(
         id: line_id,
         object: "line-item".to_string(),
         deleted: true,
-        parent: cart,
+        parent: with_region(&ctx, cart).await.cart,
     }))
 }
 
@@ -240,12 +402,49 @@ pub async fn add_shipping_method(
     Path(cart_id): Path<String>,
     Json(body): Json<StoreAddShippingMethodRequest>,
 ) -> Result<Json<CartResponse>, Response> {
+    let cart = ctx
+        .cart_service
+        .get_cart(&cart_id)
+        .await
+        .map_err(map_error)?;
+
+    // The name and the price both came from here rather than from the option: every
+    // delivery was called "Standard Shipping" and cost zero, whatever the merchant had
+    // configured. A shipping option with no price set stays free — that is a legitimate
+    // configuration, unlike a variant with no price — but it is now the merchant's choice
+    // rather than a hardcoded constant.
+    let option = ctx
+        .fulfillment_service
+        .get_shipping_option(&body.option_id)
+        .await
+        .map_err(map_error)?;
+
+    let currency = cart_currency(&ctx, &cart).await;
+    let amount = ctx
+        .pricing_service
+        .calculate_for_shipping_options(
+            std::slice::from_ref(&body.option_id),
+            &stheno_pricing::PricingContext {
+                currency_code: currency,
+                region_id: cart.region_id.clone(),
+                customer_group_id: None,
+                sales_channel_id: None,
+                quantity: Some(1),
+                as_of: None,
+            },
+        )
+        .await
+        .map_err(map_error)?
+        .get(&body.option_id)
+        .map(|p| p.calculated_amount)
+        .unwrap_or(Decimal::ZERO);
+
     ctx.cart_service
         .add_shipping_method(
             &cart_id,
             CreateShippingMethodInput {
-                name: "Standard Shipping".to_string(),
-                amount: Decimal::ZERO,
+                name: option.name,
+                amount,
                 is_tax_inclusive: Some(false),
                 shipping_option_id: Some(body.option_id),
                 data: body.data,
@@ -260,7 +459,7 @@ pub async fn add_shipping_method(
         .get_cart(&cart_id)
         .await
         .map_err(map_error)?;
-    Ok(Json(CartResponse { cart }))
+    Ok(Json(with_region(&ctx, cart).await))
 }
 
 pub async fn apply_promotions(
@@ -383,7 +582,7 @@ pub async fn apply_promotions(
         .get_cart(&cart_id)
         .await
         .map_err(map_error)?;
-    Ok(Json(CartResponse { cart: updated_cart }))
+    Ok(Json(with_region(&ctx, updated_cart).await))
 }
 
 fn map_error(e: Error) -> Response {

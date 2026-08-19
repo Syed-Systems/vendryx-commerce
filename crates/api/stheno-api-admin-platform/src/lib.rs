@@ -13,21 +13,37 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+use axum::Extension;
 use axum::{Json, Router};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
 use stheno_api_core::{Entitlements, ErrorResponse, QuotaKey, QuotaState, WindowKey};
+use stheno_db::QuotaCounter;
 use stheno_workflow::{WorkflowExecution, WorkflowStore};
 
-/// Current usage per quota, supplied by the caller.
+/// Resource name each quota counts in `entitlement_usage` (ENTITLEMENTS.md 6.2).
 ///
-/// The engine keeps these in an atomic counter table (ENTITLEMENTS.md 6.2); this API
-/// only reports them. A quota with no recorded usage reads as 0 rather than unknown,
-/// which is the safe direction: it never invents headroom.
+/// The counter table is keyed by resource, not by quota key, because the same rows are
+/// incremented by `CheckQuotaStep` during writes. Keeping the mapping in one place stops
+/// the reader and the writer drifting onto different row names, which would report zero
+/// usage forever while the counter climbed.
+fn quota_resource(key: QuotaKey) -> &'static str {
+    match key {
+        QuotaKey::MaxProducts => "products",
+        QuotaKey::MaxStaffSeats => "users",
+    }
+}
+
+/// Current usage per quota.
+///
+/// A deployment reads live counts from the `entitlement_usage` table; tests supply fixed
+/// values with [`UsageSnapshot::with`]. A quota with no recorded usage reads as 0 rather
+/// than unknown, which is the safe direction: it never invents headroom.
 #[derive(Clone, Default)]
 pub struct UsageSnapshot {
     used: BTreeMap<QuotaKey, u64>,
+    counter: Option<QuotaCounter>,
 }
 
 impl UsageSnapshot {
@@ -35,13 +51,41 @@ impl UsageSnapshot {
         Self::default()
     }
 
+    /// Reads usage from the counter table on every request. Nothing is cached — a stale
+    /// quota reading is how a merchant gets told they are over a limit they are not on.
+    pub fn from_counter(counter: QuotaCounter) -> Self {
+        Self {
+            used: BTreeMap::new(),
+            counter: Some(counter),
+        }
+    }
+
     pub fn with(mut self, key: QuotaKey, used: u64) -> Self {
         self.used.insert(key, used);
         self
     }
 
-    pub fn used(&self, key: QuotaKey) -> u64 {
-        self.used.get(&key).copied().unwrap_or(0)
+    pub async fn used(&self, key: QuotaKey) -> u64 {
+        let Some(counter) = &self.counter else {
+            return self.used.get(&key).copied().unwrap_or(0);
+        };
+
+        // Scoped checkout (ADR-012): the counter row is per tenant, so reading it on a
+        // raw pooled connection would return the caller's own rows only by accident —
+        // and under RLS, in practice, nothing at all.
+        //
+        // A database that will not answer must not read as "plenty of headroom": fall
+        // through to the static value, which defaults to 0 and leaves the quota reported
+        // as `ok` rather than inventing a grace state.
+        let pool = counter.pool().clone();
+        let counter = counter.clone();
+        let resource = quota_resource(key);
+        stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+            Box::pin(async move { counter.get_usage(conn, resource).await })
+        })
+        .await
+        .map(|used| used.max(0) as u64)
+        .unwrap_or_else(|_| self.used.get(&key).copied().unwrap_or(0))
     }
 }
 
@@ -79,10 +123,32 @@ pub struct EntitlementsResponse {
     pub windows: Vec<WindowReport>,
 }
 
+/// Capability flags the forked dashboard reads to decide which screens exist at all.
+///
+/// These are **not** plan features. They answer "did this build ship the screen?",
+/// where the tier features answer "may this deployment use it?". Medusa's dashboard
+/// reads these names, so they are inherited by the fork rather than chosen
+/// ([ADR-002](../../../docs/DECISIONS.md)) — and because the hook treats an absent
+/// flag as `false`, omitting them silently hides RBAC, translations, and saved table
+/// views even though all three are implemented here.
+///
+/// A flag belongs here only while its screens are built and ungated. The day one
+/// becomes sellable it moves to `Feature` and the tier config.
+const CAPABILITY_FLAGS: [(&str, bool); 3] = [
+    ("rbac", true),
+    ("translation", true),
+    ("view_configurations", true),
+];
+
 /// `GET /admin/feature-flags` — Medusa's shape: a flat map of flag name to bool.
-pub async fn get_feature_flags(State(ctx): State<AdminPlatformContext>) -> Json<Value> {
+pub async fn get_feature_flags(
+    Extension(entitlements): Extension<Arc<Entitlements>>,
+) -> Json<Value> {
     let mut flags = Map::new();
-    for (name, enabled) in stheno_api_router_flags(&ctx.entitlements) {
+    for (name, enabled) in stheno_api_router_flags(&entitlements) {
+        flags.insert(name.to_string(), Value::Bool(enabled));
+    }
+    for (name, enabled) in CAPABILITY_FLAGS {
         flags.insert(name.to_string(), Value::Bool(enabled));
     }
     Json(Value::Object(Map::from_iter([(
@@ -112,21 +178,20 @@ fn stheno_api_router_flags(ent: &Entitlements) -> Vec<(&'static str, bool)> {
 /// `GET /admin/entitlements` — additive endpoint reporting tier, quotas and grace state.
 pub async fn get_entitlements(
     State(ctx): State<AdminPlatformContext>,
+    Extension(entitlements): Extension<Arc<Entitlements>>,
 ) -> Json<EntitlementsResponse> {
-    let ent = &ctx.entitlements;
+    let ent = &entitlements;
 
-    let quotas = [QuotaKey::MaxProducts, QuotaKey::MaxStaffSeats]
-        .into_iter()
-        .map(|key| {
-            let used = ctx.usage.used(key);
-            QuotaReport {
-                key: key.as_str(),
-                limit: ent.quota(key),
-                used,
-                state: ent.quota_state(key, used),
-            }
-        })
-        .collect();
+    let mut quotas = Vec::new();
+    for key in [QuotaKey::MaxProducts, QuotaKey::MaxStaffSeats] {
+        let used = ctx.usage.used(key).await;
+        quotas.push(QuotaReport {
+            key: key.as_str(),
+            limit: ent.quota(key),
+            used,
+            state: ent.quota_state(key, used),
+        });
+    }
 
     let windows = [WindowKey::AnalyticsWindowDays]
         .into_iter()

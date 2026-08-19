@@ -12,8 +12,7 @@ use stheno_currency::CurrencyService;
 use stheno_region::{CreateRegionInput, RegionService, UpdateRegionInput};
 use stheno_sales_channel::{CreateSalesChannelInput, SalesChannelService};
 use stheno_tax::{
-    CreateTaxRateInput, CreateTaxRegionInput, TaxService,
-    UpdateTaxRateInput, UpdateTaxRegionInput,
+    CreateTaxRateInput, CreateTaxRegionInput, TaxService, UpdateTaxRateInput, UpdateTaxRegionInput,
 };
 
 /// Combined state for all config-related services.
@@ -27,9 +26,7 @@ pub struct ConfigContext {
 
 // ── Regions ──────────────────────────────────────────────────────────────────
 
-pub async fn list_regions(
-    State(ctx): State<ConfigContext>,
-) -> Result<impl IntoResponse, Response> {
+pub async fn list_regions(State(ctx): State<ConfigContext>) -> Result<impl IntoResponse, Response> {
     let all = ctx.region_service.list_regions().await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -629,94 +626,6 @@ pub async fn create_shipping_option(
     ))
 }
 
-pub async fn list_shipping_option_types() -> Result<impl IntoResponse, Response> {
-    let types = vec![
-        json!({
-            "id": "sot_standard",
-            "label": "Standard Delivery",
-            "description": "Standard ground shipping",
-            "code": "standard"
-        }),
-        json!({
-            "id": "sot_express",
-            "label": "Express Delivery",
-            "description": "Priority air shipping",
-            "code": "express"
-        }),
-    ];
-
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "shipping_option_types": types,
-            "data": types,
-            "count": 2,
-            "offset": 0,
-            "limit": 50,
-        })),
-    ))
-}
-
-pub async fn list_fulfillment_sets() -> Result<impl IntoResponse, Response> {
-    let default_set = json!({
-        "id": "fset_default",
-        "name": "Standard Shipping Service",
-        "type": "shipping",
-        "service_zones": [
-            {
-                "id": "sz_default",
-                "name": "Domestic Delivery Zone",
-                "geo_zones": [
-                    {
-                        "id": "gz_us",
-                        "type": "country",
-                        "country_code": "us"
-                    }
-                ]
-            }
-        ],
-        "created_at": "2026-08-17T17:29:39.266111Z",
-        "updated_at": "2026-08-17T17:29:39.266111Z"
-    });
-
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "fulfillment_sets": [default_set],
-            "data": [default_set],
-            "count": 1,
-            "offset": 0,
-            "limit": 50,
-        })),
-    ))
-}
-
-pub async fn list_fulfillment_providers() -> Result<impl IntoResponse, Response> {
-    let providers = vec![
-        json!({
-            "id": "manual_fulfillment",
-            "is_enabled": true,
-            "name": "Manual Fulfillment Provider"
-        }),
-        json!({
-            "id": "shipstation",
-            "is_enabled": true,
-            "name": "ShipStation Fulfillment"
-        }),
-    ];
-
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "fulfillment_providers": providers,
-            "data": providers,
-            "count": 2,
-            "offset": 0,
-            "limit": 50,
-        })),
-    ))
-}
-
 pub async fn list_payment_providers() -> Result<impl IntoResponse, Response> {
     let providers = vec![
         json!({
@@ -761,90 +670,7 @@ pub async fn list_payment_collections() -> Result<impl IntoResponse, Response> {
     ))
 }
 
-// ── RBAC Roles & Policies ───────────────────────────────────────────────────
-
-pub async fn list_rbac_roles() -> Result<impl IntoResponse, Response> {
-    let roles = vec![
-        json!({
-            "id": "role_admin",
-            "name": "Administrator",
-            "description": "Full access to all store resources and settings",
-            "created_at": "2026-08-17T17:29:39.266111Z",
-            "updated_at": "2026-08-17T17:29:39.266111Z"
-        }),
-        json!({
-            "id": "role_manager",
-            "name": "Store Manager",
-            "description": "Manage catalog, orders, and customer accounts",
-            "created_at": "2026-08-17T17:29:39.266111Z",
-            "updated_at": "2026-08-17T17:29:39.266111Z"
-        }),
-        json!({
-            "id": "role_member",
-            "name": "Staff Member",
-            "description": "Fulfill orders and view products",
-            "created_at": "2026-08-17T17:29:39.266111Z",
-            "updated_at": "2026-08-17T17:29:39.266111Z"
-        }),
-    ];
-
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "roles": roles,
-            "data": roles,
-            "count": 3,
-            "offset": 0,
-            "limit": 50,
-        })),
-    ))
-}
-
-pub async fn list_rbac_policies() -> Result<impl IntoResponse, Response> {
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "policies": [],
-            "data": [],
-            "count": 0,
-            "offset": 0,
-            "limit": 50,
-        })),
-    ))
-}
+// RBAC roles and policies now live in `rbac.rs`, backed by `stheno-rbac`. The handlers
+// that used to sit here returned three hardcoded roles and an empty policy list.
 
 // ── Locales & Translations ──────────────────────────────────────────────────
-
-pub async fn list_locales() -> Result<impl IntoResponse, Response> {
-    let locales = vec![
-        json!({ "code": "en", "name": "English", "is_default": true }),
-        json!({ "code": "es", "name": "Spanish", "is_default": false }),
-        json!({ "code": "fr", "name": "French", "is_default": false }),
-        json!({ "code": "de", "name": "German", "is_default": false }),
-        json!({ "code": "ar", "name": "Arabic", "is_default": false }),
-    ];
-
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "locales": locales,
-            "data": locales,
-            "count": 5,
-            "offset": 0,
-            "limit": 50,
-        })),
-    ))
-}
-
-pub async fn list_translations() -> Result<impl IntoResponse, Response> {
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "translations": [],
-            "data": [],
-            "count": 0,
-            "offset": 0,
-            "limit": 50,
-        })),
-    ))
-}

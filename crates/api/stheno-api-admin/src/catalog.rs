@@ -10,8 +10,7 @@ use std::sync::Arc;
 use stheno_api_core::ErrorResponse;
 use stheno_product::{
     CreateCategoryInput, CreateCollectionInput, CreateProductInput, CreateVariantInput,
-    ProductCategoryDTO, ProductCollectionDTO, ProductDTO, ProductService,
-    UpdateProductInput,
+    ProductCategoryDTO, ProductCollectionDTO, ProductDTO, ProductService, UpdateProductInput,
 };
 
 #[derive(Debug, Deserialize, Default)]
@@ -217,10 +216,7 @@ pub async fn create_product(
         .list_variants(&prod_id_str)
         .await
         .unwrap_or_default();
-    let options_raw = service
-        .list_options(&prod_id_str)
-        .await
-        .unwrap_or_default();
+    let options_raw = service.list_options(&prod_id_str).await.unwrap_or_default();
     let options: Vec<serde_json::Value> = options_raw
         .into_iter()
         .map(|(opt_id, opt_title)| {
@@ -518,54 +514,170 @@ pub async fn delete_collection(
 
 // ── Product Types & Tags ───────────────────────────────────────────────────────
 
-pub async fn list_product_types() -> Result<impl IntoResponse, Response> {
+/// Shared error mappers for this module. Each maps a domain error to the status the
+/// dashboard expects, without discarding the message.
+fn internal(e: stheno_types::Error) -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+    )
+        .into_response()
+}
+
+fn not_found(e: stheno_types::Error) -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ErrorResponse::new("not_found", &e.to_string())),
+    )
+        .into_response()
+}
+
+fn bad_request(e: stheno_types::Error) -> Response {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ErrorResponse::new("invalid_data", &e.to_string())),
+    )
+        .into_response()
+}
+
+// ── Product tags and types ────────────────────────────────────────────────────
+//
+// These four screens in the admin had nothing behind them: the handlers here returned
+// hardcoded empty arrays because `ProductService` had no tag or type methods, even
+// though `product.product_tag` and `product.product_type` have existed since the first
+// product migration.
+
+#[derive(serde::Deserialize)]
+pub struct TaxonomyValue {
+    pub value: String,
+}
+
+pub async fn list_product_types(
+    State(service): State<Arc<ProductService>>,
+) -> Result<impl IntoResponse, Response> {
+    let types = service.list_types().await.map_err(internal)?;
+    let count = types.len();
     Ok((
         StatusCode::OK,
         Json(json!({
-            "product_types": [],
-            "data": [],
-            "count": 0,
-            "offset": 0,
-            "limit": 50,
+            "product_types": types, "data": types,
+            "count": count, "offset": 0, "limit": count,
         })),
     ))
 }
 
-pub async fn list_product_tags() -> Result<impl IntoResponse, Response> {
+pub async fn get_product_type(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let ty = service.get_type(&id).await.map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "product_type": ty, "data": ty })),
+    ))
+}
+
+pub async fn create_product_type(
+    State(service): State<Arc<ProductService>>,
+    Json(body): Json<TaxonomyValue>,
+) -> Result<impl IntoResponse, Response> {
+    let ty = service.create_type(body.value).await.map_err(bad_request)?;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "product_type": ty, "data": ty })),
+    ))
+}
+
+pub async fn update_product_type(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+    Json(body): Json<TaxonomyValue>,
+) -> Result<impl IntoResponse, Response> {
+    let ty = service
+        .update_type(&id, body.value)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "product_type": ty, "data": ty })),
+    ))
+}
+
+pub async fn delete_product_type(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    service.delete_type(&id).await.map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": id, "object": "product_type", "deleted": true })),
+    ))
+}
+
+pub async fn list_product_tags(
+    State(service): State<Arc<ProductService>>,
+) -> Result<impl IntoResponse, Response> {
+    let tags = service.list_tags().await.map_err(internal)?;
+    let count = tags.len();
     Ok((
         StatusCode::OK,
         Json(json!({
-            "product_tags": [],
-            "data": [],
-            "count": 0,
-            "offset": 0,
-            "limit": 50,
+            "product_tags": tags, "data": tags,
+            "count": count, "offset": 0, "limit": count,
         })),
     ))
 }
 
-// ── Shipping Profiles ─────────────────────────────────────────────────────────
-
-pub async fn list_shipping_profiles() -> Result<impl IntoResponse, Response> {
-    let default_profile = json!({
-        "id": "sp_default_shipping_profile",
-        "name": "Default Shipping Profile",
-        "type": "default",
-        "created_at": "2026-08-17T17:29:39.266111Z",
-        "updated_at": "2026-08-17T17:29:39.266111Z"
-    });
-
+pub async fn get_product_tag(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let tag = service.get_tag(&id).await.map_err(not_found)?;
     Ok((
         StatusCode::OK,
-        Json(json!({
-            "shipping_profiles": [default_profile],
-            "data": [default_profile],
-            "count": 1,
-            "offset": 0,
-            "limit": 50,
-        })),
+        Json(json!({ "product_tag": tag, "data": tag })),
     ))
 }
+
+pub async fn create_product_tag(
+    State(service): State<Arc<ProductService>>,
+    Json(body): Json<TaxonomyValue>,
+) -> Result<impl IntoResponse, Response> {
+    let tag = service.create_tag(body.value).await.map_err(bad_request)?;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "product_tag": tag, "data": tag })),
+    ))
+}
+
+pub async fn update_product_tag(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+    Json(body): Json<TaxonomyValue>,
+) -> Result<impl IntoResponse, Response> {
+    let tag = service
+        .update_tag(&id, body.value)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "product_tag": tag, "data": tag })),
+    ))
+}
+
+pub async fn delete_product_tag(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    service.delete_tag(&id).await.map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": id, "object": "product_tag", "deleted": true })),
+    ))
+}
+
+// Shipping profiles moved to `fulfillment_settings.rs`, backed by FulfillmentService.
+// The handler here returned a single fabricated profile that was never stored.
 
 // ── Product Variants & Options ────────────────────────────────────────────────
 
@@ -580,21 +692,33 @@ pub struct UpdateVariantRequest {
     pub title: Option<String>,
     pub sku: Option<String>,
     pub barcode: Option<String>,
+    pub prices: Option<serde_json::Value>,
 }
+
+/// One deduplicated global product option: its id, title, owning product, and values.
+type GlobalOption = (String, String, String, Vec<(String, String)>);
 
 pub async fn list_global_product_options(
     State(service): State<Arc<ProductService>>,
 ) -> Result<impl IntoResponse, Response> {
     let raw = service.list_all_options().await.unwrap_or_default();
-    let mut seen: std::collections::HashMap<String, (String, String, String, Vec<(String, String)>)> =
+    let mut seen: std::collections::HashMap<String, GlobalOption> =
         std::collections::HashMap::new();
 
     for (opt_id, opt_title, prod_id) in raw {
         let key = opt_title.trim().to_lowercase();
-        let vals = service.list_option_values(&opt_id).await.unwrap_or_default();
+        let vals = service
+            .list_option_values(&opt_id)
+            .await
+            .unwrap_or_default();
 
         let entry = seen.entry(key).or_insert_with(|| {
-            (opt_id.clone(), opt_title.clone(), prod_id.clone(), Vec::new())
+            (
+                opt_id.clone(),
+                opt_title.clone(),
+                prod_id.clone(),
+                Vec::new(),
+            )
         });
 
         for (val_id, val) in vals {
@@ -675,13 +799,11 @@ pub async fn create_global_product_option(
 }
 
 pub async fn list_product_variants(
-    State(service): State<Arc<ProductService>>,
+    State(ctx): State<VariantContext>,
     Path(product_id): Path<String>,
 ) -> Result<impl IntoResponse, Response> {
-    let variants = service
-        .list_variants(&product_id)
-        .await
-        .unwrap_or_default();
+    let service = &ctx.product_service;
+    let variants = service.list_variants(&product_id).await.unwrap_or_default();
 
     Ok((
         StatusCode::OK,
@@ -706,18 +828,104 @@ pub struct CreateVariantAdminRequest {
     pub allow_backorder: Option<bool>,
 }
 
+/// State for the variant routes, which need pricing as well as products.
+///
+/// The rest of the catalog stays on `Arc<ProductService>`; only the routes that actually
+/// write a price are widened.
+#[derive(Clone)]
+pub struct VariantContext {
+    pub product_service: Arc<ProductService>,
+    pub pricing_service: Arc<stheno_pricing::PricingService>,
+}
+
+/// Reads Medusa's `prices: [{ currency_code, amount }]` payload.
+///
+/// Tolerant about the amount's JSON type because admin clients send it both ways — a
+/// number from the form, a string from an import — and rejecting one of them would look
+/// like the price simply not saving.
+fn parse_prices(raw: Option<&serde_json::Value>) -> Vec<stheno_pricing::CreatePriceInput> {
+    let Some(items) = raw.and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .filter_map(|price| {
+            let currency_code = price.get("currency_code")?.as_str()?.to_lowercase();
+            let amount = price.get("amount").and_then(|a| {
+                a.as_f64()
+                    .and_then(rust_decimal::Decimal::from_f64_retain)
+                    .or_else(|| a.as_str().and_then(|s| s.parse().ok()))
+            })?;
+            Some(stheno_pricing::CreatePriceInput {
+                currency_code,
+                amount,
+                min_quantity: None,
+                max_quantity: None,
+                price_list_id: None,
+                rules: None,
+            })
+        })
+        .collect()
+}
+
+/// Reads Medusa's `options: { "Size": "M" }` payload into option-value ids.
+///
+/// Resolves against the product's existing options by title and value, creating neither:
+/// a variant referring to an option the product does not have is a client error, and
+/// inventing one here would let a typo silently create a second "Sizee" option.
+async fn resolve_option_value_ids(
+    service: &Arc<ProductService>,
+    product_id: &str,
+    options: Option<&serde_json::Value>,
+) -> Vec<String> {
+    let Some(map) = options.and_then(|v| v.as_object()) else {
+        return Vec::new();
+    };
+    let Ok(product_options) = service.list_options(product_id).await else {
+        return Vec::new();
+    };
+
+    let mut out = Vec::new();
+    for (title, value) in map {
+        let Some(value) = value.as_str() else {
+            continue;
+        };
+        for (option_id, option_title) in &product_options {
+            if option_title.eq_ignore_ascii_case(title) {
+                if let Ok(values) = service.list_option_values(option_id).await {
+                    if let Some((value_id, _)) = values
+                        .into_iter()
+                        .find(|(_, v)| v.eq_ignore_ascii_case(value))
+                    {
+                        out.push(value_id);
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
 pub async fn create_variant(
-    State(service): State<Arc<ProductService>>,
+    State(ctx): State<VariantContext>,
     Path(product_id): Path<String>,
     Json(input): Json<CreateVariantAdminRequest>,
 ) -> Result<impl IntoResponse, Response> {
+    let service = &ctx.product_service;
+    // Both of these were deserialized and dropped on the floor: a merchant could set a
+    // price and pick options in the admin, get a 200, and have neither stored — the
+    // storefront then showed an unpriced variant nothing could select.
+    let option_value_ids =
+        resolve_option_value_ids(service, &product_id, input.options.as_ref()).await;
+    let prices = parse_prices(input.prices.as_ref());
+
     let variant = service
         .create_variant(CreateVariantInput {
             product_id: product_id.clone(),
             title: input.title,
             sku: input.sku,
             barcode: input.barcode,
-            option_value_ids: vec![],
+            option_value_ids,
         })
         .await
         .map_err(|e| {
@@ -727,6 +935,20 @@ pub async fn create_variant(
             )
                 .into_response()
         })?;
+
+    if !prices.is_empty() {
+        ctx.pricing_service
+            .set_variant_prices(&variant.id.to_string(), prices)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse::new("invalid_data", &e.to_string())),
+                )
+                    .into_response()
+            })?;
+    }
+
     Ok((
         StatusCode::CREATED,
         Json(json!({
@@ -737,10 +959,10 @@ pub async fn create_variant(
 }
 
 pub async fn get_variant(
-    State(service): State<Arc<ProductService>>,
+    State(ctx): State<VariantContext>,
     Path((_product_id, variant_id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, Response> {
-    match service.get_variant(&variant_id).await {
+    match ctx.product_service.get_variant(&variant_id).await {
         Ok(v) => Ok((
             StatusCode::OK,
             Json(json!({
@@ -760,11 +982,26 @@ pub async fn get_variant(
 }
 
 pub async fn update_variant(
-    State(service): State<Arc<ProductService>>,
+    State(ctx): State<VariantContext>,
     Path((_product_id, variant_id)): Path<(String, String)>,
     Json(input): Json<UpdateVariantRequest>,
 ) -> Result<impl IntoResponse, Response> {
-    let v = service
+    let prices = parse_prices(input.prices.as_ref());
+    if !prices.is_empty() {
+        ctx.pricing_service
+            .set_variant_prices(&variant_id, prices)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse::new("invalid_data", &e.to_string())),
+                )
+                    .into_response()
+            })?;
+    }
+
+    let v = ctx
+        .product_service
         .update_variant(&variant_id, input.title, input.sku, input.barcode)
         .await
         .map_err(|e| {
@@ -784,9 +1021,10 @@ pub async fn update_variant(
 }
 
 pub async fn delete_variant(
-    State(service): State<Arc<ProductService>>,
+    State(ctx): State<VariantContext>,
     Path((_product_id, variant_id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, Response> {
+    let service = &ctx.product_service;
     service.delete_variant(&variant_id).await.map_err(|e| {
         (
             StatusCode::NOT_FOUND,
@@ -808,13 +1046,13 @@ pub async fn list_product_options(
     State(service): State<Arc<ProductService>>,
     Path(product_id): Path<String>,
 ) -> Result<impl IntoResponse, Response> {
-    let options_raw = service
-        .list_options(&product_id)
-        .await
-        .unwrap_or_default();
+    let options_raw = service.list_options(&product_id).await.unwrap_or_default();
     let mut options = Vec::new();
     for (opt_id, opt_title) in options_raw {
-        let vals = service.list_option_values(&opt_id).await.unwrap_or_default();
+        let vals = service
+            .list_option_values(&opt_id)
+            .await
+            .unwrap_or_default();
         let formatted_vals: Vec<serde_json::Value> = vals
             .into_iter()
             .enumerate()
@@ -897,7 +1135,10 @@ pub async fn get_product_option(
     State(service): State<Arc<ProductService>>,
     Path((product_id, option_id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, Response> {
-    let vals = service.list_option_values(&option_id).await.unwrap_or_default();
+    let vals = service
+        .list_option_values(&option_id)
+        .await
+        .unwrap_or_default();
     let formatted_vals: Vec<serde_json::Value> = vals
         .into_iter()
         .enumerate()

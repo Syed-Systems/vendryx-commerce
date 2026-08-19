@@ -44,9 +44,7 @@ pub struct CreateInviteRequest {
 }
 
 /// GET /admin/users/me
-pub async fn get_me(
-    State(ctx): State<AdminUserContext>,
-) -> Result<impl IntoResponse, HttpError> {
+pub async fn get_me(State(ctx): State<AdminUserContext>) -> Result<impl IntoResponse, HttpError> {
     let users = ctx.user_service.list_users().await?;
     let me = if let Some(first) = users.into_iter().next() {
         first

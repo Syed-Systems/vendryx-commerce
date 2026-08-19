@@ -11,7 +11,8 @@ use tower::ServiceExt;
 #[tokio::test]
 async fn test_store_catalog_endpoints_parity() {
     let db = TestDb::migrated().await;
-    let service = Arc::new(ProductService::new(create_pool(&db.url, 5).expect("pool")));
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = Arc::new(ProductService::new(pool.clone()));
 
     // Seed test product
     let _prod = service
@@ -36,7 +37,7 @@ async fn test_store_catalog_endpoints_parity() {
         .await
         .unwrap();
 
-    let app = store_catalog_routes(service);
+    let app = store_catalog_routes(catalog_context(&pool, service));
 
     // 1. GET /store/products
     let response = app
@@ -78,4 +79,18 @@ async fn test_store_catalog_endpoints_parity() {
     assert_eq!(cat_body["product_categories"][0]["handle"], "sweatshirts");
 
     db.drop().await;
+}
+
+/// Products carry prices and stock now, so the catalog router needs those services too.
+/// Built here rather than threaded through every test, none of which is about pricing.
+fn catalog_context(
+    pool: &stheno_db::DbPool,
+    product_service: Arc<ProductService>,
+) -> stheno_api_store::products::CatalogContext {
+    stheno_api_store::products::CatalogContext {
+        product_service,
+        pricing_service: Arc::new(stheno_pricing::PricingService::new(pool.clone())),
+        region_service: Arc::new(stheno_region::RegionService::new(pool.clone())),
+        inventory_service: Arc::new(stheno_inventory::InventoryService::new(pool.clone())),
+    }
 }

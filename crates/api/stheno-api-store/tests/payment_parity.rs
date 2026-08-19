@@ -17,11 +17,17 @@ use tower::ServiceExt;
 async fn test_store_payment_parity_fixture() {
     let db = TestDb::migrated().await;
     let pool = create_pool(&db.url, 5).expect("pool");
-    let payment_service = Arc::new(PaymentService::new(pool));
+    let payment_service = Arc::new(PaymentService::new(pool.clone()));
     let offline_provider = Arc::new(OfflinePaymentProvider::new(Some("pp_system_default")));
     payment_service.register_provider(offline_provider);
 
-    let app = store_payment_routes(payment_service.clone());
+    // The router opens collections for carts now, so it needs the cart service and the
+    // link store alongside payments.
+    let app = store_payment_routes(stheno_api_store::StorePaymentContext {
+        payment_service: payment_service.clone(),
+        cart_service: Arc::new(stheno_cart::CartService::new(pool.clone())),
+        links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+    });
 
     // 1. Seed payment collection
     let col = payment_service

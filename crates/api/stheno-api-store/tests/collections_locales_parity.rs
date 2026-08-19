@@ -26,7 +26,8 @@ async fn body_json(response: axum::response::Response) -> Value {
 #[tokio::test]
 async fn test_store_collection_endpoints_parity() {
     let db = TestDb::migrated().await;
-    let service = Arc::new(ProductService::new(create_pool(&db.url, 5).expect("pool")));
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = Arc::new(ProductService::new(pool.clone()));
 
     let featured = service
         .create_collection(CreateCollectionInput {
@@ -45,7 +46,7 @@ async fn test_store_collection_endpoints_parity() {
         .await
         .unwrap();
 
-    let app = store_catalog_routes(service);
+    let app = store_catalog_routes(catalog_context(&pool, service));
 
     // GET /store/collections uses the Medusa { collections, count, offset, limit } envelope.
     let response = app
@@ -116,7 +117,8 @@ async fn test_store_collection_endpoints_parity() {
 #[tokio::test]
 async fn test_store_product_variant_endpoint_parity() {
     let db = TestDb::migrated().await;
-    let service = Arc::new(ProductService::new(create_pool(&db.url, 5).expect("pool")));
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let service = Arc::new(ProductService::new(pool.clone()));
 
     let product = service
         .create_product(CreateProductInput {
@@ -126,18 +128,33 @@ async fn test_store_product_variant_endpoint_parity() {
         .await
         .unwrap();
 
+    // Real option values, because a variant's option ids are stored as rows now rather
+    // than only folded into a hash. Invented ids like "optval_m" are rejected by the
+    // foreign key — which is the point: a variant referring to an option value that does
+    // not exist is one no shopper can ever select.
+    let size = service
+        .create_option(&product.id.to_string(), "Size")
+        .await
+        .unwrap();
+    let colour = service
+        .create_option(&product.id.to_string(), "Colour")
+        .await
+        .unwrap();
+    let size_m = service.create_option_value(&size, "M").await.unwrap();
+    let colour_black = service.create_option_value(&colour, "Black").await.unwrap();
+
     let variant = service
         .create_variant(CreateVariantInput {
             product_id: product.id.to_string(),
             title: "Medium / Black".to_string(),
             sku: Some("TEE-M-BLK".to_string()),
             barcode: None,
-            option_value_ids: vec!["optval_m".to_string(), "optval_blk".to_string()],
+            option_value_ids: vec![size_m, colour_black],
         })
         .await
         .unwrap();
 
-    let app = store_catalog_routes(service);
+    let app = store_catalog_routes(catalog_context(&pool, service));
 
     let response = app
         .clone()
@@ -254,4 +271,18 @@ async fn test_store_locales_endpoint_lists_enabled_only() {
     let locales = json["locales"].as_array().unwrap();
     assert_eq!(locales.len(), 1, "disabled locales must not be exposed");
     assert_eq!(locales[0]["code"], "en");
+}
+
+/// Products carry prices and stock now, so the catalog router needs those services too.
+/// Built here rather than threaded through every test, none of which is about pricing.
+fn catalog_context(
+    pool: &stheno_db::DbPool,
+    product_service: Arc<ProductService>,
+) -> stheno_api_store::products::CatalogContext {
+    stheno_api_store::products::CatalogContext {
+        product_service,
+        pricing_service: Arc::new(stheno_pricing::PricingService::new(pool.clone())),
+        region_service: Arc::new(stheno_region::RegionService::new(pool.clone())),
+        inventory_service: Arc::new(stheno_inventory::InventoryService::new(pool.clone())),
+    }
 }

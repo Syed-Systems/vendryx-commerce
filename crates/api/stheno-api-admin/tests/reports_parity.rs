@@ -33,7 +33,20 @@ async fn test_admin_reports_envelope_shape_and_csv() {
         .await
         .expect("record order");
 
-    let app = admin_reports_routes(reporting_service.clone());
+    // Pro has an unlimited analytics window, so this asserts the report shapes
+    // without the tier clamp interfering.
+    let entitlements = std::sync::Arc::new(
+        stheno_api_core::TierConfig::from_toml(include_str!("../../../../config/tiers.toml"))
+            .expect("config/tiers.toml must parse")
+            .resolve(
+                stheno_api_core::Tier::Pro,
+                &std::collections::BTreeMap::new(),
+            )
+            .expect("tier must resolve"),
+    );
+    // The handlers read the caller's entitlements from a request extension, which the
+    // tenant layer sets in the real server (ADR-012). The test supplies it directly.
+    let app = admin_reports_routes(reporting_service.clone()).layer(axum::Extension(entitlements));
 
     // 1. GET /admin/reports/revenue-over-time
     let req = Request::builder()

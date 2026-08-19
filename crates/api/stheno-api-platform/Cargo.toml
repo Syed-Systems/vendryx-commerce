@@ -1,0 +1,23 @@
+[package]
+name = "stheno-api-platform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+stheno-types = { workspace = true }
+stheno-platform = { workspace = true }
+stheno-api-core = { workspace = true }
+stheno-db = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+stheno-db = { workspace = true, features = ["testing"] }
+tokio = { workspace = true }
+tower = { workspace = true }
