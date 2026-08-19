@@ -19,6 +19,7 @@ a stated cost is a preference wearing a suit.
 | [ADR-012](#adr-012) | One database, `tenant_id` on every row, isolation enforced by Postgres RLS | Accepted |
 | [ADR-013](#adr-013) | Storefront presentation is swappable; commerce logic is not | Accepted |
 | [ADR-014](#adr-014) | A line item's price comes from the catalogue, never from the request | Accepted |
+| [ADR-015](#adr-015) | Wire-shape expansion lives in the API layer, not in module DTOs | Accepted |
 
 ---
 
@@ -990,3 +991,51 @@ the request either, for the same reason.
 - The catalogue endpoints now return `variants[]` with `calculated_price`, `options[]` and
   `inventory_quantity`, because a storefront that cannot see a price cannot show one — the read
   and write halves of this had to land together.
+
+---
+
+<a id="adr-015"></a>
+
+## ADR-015 — Wire-shape expansion lives in the API layer, not in module DTOs
+
+**Status:** Accepted (2026-08-20)
+
+### Context
+
+The storefront is a fork of Medusa's Next.js starter, so it reads Medusa's response shapes
+structurally. Ours were the same data at a different depth or behind a link, and every
+mismatch failed *silently* — the component rendered, with zeros or nothing, and no request
+errored:
+
+| Mismatch | What the shopper saw |
+|---|---|
+| `variants` / `options` / prices absent from `GET /store/products` | Catalogue with no prices; add-to-cart never enabled |
+| `inventory_quantity` absent | Every product "Out of stock" |
+| Cart totals nested under `totals` | Every figure in checkout `$0.00` |
+| `cart.region` not expanded | No "Proceed to Checkout" button at all |
+| `cart.payment_collection` not expanded (behind a link table) | Review step never appeared |
+| Order totals only in the accounting `summary` | Confirmation page `$0.00` after paying |
+
+Each was individually invisible and collectively made the checkout impossible to complete.
+
+### Decision
+
+Expansion belongs in `crates/api/stheno-api-store`, as response types that wrap a module
+DTO — `StoreProduct`, `StoreCart`, `StoreOrder` — never by widening the module DTO itself.
+
+Two exceptions were made deliberately, both where the field already existed and only its
+*depth* was wrong: `CartDTO::totals` and the line-item/shipping-method totals now carry
+`#[serde(flatten)]`. That changes one attribute rather than duplicating twelve fields
+through a wrapper, and it is a struct field in Rust either way.
+
+### Consequences
+
+- `ProductDTO` and the other ~127 entity structs stay free of presentation concerns, and
+  the admin API is unaffected by storefront shape changes.
+- Expansion costs queries, so it is batched where it counts: one price evaluation covers
+  every variant on a page (`calculate_for_linked`), and one availability lookup covers
+  every variant. Per-product option queries remain and are bounded by the page limit.
+- **A route that returns 200 proves nothing about whether a client can use the response.**
+  Every one of these gaps sat behind a passing parity test that asserted a status code and
+  a couple of fields. The e2e suites added alongside this ADR drive the real journeys,
+  which is the only thing that would have caught them.

@@ -20,6 +20,8 @@ async fn test_variant_identity_concurrent_creation_no_duplicates() {
         .unwrap();
 
     let prod_id = product.id.to_string();
+    let colour = option_values(&service, &prod_id, "Colour", &["Blue"]).await;
+    let size = option_values(&service, &prod_id, "Size", &["43"]).await;
     let success_count = Arc::new(AtomicUsize::new(0));
 
     let mut handles = Vec::new();
@@ -27,6 +29,7 @@ async fn test_variant_identity_concurrent_creation_no_duplicates() {
         let s = service.clone();
         let pid = prod_id.clone();
         let sc = success_count.clone();
+        let opts = vec![colour[0].clone(), size[0].clone()];
         handles.push(tokio::spawn(async move {
             let res = s
                 .create_variant(CreateVariantInput {
@@ -34,7 +37,7 @@ async fn test_variant_identity_concurrent_creation_no_duplicates() {
                     title: format!("Blue / 43 - Task {}", i),
                     sku: Some(format!("RUN-BLU-43-{}", i)),
                     barcode: None,
-                    option_value_ids: vec!["opt_color_blue".to_string(), "opt_size_43".to_string()],
+                    option_value_ids: opts,
                 })
                 .await;
 
@@ -52,4 +55,32 @@ async fn test_variant_identity_concurrent_creation_no_duplicates() {
     assert_eq!(success_count.load(Ordering::SeqCst), 1);
 
     db.drop().await;
+}
+
+/// Creates real option values on a product and returns their ids.
+///
+/// These suites used to pass synthetic ids like `"optval_small"`. Variant option values are
+/// stored as rows now, with a foreign key, so an id that resolves to nothing is rejected —
+/// which is the point: a variant referencing an option value that does not exist is one no
+/// shopper can select.
+async fn option_values(
+    service: &ProductService,
+    product_id: &str,
+    option_title: &str,
+    values: &[&str],
+) -> Vec<String> {
+    let option_id = service
+        .create_option(product_id, option_title)
+        .await
+        .expect("create option");
+    let mut ids = Vec::new();
+    for value in values {
+        ids.push(
+            service
+                .create_option_value(&option_id, value)
+                .await
+                .expect("create option value"),
+        );
+    }
+    ids
 }

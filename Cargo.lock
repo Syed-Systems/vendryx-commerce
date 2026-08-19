@@ -2925,6 +2925,7 @@ name = "stheno-api-store"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "form_urlencoded",
  "garde",
  "rust_decimal",
  "rust_decimal_macros",

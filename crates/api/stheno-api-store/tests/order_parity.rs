@@ -23,10 +23,14 @@ async fn test_store_order_and_shipping_option_endpoints_parity() {
     let fulfillment_service = Arc::new(FulfillmentService::new(pool.clone()));
 
     let app = axum::Router::new()
-        .merge(store_order_routes(
-            order_service.clone(),
-            order_flows.clone(),
-        ))
+        // Orders expand their payment collections now, so the router needs the link store
+        // and payment service alongside the order service.
+        .merge(store_order_routes(stheno_api_store::StoreOrderContext {
+            order_service: order_service.clone(),
+            order_flows: order_flows.clone(),
+            links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+            payment_service: Arc::new(stheno_payment::PaymentService::new(pool.clone())),
+        }))
         .merge(store_shipping_option_routes(fulfillment_service.clone()));
 
     // Seed Order

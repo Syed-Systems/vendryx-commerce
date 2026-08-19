@@ -31,6 +31,8 @@ pub struct StoreCartContext {
     pub fulfillment_service: Arc<stheno_fulfillment::FulfillmentService>,
     pub links: Arc<stheno_links::PgLinkStore>,
     pub payment_service: Arc<stheno_payment::PaymentService>,
+    /// Runs the complete-cart SAGA.
+    pub complete_flows: Arc<stheno_flows::CompleteCartWorkflowEngine>,
 }
 
 /// A cart as a storefront expects it: the DTO plus its expanded `region`.
@@ -601,4 +603,58 @@ fn map_error(e: Error) -> Response {
         }),
     )
         .into_response()
+}
+
+/// `POST /store/carts/{id}/complete` — turn a cart into an order.
+///
+/// The last step of the checkout, and it had no route. `CompleteCartWorkflowEngine` is an
+/// eleven-step SAGA with compensation and an idempotency cache, tested since the cart
+/// phase, and nothing could reach it: the storefront's "Place order" button called this
+/// path, got a 404 from the router, and stayed on the review step. Every earlier step of
+/// the checkout worked, so the failure looked like a hang rather than a missing endpoint.
+pub async fn complete_cart(
+    State(ctx): State<StoreCartContext>,
+    Path(cart_id): Path<String>,
+) -> Result<Json<serde_json::Value>, Response> {
+    let output = ctx
+        .complete_flows
+        .execute(
+            stheno_flows::CompleteCartInput {
+                cart_id: cart_id.clone(),
+                // The cart id is the key: a shopper double-clicking "Place order" must get
+                // the same order back, not a second one.
+                idempotency_key: Some(cart_id.clone()),
+            },
+            stheno_flows::StepFailureMode::None,
+        )
+        .await
+        .map_err(map_error)?;
+
+    // Medusa's shape: `{ type, order }` on success, so the client can tell an order from a
+    // cart that came back needing more input.
+    // Carry the cart's payment collection over to the order.
+    //
+    // The SAGA links `order_cart`, but through the in-memory `LinkStore`, so nothing it
+    // links is persisted and the order arrives with no payment attached — a receipt that
+    // does not say what was paid. Done here, with the durable store, because this is where
+    // both ids are known.
+    if let Ok(ids) = ctx
+        .links
+        .get_by_left("cart_payment_collection", &cart_id)
+        .await
+    {
+        for collection_id in ids {
+            let _ = ctx
+                .links
+                .link("order_payment_collection", &output.order.id, &collection_id)
+                .await;
+        }
+    }
+
+    // The same expanded shape the order endpoints return, so the confirmation page can
+    // render straight from this response instead of refetching.
+    Ok(Json(serde_json::json!({
+        "type": "order",
+        "order": crate::orders::store_order_public(output.order),
+    })))
 }

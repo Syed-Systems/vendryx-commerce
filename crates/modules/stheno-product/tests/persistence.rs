@@ -197,13 +197,16 @@ async fn a_variant_persists_with_its_option_hash() {
         .id
         .to_string();
 
+    let ids = option_values(&service, &product_id, "Size", &["Small"]).await;
+    let colours = option_values(&service, &product_id, "Colour", &["Red"]).await;
+
     let created = service
         .create_variant(CreateVariantInput {
             product_id: product_id.clone(),
             title: "Small / Red".to_string(),
             sku: Some("TEE-S-RED".to_string()),
             barcode: None,
-            option_value_ids: vec!["optval_small".into(), "optval_red".into()],
+            option_value_ids: vec![ids[0].clone(), colours[0].clone()],
         })
         .await
         .expect("create variant");
@@ -235,13 +238,16 @@ async fn variant_identity_is_order_independent() {
         .id
         .to_string();
 
+    let size = option_values(&service, &product_id, "Size", &["Small"]).await;
+    let colour = option_values(&service, &product_id, "Colour", &["Red"]).await;
+
     let a = service
         .create_variant(CreateVariantInput {
             product_id: product_id.clone(),
             title: "A".to_string(),
             sku: None,
             barcode: None,
-            option_value_ids: vec!["optval_red".into(), "optval_small".into()],
+            option_value_ids: vec![colour[0].clone(), size[0].clone()],
         })
         .await
         .expect("create");
@@ -253,7 +259,7 @@ async fn variant_identity_is_order_independent() {
             title: "B".to_string(),
             sku: None,
             barcode: None,
-            option_value_ids: vec!["optval_small".into(), "optval_red".into()],
+            option_value_ids: vec![size[0].clone(), colour[0].clone()],
         })
         .await
         .expect_err("the same option set in a different order is the same variant");
@@ -285,13 +291,16 @@ async fn the_same_option_set_on_a_different_product_is_allowed() {
         .to_string();
 
     for product_id in [first, second] {
+        // Each product gets its own "Small" option value — which is the point: identity is
+        // per product, so the two variants hash differently even though both are Small.
+        let small = option_values(&service, &product_id, "Size", &["Small"]).await;
         service
             .create_variant(CreateVariantInput {
                 product_id,
                 title: "Small".to_string(),
                 sku: None,
                 barcode: None,
-                option_value_ids: vec!["optval_small".into()],
+                option_value_ids: small,
             })
             .await
             .expect("each product may have its own Small variant");
@@ -333,14 +342,15 @@ async fn variants_are_listed_per_product() {
         .id
         .to_string();
 
-    for value in ["small", "medium", "large"] {
+    let sizes = option_values(&service, &product_id, "Size", &["small", "medium", "large"]).await;
+    for (value, option_value_id) in ["small", "medium", "large"].iter().zip(sizes) {
         service
             .create_variant(CreateVariantInput {
                 product_id: product_id.clone(),
                 title: value.to_string(),
                 sku: None,
                 barcode: None,
-                option_value_ids: vec![format!("optval_{value}")],
+                option_value_ids: vec![option_value_id],
             })
             .await
             .expect("create variant");
@@ -350,4 +360,32 @@ async fn variants_are_listed_per_product() {
     assert_eq!(listed.len(), 3);
 
     db.drop().await;
+}
+
+/// Creates real option values on a product and returns their ids.
+///
+/// These suites used to pass synthetic ids like `"optval_small"`. Variant option values are
+/// stored as rows now, with a foreign key, so an id that resolves to nothing is rejected —
+/// which is the point: a variant referencing an option value that does not exist is one no
+/// shopper can select.
+async fn option_values(
+    service: &ProductService,
+    product_id: &str,
+    option_title: &str,
+    values: &[&str],
+) -> Vec<String> {
+    let option_id = service
+        .create_option(product_id, option_title)
+        .await
+        .expect("create option");
+    let mut ids = Vec::new();
+    for value in values {
+        ids.push(
+            service
+                .create_option_value(&option_id, value)
+                .await
+                .expect("create option value"),
+        );
+    }
+    ids
 }

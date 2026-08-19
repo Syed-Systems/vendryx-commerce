@@ -34,7 +34,7 @@ use stheno_translation::TranslationService;
 
 pub use carts::StoreCartContext;
 use customers::StoreCustomerContext;
-use orders::StoreOrderContext;
+pub use orders::StoreOrderContext;
 pub use payment_collections::StorePaymentContext;
 use returns::StoreReturnContext;
 use shipping_options::StoreShippingOptionContext;
@@ -54,6 +54,7 @@ pub struct StoreApiContext {
     /// Resolves cross-module associations the store API has to expand — a cart's payment
     /// collection, a variant's price set.
     pub links: Arc<stheno_links::PgLinkStore>,
+    pub complete_flows: Arc<stheno_flows::CompleteCartWorkflowEngine>,
     pub cart_service: Arc<CartService>,
     pub promotion_service: Option<Arc<stheno_promotion::PromotionService>>,
     pub payment_service: Arc<PaymentService>,
@@ -123,6 +124,7 @@ pub fn store_cart_routes(ctx: StoreCartContext) -> Router {
             get(carts::get_cart).post(carts::update_cart),
         )
         .route("/store/carts/{id}/line-items", post(carts::add_line_item))
+        .route("/store/carts/{id}/complete", post(carts::complete_cart))
         .route(
             "/store/carts/{id}/line-items/{line_id}",
             post(carts::update_line_item).delete(carts::delete_line_item),
@@ -161,14 +163,7 @@ pub fn store_payment_routes(ctx: StorePaymentContext) -> Router {
 }
 
 /// Mounts store order and transfer routes (TASKS P5-22).
-pub fn store_order_routes(
-    order_service: Arc<OrderService>,
-    order_flows: Arc<OrderWorkflowEngine>,
-) -> Router {
-    let ctx = StoreOrderContext {
-        order_service,
-        order_flows,
-    };
+pub fn store_order_routes(ctx: StoreOrderContext) -> Router {
     Router::new()
         .route("/store/orders", get(orders::list_orders))
         .route("/store/orders/{id}", get(orders::get_order))
@@ -266,16 +261,19 @@ pub fn store_routes(ctx: StoreApiContext) -> Router {
             fulfillment_service: ctx.fulfillment_service.clone(),
             links: ctx.links.clone(),
             payment_service: ctx.payment_service.clone(),
+            complete_flows: ctx.complete_flows.clone(),
         }))
         .merge(store_payment_routes(StorePaymentContext {
-            payment_service: ctx.payment_service,
+            payment_service: ctx.payment_service.clone(),
             cart_service: ctx.cart_service.clone(),
             links: ctx.links.clone(),
         }))
-        .merge(store_order_routes(
-            ctx.order_service.clone(),
-            ctx.order_flows,
-        ))
+        .merge(store_order_routes(StoreOrderContext {
+            order_service: ctx.order_service.clone(),
+            order_flows: ctx.order_flows,
+            links: ctx.links.clone(),
+            payment_service: ctx.payment_service.clone(),
+        }))
         .merge(store_shipping_option_routes(ctx.fulfillment_service))
         .merge(store_return_routes(ctx.order_service, ctx.return_flows))
         .merge(store_customer_routes(

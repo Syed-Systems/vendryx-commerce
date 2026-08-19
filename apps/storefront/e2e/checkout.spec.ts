@@ -101,5 +101,10 @@ test.describe("checkout", () => {
     // The order carries the email the shopper typed, which proves the cart that was
     // completed is the one they filled in.
     await expect(page.getByTestId("order-email")).toContainText("shopper@example.com")
+
+    // The amount actually charged, on the page shown after paying. `OrderDTO` reports its
+    // figures in an accounting `summary` and the confirmation page reads flat totals, so
+    // this rendered as $0.00 — the one number a buyer checks, and it was zero.
+    await expect(page.getByTestId("payment-amount")).not.toContainText("$0.00")
   })
 })

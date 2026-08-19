@@ -178,7 +178,11 @@ export default async function Footer() {
                 <span className="text-zinc-500 block text-[11px]">Hours</span>
                 <span className="text-zinc-300">Mon – Fri: 09:00 – 18:00 EST</span>
               </li>
-              <li className="pt-2 flex items-center gap-3 text-zinc-400">
+              {/* Wraps. Three social names plus separators are wider than this column at
+                  mobile widths, and an unwrapped flex row pushed the last one 33px past
+                  the viewport — which made every page on the site scroll sideways, since
+                  the footer is global. */}
+              <li className="pt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-400">
                 <span className="hover:text-white transition-colors cursor-pointer">Instagram</span>
                 <span>•</span>
                 <span className="hover:text-white transition-colors cursor-pointer">Pinterest</span>
@@ -194,7 +198,9 @@ export default async function Footer() {
           <div>
             © {new Date().getFullYear()} STHENO Storefront Atelier. All rights reserved. Powered by Medusa v2.
           </div>
-          <div className="flex items-center gap-4 text-zinc-400">
+          {/* Wraps: five badges on one unwrapped row are 33px wider than a 390px viewport,
+              which made every page on the site scroll sideways — the footer is global. */}
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-zinc-400 sm:justify-end">
             <span>Visa</span>
             <span>Mastercard</span>
             <span>Apple Pay</span>

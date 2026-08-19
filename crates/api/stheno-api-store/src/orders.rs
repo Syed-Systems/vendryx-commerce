@@ -3,6 +3,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use stheno_flows::OrderWorkflowEngine;
@@ -15,6 +16,9 @@ use crate::products::ErrorResponse;
 pub struct StoreOrderContext {
     pub order_service: Arc<OrderService>,
     pub order_flows: Arc<OrderWorkflowEngine>,
+    /// Resolves `links.link_order_payment_collection`.
+    pub links: Arc<stheno_links::PgLinkStore>,
+    pub payment_service: Arc<stheno_payment::PaymentService>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -25,14 +29,110 @@ pub struct ListOrdersQuery {
     pub offset: Option<usize>,
 }
 
+/// An order as a storefront expects it: the DTO plus the flat totals clients read.
+///
+/// The order confirmation page renders `<CartTotals totals={order} />`, reading `total`,
+/// `item_subtotal` and `shipping_subtotal` off the order itself. `OrderDTO` carries an
+/// accounting `summary` instead, so every figure on the page a shopper sees *after paying*
+/// rendered as $0.00.
+#[derive(Debug, Clone, Serialize)]
+pub struct StoreOrder {
+    #[serde(flatten)]
+    pub base: OrderDTO,
+    pub item_subtotal: Decimal,
+    pub item_total: Decimal,
+    pub shipping_subtotal: Decimal,
+    pub shipping_total: Decimal,
+    pub tax_total: Decimal,
+    pub discount_total: Decimal,
+    pub subtotal: Decimal,
+    pub total: Decimal,
+    /// What was actually paid, and by which provider.
+    ///
+    /// The confirmation page reads `order.payment_collections[0].payments[0]` to show the
+    /// amount and method. It lives behind a link table, so without this the buyer's receipt
+    /// showed no payment at all.
+    ///
+    /// Omitted when empty, not sent as `[]`. The client's expression is
+    /// `payment_collections?.[0].payments` — an *absent* field short-circuits the whole
+    /// optional chain, but a present empty array does not, and `.payments` on `undefined`
+    /// throws and takes the confirmation page down with it.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub payment_collections: Vec<stheno_payment::PaymentCollectionDTO>,
+}
+
+/// Derives the flat totals from the order's own lines.
+///
+/// `total` comes from the order summary, which the complete-cart SAGA computed and is the
+/// figure that was actually charged — not a re-derivation that could disagree with it.
+///
+/// `tax_total` and `discount_total` are reported as zero because `OrderDTO`'s line items
+/// carry neither adjustments nor tax lines (unlike the cart's), so there is nothing to
+/// itemise from. A discounted or taxed order therefore shows the correct total with the
+/// breakdown folded into it, rather than a fabricated split.
+// ponytail: itemise these once order line items carry adjustments and tax lines.
+pub fn store_order_public(order: OrderDTO) -> StoreOrder {
+    store_order(order)
+}
+
+async fn store_order_expanded(ctx: &StoreOrderContext, order: OrderDTO) -> StoreOrder {
+    let collections = match ctx
+        .links
+        .get_by_left("order_payment_collection", &order.id)
+        .await
+    {
+        Ok(ids) => {
+            let mut out = Vec::new();
+            for id in ids {
+                if let Ok(c) = ctx.payment_service.get_payment_collection(&id).await {
+                    out.push(c);
+                }
+            }
+            out
+        }
+        Err(_) => Vec::new(),
+    };
+
+    let mut expanded = store_order(order);
+    expanded.payment_collections = collections;
+    expanded
+}
+
+fn store_order(order: OrderDTO) -> StoreOrder {
+    let item_subtotal: Decimal = order
+        .items
+        .iter()
+        .map(|i| i.unit_price * Decimal::from(i.quantity))
+        .sum();
+    let shipping_total: Decimal = order.shipping_methods.iter().map(|m| m.amount).sum();
+    let total = order
+        .summary
+        .as_ref()
+        .map(|s| s.current_order_total)
+        .unwrap_or(item_subtotal + shipping_total);
+
+    StoreOrder {
+        item_subtotal,
+        item_total: item_subtotal,
+        shipping_subtotal: shipping_total,
+        shipping_total,
+        tax_total: Decimal::ZERO,
+        discount_total: Decimal::ZERO,
+        subtotal: item_subtotal,
+        total,
+        payment_collections: Vec::new(),
+        base: order,
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct OrderResponse {
-    pub order: OrderDTO,
+    pub order: StoreOrder,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct OrderListResponse {
-    pub orders: Vec<OrderDTO>,
+    pub orders: Vec<StoreOrder>,
     pub count: usize,
     pub limit: usize,
     pub offset: usize,
@@ -77,7 +177,13 @@ pub async fn list_orders(
     let offset = query.offset.unwrap_or(0);
 
     Ok(Json(OrderListResponse {
-        orders,
+        orders: {
+            let mut out = Vec::new();
+            for o in orders {
+                out.push(store_order_expanded(&ctx, o).await);
+            }
+            out
+        },
         count,
         limit,
         offset,
@@ -90,7 +196,9 @@ pub async fn get_order(
     Path(id): Path<String>,
 ) -> Result<Json<OrderResponse>, Response> {
     let order = ctx.order_service.get_order(&id).await.map_err(map_error)?;
-    Ok(Json(OrderResponse { order }))
+    Ok(Json(OrderResponse {
+        order: store_order_expanded(&ctx, order).await,
+    }))
 }
 
 /// `POST /store/orders/transfer`
@@ -120,7 +228,9 @@ pub async fn accept_transfer(
         .accept_order_transfer(&body.order_id)
         .await
         .map_err(map_error)?;
-    Ok(Json(OrderResponse { order }))
+    Ok(Json(OrderResponse {
+        order: store_order_expanded(&ctx, order).await,
+    }))
 }
 
 /// `POST /store/orders/transfer/decline`

@@ -1,6 +1,6 @@
 //! Store Product API handlers (Medusa v2 byte-compatible).
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, Query, RawQuery, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -93,10 +93,45 @@ async fn resolve_currency(
         .unwrap_or_else(|| "usd".to_string())
 }
 
+/// Collects a repeated or bracketed query parameter.
+///
+/// `@medusajs/js-sdk` sends list filters as `id[]=x` (and `id[0]=x` for multiples), which
+/// `serde_urlencoded` — what `Query` uses — cannot express at all. The field simply stayed
+/// `None`, and a `None` filter means *no filter*: `GET /store/products?id[]=X` returned the
+/// entire catalogue.
+///
+/// That was not a cosmetic parsing miss. The product page fetches its add-to-cart panel
+/// with `listProducts({ queryParams: { id: [id] } })` and takes `products[0]`, so on any
+/// store with more than one product the panel bound to whichever product happened to sort
+/// first — its variants, its price, its stock — while the page around it showed a different
+/// product. A shopper could add an item they were not looking at.
+fn multi_param(raw: Option<&str>, name: &str) -> Vec<String> {
+    let Some(raw) = raw else {
+        return Vec::new();
+    };
+    form_urlencoded::parse(raw.as_bytes())
+        .filter(|(key, _)| {
+            key == name
+                || key
+                    .strip_prefix(name)
+                    .is_some_and(|rest| rest == "[]" || rest.starts_with('['))
+        })
+        .map(|(_, value)| value.into_owned())
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
 pub async fn list_products(
     State(ctx): State<CatalogContext>,
+    RawQuery(raw_query): RawQuery,
     Query(query): Query<ListProductsQuery>,
 ) -> Result<Json<ListProductsResponse>, Response> {
+    // Both spellings, so `?id=x` and `?id[]=x` behave the same.
+    let mut ids = multi_param(raw_query.as_deref(), "id");
+    ids.extend(query.id.clone());
+    let mut handles = multi_param(raw_query.as_deref(), "handle");
+    handles.extend(query.handle.clone());
+
     let all = ctx
         .product_service
         .list_products()
@@ -106,14 +141,12 @@ pub async fn list_products(
     let filtered: Vec<ProductDTO> = all
         .into_iter()
         .filter(|p| {
-            if let Some(h) = &query.handle {
-                if &p.handle != h {
-                    return false;
-                }
+            if !handles.is_empty() && !handles.iter().any(|h| h == &p.handle) {
+                return false;
             }
-            if let Some(id) = &query.id {
+            if !ids.is_empty() {
                 let id_str = p.id.to_string();
-                if &id_str != id && !id_str.ends_with(id) {
+                if !ids.iter().any(|id| &id_str == id || id_str.ends_with(id)) {
                     return false;
                 }
             }

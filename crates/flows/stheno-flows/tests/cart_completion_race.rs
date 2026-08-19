@@ -30,6 +30,7 @@ async fn test_concurrent_completion_of_same_cart_produces_exactly_one_order() {
         payment_service.clone(),
         promotion_service.clone(),
         link_store.clone(),
+        Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
     ));
 
     // Seed a cart

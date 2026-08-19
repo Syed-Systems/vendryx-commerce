@@ -593,6 +593,16 @@ impl AppServer {
         let social_flows = Arc::new(stheno_flows_order::SocialDraftWorkflow::new(
             order_service.clone(),
         ));
+        // Turns a cart into an order. Built with tests since the cart phase and never
+        // mounted, so "Place order" had nothing to call.
+        let complete_flows = Arc::new(stheno_flows::CompleteCartWorkflowEngine::new(
+            cart_service.clone(),
+            order_service.clone(),
+            payment_service.clone(),
+            promotion_service.clone(),
+            Arc::new(stheno_links::LinkStore::default()),
+            Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+        ));
         let return_flow = Arc::new(ReturnWorkflowEngine::new(
             order_service.clone(),
             Some(inventory_service.clone()),
@@ -722,6 +732,7 @@ impl AppServer {
                 currency_service: currency_service.clone(),
                 inventory_service: inventory_service.clone(),
                 links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+                complete_flows: complete_flows.clone(),
                 pricing_service: pricing_service.clone(),
                 cart_service: cart_service.clone(),
                 payment_service: payment_service.clone(),

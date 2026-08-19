@@ -234,6 +234,36 @@ impl ProductService {
 
     pub async fn create_variant(&self, input: CreateVariantInput) -> Result<ProductVariantDTO> {
         let option_value_ids = input.option_value_ids.clone();
+
+        // Checked before the variant row is written, not after.
+        //
+        // The option-value join rows are inserted once the variant exists, and they carry a
+        // foreign key. An id that does not resolve therefore failed *after* the variant had
+        // already been created, leaving a variant with no options behind — one no shopper
+        // could ever select, and no error path removed it.
+        if !option_value_ids.is_empty() {
+            let found = self
+                .option_values
+                .list(
+                    None,
+                    &Self::live(LIST_LIMIT)
+                        .with_predicate("id", FilterOp::In(option_value_ids.clone())),
+                )
+                .await?;
+            if found.len() != option_value_ids.len() {
+                let known: std::collections::HashSet<String> =
+                    found.into_iter().map(|v| v.id).collect();
+                let missing: Vec<&String> = option_value_ids
+                    .iter()
+                    .filter(|id| !known.contains(*id))
+                    .collect();
+                return Err(Error::Invalid {
+                    code: "unknown_option_value",
+                    message: format!("No such product option value(s): {missing:?}"),
+                    field: Some("option_value_ids".to_string()),
+                });
+            }
+        }
         let hash = if input.option_value_ids.is_empty() {
             let mut hasher = sha2::Sha256::new();
             hasher.update(input.title.as_bytes());

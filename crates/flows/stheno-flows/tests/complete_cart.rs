@@ -28,6 +28,7 @@ async fn test_complete_cart_all_11_steps_happy_path() {
         payment_service.clone(),
         promotion_service.clone(),
         link_store.clone(),
+        Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
     );
 
     // 1. Seed ready cart

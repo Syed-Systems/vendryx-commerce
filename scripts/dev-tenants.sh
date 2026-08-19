@@ -73,6 +73,14 @@ up() {
     echo "stheno-server not built at $BIN — run: cargo build -p stheno-server" >&2
     exit 1
   fi
+  # A server already on the port is not "already up": it may be an orphan from an earlier
+  # run, pointed at a database that has since been dropped and recreated. Adopting it
+  # silently is how every request ends up 404ing on a tenant that demonstrably exists.
+  if curl -fsS -m 2 "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
+    echo "something is already serving :${PORT} — run '$0 down', or kill it, then retry" >&2
+    exit 1
+  fi
+
   mkdir -p "$RUNTIME_DIR"
 
   psql_admin -tAc "SELECT 1 FROM pg_database WHERE datname='${DB}'" | grep -q 1 \
@@ -89,15 +97,47 @@ up() {
 
   for _ in $(seq 1 90); do
     curl -fsS -m 2 "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1 && break
+    # If our own process is gone, waiting the full 90s tells us nothing useful.
+    kill -0 "$(cat "$RUNTIME_DIR/server.pid")" 2>/dev/null || break
     sleep 1
   done
+
+  if ! kill -0 "$(cat "$RUNTIME_DIR/server.pid")" 2>/dev/null; then
+    echo "server exited during startup:" >&2
+    tail -5 "$RUNTIME_DIR/server.log" >&2
+    exit 1
+  fi
+
+  # A listening port is not a migrated schema. `--migrate` runs before the bind, so this
+  # is normally instant — but if anything else is already holding the port, /health
+  # answers from *that* process and the tenant loop below then runs against a database
+  # that has no `platform.tenant` yet. That failure produced tenants that were never
+  # created while the script still printed its full success table.
+  for _ in $(seq 1 90); do
+    "$BIN" --check-migrations >/dev/null 2>&1 && break
+    sleep 1
+  done
+  if ! "$BIN" --check-migrations >/dev/null 2>&1; then
+    echo "migrations did not finish; not creating tenants against a half-built schema" >&2
+    exit 1
+  fi
 
   for entry in "${TENANTS[@]}"; do
     IFS=: read -r id name tier domain <<<"$entry"
     echo "==> $id ($tier) at http://${domain}:${PORT}"
 
-    "$BIN" --create-tenant "${id}:${name}:${tier}:${domain}" >/dev/null 2>&1 || true
-    STHENO_TENANT="$id" "$BIN" --seed-demo >/dev/null 2>&1 || true
+    # Not silenced. These used to be `>/dev/null 2>&1 || true`, which is why a run that
+    # created no tenants at all still printed the full success table — every request then
+    # 404'd on an unknown Host and the cause was invisible.
+    if ! out=$("$BIN" --create-tenant "${id}:${name}:${tier}:${domain}" 2>&1); then
+        case "$out" in
+            *already*|*exists*|*conflict*|*duplicate*) ;;   # re-running `up` is fine
+            *) echo "    !! could not create $id: $out" >&2 ;;
+        esac
+    fi
+    if ! out=$(STHENO_TENANT="$id" "$BIN" --seed-demo 2>&1); then
+        echo "    !! could not seed $id: $out" >&2
+    fi
 
     # The owner account. Registration is scoped by Host, so each tenant gets its own —
     # and the same email may legitimately be reused across tenants now that the unique
@@ -122,10 +162,24 @@ up() {
 
 down() {
   pidfile="$RUNTIME_DIR/server.pid"
-  [ -f "$pidfile" ] || { echo "not running"; return 0; }
-  kill "$(cat "$pidfile")" 2>/dev/null || true
-  rm -f "$pidfile"
-  echo "stopped"
+  [ -f "$pidfile" ] && { kill "$(cat "$pidfile")" 2>/dev/null || true; rm -f "$pidfile"; }
+
+  # The pid we recorded is the job we backgrounded, which on Git Bash is not always the
+  # .exe that holds the port. Reporting "stopped" while a server is still listening is
+  # worse than not stopping at all: the next `up` adopts an orphan pointed at a database
+  # that may since have been dropped, and every request 404s on a tenant that exists.
+  for _ in 1 2 3 4 5; do
+    curl -fsS -m 2 "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1 || { echo "stopped"; return 0; }
+    if command -v taskkill >/dev/null 2>&1; then
+      taskkill //F //IM stheno-server.exe >/dev/null 2>&1 || true
+    else
+      pkill -f 'stheno-server' 2>/dev/null || true
+    fi
+    sleep 1
+  done
+
+  echo "could not free :${PORT} — something is still serving it" >&2
+  return 1
 }
 
 status() {

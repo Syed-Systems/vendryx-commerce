@@ -46,13 +46,15 @@ async fn test_product_service_lifecycle_and_domain_methods() {
     assert_eq!(updated.status, "published");
 
     // 4. Create Variants
+    let size = option_values(&service, &prod_id, "Size", &["M"]).await;
+    let colour = option_values(&service, &prod_id, "Colour", &["Black"]).await;
     let v1 = service
         .create_variant(CreateVariantInput {
             product_id: prod_id.clone(),
             title: "Medium / Black".to_string(),
             sku: Some("TEE-M-BLK".to_string()),
             barcode: None,
-            option_value_ids: vec!["optval_m".to_string(), "optval_blk".to_string()],
+            option_value_ids: vec![size[0].clone(), colour[0].clone()],
         })
         .await
         .expect("must create variant 1");
@@ -74,4 +76,32 @@ async fn test_product_service_lifecycle_and_domain_methods() {
     );
 
     db.drop().await;
+}
+
+/// Creates real option values on a product and returns their ids.
+///
+/// These suites used to pass synthetic ids like `"optval_small"`. Variant option values are
+/// stored as rows now, with a foreign key, so an id that resolves to nothing is rejected —
+/// which is the point: a variant referencing an option value that does not exist is one no
+/// shopper can select.
+async fn option_values(
+    service: &ProductService,
+    product_id: &str,
+    option_title: &str,
+    values: &[&str],
+) -> Vec<String> {
+    let option_id = service
+        .create_option(product_id, option_title)
+        .await
+        .expect("create option");
+    let mut ids = Vec::new();
+    for value in values {
+        ids.push(
+            service
+                .create_option_value(&option_id, value)
+                .await
+                .expect("create option value"),
+        );
+    }
+    ids
 }

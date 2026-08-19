@@ -203,7 +203,7 @@ fn cart_context(
     promotion_service: Option<std::sync::Arc<stheno_promotion::PromotionService>>,
 ) -> stheno_api_store::StoreCartContext {
     stheno_api_store::StoreCartContext {
-        cart_service,
+        cart_service: cart_service.clone(),
         promotion_service,
         pricing_service: std::sync::Arc::new(stheno_pricing::PricingService::new(pool.clone())),
         region_service: std::sync::Arc::new(stheno_region::RegionService::new(pool.clone())),
@@ -212,6 +212,14 @@ fn cart_context(
             pool.clone(),
         )),
         links: std::sync::Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+        complete_flows: std::sync::Arc::new(stheno_flows::CompleteCartWorkflowEngine::new(
+            cart_service.clone(),
+            std::sync::Arc::new(stheno_order::OrderService::new(pool.clone())),
+            std::sync::Arc::new(stheno_payment::PaymentService::new(pool.clone())),
+            std::sync::Arc::new(stheno_promotion::PromotionService::new(pool.clone())),
+            std::sync::Arc::new(stheno_links::LinkStore::new()),
+            std::sync::Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+        )),
         payment_service: std::sync::Arc::new(stheno_payment::PaymentService::new(pool.clone())),
     }
 }

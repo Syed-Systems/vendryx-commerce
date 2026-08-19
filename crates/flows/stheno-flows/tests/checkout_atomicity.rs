@@ -89,6 +89,7 @@ async fn test_checkout_atomicity_commit_together() {
         payment_service.clone(),
         promotion_service.clone(),
         link_store.clone(),
+        Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
     );
 
     let cart_id = setup_test_cart(&cart_service).await;
@@ -142,6 +143,7 @@ async fn test_checkout_atomicity_rollback_on_failure() {
         payment_service.clone(),
         promotion_service.clone(),
         link_store.clone(),
+        Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
     );
 
     let cart_id = setup_test_cart(&cart_service).await;

@@ -20,17 +20,23 @@ const FilterRadioGroup = ({
   "data-testid": dataTestId,
 }: FilterRadioGroupProps) => {
   return (
-    <div className="flex gap-x-3 flex-col gap-y-3">
+    <div className="flex flex-col gap-y-3">
       <Text className="txt-compact-small-plus text-ui-fg-muted">{title}</Text>
-      <RadioGroup data-testid={dataTestId} onValueChange={handleChange}>
+      <RadioGroup
+        data-testid={dataTestId}
+        onValueChange={handleChange}
+        className="flex flex-col gap-y-3"
+      >
         {items?.map((i) => (
-          <div
-            key={i.value}
-            className={clx("flex gap-x-2 items-center", {
-              "ml-[-23px]": i.value === value,
-            })}
-          >
-            {i.value === value && <EllipseMiniSolid />}
+          // Marker after the label, not before it.
+          //
+          // It used to lead, and the selected row carried `ml-[-23px]` so the dot could
+          // hang outside — which moved the whole row, leaving the selected option 23px
+          // left of every other one. Leading it without that offset instead indents every
+          // label away from the container edge the heading, hero and product grid all sit
+          // on. Trailing it keeps one left edge for the entire column and still marks the
+          // selection with something other than colour.
+          <div key={i.value} className="flex items-center gap-x-2">
             <RadioGroup.Item
               checked={i.value === value}
               className="hidden peer"
@@ -50,6 +56,7 @@ const FilterRadioGroup = ({
             >
               {i.label}
             </Label>
+            {i.value === value && <EllipseMiniSolid aria-hidden />}
           </div>
         ))}
       </RadioGroup>

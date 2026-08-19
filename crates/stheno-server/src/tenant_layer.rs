@@ -90,7 +90,16 @@ pub async fn resolve_tenant(
     let tenant_id = match host {
         Some(host) => match state.platform.tenant_for_domain(&host).await {
             Ok(id) => Some(id),
-            Err(_) => state.fallback_tenant.clone(),
+            Err(e) => {
+                // An unregistered host is routine and stays quiet. A registry that cannot
+                // be *read* is not: it 404s every request on the deployment, and swallowing
+                // the reason turns a broken database grant into "the site is down" with
+                // nothing to go on.
+                if !matches!(e, stheno_types::Error::NotFound { .. }) {
+                    eprintln!("tenant registry unreadable for host {host:?}: {e}");
+                }
+                state.fallback_tenant.clone()
+            }
         },
         None => state.fallback_tenant.clone(),
     };

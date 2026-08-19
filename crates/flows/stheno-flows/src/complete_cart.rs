@@ -12,7 +12,7 @@ use stheno_order::{
     CreateAddressInput, CreateLineItemInput, CreateOrderInput, CreateShippingMethodInput,
     CreateTransactionInput, OrderDTO, OrderService,
 };
-use stheno_payment::PaymentService;
+use stheno_payment::{AuthorizePaymentSessionInput, PaymentService};
 use stheno_promotion::PromotionService;
 use stheno_types::{Error, Result};
 
@@ -43,6 +43,9 @@ pub struct CompleteCartWorkflowEngine {
     pub payment_service: Arc<PaymentService>,
     pub promotion_service: Arc<PromotionService>,
     pub link_store: Arc<LinkStore>,
+    /// Durable links. `link_store` above is the in-memory one, which is why step 6 could
+    /// not find the cart's payment collection and settled for inventing an id.
+    pub links: Arc<stheno_links::PgLinkStore>,
     // Idempotency cache: cart_id / idempotency_key -> completed order
     completed_executions: Arc<RwLock<HashMap<String, OrderDTO>>>,
     // Crash checkpoints: cart_id -> last completed step index
@@ -59,8 +62,10 @@ impl CompleteCartWorkflowEngine {
         payment_service: Arc<PaymentService>,
         promotion_service: Arc<PromotionService>,
         link_store: Arc<LinkStore>,
+        links: Arc<stheno_links::PgLinkStore>,
     ) -> Self {
         Self {
+            links,
             cart_service,
             order_service,
             payment_service,
@@ -71,6 +76,46 @@ impl CompleteCartWorkflowEngine {
             cart_to_order: Arc::new(RwLock::new(HashMap::new())),
             in_flight: Arc::new(std::sync::Mutex::new(HashMap::new())),
         }
+    }
+
+    /// Authorises the cart's pending payment session, returning the resulting payment id.
+    ///
+    /// A cart with no payment collection or no pending session authorises nothing and
+    /// returns `None` — that is the manual/offline path where an operator settles later,
+    /// and it must not fail the checkout. What it no longer does is *pretend*: a returned
+    /// id now corresponds to a real `Payment` row.
+    async fn authorize_cart_payment(&self, cart_id: &str) -> Result<Option<String>> {
+        let collection_ids = self
+            .links
+            .get_by_left("cart_payment_collection", cart_id)
+            .await
+            .unwrap_or_default();
+
+        for collection_id in collection_ids {
+            let Ok(collection) = self
+                .payment_service
+                .get_payment_collection(&collection_id)
+                .await
+            else {
+                continue;
+            };
+
+            for session in collection.payment_sessions {
+                if session.status == stheno_payment::PaymentSessionStatus::Authorized {
+                    continue;
+                }
+                let payment = self
+                    .payment_service
+                    .authorize_payment_session(AuthorizePaymentSessionInput {
+                        session_id: session.id.clone(),
+                        context: None,
+                    })
+                    .await?;
+                return Ok(Some(payment.id.to_string()));
+            }
+        }
+
+        Ok(None)
     }
 
     /// Executes the 11-step complete-cart workflow.
@@ -238,7 +283,13 @@ impl CompleteCartWorkflowEngine {
                 self.record_checkpoint(&input.cart_id, 6);
                 return Err(Error::Internal("Simulated crash at Step 6".into()));
             }
-            authorized_payment_id = Some(format!("auth_pay_{}", input.cart_id));
+            // Actually authorise the cart's payment session.
+            //
+            // This step used to be `Some(format!("auth_pay_{}", cart_id))` — a fabricated
+            // id, no call to the payment module, no `Payment` row. The order was then
+            // recorded as paid, with a transaction referencing an id that corresponded to
+            // nothing. Against a real provider that is an order shipped without a charge.
+            authorized_payment_id = self.authorize_cart_payment(&input.cart_id).await?;
             compensation_stack.push("cancel_authorization");
             self.record_checkpoint(&input.cart_id, 7);
         }
