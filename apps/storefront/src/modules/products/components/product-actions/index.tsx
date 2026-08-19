@@ -8,8 +8,16 @@ import OptionSelect from "@modules/products/components/product-actions/option-se
 import { isEqual } from "lodash"
 import { useParams, usePathname, useSearchParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
+import SocialCheckout from "@modules/social-checkout"
 import ProductPrice from "../product-price"
 import MobileActions from "./mobile-actions"
+
+/** Chat handles the merchant sells through. Absent values simply hide that button. */
+const SOCIAL_WHATSAPP = process.env.NEXT_PUBLIC_SOCIAL_WHATSAPP || ""
+const SOCIAL_INSTAGRAM = process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM || ""
+const SOCIAL_MESSENGER = process.env.NEXT_PUBLIC_SOCIAL_MESSENGER || ""
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 
 type ProductActionsProps = {
   product: HttpTypes.StoreProduct
@@ -28,6 +36,7 @@ const optionsAsKeymap = (
 
 export default function ProductActions({
   product,
+  region,
   disabled,
 }: ProductActionsProps) {
   const router = useRouter()
@@ -187,6 +196,48 @@ export default function ProductActions({
               "Add to Shopping Bag"
             )}
           </button>
+
+          {/* Social checkout (PRODUCT.md §5.2). The form path above stays primary: a
+              structured address is what courier dispatch needs, and a social order
+              arrives as free text that can never be auto-dispatched. */}
+          {SOCIAL_WHATSAPP || SOCIAL_INSTAGRAM || SOCIAL_MESSENGER ? (
+            <div className="pt-2">
+              <SocialCheckout
+                backendUrl={BACKEND_URL}
+                currencyCode={region.currency_code}
+                regionId={region.id}
+                total={
+                  selectedVariant?.calculated_price?.calculated_amount != null
+                    ? String(selectedVariant.calculated_price.calculated_amount)
+                    : "0"
+                }
+                whatsappNumber={SOCIAL_WHATSAPP}
+                instagramHandle={SOCIAL_INSTAGRAM}
+                messengerHandle={SOCIAL_MESSENGER}
+                lines={
+                  selectedVariant
+                    ? [
+                        {
+                          variant_id: selectedVariant.id!,
+                          title: product.title!,
+                          sku: selectedVariant.sku ?? undefined,
+                          options: (selectedVariant.options ?? []).map(
+                            (o: any) => `${o.option?.title ?? ""}: ${o.value}`
+                          ),
+                          quantity: 1,
+                          unit_price: String(
+                            selectedVariant.calculated_price?.calculated_amount ?? 0
+                          ),
+                          line_total: String(
+                            selectedVariant.calculated_price?.calculated_amount ?? 0
+                          ),
+                        },
+                      ]
+                    : []
+                }
+              />
+            </div>
+          ) : null}
 
           {/* Value Perks Mini Bar */}
           <div className="flex items-center justify-between text-[11px] text-zinc-500 font-light px-2 pt-2">
