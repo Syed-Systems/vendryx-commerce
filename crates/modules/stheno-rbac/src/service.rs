@@ -226,6 +226,92 @@ impl RbacService {
         })
     }
 
+    /// Every role, with its inherited parents resolved.
+    ///
+    /// The admin's roles screen needs the list; the API previously returned three
+    /// hardcoded fakes because this method did not exist and the module was wired to
+    /// nothing.
+    pub async fn list_roles(&self) -> Result<Vec<RoleDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("name", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        let roles = self.roles.list(None, &filter).await?;
+
+        // One inheritance read for all roles rather than one per role.
+        let inh_filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        let inheritances = self.inheritances.list(None, &inh_filter).await?;
+
+        Ok(roles
+            .into_iter()
+            .map(|role| RoleDTO {
+                parent_roles: inheritances
+                    .iter()
+                    .filter(|i| i.child_role == role.name)
+                    .map(|i| i.parent_role.clone())
+                    .collect(),
+                id: role.id.to_string(),
+                name: role.name,
+                description: role.description,
+                is_system_role: role.is_system_role,
+                metadata: role.metadata,
+                created_at: role.created_at,
+                updated_at: role.updated_at,
+            })
+            .collect())
+    }
+
+    /// Every policy, optionally narrowed to one role.
+    pub async fn list_policies(&self, role: Option<&str>) -> Result<Vec<PolicyDTO>> {
+        let mut filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        if let Some(role) = role {
+            filter = filter.with_predicate("role", FilterOp::Eq(role.to_string()));
+        }
+
+        Ok(self
+            .policies
+            .list(None, &filter)
+            .await?
+            .into_iter()
+            .map(|p| PolicyDTO {
+                id: p.id.to_string(),
+                role: p.role,
+                resource: p.resource,
+                action: p.action,
+                effect: p.effect,
+                is_sensitive: p.is_sensitive,
+                metadata: p.metadata,
+                created_at: p.created_at,
+                updated_at: p.updated_at,
+            })
+            .collect())
+    }
+
+    /// Soft-deletes a role. System roles are refused: removing them would silently strip
+    /// permissions from every user holding one.
+    pub async fn delete_role(&self, name: &str) -> Result<()> {
+        let role = self.get_role(name).await?;
+        if role.is_system_role {
+            return Err(Error::Invalid {
+                code: "system_role_immutable",
+                message: format!("{name} is a system role and cannot be deleted"),
+                field: Some("name".to_string()),
+            });
+        }
+        self.roles.soft_delete(None, &role.id).await?;
+        Ok(())
+    }
+
+    /// Soft-deletes a policy.
+    pub async fn delete_policy(&self, id: &str) -> Result<()> {
+        self.policies.soft_delete(None, id).await?;
+        Ok(())
+    }
+
     /// Computes the transitive closure of all roles inherited by the given roles (P7-18).
     pub async fn get_effective_roles(&self, direct_roles: &[String]) -> Result<HashSet<String>> {
         let filter = FilterSpec::new()

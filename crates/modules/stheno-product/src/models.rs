@@ -301,6 +301,23 @@ impl CrudEntity for ProductOptionValue {
     }
 }
 
+impl CrudEntity for ProductProductOptionValue {
+    const TABLE: &'static str = "product.product_product_option_value";
+    const ENTITY: &'static str = "product_product_option_value";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
 impl CrudEntity for ProductCategory {
     const TABLE: &'static str = "product.product_category";
     const ENTITY: &'static str = "product_category";

@@ -36,6 +36,10 @@ pub struct PricingService {
     price_lists: PgCrudRepository<PriceList>,
     price_list_rules: PgCrudRepository<PriceListRule>,
     preferences: PgCrudRepository<PricePreference>,
+    /// A variant does not hold a price; it links to a price set. Resolving that link is
+    /// the first half of "what does this variant cost", so it belongs here rather than in
+    /// each caller.
+    links: stheno_links::PgLinkStore,
 }
 
 impl PricingService {
@@ -46,7 +50,8 @@ impl PricingService {
             price_rules: PgCrudRepository::new(pool.clone()),
             price_lists: PgCrudRepository::new(pool.clone()),
             price_list_rules: PgCrudRepository::new(pool.clone()),
-            preferences: PgCrudRepository::new(pool),
+            preferences: PgCrudRepository::new(pool.clone()),
+            links: stheno_links::PgLinkStore::new(pool),
         }
     }
 
@@ -476,6 +481,130 @@ impl PricingService {
     }
 
     // ---- calculation ----------------------------------------------------
+
+    /// Sets a variant's prices, creating and linking its price set on first use.
+    ///
+    /// The write half of `calculate_for_variants`. The admin already accepted a `prices`
+    /// array on variant create and threw it away, so a merchant could set a price, get a
+    /// 200, and have the storefront show nothing.
+    ///
+    /// Replaces rather than appends: the caller sends the price list it wants the variant
+    /// to have, which is what the admin form means by saving.
+    pub async fn set_variant_prices(
+        &self,
+        variant_id: &str,
+        prices: Vec<CreatePriceInput>,
+    ) -> Result<String> {
+        self.set_linked_prices("product_variant_price_set", variant_id, prices)
+            .await
+    }
+
+    /// `set_variant_prices` for a shipping option.
+    pub async fn set_shipping_option_prices(
+        &self,
+        option_id: &str,
+        prices: Vec<CreatePriceInput>,
+    ) -> Result<String> {
+        self.set_linked_prices("shipping_option_price_set", option_id, prices)
+            .await
+    }
+
+    /// Prices any entity that reaches its price set through a one-to-one link.
+    ///
+    /// Variants and shipping options are the same problem — an id, a link table, a price
+    /// set — so they are one implementation rather than two that drift apart.
+    async fn set_linked_prices(
+        &self,
+        link_name: &str,
+        entity_id: &str,
+        prices: Vec<CreatePriceInput>,
+    ) -> Result<String> {
+        let existing = self.links.get_by_left(link_name, entity_id).await?;
+
+        match existing.first() {
+            Some(set_id) => {
+                self.update_price_set(
+                    set_id,
+                    UpdatePriceSetInput {
+                        prices: Some(prices),
+                    },
+                )
+                .await?;
+                Ok(set_id.clone())
+            }
+            None => {
+                let set = self
+                    .create_price_set(CreatePriceSetInput { prices })
+                    .await?;
+                let set_id = set.id.to_string();
+                self.links.link(link_name, entity_id, &set_id).await?;
+                Ok(set_id)
+            }
+        }
+    }
+
+    /// Resolves a price for each variant, keyed by variant id.
+    ///
+    /// This is the join the storefront could not make. `GET /store/products` returned
+    /// products with no variants and no prices at all, so a product page had nothing to
+    /// price and nothing to add to a cart — and the cart took `unit_price` from the
+    /// request body, defaulting to zero.
+    ///
+    /// Variants with no linked price set are simply absent from the result rather than
+    /// priced at zero: "unpriced" and "free" must not be the same value.
+    pub async fn calculate_for_variants(
+        &self,
+        variant_ids: &[String],
+        context: &PricingContext,
+    ) -> Result<HashMap<String, CalculatedPriceDTO>> {
+        self.calculate_for_linked("product_variant_price_set", variant_ids, context)
+            .await
+    }
+
+    /// Resolves a price for each shipping option, keyed by option id.
+    ///
+    /// `POST /store/carts/{id}/shipping-methods` hardcoded `amount: Decimal::ZERO`, so
+    /// every delivery was free however the merchant had priced it.
+    pub async fn calculate_for_shipping_options(
+        &self,
+        option_ids: &[String],
+        context: &PricingContext,
+    ) -> Result<HashMap<String, CalculatedPriceDTO>> {
+        self.calculate_for_linked("shipping_option_price_set", option_ids, context)
+            .await
+    }
+
+    /// Entities with no linked price set are absent from the result rather than priced at
+    /// zero: "unpriced" and "free" must not be the same value.
+    async fn calculate_for_linked(
+        &self,
+        link_name: &str,
+        ids: &[String],
+        context: &PricingContext,
+    ) -> Result<HashMap<String, CalculatedPriceDTO>> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let sets_by_entity = self.links.get_by_left_many(link_name, ids).await?;
+
+        let price_set_ids: Vec<String> = sets_by_entity.values().flatten().cloned().collect();
+        if price_set_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        // One evaluation for the whole batch, not one per entity.
+        let calculated = self.calculate_prices_batch(&price_set_ids, context).await?;
+
+        let mut out = HashMap::new();
+        for (entity_id, set_ids) in sets_by_entity {
+            // The link is OneToOne, so the first is the only one.
+            if let Some(price) = set_ids.first().and_then(|id| calculated.get(id)) {
+                out.insert(entity_id, price.clone());
+            }
+        }
+        Ok(out)
+    }
 
     pub async fn calculate_price(
         &self,

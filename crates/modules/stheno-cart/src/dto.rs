@@ -173,6 +173,9 @@ pub struct LineItemDTO {
     pub compare_at_unit_price: Option<Decimal>,
     pub adjustments: Vec<LineItemAdjustmentDTO>,
     pub tax_lines: Vec<LineItemTaxLineDTO>,
+    /// Flattened for the same reason as the cart's: clients read `item.total`, not
+    /// `item.totals.total`.
+    #[serde(flatten)]
     pub totals: Option<LineItemTotalsDTO>,
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
@@ -226,6 +229,7 @@ pub struct ShippingMethodDTO {
     pub data: Option<serde_json::Value>,
     pub adjustments: Vec<ShippingMethodAdjustmentDTO>,
     pub tax_lines: Vec<ShippingMethodTaxLineDTO>,
+    #[serde(flatten)]
     pub totals: Option<ShippingMethodTotalsDTO>,
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
@@ -279,6 +283,14 @@ pub struct CartDTO {
     pub items: Vec<LineItemDTO>,
     pub shipping_methods: Vec<ShippingMethodDTO>,
     pub credit_lines: Vec<CreditLineDTO>,
+    /// Flattened on the wire: Medusa's `StoreCart` carries `total`, `subtotal`,
+    /// `tax_total` and the rest as fields of the cart itself, and clients read them there.
+    /// Nested under `totals` they were one level too deep, so every figure a shopper saw
+    /// during checkout — subtotal, shipping, tax, total — rendered as $0.00 while the cart
+    /// held the right numbers all along.
+    ///
+    /// A struct field in Rust either way; this changes only the JSON.
+    #[serde(flatten)]
     pub totals: CartTotalsDTO,
     pub cart_secret: String,
     pub completed_at: Option<DateTime<Utc>>,

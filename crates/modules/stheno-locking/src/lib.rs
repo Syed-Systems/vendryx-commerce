@@ -30,6 +30,17 @@ pub trait LockProvider: Send + Sync {
     }
 }
 
+/// Namespaces a lock key by the calling tenant.
+///
+/// Postgres advisory locks are a single global 64-bit key space shared by every session
+/// on the database, and row-level security does not apply to them. This is the only
+/// tenant boundary in the engine enforced entirely in application code, so it fails
+/// loudly when no tenant is in scope rather than falling back to a bare key.
+fn tenant_key(resource: &str) -> Result<String> {
+    let tenant = stheno_db::tenant::current()?;
+    Ok(format!("{tenant}:{resource}"))
+}
+
 #[derive(QueryableByName)]
 struct BoolRow {
     #[diesel(sql_type = Bool)]
@@ -138,10 +149,17 @@ impl LockProvider for PostgresAdvisoryLockProvider {
             ))
         })?;
 
-        // Try acquire Postgres session-level advisory lock using 64-bit hashtext
+        // Try acquire Postgres session-level advisory lock using 64-bit hashtext.
+        //
+        // The key is namespaced by tenant (ADR-012). Advisory locks live in a GLOBAL
+        // 64-bit key space that row-level security does not touch — it is the one place
+        // in the engine with no database backstop. Without the namespace, tenant A
+        // locking "cart_01H…" would block tenant B's identically-named cart, which is a
+        // cross-tenant denial of service that would look like an intermittent hang.
+        let key = tenant_key(resource)?;
         let rows: Vec<BoolRow> =
             diesel::sql_query("SELECT pg_try_advisory_lock(hashtext($1)) as value")
-                .bind::<Text, _>(resource)
+                .bind::<Text, _>(&key)
                 .load(&mut conn)
                 .await
                 .map_err(|e| Error::Database(format!("Failed pg_try_advisory_lock: {e}")))?;
@@ -176,9 +194,12 @@ impl LockProvider for PostgresAdvisoryLockProvider {
         };
 
         if let Some(ref mut c) = conn {
+            // Must namespace identically to `try_acquire`, or the unlock targets a
+            // different key and the lock is held until the session ends.
+            let key = tenant_key(resource)?;
             let rows: Vec<BoolRow> =
                 diesel::sql_query("SELECT pg_advisory_unlock(hashtext($1)) as value")
-                    .bind::<Text, _>(resource)
+                    .bind::<Text, _>(&key)
                     .load(&mut **c)
                     .await
                     .map_err(|e| Error::Database(format!("Failed pg_advisory_unlock: {e}")))?;

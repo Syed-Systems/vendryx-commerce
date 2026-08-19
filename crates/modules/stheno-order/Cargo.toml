@@ -9,6 +9,11 @@ authors.workspace = true
 [dependencies]
 stheno-types = { workspace = true }
 stheno-db = { workspace = true }
+# The order-number counter is a single `UPDATE ... RETURNING` against order.display_id_counter
+# — its own schema, so `check-sql-boundaries.sh` is satisfied. A row lock is the point: it is
+# what stops two concurrent orders taking the same number.
+diesel = { workspace = true }
+diesel-async = { workspace = true }
 stheno-events = { workspace = true }
 rust_decimal = { workspace = true }
 rust_decimal_macros = { workspace = true }

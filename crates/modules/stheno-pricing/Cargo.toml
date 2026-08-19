@@ -9,6 +9,10 @@ authors.workspace = true
 [dependencies]
 stheno-types = { workspace = true }
 stheno-db = { workspace = true }
+# Variants reach their prices through links.link_product_variant_price_set; resolving a
+# price for a variant is a pricing question, so the join lives here rather than being
+# re-implemented by each of the two callers (store catalog, cart).
+stheno-links = { workspace = true }
 stheno-events = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

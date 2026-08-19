@@ -6,6 +6,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use stheno_db::tenant;
 use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
@@ -495,83 +496,91 @@ impl PromotionService {
         order_id: Option<&str>,
         cart_id: Option<&str>,
     ) -> Result<CampaignBudgetUsageDTO> {
-        use diesel_async::RunQueryDsl;
+        let campaign_id = campaign_id.to_string();
+        let order_id = order_id.map(str::to_string);
+        let cart_id = cart_id.map(str::to_string);
+        // Cloned before the closure: it is moved into a 'static future.
+        let budgets = self.budgets.clone();
+        let budget_usages = self.budget_usages.clone();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
 
-        let amount_str = amount.to_string();
-        let cid = campaign_id.to_string();
-        let sql = "UPDATE promotion.campaign_budget AS t \
-                   SET used = used + $1::numeric, updated_at = now() \
-                   WHERE campaign_id = $2 \
-                     AND (\"limit\" IS NULL OR used + $1::numeric <= \"limit\") \
-                     AND deleted_at IS NULL \
-                   RETURNING row_to_json(t)::text AS value";
+                use diesel_async::RunQueryDsl;
 
-        let result: std::result::Result<JsonRow, diesel::result::Error> = {
-            let mut conn = self
-                .pool
-                .get()
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
+                let amount_str = amount.to_string();
+                let cid = campaign_id.to_string();
+                let sql = "UPDATE promotion.campaign_budget AS t \
+                           SET used = used + $1::numeric, updated_at = now() \
+                           WHERE campaign_id = $2 \
+                             AND (\"limit\" IS NULL OR used + $1::numeric <= \"limit\") \
+                             AND deleted_at IS NULL \
+                           RETURNING row_to_json(t)::text AS value";
 
-            diesel::sql_query(sql)
-                .bind::<diesel::sql_types::Text, _>(&amount_str)
-                .bind::<diesel::sql_types::Text, _>(&cid)
-                .get_result(&mut conn)
-                .await
-        };
+                let result: std::result::Result<JsonRow, diesel::result::Error> = {
 
-        let row = match result {
-            Ok(r) => r,
-            Err(diesel::result::Error::NotFound) => {
-                // Determine if budget is exhausted or does not exist
-                let spec = FilterSpec::new()
-                    .with_predicate("campaign_id", FilterOp::Eq(cid.clone()))
-                    .with_predicate("deleted_at", FilterOp::IsNull)
-                    .with_pagination(0, 1);
-                let list = self.budgets.list(None, &spec).await?;
-                if let Some(b) = list.into_iter().next() {
-                    return Err(Error::Conflict {
-                        code: "budget_exhausted",
-                        message: format!(
-                            "Campaign budget exhausted: used {} + requested {} > limit {:?}",
-                            b.used, amount, b.limit
-                        ),
-                    });
-                } else {
-                    return Err(Error::NotFound {
-                        entity: "campaign_budget",
-                        id: cid,
-                    });
-                }
-            }
-            Err(other) => return Err(Error::Database(other.to_string())),
-        };
+                    diesel::sql_query(sql)
+                        .bind::<diesel::sql_types::Text, _>(&amount_str)
+                        .bind::<diesel::sql_types::Text, _>(&cid)
+                        .get_result(conn)
+                        .await
+                };
 
-        let budget: CampaignBudget = serde_json::from_str(&row.value)
-            .map_err(|e| Error::Database(format!("Failed to deserialise budget: {e}")))?;
+                let row = match result {
+                    Ok(r) => r,
+                    Err(diesel::result::Error::NotFound) => {
+                        // Determine if budget is exhausted or does not exist
+                        let spec = FilterSpec::new()
+                            .with_predicate("campaign_id", FilterOp::Eq(cid.clone()))
+                            .with_predicate("deleted_at", FilterOp::IsNull)
+                            .with_pagination(0, 1);
+                        let list = budgets.list(None, &spec).await?;
+                        if let Some(b) = list.into_iter().next() {
+                            return Err(Error::Conflict {
+                                code: "budget_exhausted",
+                                message: format!(
+                                    "Campaign budget exhausted: used {} + requested {} > limit {:?}",
+                                    b.used, amount, b.limit
+                                ),
+                            });
+                        } else {
+                            return Err(Error::NotFound {
+                                entity: "campaign_budget",
+                                id: cid,
+                            });
+                        }
+                    }
+                    Err(other) => return Err(Error::Database(other.to_string())),
+                };
 
-        let usage = CampaignBudgetUsage {
-            id: Id::new(),
-            campaign_budget_id: budget.id.to_string(),
-            order_id: order_id.map(|s| s.to_string()),
-            cart_id: cart_id.map(|s| s.to_string()),
-            amount,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            deleted_at: None,
-        };
+                let budget: CampaignBudget = serde_json::from_str(&row.value)
+                    .map_err(|e| Error::Database(format!("Failed to deserialise budget: {e}")))?;
 
-        let created_usage = self.budget_usages.create(None, usage).await?;
+                let usage = CampaignBudgetUsage {
+                    id: Id::new(),
+                    campaign_budget_id: budget.id.to_string(),
+                    order_id: order_id.map(|s| s.to_string()),
+                    cart_id: cart_id.map(|s| s.to_string()),
+                    amount,
+                    created_at: Utc::now(),
+                    updated_at: Utc::now(),
+                    deleted_at: None,
+                };
 
-        Ok(CampaignBudgetUsageDTO {
-            id: created_usage.id.to_string(),
-            campaign_budget_id: created_usage.campaign_budget_id,
-            order_id: created_usage.order_id,
-            cart_id: created_usage.cart_id,
-            amount: created_usage.amount,
-            created_at: created_usage.created_at,
-            updated_at: created_usage.updated_at,
+                let created_usage = budget_usages.create(None, usage).await?;
+
+                Ok(CampaignBudgetUsageDTO {
+                    id: created_usage.id.to_string(),
+                    campaign_budget_id: created_usage.campaign_budget_id,
+                    order_id: created_usage.order_id,
+                    cart_id: created_usage.cart_id,
+                    amount: created_usage.amount,
+                    created_at: created_usage.created_at,
+                    updated_at: created_usage.updated_at,
+                })
+
+            })
         })
+        .await
     }
 
     // ── Rule Engine (P4-09: 8 Operators) ─────────────────────────────────────

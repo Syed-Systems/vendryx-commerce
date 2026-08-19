@@ -5,6 +5,7 @@ use diesel::sql_types::{BigInt, Date, Numeric, Text};
 use diesel_async::RunQueryDsl;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
+use stheno_db::tenant;
 use stheno_db::DbPool;
 use stheno_types::{Error, Result};
 
@@ -27,87 +28,91 @@ impl ReportingService {
 
     /// Incremental rollup update on order.placed event (P16-03)
     pub async fn record_order_placed(&self, input: RecordOrderPlacedInput) -> Result<()> {
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
 
-        // 1. Upsert daily_rollup
-        let rollup_query = diesel::sql_query(
-            "INSERT INTO reporting.daily_rollup (date, currency, order_count, total_revenue, units_sold, created_at, updated_at) \
-             VALUES ($1, $2, 1, $3, $4, now(), now()) \
-             ON CONFLICT (date, currency) DO UPDATE \
-                SET order_count = reporting.daily_rollup.order_count + 1, \
-                    total_revenue = reporting.daily_rollup.total_revenue + EXCLUDED.total_revenue, \
-                    units_sold = reporting.daily_rollup.units_sold + EXCLUDED.units_sold, \
-                    updated_at = now();"
-        )
-        .bind::<Date, _>(input.date)
-        .bind::<Text, _>(&input.currency)
-        .bind::<Numeric, _>(input.total_revenue)
-        .bind::<BigInt, _>(input.units);
 
-        rollup_query
-            .execute(&mut conn)
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                // 1. Upsert daily_rollup
+                let rollup_query = diesel::sql_query(
+                    "INSERT INTO reporting.daily_rollup (date, currency, order_count, total_revenue, units_sold, created_at, updated_at) \
+                     VALUES ($1, $2, 1, $3, $4, now(), now()) \
+                     ON CONFLICT (tenant_id, date, currency) DO UPDATE \
+                        SET order_count = reporting.daily_rollup.order_count + 1, \
+                            total_revenue = reporting.daily_rollup.total_revenue + EXCLUDED.total_revenue, \
+                            units_sold = reporting.daily_rollup.units_sold + EXCLUDED.units_sold, \
+                            updated_at = now();"
+                )
+                .bind::<Date, _>(input.date)
+                .bind::<Text, _>(&input.currency)
+                .bind::<Numeric, _>(input.total_revenue)
+                .bind::<BigInt, _>(input.units);
 
-        // 2. Upsert product rollups
-        for item in input.items {
-            let prod_query = diesel::sql_query(
-                "INSERT INTO reporting.daily_product_rollup (date, product_id, title, units_sold, total_revenue, created_at, updated_at) \
-                 VALUES ($1, $2, $3, $4, $5, now(), now()) \
-                 ON CONFLICT (date, product_id) DO UPDATE \
-                    SET units_sold = reporting.daily_product_rollup.units_sold + EXCLUDED.units_sold, \
-                        total_revenue = reporting.daily_product_rollup.total_revenue + EXCLUDED.total_revenue, \
-                        title = EXCLUDED.title, \
-                        updated_at = now();"
-            )
-            .bind::<Date, _>(input.date)
-            .bind::<Text, _>(&item.product_id)
-            .bind::<Text, _>(&item.title)
-            .bind::<BigInt, _>(item.units)
-            .bind::<Numeric, _>(item.total_revenue);
+                rollup_query
+                    .execute(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
 
-            prod_query
-                .execute(&mut conn)
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
-        }
+                // 2. Upsert product rollups
+                for item in input.items {
+                    let prod_query = diesel::sql_query(
+                        "INSERT INTO reporting.daily_product_rollup (date, product_id, title, units_sold, total_revenue, created_at, updated_at) \
+                         VALUES ($1, $2, $3, $4, $5, now(), now()) \
+                         ON CONFLICT (tenant_id, date, product_id) DO UPDATE \
+                            SET units_sold = reporting.daily_product_rollup.units_sold + EXCLUDED.units_sold, \
+                                total_revenue = reporting.daily_product_rollup.total_revenue + EXCLUDED.total_revenue, \
+                                title = EXCLUDED.title, \
+                                updated_at = now();"
+                    )
+                    .bind::<Date, _>(input.date)
+                    .bind::<Text, _>(&item.product_id)
+                    .bind::<Text, _>(&item.title)
+                    .bind::<BigInt, _>(item.units)
+                    .bind::<Numeric, _>(item.total_revenue);
 
-        Ok(())
+                    prod_query
+                        .execute(conn)
+                        .await
+                        .map_err(|e| Error::Database(e.to_string()))?;
+                }
+
+                Ok(())
+
+            })
+        })
+        .await
     }
 
     /// Rollup invalidation & adjustments on order edits, cancellations, refunds, returns (P16-04)
     pub async fn record_order_delta(&self, input: RecordOrderDeltaInput) -> Result<()> {
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
 
-        let query = diesel::sql_query(
-            "INSERT INTO reporting.daily_rollup (date, currency, order_count, total_revenue, units_sold, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, $5, now(), now()) \
-             ON CONFLICT (date, currency) DO UPDATE \
-                SET order_count = GREATEST(0, reporting.daily_rollup.order_count + EXCLUDED.order_count), \
-                    total_revenue = GREATEST(0, reporting.daily_rollup.total_revenue + EXCLUDED.total_revenue), \
-                    units_sold = GREATEST(0, reporting.daily_rollup.units_sold + EXCLUDED.units_sold), \
-                    updated_at = now();"
-        )
-        .bind::<Date, _>(input.date)
-        .bind::<Text, _>(&input.currency)
-        .bind::<BigInt, _>(input.delta_orders)
-        .bind::<Numeric, _>(input.delta_revenue)
-        .bind::<BigInt, _>(input.delta_units);
 
-        query
-            .execute(&mut conn)
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                let query = diesel::sql_query(
+                    "INSERT INTO reporting.daily_rollup (date, currency, order_count, total_revenue, units_sold, created_at, updated_at) \
+                     VALUES ($1, $2, $3, $4, $5, now(), now()) \
+                     ON CONFLICT (tenant_id, date, currency) DO UPDATE \
+                        SET order_count = GREATEST(0, reporting.daily_rollup.order_count + EXCLUDED.order_count), \
+                            total_revenue = GREATEST(0, reporting.daily_rollup.total_revenue + EXCLUDED.total_revenue), \
+                            units_sold = GREATEST(0, reporting.daily_rollup.units_sold + EXCLUDED.units_sold), \
+                            updated_at = now();"
+                )
+                .bind::<Date, _>(input.date)
+                .bind::<Text, _>(&input.currency)
+                .bind::<BigInt, _>(input.delta_orders)
+                .bind::<Numeric, _>(input.delta_revenue)
+                .bind::<BigInt, _>(input.delta_units);
 
-        Ok(())
+                query
+                    .execute(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+
+                Ok(())
+
+            })
+        })
+        .await
     }
 
     /// Helper calculating effective window lower bound (P16-09)
@@ -135,46 +140,47 @@ impl ReportingService {
         currency: &str,
         window_days: Option<u32>,
     ) -> Result<RevenueOverTimeReport> {
-        let effective_from = Self::calculate_window_start(from, window_days);
-        let effective_to = to.unwrap_or_else(|| Utc::now().date_naive());
+        // Owned before the closure: `with_tenant_conn` moves it into a 'static future.
+        let currency = currency.to_string();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let effective_from = Self::calculate_window_start(from, window_days);
+                let effective_to = to.unwrap_or_else(|| Utc::now().date_naive());
 
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                let rows: Vec<RevenueSeriesRow> = diesel::sql_query(
+                    "SELECT date, currency, total_revenue as revenue \
+                     FROM reporting.daily_rollup \
+                     WHERE date >= $1 AND date <= $2 AND currency = $3 AND deleted_at IS NULL \
+                     ORDER BY date ASC;",
+                )
+                .bind::<Date, _>(effective_from)
+                .bind::<Date, _>(effective_to)
+                .bind::<Text, _>(&currency)
+                .load(conn)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
 
-        let rows: Vec<RevenueSeriesRow> = diesel::sql_query(
-            "SELECT date, currency, total_revenue as revenue \
-             FROM reporting.daily_rollup \
-             WHERE date >= $1 AND date <= $2 AND currency = $3 AND deleted_at IS NULL \
-             ORDER BY date ASC;",
-        )
-        .bind::<Date, _>(effective_from)
-        .bind::<Date, _>(effective_to)
-        .bind::<Text, _>(currency)
-        .load(&mut conn)
-        .await
-        .map_err(|e| Error::Database(e.to_string()))?;
+                let mut total_revenue = dec!(0);
+                let mut time_series = Vec::with_capacity(rows.len());
 
-        let mut total_revenue = dec!(0);
-        let mut time_series = Vec::with_capacity(rows.len());
+                for r in rows {
+                    let rev = r.revenue.round_dp(2);
+                    total_revenue += rev;
+                    time_series.push(RevenueOverTimeItem {
+                        date: r.date,
+                        currency: r.currency,
+                        revenue: rev,
+                    });
+                }
 
-        for r in rows {
-            let rev = r.revenue.round_dp(2);
-            total_revenue += rev;
-            time_series.push(RevenueOverTimeItem {
-                date: r.date,
-                currency: r.currency,
-                revenue: rev,
-            });
-        }
-
-        Ok(RevenueOverTimeReport {
-            currency: currency.to_string(),
-            total_revenue: total_revenue.round_dp(2),
-            time_series,
+                Ok(RevenueOverTimeReport {
+                    currency,
+                    total_revenue: total_revenue.round_dp(2),
+                    time_series,
+                })
+            })
         })
+        .await
     }
 
     /// Orders-over-time aggregate (P16-06)
@@ -184,47 +190,49 @@ impl ReportingService {
         to: Option<NaiveDate>,
         window_days: Option<u32>,
     ) -> Result<OrdersOverTimeReport> {
-        let effective_from = Self::calculate_window_start(from, window_days);
-        let effective_to = to.unwrap_or_else(|| Utc::now().date_naive());
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
 
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                let effective_from = Self::calculate_window_start(from, window_days);
+                let effective_to = to.unwrap_or_else(|| Utc::now().date_naive());
 
-        let rows: Vec<OrdersSeriesRow> = diesel::sql_query(
-            "SELECT date, SUM(order_count)::bigint as order_count, SUM(units_sold)::bigint as units_sold \
-             FROM reporting.daily_rollup \
-             WHERE date >= $1 AND date <= $2 AND deleted_at IS NULL \
-             GROUP BY date \
-             ORDER BY date ASC;"
-        )
-        .bind::<Date, _>(effective_from)
-        .bind::<Date, _>(effective_to)
-        .load(&mut conn)
-        .await
-        .map_err(|e| Error::Database(e.to_string()))?;
 
-        let mut total_orders = 0;
-        let mut total_units = 0;
-        let mut time_series = Vec::with_capacity(rows.len());
+                let rows: Vec<OrdersSeriesRow> = diesel::sql_query(
+                    "SELECT date, SUM(order_count)::bigint as order_count, SUM(units_sold)::bigint as units_sold \
+                     FROM reporting.daily_rollup \
+                     WHERE date >= $1 AND date <= $2 AND deleted_at IS NULL \
+                     GROUP BY date \
+                     ORDER BY date ASC;"
+                )
+                .bind::<Date, _>(effective_from)
+                .bind::<Date, _>(effective_to)
+                .load(conn)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
 
-        for r in rows {
-            total_orders += r.order_count;
-            total_units += r.units_sold;
-            time_series.push(OrdersOverTimeItem {
-                date: r.date,
-                order_count: r.order_count,
-                units_sold: r.units_sold,
-            });
-        }
+                let mut total_orders = 0;
+                let mut total_units = 0;
+                let mut time_series = Vec::with_capacity(rows.len());
 
-        Ok(OrdersOverTimeReport {
-            total_orders,
-            total_units,
-            time_series,
+                for r in rows {
+                    total_orders += r.order_count;
+                    total_units += r.units_sold;
+                    time_series.push(OrdersOverTimeItem {
+                        date: r.date,
+                        order_count: r.order_count,
+                        units_sold: r.units_sold,
+                    });
+                }
+
+                Ok(OrdersOverTimeReport {
+                    total_orders,
+                    total_units,
+                    time_series,
+                })
+
+            })
         })
+        .await
     }
 
     /// Top-products aggregate (P16-07)
@@ -235,41 +243,43 @@ impl ReportingService {
         limit: i64,
         window_days: Option<u32>,
     ) -> Result<TopProductsReport> {
-        let effective_from = Self::calculate_window_start(from, window_days);
-        let effective_to = to.unwrap_or_else(|| Utc::now().date_naive());
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
 
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                let effective_from = Self::calculate_window_start(from, window_days);
+                let effective_to = to.unwrap_or_else(|| Utc::now().date_naive());
 
-        let rows: Vec<TopProductRow> = diesel::sql_query(
-            "SELECT product_id, title, SUM(units_sold)::bigint as units_sold, SUM(total_revenue)::numeric as total_revenue \
-             FROM reporting.daily_product_rollup \
-             WHERE date >= $1 AND date <= $2 AND deleted_at IS NULL \
-             GROUP BY product_id, title \
-             ORDER BY total_revenue DESC, units_sold DESC \
-             LIMIT $3;"
-        )
-        .bind::<Date, _>(effective_from)
-        .bind::<Date, _>(effective_to)
-        .bind::<BigInt, _>(limit)
-        .load(&mut conn)
-        .await
-        .map_err(|e| Error::Database(e.to_string()))?;
 
-        let top_products = rows
-            .into_iter()
-            .map(|r| TopProductItem {
-                product_id: r.product_id,
-                title: r.title,
-                units_sold: r.units_sold,
-                total_revenue: r.total_revenue.round_dp(2),
+                let rows: Vec<TopProductRow> = diesel::sql_query(
+                    "SELECT product_id, title, SUM(units_sold)::bigint as units_sold, SUM(total_revenue)::numeric as total_revenue \
+                     FROM reporting.daily_product_rollup \
+                     WHERE date >= $1 AND date <= $2 AND deleted_at IS NULL \
+                     GROUP BY product_id, title \
+                     ORDER BY total_revenue DESC, units_sold DESC \
+                     LIMIT $3;"
+                )
+                .bind::<Date, _>(effective_from)
+                .bind::<Date, _>(effective_to)
+                .bind::<BigInt, _>(limit)
+                .load(conn)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+
+                let top_products = rows
+                    .into_iter()
+                    .map(|r| TopProductItem {
+                        product_id: r.product_id,
+                        title: r.title,
+                        units_sold: r.units_sold,
+                        total_revenue: r.total_revenue.round_dp(2),
+                    })
+                    .collect();
+
+                Ok(TopProductsReport { top_products })
+
             })
-            .collect();
-
-        Ok(TopProductsReport { top_products })
+        })
+        .await
     }
 
     /// Average-order-value aggregate (P16-08)
@@ -280,47 +290,47 @@ impl ReportingService {
         currency: &str,
         window_days: Option<u32>,
     ) -> Result<AverageOrderValueReport> {
-        let effective_from = Self::calculate_window_start(from, window_days);
-        let effective_to = to.unwrap_or_else(|| Utc::now().date_naive());
+        let currency = currency.to_string();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let effective_from = Self::calculate_window_start(from, window_days);
+                let effective_to = to.unwrap_or_else(|| Utc::now().date_naive());
 
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                let rows: Vec<TotalAovRow> = diesel::sql_query(
+                    "SELECT COALESCE(SUM(order_count), 0)::bigint as order_count, \
+                            COALESCE(SUM(total_revenue), 0)::numeric as total_revenue \
+                     FROM reporting.daily_rollup \
+                     WHERE date >= $1 AND date <= $2 AND currency = $3 AND deleted_at IS NULL;",
+                )
+                .bind::<Date, _>(effective_from)
+                .bind::<Date, _>(effective_to)
+                .bind::<Text, _>(&currency)
+                .load(conn)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
 
-        let rows: Vec<TotalAovRow> = diesel::sql_query(
-            "SELECT COALESCE(SUM(order_count), 0)::bigint as order_count, \
-                    COALESCE(SUM(total_revenue), 0)::numeric as total_revenue \
-             FROM reporting.daily_rollup \
-             WHERE date >= $1 AND date <= $2 AND currency = $3 AND deleted_at IS NULL;",
-        )
-        .bind::<Date, _>(effective_from)
-        .bind::<Date, _>(effective_to)
-        .bind::<Text, _>(currency)
-        .load(&mut conn)
-        .await
-        .map_err(|e| Error::Database(e.to_string()))?;
+                let (order_count, total_revenue) = rows
+                    .as_slice()
+                    .first()
+                    .map(|r| (r.order_count, r.total_revenue))
+                    .unwrap_or((0, dec!(0)));
 
-        let (order_count, total_revenue) = rows
-            .as_slice()
-            .first()
-            .map(|r| (r.order_count, r.total_revenue))
-            .unwrap_or((0, dec!(0)));
+                let total_revenue = total_revenue.round_dp(2);
+                let average_order_value = if order_count > 0 {
+                    (total_revenue / Decimal::from(order_count)).round_dp(2)
+                } else {
+                    dec!(0)
+                };
 
-        let total_revenue = total_revenue.round_dp(2);
-        let average_order_value = if order_count > 0 {
-            (total_revenue / Decimal::from(order_count)).round_dp(2)
-        } else {
-            dec!(0)
-        };
-
-        Ok(AverageOrderValueReport {
-            currency: currency.to_string(),
-            average_order_value,
-            order_count,
-            total_revenue,
+                Ok(AverageOrderValueReport {
+                    currency,
+                    average_order_value,
+                    order_count,
+                    total_revenue,
+                })
+            })
         })
+        .await
     }
 
     /// Export revenue report as CSV with UTF-8 BOM (P16-13)

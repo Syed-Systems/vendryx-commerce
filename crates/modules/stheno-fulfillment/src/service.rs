@@ -58,6 +58,17 @@ impl FulfillmentService {
         map.insert(provider.identifier().to_string(), provider);
     }
 
+    /// The providers this build actually registered.
+    ///
+    /// Read from the live registry rather than a hardcoded list, so it cannot claim a
+    /// provider that was never wired in — which is exactly what the API used to do.
+    pub fn registered_provider_ids(&self) -> Vec<String> {
+        let map = self.providers.read().unwrap();
+        let mut ids: Vec<String> = map.keys().cloned().collect();
+        ids.sort();
+        ids
+    }
+
     pub fn get_provider(&self, id: &str) -> Result<Arc<dyn FulfillmentProvider>> {
         let map = self.providers.read().unwrap();
         map.get(id).cloned().ok_or_else(|| Error::NotFound {
@@ -184,6 +195,82 @@ impl FulfillmentService {
         Ok(Self::to_profile_dto(&created))
     }
 
+    // ── Reads for the admin's fulfillment settings screens ──────────────────
+    //
+    // The service could create shipping profiles, fulfillment sets, service zones and
+    // option types since P5-08, but could not list or fetch any of them. The API
+    // therefore answered `/admin/shipping-profiles` with one fabricated row
+    // (`sp_default_shipping_profile`) and the rest with empty arrays, so every screen
+    // under Settings → Locations was reading invented data.
+
+    pub async fn list_shipping_profiles(&self) -> Result<Vec<ShippingProfileDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        Ok(self
+            .shipping_profiles
+            .list(None, &filter)
+            .await?
+            .iter()
+            .map(Self::to_profile_dto)
+            .collect())
+    }
+
+    pub async fn get_shipping_profile(&self, id: &str) -> Result<ShippingProfileDTO> {
+        Ok(Self::to_profile_dto(
+            &self.shipping_profiles.retrieve(None, id).await?,
+        ))
+    }
+
+    pub async fn delete_shipping_profile(&self, id: &str) -> Result<()> {
+        self.shipping_profiles.soft_delete(None, id).await?;
+        Ok(())
+    }
+
+    pub async fn list_fulfillment_sets(&self) -> Result<Vec<FulfillmentSetDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        let sets = self.fulfillment_sets.list(None, &filter).await?;
+
+        let mut out = Vec::with_capacity(sets.len());
+        for set in sets {
+            // Reuses the existing single-set read so the nested service zones and geo
+            // zones are assembled exactly one way.
+            out.push(self.get_fulfillment_set(&set.id.to_string()).await?);
+        }
+        Ok(out)
+    }
+
+    pub async fn list_service_zones(
+        &self,
+        fulfillment_set_id: &str,
+    ) -> Result<Vec<ServiceZoneDTO>> {
+        let set = self.get_fulfillment_set(fulfillment_set_id).await?;
+        Ok(set.service_zones)
+    }
+
+    pub async fn list_shipping_option_types(&self) -> Result<Vec<ShippingOptionTypeDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        Ok(self
+            .shipping_option_types
+            .list(None, &filter)
+            .await?
+            .into_iter()
+            .map(|t| ShippingOptionTypeDTO {
+                id: t.id.to_string(),
+                label: t.label,
+                description: t.description,
+                code: t.code,
+                metadata: t.metadata,
+                created_at: t.created_at,
+                updated_at: t.updated_at,
+            })
+            .collect())
+    }
+
     pub async fn create_shipping_option_type(
         &self,
         input: CreateShippingOptionTypeInput,
@@ -244,6 +331,28 @@ impl FulfillmentService {
 
         let created = self.shipping_option_rules.create(None, rule).await?;
         Ok(Self::to_rule_dto(&created))
+    }
+
+    /// One shipping option.
+    ///
+    /// Only list endpoints existed, so attaching an option to a cart had no way to read
+    /// back what it was — which is why the cart named every delivery "Standard Shipping".
+    pub async fn get_shipping_option(&self, id: &str) -> Result<ShippingOptionDTO> {
+        let option = self.shipping_options.retrieve(None, id).await?;
+        let rules = self
+            .shipping_option_rules
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("shipping_option_id", FilterOp::Eq(id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?
+            .into_iter()
+            .map(|r| Self::to_rule_dto(&r))
+            .collect();
+        Ok(Self::to_shipping_option_dto(&option, rules))
     }
 
     async fn list_shipping_options_for_zone(

@@ -2,14 +2,23 @@
 #![allow(dead_code)]
 
 use chrono::Utc;
+use diesel::sql_types::BigInt;
+use diesel::QueryableByName;
+use diesel_async::RunQueryDsl;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
-use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
+use stheno_db::{tenant, CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
+
+#[derive(QueryableByName)]
+struct DisplayIdRow {
+    #[diesel(sql_type = BigInt)]
+    display_id: i64,
+}
+
 use crate::models::{
     Address, Claim, ClaimItem, ClaimItemImage, CreditLine, Exchange, ExchangeItem, LineItem,
     LineItemAdjustment, LineItemTaxLine, Order, OrderChange, OrderChangeAction, OrderItem,
@@ -43,7 +52,6 @@ pub struct OrderService {
     exchanges: Arc<PgCrudRepository<Exchange>>,
     exchange_items: Arc<PgCrudRepository<ExchangeItem>>,
     pool: DbPool,
-    display_id_counter: Arc<AtomicI64>,
 }
 
 impl OrderService {
@@ -73,21 +81,46 @@ impl OrderService {
             exchanges: Arc::new(PgCrudRepository::new(pool.clone())),
             exchange_items: Arc::new(PgCrudRepository::new(pool.clone())),
             pool,
-            display_id_counter: Arc::new(AtomicI64::new(1000)),
         }
     }
 
     // ── Gap-Free Sequential display_id Generation (P5-06) ───────────────────
 
-    pub fn next_display_id(&self) -> i64 {
-        self.display_id_counter.fetch_add(1, Ordering::SeqCst)
+    /// The next order number for the current tenant.
+    ///
+    /// This used to be `Arc<AtomicI64>` starting at 1000 — process memory, shared by every
+    /// tenant, reset by every restart. The first order created after a restart therefore
+    /// reused a number already stored and failed on the unique index, which surfaced as a
+    /// duplicate-key error on checkout rather than as anything resembling its cause.
+    ///
+    /// `UPDATE ... RETURNING` holds a row lock for the length of the statement, so two
+    /// concurrent orders in one tenant serialise here instead of both reading the same
+    /// value. RLS scopes the row, so "the current tenant's counter" needs no argument.
+    pub async fn next_display_id(&self) -> Result<i64> {
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                // The upsert covers a tenant's first order, where no counter row exists yet.
+                let rows: Vec<DisplayIdRow> = diesel::sql_query(
+                    "INSERT INTO \"order\".display_id_counter (tenant_id, next_value)                      VALUES (current_setting('app.tenant_id', true), 2)                      ON CONFLICT (tenant_id) DO UPDATE                        SET next_value = \"order\".display_id_counter.next_value + 1                      RETURNING next_value - 1 AS display_id",
+                )
+                .load(conn)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+
+                rows.into_iter()
+                    .next()
+                    .map(|r| r.display_id)
+                    .ok_or_else(|| Error::Database("display_id counter returned no row".into()))
+            })
+        })
+        .await
     }
 
     // ── Order Creation & Retrieval (P5-01) ───────────────────────────────────
 
     pub async fn create_order(&self, input: CreateOrderInput) -> Result<OrderDTO> {
         let id: Id<Order> = Id::new();
-        let display_id = self.next_display_id();
+        let display_id = self.next_display_id().await?;
         let now = Utc::now();
 
         let mut shipping_address_id = None;

@@ -80,18 +80,14 @@ impl RegionService {
     }
 
     /// Loads a live region by id, or `NotFound`.
+    ///
+    /// The id is looked up exactly as given. This used to retry with the `reg_` prefix
+    /// added or stripped, which is the lenient parsing ADR-010 rules out: an id carries
+    /// its prefix end to end, and a lookup that quietly accepts both spellings makes
+    /// `reg_x` and `x` the same record. It also reported the *rewritten* id in the
+    /// not-found error, so callers were told about an id they never sent.
     async fn live_region(&self, id: &str) -> Result<Region> {
-        match self.regions.retrieve(None, id).await {
-            Ok(r) => Ok(r),
-            Err(_) => {
-                let alt_id = if let Some(stripped) = id.strip_prefix("reg_") {
-                    stripped.to_string()
-                } else {
-                    format!("reg_{}", id)
-                };
-                self.regions.retrieve(None, &alt_id).await
-            }
-        }
+        self.regions.retrieve(None, id).await
     }
 
     pub async fn create_region(&self, input: CreateRegionInput) -> Result<RegionDTO> {

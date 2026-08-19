@@ -17,7 +17,8 @@ use stheno_types::{Error, Id, Result};
 use crate::dto::*;
 use crate::models::{
     compute_variant_option_values_hash, Product, ProductCategory, ProductCollection, ProductOption,
-    ProductOptionValue, ProductStatus, ProductVariant,
+    ProductOptionValue, ProductProductOptionValue, ProductStatus, ProductTag, ProductType,
+    ProductVariant,
 };
 
 /// Page size for unpaginated internal listings.
@@ -32,8 +33,14 @@ pub struct ProductService {
     variants: PgCrudRepository<ProductVariant>,
     options: PgCrudRepository<ProductOption>,
     option_values: PgCrudRepository<ProductOptionValue>,
+    /// variant -> option value. `create_variant` folded these ids into a hash and never
+    /// stored them, so nothing could answer "which options is this variant?" — which is
+    /// exactly what a storefront needs to match a shopper's selection to a variant.
+    variant_option_values: PgCrudRepository<ProductProductOptionValue>,
     categories: PgCrudRepository<ProductCategory>,
     collections: PgCrudRepository<ProductCollection>,
+    tags: PgCrudRepository<ProductTag>,
+    types: PgCrudRepository<ProductType>,
 }
 
 impl ProductService {
@@ -43,7 +50,10 @@ impl ProductService {
             variants: PgCrudRepository::new(pool.clone()),
             options: PgCrudRepository::new(pool.clone()),
             option_values: PgCrudRepository::new(pool.clone()),
+            variant_option_values: PgCrudRepository::new(pool.clone()),
             categories: PgCrudRepository::new(pool.clone()),
+            tags: PgCrudRepository::new(pool.clone()),
+            types: PgCrudRepository::new(pool.clone()),
             collections: PgCrudRepository::new(pool),
         }
     }
@@ -223,6 +233,7 @@ impl ProductService {
     // ---- variants -------------------------------------------------------
 
     pub async fn create_variant(&self, input: CreateVariantInput) -> Result<ProductVariantDTO> {
+        let option_value_ids = input.option_value_ids.clone();
         let hash = if input.option_value_ids.is_empty() {
             let mut hasher = sha2::Sha256::new();
             hasher.update(input.title.as_bytes());
@@ -261,7 +272,28 @@ impl ProductService {
         // Uniqueness is the database's job. A read-then-write check here would
         // let two concurrent writers both observe "absent" and both insert.
         match self.variants.create(None, variant).await {
-            Ok(v) => Ok(variant_dto(&v)),
+            Ok(v) => {
+                // The hash proves two variants differ; it cannot be read back into the
+                // options that produced it. These rows are what makes the association
+                // retrievable, and without them a storefront can never resolve a
+                // shopper's selection to a variant.
+                for option_value_id in &option_value_ids {
+                    self.variant_option_values
+                        .create(
+                            None,
+                            ProductProductOptionValue {
+                                id: format!("provalue_{}", ulid::Ulid::new()),
+                                variant_id: v.id.to_string(),
+                                option_value_id: option_value_id.clone(),
+                                created_at: now,
+                                updated_at: now,
+                                deleted_at: None,
+                            },
+                        )
+                        .await?;
+                }
+                Ok(variant_dto(&v))
+            }
             Err(Error::Conflict { .. }) => Err(Error::Conflict {
                 code: "variant_option_combination_exists",
                 message:
@@ -316,6 +348,19 @@ impl ProductService {
 
     pub async fn delete_variant(&self, id: &str) -> Result<()> {
         self.variants.soft_delete(None, id).await
+    }
+
+    /// The option-value ids a variant is defined by.
+    pub async fn list_variant_option_values(&self, variant_id: &str) -> Result<Vec<String>> {
+        let filter = Self::live(LIST_LIMIT)
+            .with_predicate("variant_id", FilterOp::Eq(variant_id.to_string()));
+        Ok(self
+            .variant_option_values
+            .list(None, &filter)
+            .await?
+            .into_iter()
+            .map(|v| v.option_value_id)
+            .collect())
     }
 
     pub async fn list_variants(&self, product_id: &str) -> Result<Vec<ProductVariantDTO>> {
@@ -480,6 +525,86 @@ impl ProductService {
             .iter()
             .map(collection_dto)
             .collect())
+    }
+    // ── Product tags and types ──────────────────────────────────────────────
+    //
+    // `product.product_tag` and `product.product_type` have existed since the first
+    // product migration, with models and `CrudEntity` bindings. There were no service
+    // methods, so `GET /admin/product-tags` and `/product-types` returned hardcoded
+    // empty arrays and the admin's four tag/type screens had nothing behind them.
+
+    pub async fn list_tags(&self) -> Result<Vec<ProductTag>> {
+        self.tags.list(None, &Self::live(LIST_LIMIT)).await
+    }
+
+    pub async fn get_tag(&self, id: &str) -> Result<ProductTag> {
+        self.tags.retrieve(None, id).await
+    }
+
+    pub async fn create_tag(&self, value: String) -> Result<ProductTag> {
+        let now = Utc::now();
+        self.tags
+            .create(
+                None,
+                ProductTag {
+                    id: format!("ptag_{}", ulid::Ulid::new()),
+                    value,
+                    created_at: now,
+                    updated_at: now,
+                    deleted_at: None,
+                    metadata: None,
+                },
+            )
+            .await
+    }
+
+    pub async fn update_tag(&self, id: &str, value: String) -> Result<ProductTag> {
+        let mut tag = self.tags.retrieve(None, id).await?;
+        tag.value = value;
+        tag.updated_at = Utc::now();
+        self.tags.update(None, id, tag).await
+    }
+
+    pub async fn delete_tag(&self, id: &str) -> Result<()> {
+        self.tags.soft_delete(None, id).await?;
+        Ok(())
+    }
+
+    pub async fn list_types(&self) -> Result<Vec<ProductType>> {
+        self.types.list(None, &Self::live(LIST_LIMIT)).await
+    }
+
+    pub async fn get_type(&self, id: &str) -> Result<ProductType> {
+        self.types.retrieve(None, id).await
+    }
+
+    pub async fn create_type(&self, value: String) -> Result<ProductType> {
+        let now = Utc::now();
+        self.types
+            .create(
+                None,
+                ProductType {
+                    id: format!("ptyp_{}", ulid::Ulid::new()),
+                    value,
+                    created_at: now,
+                    updated_at: now,
+                    deleted_at: None,
+                    metadata: None,
+                },
+            )
+            .await
+    }
+
+    pub async fn update_type(&self, id: &str, value: String) -> Result<ProductType> {
+        let mut ty = self.types.retrieve(None, id).await?;
+        ty.value = value;
+        ty.updated_at = Utc::now();
+        self.types.update(None, id, ty).await
+    }
+
+    pub async fn delete_type(&self, id: &str) -> Result<()> {
+        self.types.soft_delete(None, id).await?;
+        Ok(())
     }
 }
 

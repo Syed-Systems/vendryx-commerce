@@ -9,6 +9,7 @@ authors.workspace = true
 [dependencies]
 stheno-types = { workspace = true }
 stheno-db = { workspace = true }
+stheno-links = { workspace = true }
 stheno-events = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
