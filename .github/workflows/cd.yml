@@ -1,0 +1,297 @@
+name: CD
+
+# Delivery, in the same shape as CI: staged, and each stage refuses to start until
+# the one before it proved something.
+#
+#   verify      the exact commit has a green `CI` check — all four stages, no exceptions
+#   image       build and push the distroless image to GHCR, with SBOM and provenance
+#   staging     every green commit on main lands here automatically, then is smoke-tested
+#   production  tags only, behind the `production` environment's approval, with rollback
+#
+# There is no path from a commit to production that skips `verify`, and no path to
+# production that skips staging: a tag can only point at a commit that already went
+# through main, and `verify` re-reads that commit's CI result rather than trusting it.
+#
+# Cluster rollout is opt-in. Set the repository variable DEPLOY_ENABLED=true once the
+# kubeconfig secrets below exist; until then CD builds and publishes images and says
+# plainly that it did not deploy, rather than reporting a rollout that never happened.
+#
+# Required for rollout:
+#   secrets.KUBE_CONFIG_STAGING / KUBE_CONFIG_PRODUCTION   base64 kubeconfig
+#   vars.STAGING_URL / vars.PRODUCTION_URL                 public base URL for the smoke test
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  checks: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}/stheno-server
+
+jobs:
+  # ─────────────────────────────── verify ───────────────────────────────
+  # The only entry point. Resolves which commit is being shipped and refuses to
+  # continue unless the `CI` gate job reported success for that exact SHA.
+
+  verify:
+    name: Verify CI is green for this commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      target: ${{ steps.resolve.outputs.target }}
+      image: ${{ steps.resolve.outputs.image }}
+    steps:
+      - id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            sha='${{ github.event.workflow_run.head_sha }}'
+            target=staging
+            conclusion='${{ github.event.workflow_run.conclusion }}'
+          else
+            sha='${{ github.sha }}'
+            case '${{ github.ref }}' in
+              refs/tags/*) target=production ;;
+              *)           target=staging ;;
+            esac
+            # A tag is just a label on a commit — the tag itself runs no CI, so read
+            # the CI result recorded for the commit it points at.
+            conclusion=$(gh api "repos/${{ github.repository }}/commits/$sha/check-runs" \
+              --jq '[.check_runs[] | select(.name == "CI")] | last | .conclusion // "missing"')
+          fi
+
+          echo "commit:     $sha"
+          echo "target:     $target"
+          echo "CI verdict: $conclusion"
+
+          if [ "$conclusion" != "success" ]; then
+            echo "FAIL: CI is '$conclusion' for $sha — nothing ships without a green CI." >&2
+            exit 1
+          fi
+
+          # GHCR rejects uppercase in a repository path, and github.repository keeps
+          # whatever case the repo was created with.
+          image=$(echo "${{ env.IMAGE }}" | tr '[:upper:]' '[:lower:]')
+
+          echo "sha=$sha"       >> "$GITHUB_OUTPUT"
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          echo "image=$image"   >> "$GITHUB_OUTPUT"
+
+  # ─────────────────────────────── image ───────────────────────────────
+  # One image per commit, built once and promoted by digest. Staging and production
+  # therefore run the identical bytes rather than two builds that happen to agree.
+
+  image:
+    name: Build and publish image
+    runs-on: ubuntu-latest
+    needs: verify
+    timeout-minutes: 40
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.verify.outputs.image }}
+          # The commit tag is written from the SHA `verify` resolved, not from
+          # github.sha — on a workflow_run event those are not guaranteed to agree,
+          # and the helm rollout below addresses the image by this exact tag.
+          tags: |
+            type=raw,value=sha-${{ needs.verify.outputs.sha }}
+            type=raw,value=edge,enable=${{ needs.verify.outputs.target == 'staging' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # docs/DISCLOSURE_POLICY.md and check-disclosure.sh both expect an SBOM to
+          # exist for a shipped artefact; buildx attaches one to the image itself.
+          sbom: true
+          provenance: mode=max
+
+  # ─────────────────────────────── staging ───────────────────────────────
+  # Automatic on every green main. This is the last place a break is cheap.
+
+  staging:
+    name: Deploy staging
+    runs-on: ubuntu-latest
+    needs: [verify, image]
+    if: needs.verify.outputs.target == 'staging'
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+
+      - name: Rollout not configured
+        if: vars.DEPLOY_ENABLED != 'true'
+        run: |
+          echo "Image published as ${{ needs.verify.outputs.image }}@${{ needs.image.outputs.digest }}."
+          echo "No cluster rollout: repository variable DEPLOY_ENABLED is not 'true'."
+          echo "Set it, plus KUBE_CONFIG_STAGING and STAGING_URL, to enable deploys."
+
+      - uses: azure/setup-helm@v4
+        if: vars.DEPLOY_ENABLED == 'true'
+
+      - name: Configure cluster access
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.kube"
+          echo '${{ secrets.KUBE_CONFIG_STAGING }}' | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      # The chart runs the server, not migrations. So before the rollout, boot the new
+      # image once purely to report whether the live schema matches the migrations it
+      # embeds — a schema mismatch is caught here rather than by a crash-looping pod.
+      - name: Pre-flight schema check
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: |
+          kubectl run stheno-preflight-${{ github.run_id }} \
+            --rm -i --restart=Never --namespace stheno-staging \
+            --image "${{ needs.verify.outputs.image }}@${{ needs.image.outputs.digest }}" \
+            --env "DATABASE_URL=$(kubectl get secret stheno-db -n stheno-staging -o jsonpath='{.data.DATABASE_URL}' | base64 -d)" \
+            --command -- /app/stheno-server --check-migrations
+
+      - name: Helm upgrade
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: |
+          helm upgrade --install stheno deploy/chart \
+            --namespace stheno-staging --create-namespace \
+            --set image.repository="${{ needs.verify.outputs.image }}" \
+            --set image.tag="sha-${{ needs.verify.outputs.sha }}" \
+            --values deploy/chart/values.yaml \
+            --atomic --wait --timeout 10m
+
+      # --atomic already rolls back a rollout that never becomes ready. This catches the
+      # other case: pods that are ready but serving something broken.
+      - name: Smoke test
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS -m 10 "${{ vars.STAGING_URL }}/health" | tee /dev/stderr | grep -q healthy; then
+              echo "staging healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "FAIL: staging never reported healthy." >&2
+          exit 1
+
+      - name: Roll back failed smoke test
+        if: failure() && vars.DEPLOY_ENABLED == 'true'
+        run: helm rollback stheno --namespace stheno-staging --wait --timeout 10m
+
+  # ────────────────────────────── production ──────────────────────────────
+  # Tags only, and only after a human approves the `production` environment.
+  # Configure that environment with required reviewers — the approval gate is a
+  # GitHub setting, not something this file can assert on its own.
+
+  production:
+    name: Deploy production
+    runs-on: ubuntu-latest
+    needs: [verify, image]
+    if: needs.verify.outputs.target == 'production'
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+
+      - name: Rollout not configured
+        if: vars.DEPLOY_ENABLED != 'true'
+        run: |
+          echo "Release image published as ${{ needs.verify.outputs.image }}:${{ needs.image.outputs.tag }}."
+          echo "No cluster rollout: repository variable DEPLOY_ENABLED is not 'true'."
+
+      - uses: azure/setup-helm@v4
+        if: vars.DEPLOY_ENABLED == 'true'
+
+      - name: Configure cluster access
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.kube"
+          echo '${{ secrets.KUBE_CONFIG_PRODUCTION }}' | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Pre-flight schema check
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: |
+          kubectl run stheno-preflight-${{ github.run_id }} \
+            --rm -i --restart=Never --namespace stheno \
+            --image "${{ needs.verify.outputs.image }}@${{ needs.image.outputs.digest }}" \
+            --env "DATABASE_URL=$(kubectl get secret stheno-db -n stheno -o jsonpath='{.data.DATABASE_URL}' | base64 -d)" \
+            --command -- /app/stheno-server --check-migrations
+
+      - name: Helm upgrade
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: |
+          helm upgrade --install stheno deploy/chart \
+            --namespace stheno --create-namespace \
+            --set image.repository="${{ needs.verify.outputs.image }}" \
+            --set image.tag="sha-${{ needs.verify.outputs.sha }}" \
+            --values deploy/chart/values.yaml \
+            --atomic --wait --timeout 15m
+
+      - name: Smoke test
+        if: vars.DEPLOY_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            if curl -fsS -m 10 "${{ vars.PRODUCTION_URL }}/health" | tee /dev/stderr | grep -q healthy; then
+              echo "production healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "FAIL: production never reported healthy." >&2
+          exit 1
+
+      - name: Roll back failed smoke test
+        if: failure() && vars.DEPLOY_ENABLED == 'true'
+        run: helm rollback stheno --namespace stheno --wait --timeout 15m

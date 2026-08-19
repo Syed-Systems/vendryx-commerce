@@ -1,20 +1,194 @@
 name: CI
 
+# Four stages, cheapest first, each gated on the one before it.
+#
+# The point is not just "is it green" but "what broke, and how far did it get".
+# A formatting slip fails in stage 1 in ninety seconds instead of burning a
+# twenty-minute Postgres build, and a red run names the stage — static,
+# integration, end-to-end, or release-readiness — rather than saying "CI failed".
+#
+#   1 · static        no compiler, no database   — format, architecture, types
+#   2 · integration   real Postgres + Redis      — clippy, workspace tests, unit tests
+#   3 · end-to-end    the whole stack running    — server + admin over the wire
+#   4 · release       is this shippable          — container, supply chain, compliance
+#
+# Nothing reaches CD unless the `CI` gate job at the bottom is green for that commit.
+
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
-    name: Test (Postgres)
-    runs-on: ubuntu-latest
+  # ────────────────────────────── Stage 1 · static ──────────────────────────────
+  # Pure file reads and greps. No cargo build, no database. Fails in about a minute.
 
-    # Phase 2 rule: no module may pass green-in-memory. Every test job runs
-    # against a real Postgres (PHASE2_PLAN.md 1.3).
+  rust-static:
+    name: 1 · Rust static
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Architecture boundaries
+        run: |
+          ./scripts/check-module-isolation.sh
+          ./scripts/check-sql-boundaries.sh
+          ./scripts/check-shared-kernel.sh
+          ./scripts/check-module-contracts.sh
+          ./scripts/check-dto-separation.sh
+          ./scripts/check-no-domain-gates.sh
+          ./scripts/check-no-in-memory-stores.sh
+          ./scripts/check-no-enterprise-paths.sh
+
+      - name: Migration hygiene
+        run: |
+          ./scripts/check-migration-phases.sh
+          ./scripts/check-playbook.sh
+
+      - name: CI configuration self-check
+        run: ./scripts/check-ci-postgres.sh
+
+      - name: Dashboard upstream pin
+        run: ./scripts/check-upstream-pin.sh
+
+  web-static:
+    name: 1 · Web typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            apps/admin/package-lock.json
+            apps/storefront/package-lock.json
+
+      # Vite and Next both strip types without checking them, so `build` alone proves
+      # nothing — this is the gate that caught 1,039 type errors in a green tree.
+      - name: Admin typecheck
+        working-directory: apps/admin
+        run: npm ci && npm run typecheck
+
+      - name: Storefront typecheck
+        working-directory: apps/storefront
+        run: npm ci && npx tsc --noEmit
+
+  # ───────────────────────────── Stage 2 · integration ─────────────────────────────
+  # Real Postgres and real Redis. Phase 2 rule: no module may pass green-in-memory
+  # (PHASE2_PLAN.md 1.3), so the service containers below are not optional.
+
+  rust-test:
+    name: 2 · Rust tests (Postgres + Redis)
+    runs-on: ubuntu-latest
+    needs: rust-static
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: stheno
+          POSTGRES_PASSWORD: stheno
+          POSTGRES_DB: stheno
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://stheno:stheno@localhost:5432/stheno
+      REDIS_URL: redis://127.0.0.1:6379
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Disk space
+        run: ./scripts/check-disk-space.sh
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # Covers the parity suites too — scripts/parity.sh is a subset of this.
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Schema drift
+        run: ./scripts/check-schema-drift.sh
+
+  web-test:
+    name: 2 · Web tests
+    runs-on: ubuntu-latest
+    needs: web-static
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            apps/admin/package-lock.json
+            apps/storefront/package-lock.json
+
+      - name: Admin unit tests
+        working-directory: apps/admin
+        run: npm ci && npm test
+
+      - name: Admin build
+        working-directory: apps/admin
+        run: npm run build
+
+      - name: Storefront build
+        working-directory: apps/storefront
+        env:
+          MEDUSA_BACKEND_URL: http://localhost:9000
+        run: npm ci && npm run build
+
+  # ───────────────────────────── Stage 3 · end-to-end ─────────────────────────────
+  # One server, three tenants, a real browser. Every assertion goes over the wire.
+
+  e2e:
+    name: 3 · End-to-end (admin against a live server)
+    runs-on: ubuntu-latest
+    needs: [rust-test, web-test]
+    timeout-minutes: 45
+
     services:
       postgres:
         image: postgres:16-alpine
@@ -32,34 +206,103 @@ jobs:
 
     env:
       DATABASE_URL: postgres://stheno:stheno@localhost:5432/stheno
+      STHENO_BACKEND_URL: http://127.0.0.1:9000
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
       - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/admin/package-lock.json
 
-      - name: Disk space
-        run: ./scripts/check-disk-space.sh
+      - name: Build server
+        run: cargo build -p stheno-server
 
-      - name: Format
-        run: cargo fmt --all -- --check
+      - name: Install admin deps
+        working-directory: apps/admin
+        run: npm ci
 
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Install browser
+        working-directory: apps/admin
+        run: npx playwright install --with-deps chromium
 
-      - name: Test
-        run: cargo test --workspace
+      # Migrates, creates the three tenants, seeds them, starts the server.
+      - name: Start stack
+        run: ./scripts/dev-tenants.sh up
 
-      - name: Boundary checks
+      - name: Playwright
+        working-directory: apps/admin
+        run: npm run test:e2e
+
+      - name: Server log
+        if: failure()
+        run: cat .dev-tenants/server.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/admin/playwright-report/
+          retention-days: 7
+
+      - name: Stop stack
+        if: always()
+        run: ./scripts/dev-tenants.sh down || true
+
+  # ──────────────────────── Stage 4 · release readiness ────────────────────────
+  # Everything that decides whether this commit is shippable, as opposed to correct.
+
+  container:
+    name: 4 · Container image
+    runs-on: ubuntu-latest
+    needs: rust-test
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      # Builds the distroless image, reads its real size, boots it and times the
+      # first healthy response against the P10-11 budgets.
+      - name: Image size and cold-boot budgets
+        run: ./scripts/check-image.sh
+
+  compliance:
+    name: 4 · Supply chain and compliance
+    runs-on: ubuntu-latest
+    needs: rust-static
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Advisory audit
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Security disclosure and SBOM
+        run: ./scripts/check-disclosure.sh
+
+      - name: PCI DSS SAQ A and checkout script integrity
+        run: ./scripts/check-pci-saq-a.sh
+
+  # ─────────────────────────────────── the gate ───────────────────────────────────
+  # One required status check for branch protection, and the single thing CD asks
+  # about before it will ship a commit. It has to fail when a stage fails OR is
+  # skipped — `needs` on its own treats a skipped dependency as satisfied.
+
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [rust-static, web-static, rust-test, web-test, e2e, container, compliance]
+    steps:
+      - name: Verify every stage passed
         run: |
-          ./scripts/check-module-isolation.sh
-          ./scripts/check-sql-boundaries.sh
-          ./scripts/check-shared-kernel.sh
-          ./scripts/check-module-contracts.sh
-          ./scripts/check-dto-separation.sh
-          ./scripts/check-schema-drift.sh
-          ./scripts/check-no-domain-gates.sh
+          results='${{ join(needs.*.result, " ") }}'
+          echo "stage results: $results"
+          for r in $results; do
+            [ "$r" = "success" ] || { echo "FAIL: a stage reported '$r'." >&2; exit 1; }
+          done
+          echo "All four stages green."

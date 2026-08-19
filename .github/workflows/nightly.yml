@@ -1,0 +1,87 @@
+name: Nightly
+
+# The gates that measure rather than assert, and are too slow to sit in front of a
+# pull request. They run against a real, migrated, seeded stack every night, so a
+# memory leak or a broken restore path is found on a schedule instead of during an
+# incident. CI stays fast; this stays honest.
+#
+# Deliberately not here: scripts/redis-outage.sh, scripts/parity.sh and
+# scripts/gate-p20.sh are all subsets of `cargo test --workspace` plus the boundary
+# checks, which CI already runs on every commit. Running them again would add time
+# and no information.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      soak_duration:
+        description: Soak duration (e.g. 30m, 1h)
+        default: 30m
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  resilience:
+    name: Soak and restore drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: stheno
+          POSTGRES_PASSWORD: stheno
+          POSTGRES_DB: stheno
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # dev-tenants.sh migrates and seeds its own database; both gates below need
+      # real schema and real rows, so they point at that one rather than the empty
+      # `stheno` database the service container creates.
+      DATABASE_URL: postgres://stheno:stheno@localhost:5432/stheno_dev
+      TARGET_URL: http://127.0.0.1:9000
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build server
+        run: cargo build -p stheno-server
+
+      - name: Start stack
+        run: ./scripts/dev-tenants.sh up
+
+      # Drives real traffic and samples the server process's real RSS against the
+      # 400 MB budget (P10-14). Fails if it cannot take a sample, rather than
+      # reporting a budget it never measured.
+      - name: Soak
+        run: ./scripts/soak.sh --duration "${{ inputs.soak_duration || '30m' }}" --rps 500
+
+      # always(), so a soak failure cannot hide a restore regression — the job still
+      # fails, but the run reports on both.
+      - name: Restore drill
+        if: always()
+        env:
+          BACKUP_ENCRYPTION_KEY: nightly-drill-${{ github.run_id }}
+        run: ./scripts/restore-drill.sh
+
+      - name: Server log
+        if: failure()
+        run: cat .dev-tenants/server.log || true
+
+      - name: Stop stack
+        if: always()
+        run: ./scripts/dev-tenants.sh down || true
