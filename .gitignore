@@ -4,3 +4,8 @@
 
 # Binary staged by scripts/restart-durability.sh
 target-bin/
+.dev-tiers/
+apps/admin/shots/
+apps/admin/test-results/
+apps/admin/playwright-report/
+.dev-tenants/

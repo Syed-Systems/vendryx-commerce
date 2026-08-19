@@ -38,6 +38,7 @@ members = [
     "crates/modules/stheno-caching",
     "crates/modules/stheno-locking",
     "crates/modules/stheno-translation",
+    "crates/modules/stheno-platform",
     "crates/modules/stheno-settings",
     "crates/modules/stheno-analytics",
     "crates/modules/stheno-order-change",
@@ -64,6 +65,7 @@ members = [
     "crates/api/stheno-api-store",
     "crates/api/stheno-api-admin",
     "crates/api/stheno-api-admin-platform",
+    "crates/api/stheno-api-platform",
     "crates/api/stheno-api-router",
     "crates/api/stheno-api-auth",
 ]
@@ -117,6 +119,7 @@ stheno-index = { path = "crates/modules/stheno-index", version = "0.1.0" }
 stheno-caching = { path = "crates/modules/stheno-caching", version = "0.1.0" }
 stheno-locking = { path = "crates/modules/stheno-locking", version = "0.1.0" }
 stheno-translation = { path = "crates/modules/stheno-translation", version = "0.1.0" }
+stheno-platform = { path = "crates/modules/stheno-platform", version = "0.1.0" }
 stheno-settings = { path = "crates/modules/stheno-settings", version = "0.1.0" }
 stheno-analytics = { path = "crates/modules/stheno-analytics", version = "0.1.0" }
 stheno-order-change = { path = "crates/modules/stheno-order-change", version = "0.1.0" }
@@ -134,6 +137,7 @@ stheno-api-core = { path = "crates/api/stheno-api-core", version = "0.1.0" }
 stheno-api-store = { path = "crates/api/stheno-api-store", version = "0.1.0" }
 stheno-api-admin = { path = "crates/api/stheno-api-admin", version = "0.1.0" }
 stheno-api-admin-platform = { path = "crates/api/stheno-api-admin-platform", version = "0.1.0" }
+stheno-api-platform = { path = "crates/api/stheno-api-platform", version = "0.1.0" }
 stheno-api-router = { path = "crates/api/stheno-api-router", version = "0.1.0" }
 stheno-api-auth = { path = "crates/api/stheno-api-auth", version = "0.1.0" }
 

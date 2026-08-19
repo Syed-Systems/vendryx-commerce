@@ -2819,6 +2819,7 @@ dependencies = [
  "serde",
  "serde_json",
  "stheno-api-core",
+ "stheno-db",
  "stheno-flows",
  "stheno-http",
  "stheno-registry",
@@ -2881,6 +2882,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "stheno-api-platform"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "serde",
+ "serde_json",
+ "stheno-api-core",
+ "stheno-db",
+ "stheno-platform",
+ "stheno-types",
+ "tokio",
+ "tower 0.4.13",
+ "tracing",
+]
+
+[[package]]
 name = "stheno-api-router"
 version = "0.1.0"
 dependencies = [
@@ -2918,9 +2936,11 @@ dependencies = [
  "stheno-customer",
  "stheno-db",
  "stheno-flows",
+ "stheno-flows-order",
  "stheno-fulfillment",
  "stheno-http",
  "stheno-inventory",
+ "stheno-links",
  "stheno-order",
  "stheno-payment",
  "stheno-payment-offline",
@@ -3178,6 +3198,7 @@ dependencies = [
  "fred",
  "serde",
  "serde_json",
+ "stheno-db",
  "stheno-types",
  "tokio",
  "tracing",
@@ -3285,6 +3306,7 @@ name = "stheno-flows-order"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "rand 0.8.7",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",
@@ -3374,6 +3396,7 @@ dependencies = [
  "serde_json",
  "stheno-db",
  "stheno-events",
+ "stheno-links",
  "stheno-types",
  "tokio",
  "tracing",
@@ -3480,6 +3503,8 @@ name = "stheno-order"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "diesel",
+ "diesel-async",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",
@@ -3572,6 +3597,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "stheno-platform"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
+ "stheno-db",
+ "stheno-types",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "stheno-pricing"
 version = "0.1.0"
 dependencies = [
@@ -3585,6 +3624,7 @@ dependencies = [
  "serde_json",
  "stheno-db",
  "stheno-events",
+ "stheno-links",
  "stheno-types",
  "tokio",
  "tracing",
@@ -3763,6 +3803,7 @@ name = "stheno-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "chrono",
  "clap",
  "reqwest",
  "rust_decimal",
@@ -3772,6 +3813,8 @@ dependencies = [
  "stheno-api-admin-platform",
  "stheno-api-auth",
  "stheno-api-core",
+ "stheno-api-platform",
+ "stheno-api-router",
  "stheno-api-store",
  "stheno-auth",
  "stheno-cart",
@@ -3785,17 +3828,23 @@ dependencies = [
  "stheno-fulfillment-manual",
  "stheno-http",
  "stheno-inventory",
+ "stheno-links",
  "stheno-order",
  "stheno-payment",
+ "stheno-payment-offline",
+ "stheno-payment-stripe",
+ "stheno-platform",
  "stheno-pricing",
  "stheno-product",
  "stheno-promotion",
  "stheno-query",
+ "stheno-rbac",
  "stheno-region",
  "stheno-registry",
  "stheno-reporting",
  "stheno-sales-channel",
  "stheno-server",
+ "stheno-settings",
  "stheno-stock-location",
  "stheno-store",
  "stheno-tax",
