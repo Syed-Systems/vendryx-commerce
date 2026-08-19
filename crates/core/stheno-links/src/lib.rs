@@ -754,6 +754,7 @@ impl LinkStore {
 use diesel::sql_types::Text;
 use diesel::QueryableByName;
 use diesel_async::RunQueryDsl;
+use stheno_db::tenant;
 use stheno_db::DbPool;
 use stheno_types::{Error, Result};
 
@@ -761,6 +762,14 @@ use stheno_types::{Error, Result};
 struct StringIdRow {
     #[diesel(sql_type = Text)]
     value: String,
+}
+
+#[derive(QueryableByName)]
+struct LinkPairRow {
+    #[diesel(sql_type = Text)]
+    left_id: String,
+    #[diesel(sql_type = Text)]
+    right_id: String,
 }
 
 pub fn find_link(name: &str) -> Option<&'static LinkDefinition> {
@@ -779,175 +788,245 @@ impl PgLinkStore {
     }
 
     pub async fn link(&self, link_name: &str, left_id: &str, right_id: &str) -> Result<()> {
-        let def = find_link(link_name).ok_or_else(|| Error::NotFound {
-            entity: "link_definition",
-            id: link_name.to_string(),
-        })?;
+        let link_name = link_name.to_string();
+        let left_id = left_id.to_string();
+        let right_id = right_id.to_string();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let def = find_link(&link_name).ok_or_else(|| Error::NotFound {
+                    entity: "link_definition",
+                    id: link_name.to_string(),
+                })?;
 
-        let table = def.table.ok_or_else(|| Error::Invalid {
-            code: "read_only_link",
-            message: format!(
-                "Link '{}' is read-only and has no writable join table",
-                link_name
-            ),
-            field: Some(link_name.to_string()),
-        })?;
+                let table = def.table.ok_or_else(|| Error::Invalid {
+                    code: "read_only_link",
+                    message: format!(
+                        "Link '{}' is read-only and has no writable join table",
+                        link_name
+                    ),
+                    field: Some(link_name.to_string()),
+                })?;
 
-        let id = ulid::Ulid::new().to_string();
-        let sql = format!(
-            r#"
-            INSERT INTO links.{} (id, left_id, right_id, created_at, updated_at, deleted_at)
-            VALUES ($1, $2, $3, now(), now(), NULL)
-            ON CONFLICT (left_id, right_id) WHERE deleted_at IS NULL
-            DO UPDATE SET updated_at = now()
-            "#,
-            table
-        );
+                let id = ulid::Ulid::new().to_string();
+                let sql = format!(
+                    r#"
+                    INSERT INTO links.{} (id, left_id, right_id, created_at, updated_at, deleted_at)
+                    VALUES ($1, $2, $3, now(), now(), NULL)
+                    ON CONFLICT (left_id, right_id) WHERE deleted_at IS NULL
+                    DO UPDATE SET updated_at = now()
+                    "#,
+                    table
+                );
 
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                diesel::sql_query(sql)
+                    .bind::<Text, _>(&id)
+                    .bind::<Text, _>(&left_id)
+                    .bind::<Text, _>(&right_id)
+                    .execute(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
 
-        diesel::sql_query(sql)
-            .bind::<Text, _>(&id)
-            .bind::<Text, _>(left_id)
-            .bind::<Text, _>(right_id)
-            .execute(&mut conn)
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
-
-        Ok(())
+                Ok(())
+            })
+        })
+        .await
     }
 
     pub async fn get_by_left(&self, link_name: &str, left_id: &str) -> Result<Vec<String>> {
-        let def = find_link(link_name).ok_or_else(|| Error::NotFound {
-            entity: "link_definition",
-            id: link_name.to_string(),
-        })?;
+        let link_name = link_name.to_string();
+        let left_id = left_id.to_string();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
 
-        let table = def.table.ok_or_else(|| Error::Invalid {
-            code: "read_only_link",
-            message: format!("Link '{}' is read-only and has no join table", link_name),
-            field: Some(link_name.to_string()),
-        })?;
+                let def = find_link(&link_name).ok_or_else(|| Error::NotFound {
+                    entity: "link_definition",
+                    id: link_name.to_string(),
+                })?;
 
-        let sql = format!(
-            "SELECT right_id as value FROM links.{} WHERE left_id = $1 AND deleted_at IS NULL",
-            table
-        );
+                let table = def.table.ok_or_else(|| Error::Invalid {
+                    code: "read_only_link",
+                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    field: Some(link_name.to_string()),
+                })?;
 
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                let sql = format!(
+                    "SELECT right_id as value FROM links.{} WHERE left_id = $1 AND deleted_at IS NULL",
+                    table
+                );
 
-        let rows: Vec<StringIdRow> = diesel::sql_query(sql)
-            .bind::<Text, _>(left_id)
-            .load(&mut conn)
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
 
-        Ok(rows.into_iter().map(|r| r.value).collect())
+                let rows: Vec<StringIdRow> = diesel::sql_query(sql)
+                    .bind::<Text, _>(&left_id)
+                    .load(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+
+                Ok(rows.into_iter().map(|r| r.value).collect())
+
+            })
+        })
+        .await
+    }
+
+    /// `get_by_left` for many left ids at once, returning left -> right ids.
+    ///
+    /// Exists because the catalog resolves a price for every variant on the page. Looping
+    /// `get_by_left` there is one round trip per variant — twenty products with three
+    /// variants each is sixty queries to render one list — which the catalog's p95 budget
+    /// does not have room for.
+    pub async fn get_by_left_many(
+        &self,
+        link_name: &str,
+        left_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, Vec<String>>> {
+        if left_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let link_name = link_name.to_string();
+        let left_ids = left_ids.to_vec();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let def = find_link(&link_name).ok_or_else(|| Error::NotFound {
+                    entity: "link_definition",
+                    id: link_name.to_string(),
+                })?;
+
+                let table = def.table.ok_or_else(|| Error::Invalid {
+                    code: "read_only_link",
+                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    field: Some(link_name.to_string()),
+                })?;
+
+                let sql = format!(
+                    "SELECT left_id, right_id FROM links.{}                      WHERE left_id = ANY($1) AND deleted_at IS NULL",
+                    table
+                );
+
+                let rows: Vec<LinkPairRow> = diesel::sql_query(sql)
+                    .bind::<diesel::sql_types::Array<Text>, _>(&left_ids)
+                    .load(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+
+                let mut out: std::collections::HashMap<String, Vec<String>> =
+                    std::collections::HashMap::new();
+                for row in rows {
+                    out.entry(row.left_id).or_default().push(row.right_id);
+                }
+                Ok(out)
+            })
+        })
+        .await
     }
 
     pub async fn get_by_right(&self, link_name: &str, right_id: &str) -> Result<Vec<String>> {
-        let def = find_link(link_name).ok_or_else(|| Error::NotFound {
-            entity: "link_definition",
-            id: link_name.to_string(),
-        })?;
+        let link_name = link_name.to_string();
+        let right_id = right_id.to_string();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
 
-        let table = def.table.ok_or_else(|| Error::Invalid {
-            code: "read_only_link",
-            message: format!("Link '{}' is read-only and has no join table", link_name),
-            field: Some(link_name.to_string()),
-        })?;
+                let def = find_link(&link_name).ok_or_else(|| Error::NotFound {
+                    entity: "link_definition",
+                    id: link_name.to_string(),
+                })?;
 
-        let sql = format!(
-            "SELECT left_id as value FROM links.{} WHERE right_id = $1 AND deleted_at IS NULL",
-            table
-        );
+                let table = def.table.ok_or_else(|| Error::Invalid {
+                    code: "read_only_link",
+                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    field: Some(link_name.to_string()),
+                })?;
 
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                let sql = format!(
+                    "SELECT left_id as value FROM links.{} WHERE right_id = $1 AND deleted_at IS NULL",
+                    table
+                );
 
-        let rows: Vec<StringIdRow> = diesel::sql_query(sql)
-            .bind::<Text, _>(right_id)
-            .load(&mut conn)
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
 
-        Ok(rows.into_iter().map(|r| r.value).collect())
+                let rows: Vec<StringIdRow> = diesel::sql_query(sql)
+                    .bind::<Text, _>(&right_id)
+                    .load(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+
+                Ok(rows.into_iter().map(|r| r.value).collect())
+
+            })
+        })
+        .await
     }
 
     pub async fn unlink(&self, link_name: &str, left_id: &str, right_id: &str) -> Result<()> {
-        let def = find_link(link_name).ok_or_else(|| Error::NotFound {
-            entity: "link_definition",
-            id: link_name.to_string(),
-        })?;
+        let link_name = link_name.to_string();
+        let left_id = left_id.to_string();
+        let right_id = right_id.to_string();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
 
-        let table = def.table.ok_or_else(|| Error::Invalid {
-            code: "read_only_link",
-            message: format!("Link '{}' is read-only and has no join table", link_name),
-            field: Some(link_name.to_string()),
-        })?;
+                let def = find_link(&link_name).ok_or_else(|| Error::NotFound {
+                    entity: "link_definition",
+                    id: link_name.to_string(),
+                })?;
 
-        let sql = format!(
-            "UPDATE links.{} SET deleted_at = now() WHERE left_id = $1 AND right_id = $2 AND deleted_at IS NULL",
-            table
-        );
+                let table = def.table.ok_or_else(|| Error::Invalid {
+                    code: "read_only_link",
+                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    field: Some(link_name.to_string()),
+                })?;
 
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                let sql = format!(
+                    "UPDATE links.{} SET deleted_at = now() WHERE left_id = $1 AND right_id = $2 AND deleted_at IS NULL",
+                    table
+                );
 
-        diesel::sql_query(sql)
-            .bind::<Text, _>(left_id)
-            .bind::<Text, _>(right_id)
-            .execute(&mut conn)
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
 
-        Ok(())
+                diesel::sql_query(sql)
+                    .bind::<Text, _>(&left_id)
+                    .bind::<Text, _>(&right_id)
+                    .execute(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+
+                Ok(())
+
+            })
+        })
+        .await
     }
 
     pub async fn cascade_delete_left(&self, link_name: &str, left_id: &str) -> Result<Vec<String>> {
-        let def = find_link(link_name).ok_or_else(|| Error::NotFound {
-            entity: "link_definition",
-            id: link_name.to_string(),
-        })?;
+        let link_name = link_name.to_string();
+        let left_id = left_id.to_string();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
 
-        let table = def.table.ok_or_else(|| Error::Invalid {
-            code: "read_only_link",
-            message: format!("Link '{}' is read-only and has no join table", link_name),
-            field: Some(link_name.to_string()),
-        })?;
+                let def = find_link(&link_name).ok_or_else(|| Error::NotFound {
+                    entity: "link_definition",
+                    id: link_name.to_string(),
+                })?;
 
-        let sql = format!(
-            "UPDATE links.{} SET deleted_at = now() WHERE left_id = $1 AND deleted_at IS NULL RETURNING right_id as value",
-            table
-        );
+                let table = def.table.ok_or_else(|| Error::Invalid {
+                    code: "read_only_link",
+                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    field: Some(link_name.to_string()),
+                })?;
 
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                let sql = format!(
+                    "UPDATE links.{} SET deleted_at = now() WHERE left_id = $1 AND deleted_at IS NULL RETURNING right_id as value",
+                    table
+                );
 
-        let rows: Vec<StringIdRow> = diesel::sql_query(sql)
-            .bind::<Text, _>(left_id)
-            .load(&mut conn)
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
 
-        Ok(rows.into_iter().map(|r| r.value).collect())
+                let rows: Vec<StringIdRow> = diesel::sql_query(sql)
+                    .bind::<Text, _>(&left_id)
+                    .load(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+
+                Ok(rows.into_iter().map(|r| r.value).collect())
+
+            })
+        })
+        .await
     }
 
     pub async fn cascade_delete_right(
@@ -955,61 +1034,66 @@ impl PgLinkStore {
         link_name: &str,
         right_id: &str,
     ) -> Result<Vec<String>> {
-        let def = find_link(link_name).ok_or_else(|| Error::NotFound {
-            entity: "link_definition",
-            id: link_name.to_string(),
-        })?;
+        let link_name = link_name.to_string();
+        let right_id = right_id.to_string();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
 
-        let table = def.table.ok_or_else(|| Error::Invalid {
-            code: "read_only_link",
-            message: format!("Link '{}' is read-only and has no join table", link_name),
-            field: Some(link_name.to_string()),
-        })?;
+                let def = find_link(&link_name).ok_or_else(|| Error::NotFound {
+                    entity: "link_definition",
+                    id: link_name.to_string(),
+                })?;
 
-        let sql = format!(
-            "UPDATE links.{} SET deleted_at = now() WHERE right_id = $1 AND deleted_at IS NULL RETURNING left_id as value",
-            table
-        );
+                let table = def.table.ok_or_else(|| Error::Invalid {
+                    code: "read_only_link",
+                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    field: Some(link_name.to_string()),
+                })?;
 
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+                let sql = format!(
+                    "UPDATE links.{} SET deleted_at = now() WHERE right_id = $1 AND deleted_at IS NULL RETURNING left_id as value",
+                    table
+                );
 
-        let rows: Vec<StringIdRow> = diesel::sql_query(sql)
-            .bind::<Text, _>(right_id)
-            .load(&mut conn)
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
 
-        Ok(rows.into_iter().map(|r| r.value).collect())
+                let rows: Vec<StringIdRow> = diesel::sql_query(sql)
+                    .bind::<Text, _>(&right_id)
+                    .load(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+
+                Ok(rows.into_iter().map(|r| r.value).collect())
+
+            })
+        })
+        .await
     }
 
     /// Hard delete / GDPR erasure cascade (P14-21).
     pub async fn gdpr_erase_entity(&self, entity_id: &str) -> Result<usize> {
-        let mut total_deleted = 0;
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+        let entity_id = entity_id.to_string();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let mut total_deleted = 0;
 
-        for def in ALL_LINKS {
-            if let Some(table) = def.table {
-                let sql = format!(
-                    "DELETE FROM links.{} WHERE left_id = $1 OR right_id = $1",
-                    table
-                );
-                let count = diesel::sql_query(sql)
-                    .bind::<Text, _>(entity_id)
-                    .execute(&mut conn)
-                    .await
-                    .map_err(|e| Error::Database(e.to_string()))?;
-                total_deleted += count;
-            }
-        }
+                for def in ALL_LINKS {
+                    if let Some(table) = def.table {
+                        let sql = format!(
+                            "DELETE FROM links.{} WHERE left_id = $1 OR right_id = $1",
+                            table
+                        );
+                        let count = diesel::sql_query(sql)
+                            .bind::<Text, _>(&entity_id)
+                            .execute(conn)
+                            .await
+                            .map_err(|e| Error::Database(e.to_string()))?;
+                        total_deleted += count;
+                    }
+                }
 
-        Ok(total_deleted)
+                Ok(total_deleted)
+            })
+        })
+        .await
     }
 }

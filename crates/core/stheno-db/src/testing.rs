@@ -63,6 +63,16 @@ impl TestDb {
         let mut admin = AsyncPgConnection::establish(&admin_url)
             .await
             .expect("connect to the administrative database");
+
+        // `drop()` is skipped whenever a test panics, so failed runs leak a database
+        // each. Left alone they accumulate across runs — 500 of them exhausted the
+        // server's resources and put it into recovery mid-suite, which then looked like
+        // dozens of unrelated test failures. Sweeping other processes' leftovers on
+        // startup keeps a failing suite from poisoning the next one.
+        //
+        // Only databases belonging to processes that no longer exist are removed, so
+        // concurrent `cargo test` invocations cannot delete each other's.
+        Self::sweep_orphaned(&mut admin).await;
         // One statement per call: CREATE/DROP DATABASE cannot run inside a
         // transaction block, and `batch_execute` opens one.
         // The drop comes first in case a previous run died before teardown.
@@ -75,26 +85,95 @@ impl TestDb {
             .await
             .expect("create the test database");
 
-        Self {
+        let db = Self {
             url: replace_database(&admin_url, &name),
             name,
             admin_url,
-        }
+        };
+
+        // Every test database needs the tenancy preconditions (ADR-012), not just the
+        // migrated ones: fixtures like `widget_db` create ad-hoc tables against a bare
+        // database and still go through `PgCrudRepository`, which now assumes a tenant
+        // scope and the `stheno_app` role.
+        //
+        // `ALTER DEFAULT PRIVILEGES` is what makes this work without touching each
+        // fixture — tables those fixtures create afterwards are granted automatically.
+        Self::execute(
+            &db,
+            "DO $$ BEGIN
+                 IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'stheno_app') THEN
+                     CREATE ROLE stheno_app NOLOGIN NOSUPERUSER NOBYPASSRLS;
+                 END IF;
+             END $$;
+             DO $$ BEGIN
+                 EXECUTE format('GRANT stheno_app TO %I', current_user);
+             EXCEPTION WHEN duplicate_object THEN NULL;
+             END $$;
+             GRANT USAGE, CREATE ON SCHEMA public TO stheno_app;
+             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO stheno_app;
+             ALTER DEFAULT PRIVILEGES IN SCHEMA public
+                 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO stheno_app;",
+        )
+        .await;
+
+        crate::tenant::set_process_default(Self::TEST_TENANT);
+        db
     }
 
+    /// The tenant every test runs as unless it establishes its own scope.
+    pub const TEST_TENANT: &'static str = "ten_test";
+
     /// Creates a fresh database with every migration already applied.
+    ///
+    /// Also registers [`Self::TEST_TENANT`] and makes it the process default, because the
+    /// 190-odd test files drive services directly with no HTTP layer and therefore no
+    /// middleware to establish a tenant scope (ADR-012). Without this every one of them
+    /// would fail closed.
+    ///
+    /// The process default is `testing`-feature gated and
+    /// `scripts/check-no-tenant-default.sh` asserts the shipped server never enables that
+    /// feature — a production binary must have no way to reach a default tenant.
     pub async fn migrated() -> Self {
         let db = Self::create().await;
         crate::migrations::run(&db.url)
             .await
             .expect("migrations must apply to a fresh database");
+
+        // UFCS: `RunQueryDsl` is in scope in this module and its `execute` would
+        // otherwise win method resolution.
+        Self::execute(
+            &db,
+            &format!(
+                "INSERT INTO platform.tenant (id, name) VALUES ('{t}', 'Test')
+                 ON CONFLICT (id) DO NOTHING;
+                 INSERT INTO platform.subscription (tenant_id, tier) VALUES ('{t}', 'pro')
+                 ON CONFLICT (tenant_id) DO NOTHING;",
+                t = Self::TEST_TENANT
+            ),
+        )
+        .await;
+
+        crate::tenant::set_process_default(Self::TEST_TENANT);
         db
     }
 
+    /// A connection with the test tenant already established.
+    ///
+    /// Fixtures insert rows with raw SQL through the helpers below, which do not go
+    /// through `PgCrudRepository::with_conn` and so would leave `app.tenant_id` unset —
+    /// making every `tenant_id` DEFAULT resolve to NULL and violate NOT NULL (ADR-012).
+    ///
+    /// Session-level rather than `SET LOCAL`, because these helpers run single statements
+    /// outside a transaction. That is safe here and only here: the connection is not
+    /// pooled, it belongs to one test, and it is dropped with it.
     pub async fn conn(&self) -> AsyncPgConnection {
-        AsyncPgConnection::establish(&self.url)
+        let mut conn = AsyncPgConnection::establish(&self.url)
             .await
-            .expect("connect to the test database")
+            .expect("connect to the test database");
+        conn.batch_execute(&format!("SET app.tenant_id = '{}'", Self::TEST_TENANT))
+            .await
+            .expect("establish the test tenant on the connection");
+        conn
     }
 
     pub async fn execute(&self, sql: &str) {
@@ -102,6 +181,39 @@ impl TestDb {
         conn.batch_execute(sql)
             .await
             .unwrap_or_else(|e| panic!("failed to execute {sql:?}: {e}"));
+
+        // Fixtures create their ad-hoc schemas and tables through this method, and
+        // `PgCrudRepository` now queries as `stheno_app` (ADR-012). Re-granting here is
+        // what keeps every existing fixture working without edits — a fixture that
+        // creates a `catalog` schema gets access to it without knowing the role exists.
+        Self::grant_app_access(&mut conn).await;
+    }
+
+    /// Grants the application role access to everything currently in the database.
+    ///
+    /// Idempotent and test-only. Production grants are made once by the `app_role`
+    /// migration, which also sets default privileges for tables added later.
+    async fn grant_app_access(conn: &mut AsyncPgConnection) {
+        let sql = "DO $$
+             DECLARE s text;
+             BEGIN
+                 IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'stheno_app') THEN
+                     RETURN;
+                 END IF;
+                 FOR s IN SELECT nspname FROM pg_namespace
+                           WHERE nspname NOT LIKE 'pg\\_%'
+                             AND nspname <> 'information_schema'
+                 LOOP
+                     EXECUTE format('GRANT USAGE ON SCHEMA %I TO stheno_app', s);
+                     EXECUTE format(
+                         'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO stheno_app', s);
+                     EXECUTE format(
+                         'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %I TO stheno_app', s);
+                 END LOOP;
+             END $$;";
+        conn.batch_execute(sql)
+            .await
+            .unwrap_or_else(|e| panic!("failed to grant app role access: {e}"));
     }
 
     /// Runs a query returning a single boolean.
@@ -145,6 +257,41 @@ impl TestDb {
             .await
             .unwrap_or_else(|e| panic!("failed to query {sql:?}: {e}"));
         row.value
+    }
+
+    /// Drops test databases left behind by processes that have exited.
+    ///
+    /// Runs at most once per process. Failures are ignored: this is hygiene, and a
+    /// sweep that cannot run must never fail the test that triggered it.
+    async fn sweep_orphaned(admin: &mut AsyncPgConnection) {
+        use std::sync::Once;
+        static SWEPT: Once = Once::new();
+        let mut should_sweep = false;
+        SWEPT.call_once(|| should_sweep = true);
+        if !should_sweep {
+            return;
+        }
+
+        let me = std::process::id();
+        // `datname LIKE 'stheno_test_<pid>_%'` identifies the owning process. Anything
+        // whose pid is not ours is from a previous run: this process is the only one
+        // that could still be using its own.
+        let sql = format!(
+            "DO $$
+             DECLARE d text;
+             BEGIN
+                 FOR d IN SELECT datname FROM pg_database
+                           WHERE datname LIKE 'stheno\\_test\\_%'
+                             AND datname NOT LIKE 'stheno\\_test\\_{me}\\_%'
+                 LOOP
+                     BEGIN
+                         EXECUTE format('DROP DATABASE IF EXISTS %I WITH (FORCE)', d);
+                     EXCEPTION WHEN OTHERS THEN NULL;
+                     END;
+                 END LOOP;
+             END $$;"
+        );
+        let _ = admin.batch_execute(&sql).await;
     }
 
     /// Drops the database. Call at the end of a test.

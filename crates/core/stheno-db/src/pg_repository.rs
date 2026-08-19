@@ -87,6 +87,15 @@ impl<T: CrudEntity> PgCrudRepository<T> {
         }
     }
 
+    /// `columns` as a quoted, comma-joined SQL fragment.
+    fn quoted_columns(json: &str) -> Result<String> {
+        Ok(Self::columns(json)?
+            .into_iter()
+            .map(|c| format!("\"{c}\""))
+            .collect::<Vec<_>>()
+            .join(", "))
+    }
+
     /// The column list of a serialized entity, identifier-checked.
     ///
     /// Taken from the entity's own JSON rather than from the database, so an
@@ -111,23 +120,58 @@ impl<T: CrudEntity> PgCrudRepository<T> {
     /// read share one repository: inside a SAGA the caller owns the transaction
     /// and every write must join it, while a simple GET has no transaction to
     /// join and should not open one.
+    ///
+    /// # Tenant scoping (ADR-012)
+    ///
+    /// This is the one place every read and write acquires a connection, so it is where
+    /// tenant isolation is established. Both branches apply the scope with
+    /// [`crate::tenant::apply_scope`] before running `f`.
+    ///
+    /// The `None` branch opens a **transaction** it would not otherwise need, because
+    /// `SET LOCAL` is only meaningful inside one. That costs two round trips on the
+    /// non-transactional path and is accepted deliberately: the alternative — session
+    /// level `set_config` on a pooled connection — leaves the connection carrying a
+    /// tenant identity after it is returned to the pool, so the failure mode of any path
+    /// that skips scoping becomes *reading the previous tenant's rows*. `SET LOCAL`'s
+    /// failure mode is reading **nothing**. Only one of those is survivable.
+    ///
+    /// ponytail: an extra BEGIN/COMMIT per non-transactional read. If `tests/load/*.js`
+    /// shows this eating the p95 budget, reduce the number of non-transactional callers
+    /// rather than moving the setting back to session scope.
     async fn with_conn<'a, R, F>(&self, conn: Option<&mut Conn<'a>>, f: F) -> Result<R>
     where
+        R: Send + 'static,
+        // `'static` is required by `with_transaction`, which moves the closure into
+        // diesel's transaction future. Every caller here captures owned data (the built
+        // SQL string and the serialized entity), so nothing borrows across the boundary.
         F: for<'c> FnOnce(
-            &'c mut AsyncPgConnection,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<R>> + Send + 'c>,
-        >,
+                &'c mut AsyncPgConnection,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<R>> + Send + 'c>,
+            > + Send
+            + 'static,
     {
         match conn {
-            Some(c) => f(c).await,
+            // Already inside the caller's transaction, so `SET LOCAL` is valid here and
+            // re-applying it per call is idempotent and order-independent.
+            Some(c) => {
+                crate::tenant::apply_scope(c).await?;
+                f(c).await
+            }
             None => {
                 let mut pooled = self
                     .pool
                     .get()
                     .await
                     .map_err(|e| Error::Database(e.to_string()))?;
-                f(&mut pooled).await
+
+                crate::transaction::with_transaction(&mut pooled, |c| {
+                    Box::pin(async move {
+                        crate::tenant::apply_scope(c).await?;
+                        f(c).await
+                    })
+                })
+                .await
             }
         }
     }
@@ -226,9 +270,16 @@ impl<T: CrudEntity> CrudRepository<T> for PgCrudRepository<T> {
     async fn create(&self, conn: Option<&mut Conn<'_>>, item: T) -> Result<T> {
         let table = Self::table()?;
         let json = Self::to_json(&item)?;
+        let cols = Self::quoted_columns(&json)?;
+        // The column list is named rather than `SELECT *` because
+        // `json_populate_record` returns a COMPLETE row of the table's type: any column
+        // the entity does not carry is otherwise supplied explicitly as NULL, and a
+        // column DEFAULT never fires for an explicitly supplied value. Naming the
+        // entity's own columns lets database-side defaults apply, and is positionally
+        // robust against an entity that has drifted from its table.
         let sql = format!(
-            "INSERT INTO {table} AS t \
-             SELECT * FROM json_populate_record(NULL::{table}, $1::json) \
+            "INSERT INTO {table} AS t ({cols}) \
+             SELECT {cols} FROM json_populate_record(NULL::{table}, $1::json) \
              RETURNING row_to_json(t)::text AS value"
         );
 
@@ -252,10 +303,13 @@ impl<T: CrudEntity> CrudRepository<T> for PgCrudRepository<T> {
         let table = Self::table()?;
         let json = serde_json::to_string(&items)
             .map_err(|e| Error::Database(format!("could not serialise batch: {e}")))?;
+        // Columns named for the same reason as `create`; taken from the first item,
+        // which every element of a homogeneous batch shares.
+        let cols = Self::quoted_columns(&Self::to_json(&items[0])?)?;
         // One statement, so the batch is atomic even without a caller transaction.
         let sql = format!(
-            "INSERT INTO {table} AS t \
-             SELECT * FROM json_populate_recordset(NULL::{table}, $1::json) \
+            "INSERT INTO {table} AS t ({cols}) \
+             SELECT {cols} FROM json_populate_recordset(NULL::{table}, $1::json) \
              RETURNING row_to_json(t)::text AS value"
         );
 
@@ -323,9 +377,10 @@ impl<T: CrudEntity> CrudRepository<T> for PgCrudRepository<T> {
             .map(|c| format!("EXCLUDED.\"{c}\""))
             .collect();
 
+        let insert_cols = Self::quoted_columns(&json)?;
         let sql = format!(
-            "INSERT INTO {table} AS t \
-             SELECT * FROM json_populate_record(NULL::{table}, $1::json) \
+            "INSERT INTO {table} AS t ({insert_cols}) \
+             SELECT {insert_cols} FROM json_populate_record(NULL::{table}, $1::json) \
              ON CONFLICT (\"{key}\") DO UPDATE SET ({assign_list}) = ROW({}) \
              RETURNING row_to_json(t)::text AS value",
             excluded.join(", ")

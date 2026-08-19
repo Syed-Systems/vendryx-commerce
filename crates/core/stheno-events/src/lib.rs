@@ -14,15 +14,31 @@ pub struct Event {
     pub name: String,
     pub payload: serde_json::Value,
     pub timestamp: DateTime<Utc>,
+    /// The tenant this event belongs to (ADR-012).
+    ///
+    /// Carried on the event because subscribers run in a detached `tokio::spawn`, and a
+    /// task-local does not cross that boundary. Without it every subscriber that touches
+    /// the database would fail closed.
+    ///
+    /// `serde(default)` so an outbox row written before this field existed still
+    /// deserializes — it yields an empty tenant, which fails closed rather than being
+    /// silently attributed to whoever happens to be in scope.
+    #[serde(default)]
+    pub tenant_id: String,
 }
 
 impl Event {
+    /// Captures the emitting tenant from the ambient scope, so publishers need no change.
+    ///
+    /// An event emitted with no tenant in scope gets an empty `tenant_id`; the subscriber
+    /// side refuses to dispatch it rather than guessing.
     pub fn new(name: impl Into<String>, payload: serde_json::Value) -> Self {
         Self {
             id: ulid::Ulid::new().to_string(),
             name: name.into(),
             payload,
             timestamp: Utc::now(),
+            tenant_id: stheno_db::tenant::current().unwrap_or_default(),
         }
     }
 }

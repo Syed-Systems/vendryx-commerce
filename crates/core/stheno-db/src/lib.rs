@@ -7,6 +7,7 @@ pub mod pool;
 pub mod quota;
 pub mod service;
 pub mod sql;
+pub mod tenant;
 #[cfg(feature = "testing")]
 pub mod testing;
 pub mod transaction;
