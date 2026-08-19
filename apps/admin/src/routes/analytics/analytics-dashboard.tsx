@@ -5,13 +5,18 @@ import {
   ReceiptPercent,
   ShoppingCart,
   Tag,
-  Users,
 } from "@medusajs/icons"
-import { Badge, Button, Container, Heading, Select, Table, Text, clx } from "@medusajs/ui"
+import { Badge, Button, Container, Heading, Select, Table, Text } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
-import { useTranslation } from "react-i18next"
+import { TimeSeriesChart } from "../../components/charts/time-series-chart"
 import { SingleColumnPage } from "../../components/layout/pages"
+import { sdk } from "../../lib/client"
+
+// @medusajs/ui types Table.Cell as HTMLAttributes rather than TdHTMLAttributes, so
+// colSpan — valid on any <td> and working at runtime — is missing from the prop type.
+// Passed through here until the upstream type is widened.
+const spanAllColumns = { colSpan: 4 } as React.TdHTMLAttributes<HTMLTableCellElement>
 
 type TimeWindow = "7" | "30" | "90" | "365"
 
@@ -44,8 +49,8 @@ interface OrdersData {
 interface TopProductItem {
   product_id: string
   title: string
-  quantity_sold: number
-  revenue: string
+  units_sold: number
+  total_revenue: string
 }
 
 interface TopProductsData {
@@ -60,39 +65,28 @@ interface AovData {
 }
 
 export const AnalyticsDashboard = () => {
-  const { t } = useTranslation()
   const [windowDays, setWindowDays] = useState<TimeWindow>("30")
   const [currency, setCurrency] = useState("USD")
 
   // Fetch Revenue Over Time
   const {
     data: revenueData,
-    isLoading: isRevenueLoading,
     refetch: refetchRevenue,
   } = useQuery<ReportResponse<RevenueData>>({
     queryKey: ["reports", "revenue", windowDays, currency],
     queryFn: async () => {
-      const res = await fetch(
-        `/admin/reports/revenue-over-time?window_days=${windowDays}&currency=${currency}`
-      )
-      if (!res.ok) throw new Error("Failed to fetch revenue report")
-      return res.json()
+      return sdk.client.fetch(`/admin/reports/revenue-over-time?window_days=${windowDays}&currency=${currency}`, { method: "GET" })
     },
   })
 
   // Fetch Orders Over Time
   const {
     data: ordersData,
-    isLoading: isOrdersLoading,
     refetch: refetchOrders,
   } = useQuery<ReportResponse<OrdersData>>({
     queryKey: ["reports", "orders", windowDays],
     queryFn: async () => {
-      const res = await fetch(
-        `/admin/reports/orders-over-time?window_days=${windowDays}`
-      )
-      if (!res.ok) throw new Error("Failed to fetch orders report")
-      return res.json()
+      return sdk.client.fetch(`/admin/reports/orders-over-time?window_days=${windowDays}`, { method: "GET" })
     },
   })
 
@@ -104,27 +98,18 @@ export const AnalyticsDashboard = () => {
   } = useQuery<ReportResponse<TopProductsData>>({
     queryKey: ["reports", "top-products", windowDays],
     queryFn: async () => {
-      const res = await fetch(
-        `/admin/reports/top-products?window_days=${windowDays}&limit=10`
-      )
-      if (!res.ok) throw new Error("Failed to fetch top products report")
-      return res.json()
+      return sdk.client.fetch(`/admin/reports/top-products?window_days=${windowDays}&limit=10`, { method: "GET" })
     },
   })
 
   // Fetch Average Order Value (AOV)
   const {
     data: aovData,
-    isLoading: isAovLoading,
     refetch: refetchAov,
   } = useQuery<ReportResponse<AovData>>({
     queryKey: ["reports", "aov", windowDays, currency],
     queryFn: async () => {
-      const res = await fetch(
-        `/admin/reports/average-order-value?window_days=${windowDays}&currency=${currency}`
-      )
-      if (!res.ok) throw new Error("Failed to fetch AOV report")
-      return res.json()
+      return sdk.client.fetch(`/admin/reports/average-order-value?window_days=${windowDays}&currency=${currency}`, { method: "GET" })
     },
   })
 
@@ -135,17 +120,47 @@ export const AnalyticsDashboard = () => {
     refetchAov()
   }
 
-  const exportCsv = (type: string) => {
-    window.open(
+  const exportCsv = async (type: string) => {
+    // `window.open` cannot attach the bearer token, so it downloaded a 401 body as a
+    // .csv. Fetch it through the SDK and hand the browser a blob instead.
+    // The SDK hands back the raw Response for non-JSON requests.
+    const response = await sdk.client.fetch<Response>(
       `/admin/reports/${type}?window_days=${windowDays}&currency=${currency}&format=csv`,
-      "_blank"
+      { method: "GET", headers: { accept: "text/csv" } }
     )
+    const url = URL.createObjectURL(await response.blob())
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${type}-${windowDays}d.csv`
+    link.click()
+    URL.revokeObjectURL(url)
   }
+
+  const currencyFormat = new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  })
+
+  // These series have been in the API response since the reporting module landed;
+  // the screen only ever rendered the totals and threw the rest away.
+  const revenueSeries = (revenueData?.report?.data?.time_series ?? []).map((p) => ({
+    date: p.date,
+    value: parseFloat(p.revenue || "0"),
+  }))
+  const ordersSeries = (ordersData?.report?.data?.time_series ?? []).map((p) => ({
+    date: p.date,
+    value: p.order_count,
+  }))
 
   const totalRevenue = parseFloat(revenueData?.report?.data?.total_revenue || "0")
   const totalOrders = ordersData?.report?.data?.total_orders || 0
   const aovValue = parseFloat(aovData?.report?.data?.average_order_value || "0")
   const topProducts = topProductsData?.report?.data?.top_products || []
+  const topRevenue = Math.max(
+    ...topProducts.map((p) => parseFloat(p.total_revenue || "0")),
+    1
+  )
 
   return (
     <SingleColumnPage
@@ -299,6 +314,46 @@ export const AnalyticsDashboard = () => {
           </Container>
         </div>
 
+        {/* Revenue and orders each get their own plot: two measures on one pair of
+            axes would be a dual-axis chart, which is unreadable at any scale. */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Container className="p-0">
+            <div className="border-ui-border-base border-b px-6 py-4">
+              <Heading level="h2" className="text-ui-fg-base">
+                Revenue over time
+              </Heading>
+              <Text size="small" className="text-ui-fg-subtle">
+                Gross revenue per day in {currency}.
+              </Text>
+            </div>
+            <div className="px-4 pb-4 pt-6">
+              <TimeSeriesChart
+                data={revenueSeries}
+                label={`Revenue per day in ${currency}`}
+                format={(value) => currencyFormat.format(value)}
+              />
+            </div>
+          </Container>
+
+          <Container className="p-0">
+            <div className="border-ui-border-base border-b px-6 py-4">
+              <Heading level="h2" className="text-ui-fg-base">
+                Orders over time
+              </Heading>
+              <Text size="small" className="text-ui-fg-subtle">
+                Confirmed orders per day.
+              </Text>
+            </div>
+            <div className="px-4 pb-4 pt-6">
+              <TimeSeriesChart
+                data={ordersSeries}
+                label="Orders per day"
+                format={(value) => `${value.toLocaleString()} orders`}
+              />
+            </div>
+          </Container>
+        </div>
+
         {/* Top Products Leaderboard */}
         <Container className="p-0 overflow-hidden">
           <div className="flex items-center justify-between p-6 border-b border-ui-border-base">
@@ -307,7 +362,7 @@ export const AnalyticsDashboard = () => {
                 Top Performing Products
               </Heading>
               <Text size="small" className="text-ui-fg-subtle">
-                Ranked by unit sales volume and revenue generation across all sales channels.
+                Ranked by revenue contribution across all sales channels.
               </Text>
             </div>
             <Button
@@ -332,13 +387,13 @@ export const AnalyticsDashboard = () => {
             <Table.Body>
               {isTopProductsLoading ? (
                 <Table.Row>
-                  <Table.Cell colSpan={4} className="text-center py-8 text-ui-fg-muted">
+                  <Table.Cell {...spanAllColumns} className="text-center py-8 text-ui-fg-muted">
                     Loading top products metrics...
                   </Table.Cell>
                 </Table.Row>
               ) : topProducts.length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan={4} className="text-center py-8 text-ui-fg-muted">
+                  <Table.Cell {...spanAllColumns} className="text-center py-8 text-ui-fg-muted">
                     No product transactions recorded in this time window.
                   </Table.Cell>
                 </Table.Row>
@@ -351,11 +406,26 @@ export const AnalyticsDashboard = () => {
                         <span>{p.title || `Product (${p.product_id})`}</span>
                       </div>
                     </Table.Cell>
-                    <Table.Cell className="text-right font-mono text-ui-fg-subtle">
-                      {p.quantity_sold || 0}
+                    <Table.Cell className="text-ui-fg-subtle text-right font-mono tabular-nums">
+                      {p.units_sold || 0}
                     </Table.Cell>
-                    <Table.Cell className="text-right font-mono text-ui-fg-base font-semibold">
-                      ${parseFloat(p.revenue || "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <Table.Cell>
+                      {/* The bar encodes revenue because revenue is what the rows are
+                          ranked by; the table row is the accessible view of the same
+                          numbers. */}
+                      <div className="flex items-center justify-end gap-x-3">
+                        <div className="bg-ui-bg-subtle h-2 w-28 overflow-hidden rounded-full">
+                          <div
+                            className="h-full rounded-full bg-[#3B82F6] dark:bg-[#5591F5]"
+                            style={{
+                              width: `${Math.max((parseFloat(p.total_revenue || "0") / topRevenue) * 100, 2)}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-ui-fg-base w-24 text-right font-mono font-semibold tabular-nums">
+                          {currencyFormat.format(parseFloat(p.total_revenue || "0"))}
+                        </span>
+                      </div>
                     </Table.Cell>
                     <Table.Cell className="text-center">
                       <Badge size="xsmall" color={idx === 0 ? "green" : "grey"}>

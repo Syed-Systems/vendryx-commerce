@@ -1,9 +1,13 @@
 import { HttpTypes } from "@medusajs/types"
 import { createDataTableFilterHelper, DataTableFilter } from "@medusajs/ui"
-import {
-  DataTableFilterOption,
-  DataTableFilterType,
-} from "../../../../../design-system/ui/dist/esm/blocks/data-table/types"
+
+// These two aliases used to be imported from `design-system/ui/dist/...`, a relative
+// path out of Medusa's monorepo that does not exist in this fork. @medusajs/ui does not
+// re-export them from its root and its `exports` map has no subpath to reach them, so
+// they are derived from the `DataTableFilter` union it *does* export — which keeps them
+// in step with upstream instead of duplicating a definition that can silently drift.
+type DataTableFilterType = DataTableFilter["type"]
+type DataTableFilterOption<T = string> = { label: string; value: T }
 
 const filterHelper = createDataTableFilterHelper()
 

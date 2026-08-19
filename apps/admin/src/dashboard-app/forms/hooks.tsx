@@ -4,8 +4,20 @@ import { z, ZodObject } from "zod"
 
 import { ConfigField } from "../types"
 
+/**
+ * `TSchema` is constrained to `ZodType`, not `ZodObject`: several callers pass a schema
+ * that ends in `.superRefine(...)`, which is a `ZodEffects`. `getSchemaShape` below
+ * already unwraps effects and pipelines at runtime, so the narrower constraint only ever
+ * bought a type error.
+ *
+ * `schema` is deliberately `TSchema` and not `TSchema | any`. The union collapses to
+ * `any`, which stops TypeScript inferring `TSchema` from the argument at all — it falls
+ * back to the constraint, `z.infer` of that is `{ [x: string]: any }`, and every
+ * `form.watch` and `form.getValues` in every caller degrades to `unknown`. That single
+ * `| any` accounted for twelve of the type errors in this app.
+ */
 interface UseExtendableFormProps<
-  TSchema extends ZodObject<any>,
+  TSchema extends z.ZodType<FieldValues, any, any>,
   TContext = any,
   TData = any,
   TTransformedValues extends FieldValues = z.infer<TSchema>
@@ -13,7 +25,7 @@ interface UseExtendableFormProps<
     UseFormProps<z.infer<TSchema>, TContext, TTransformedValues>,
     "resolver"
   > {
-  schema: TSchema | any
+  schema: TSchema
   configs: ConfigField[]
   data?: TData
 }
@@ -105,7 +117,7 @@ function createExtendedDefaultValues<TData>(
 }
 
 export const useExtendableForm = <
-  TSchema extends ZodObject<any>,
+  TSchema extends z.ZodType<FieldValues, any, any>,
   TContext = any,
   TTransformedValues extends FieldValues = z.infer<TSchema>
 >({

@@ -1,17 +1,10 @@
-import {
-  ArrowPath,
-  CheckCircle,
-  Clock,
-  Key,
-  ShieldCheck,
-  Sparkles,
-  SquaresPlus,
-  Users,
-} from "@medusajs/icons"
-import { Badge, Button, Container, Heading, StatusBadge, Table, Text, clx } from "@medusajs/ui"
+import { ArrowPath, CheckCircle, ShieldCheck } from "@medusajs/icons"
+import { Badge, Button, Container, Heading, StatusBadge, Table, Text } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
-import { useTranslation } from "react-i18next"
 import { SingleColumnPage } from "../../components/layout/pages"
+
+// See analytics-dashboard: @medusajs/ui omits colSpan from Table.Cell's prop type.
+const spanAllColumns = { colSpan: 4 } as React.TdHTMLAttributes<HTMLTableCellElement>
 
 interface QuotaItem {
   key: string
@@ -49,7 +42,6 @@ interface HealthData {
 }
 
 export const EntitlementsDetail = () => {
-  const { t } = useTranslation()
 
   const {
     data: entitlements,
@@ -66,7 +58,6 @@ export const EntitlementsDetail = () => {
 
   const {
     data: health,
-    isLoading: isHealthLoading,
     refetch: refetchHealth,
   } = useQuery<HealthData>({
     queryKey: ["health"],
@@ -205,13 +196,13 @@ export const EntitlementsDetail = () => {
             <Table.Body>
               {isEntitlementsLoading ? (
                 <Table.Row>
-                  <Table.Cell colSpan={4} className="text-center py-6 text-ui-fg-muted">
+                  <Table.Cell {...spanAllColumns} className="text-center py-6 text-ui-fg-muted">
                     Loading quotas...
                   </Table.Cell>
                 </Table.Row>
               ) : entitlements?.quotas?.length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan={4} className="text-center py-6 text-ui-fg-muted">
+                  <Table.Cell {...spanAllColumns} className="text-center py-6 text-ui-fg-muted">
                     No resource quotas configured (Unlimited).
                   </Table.Cell>
                 </Table.Row>

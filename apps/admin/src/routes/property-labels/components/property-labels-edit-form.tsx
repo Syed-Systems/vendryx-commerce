@@ -45,7 +45,11 @@ interface PropertyLabelSchema {
 
 // The input type is pinned to the output type so the schema satisfies the
 // resolver's `FieldValues` constraint; it defaults to `unknown` otherwise.
-const propertyLabelSchema: z.ZodType<PropertyLabelSchema, PropertyLabelSchema> =
+const propertyLabelSchema: z.ZodType<
+  PropertyLabelSchema,
+  z.ZodTypeDef,
+  PropertyLabelSchema
+> =
   z.lazy(() =>
     z.record(z.string(), z.any()).superRefine((obj, ctx) => {
       Object.entries(obj).forEach(([key, value]) => {

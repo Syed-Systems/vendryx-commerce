@@ -40,7 +40,7 @@ import {
   usePrompt,
 } from "@medusajs/ui"
 
-import { AdminReservation } from "@medusajs/types/src/http"
+import { HttpTypes } from "@medusajs/types"
 import { ActionMenu } from "../../../../../components/common/action-menu"
 import DisplayId from "../../../../../components/common/display-id/display-id"
 import { Thumbnail } from "../../../../../components/common/thumbnail"
@@ -391,7 +391,7 @@ const Item = ({
 }: {
   item: AdminOrderLineItem
   currencyCode: string
-  reservation?: AdminReservation
+  reservation?: HttpTypes.AdminReservation
   returns: AdminReturn[]
   claims: AdminClaim[]
   exchanges: AdminExchange[]
@@ -520,7 +520,7 @@ const ItemBreakdown = ({
   reservations,
 }: {
   order: AdminOrder
-  reservations?: AdminReservation[]
+  reservations?: HttpTypes.AdminReservation[]
 }) => {
   const { claims = [] } = useClaims({
     order_id: order.id,

@@ -43,10 +43,6 @@ type ProductOptionFormValue = {
   value_ids?: string[]
 }
 
-type SelectedOptionInput =
-  | Pick<AdminProductOption, "id" | "title" | "values">
-  | { title: string; values: string[] }
-
 const getPermutations = (
   data: { title: string; values: string[] }[]
 ): { [key: string]: string }[] => {

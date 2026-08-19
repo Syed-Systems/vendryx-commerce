@@ -28,3 +28,4 @@ dist-vite
 *.sw?
 .vercel
 *.tsbuildinfo
+.env.local

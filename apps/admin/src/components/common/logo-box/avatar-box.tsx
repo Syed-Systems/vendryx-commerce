@@ -1,5 +1,4 @@
 import { motion } from "motion/react"
-import { clx } from "@medusajs/ui"
 
 export default function AvatarBox({ checked }: { checked?: boolean }) {
   return (
