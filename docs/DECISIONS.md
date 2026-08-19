@@ -13,9 +13,12 @@ a stated cost is a preference wearing a suit.
 | [ADR-006](#adr-006) | Money is decimal, never float or integer minor units | Accepted |
 | [ADR-007](#adr-007) | Modular monolith with build-enforced boundaries | Accepted (expanded) |
 | [ADR-008](#adr-008) | RBAC and SSO are clean-room, not ported — they are Medusa Enterprise | Accepted |
-| [ADR-009](#adr-009) | Plan tiers by entitlements on single-tenant deployments, not multi-tenancy | Accepted |
+| [ADR-009](#adr-009) | Plan tiers by entitlements on single-tenant deployments, not multi-tenancy | **Superseded by [ADR-012](#adr-012)** |
 | [ADR-010](#adr-010) | `Id<T>` carries its Medusa prefix as a compile-time constant | Accepted |
 | [ADR-011](#adr-011) | `FilterSpec` stays single-entity; joins belong to the query engine | Accepted |
+| [ADR-012](#adr-012) | One database, `tenant_id` on every row, isolation enforced by Postgres RLS | Accepted |
+| [ADR-013](#adr-013) | Storefront presentation is swappable; commerce logic is not | Accepted |
+| [ADR-014](#adr-014) | A line item's price comes from the catalogue, never from the request | Accepted |
 
 ---
 
@@ -448,7 +451,16 @@ not a technical one.
 
 ## ADR-009 — Plan tiers by entitlements, on single-tenant deployments
 
-**Status:** Accepted · **Date:** 2026-08-14
+**Status:** **Superseded by [ADR-012](#adr-012)** (2026-08-19) · Originally accepted 2026-08-14
+
+> **What survives:** decisions 2, 3, 3b, 5, 6 and 7 below — the tier states, the cost-line
+> rule, the three kinds of gate, atomic quotas, never deleting data on downgrade, and
+> deferred licence signing — are all still in force.
+>
+> **What is superseded:** decision 1 (one binary and one database per store) and
+> decision 4 (a gate is a *mount-point* decision). ADR-012 replaces the isolation model,
+> and one process serving tenants on different tiers makes boot-time route mounting
+> unable to express per-tenant gating. See ADR-012 for the replacement and its cost.
 
 ### Context
 
@@ -688,3 +700,293 @@ must preserve it.
 If a single-entity filter is found that the operator set cannot express, add the operator.
 If the *join* cases multiply beyond what the query engine absorbs, that is a signal to
 revisit the query engine's design — not to grow `FilterSpec` into a second one.
+
+---
+
+<a id="adr-012"></a>
+
+## ADR-012 — One database, `tenant_id` on every row, isolation enforced by Postgres RLS
+
+**Status:** Accepted · **Date:** 2026-08-19 · **Supersedes:** [ADR-009](#adr-009) decisions 1 and 4
+
+### Context
+
+[ADR-009](#adr-009) chose one binary and one database per store, and [PRD NG2](PRD.md)
+recorded multi-tenancy as a non-goal. Both rested on an assumption the PRD itself flagged
+as open — **Q1: "Is a hosted/cloud offering planned? It changes multi-tenancy and metering
+assumptions"**, whose stated default was "No. Self-host only, per NG2."
+
+That question now has the opposite answer. Stheno is being sold as a hosted service, and
+operating one database per merchant is the cost that model cannot carry: N databases to
+provision, migrate, back up, and monitor, growing linearly with customers.
+
+ADR-009 considered multi-tenancy and rejected it as *"All 127 entities need `tenant_id`;
+every query needs scoping; +12 weeks minimum touching all 252 tasks; a cross-tenant leak
+is company-ending."* Two facts about the codebase as built make that estimate pessimistic:
+
+1. `PgCrudRepository<T>` is a **single generic implementation** serving all ~127 entities,
+   and `with_conn` is the one function through which every read and write acquires its
+   connection. There is one place to enforce scoping, not 500.
+2. **Postgres Row-Level Security** moves enforcement out of application code entirely. The
+   "every query needs scoping" cost is paid once, in the database, by a policy — not per
+   call site in Rust.
+
+The "company-ending" warning is not dismissed. It is the reason this ADR mandates an audit
+test (below) rather than trusting review.
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| **One DB + `tenant_id` + RLS** (chosen) | One database to operate. Enforcement in the database, so a missed filter returns zero rows rather than another tenant's. Entity structs unchanged | Every table grows a column and a policy; advisory locks are not covered; boot-time route gating stops working |
+| One DB + application-level scoping | No database features required | This *is* ADR-009's rejected option. A forgotten filter is a silent leak with nothing beneath it to catch the mistake |
+| Keep one DB per store, add a control plane above | No engine change at all | Does not solve the problem that prompted the change — N databases remain |
+| Schema-per-tenant | Strong isolation, no row filtering | 31 schemas × N tenants; migrations become O(tenants); connection `search_path` juggling |
+
+### Decision
+
+1. **One database. Every tenant-owned row carries `tenant_id`.** Reference data that no
+   two tenants could disagree about — ISO currency and country tables, migration
+   bookkeeping — stays global. The exclusion list is the leak surface: it stays under five
+   entries and every entry is argued in a comment.
+2. **Isolation is enforced by RLS, not by application code.** One policy per table:
+   `USING (tenant_id = current_setting('app.tenant_id', true))`. `missing_ok = true` is
+   deliberate — an unset setting yields `NULL`, the predicate is `NULL`, and the row is
+   filtered. **An unscoped query returns zero rows; it never returns everything.**
+3. **`FORCE ROW LEVEL SECURITY` on every scoped table.** The application connects as the
+   table owner, and Postgres exempts owners from RLS unless forced. Without this the
+   policies are inert and every test passes while proving nothing.
+4. **The tenant travels in a task-local**, set once per request by middleware
+   (`stheno_db::tenant`). Services are built once at boot holding a pool, so a parameter
+   would mean changing every repository and service signature — exactly ADR-009's
+   12 weeks. `tenant::current()` fails closed.
+5. **`SET LOCAL` inside a transaction, never session-level state.** A pooled connection
+   must not carry a tenant identity between requests. This costs round trips on the
+   non-transactional path and is accepted: the two designs fail in opposite directions,
+   and only one of them fails safe.
+6. **ADR-009 decision 4 is replaced.** Route groups mount unconditionally and a
+   per-request layer returns 404 for an unentitled feature. `crates/modules/` still may
+   not reference `Entitlements`, so the CI rule behind that decision is unchanged.
+7. **A permanent audit test**, not a one-time review: every table in every application
+   schema, minus the exclusion list, must have `tenant_id`, `relrowsecurity`,
+   `relforcerowsecurity`, and a policy. It also asserts `is_superuser = 'off'`, so a
+   superuser connection string fails loudly instead of passing with RLS inert.
+
+### Consequences
+
+**Good.** One database to operate, migrate and back up. The 127 entity structs are
+untouched. `FilterSpec` and the query engine learn nothing about tenancy. The existing 407
+test suites begin exercising isolation for free, because they connect as the owner and
+`FORCE` applies to them.
+
+**Bad, and worth stating plainly:**
+
+- **Anti-probing is weakened.** ADR-009 chose 404-by-not-mounting specifically so a
+  response could not confirm a feature exists. A per-request layer returns the same status
+  but is distinguishable by timing. This is a real regression in that property, accepted
+  because per-tenant tiers cannot be expressed any other way in one process.
+- **Advisory locks are not covered by RLS.** `pg_advisory_lock` operates on a global
+  64-bit key space; tenant keys must be namespaced in application code. There is no
+  database backstop for this one, which makes it the sharpest edge in the design.
+- **Ambient context.** A repository call's correctness depends on a task-local that does
+  not cross `tokio::spawn`. Detached work must re-enter a scope explicitly.
+- **Round trips.** Wrapping the non-transactional path in a transaction adds two.
+
+### Reversal condition
+
+If cross-tenant isolation is ever breached in a way RLS could not have prevented, the
+answer is not to add application-level filtering on top — that is paying twice while
+leaving the policy untested. It is to move the affected data to schema-per-tenant.
+ADR-009's model remains valid for self-hosted single-merchant deployments, which is why
+`STHENO_TIER` survives as a fallback when no tenant is resolvable.
+
+---
+
+<a id="adr-013"></a>
+
+## ADR-013 — Storefront presentation is swappable; commerce logic is not
+
+**Status:** Accepted · **Date:** 2026-08-19 · **Implemented by:** [Phase 3](PHASE3_PLAN.md)
+
+### Context
+
+[ADR-012](#adr-012) committed to a hosted, multi-tenant product. That creates two pressures at
+once, and they are the same question wearing two hats.
+
+**Merchants want storefronts that look like theirs.** A hosted platform where every store is
+visibly the same store does not sell. The obvious answer — fork the storefront per merchant — is
+the expensive one, because the storefront is not mostly design. `apps/storefront/src/lib/data/`
+holds fifteen files of cart, payment, fulfillment, region and order logic. Forking for a new look
+also forks that, and five merchants become five checkouts, five region-routing bugs, and five ways
+to lose a cart on a payment redirect.
+
+**Merchants are not all in the same country.** Stripe Elements does not sell in Dhaka. bKash,
+Nagad, SSLCommerz, Pathao, Steadfast and RedX do, and each new market adds more. The engine
+already anticipated this: `PaymentProvider` and `FulfillmentProvider` are complete traits with
+three implementations between them. What was never decided is **who may enable what, and when that
+choice is made** — build time or run time.
+
+Both pressures reduce to one question: *what varies per merchant, and what must not?*
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| Fork the storefront per merchant | Trivial to start. Total freedom per store | N checkouts, N PCI surfaces, N sets of the same bug. Every engine change becomes an N-way migration. The cost arrives at merchant three, not merchant one |
+| Runtime theme registry — components resolved per tenant per request | One deploy. A merchant switches design instantly | Dynamic imports throughout, no tree-shaking, and a component API that can never change once three merchants depend on it. It is [ADR-001](#adr-001)'s rejected runtime-plugin model, rewritten in TypeScript |
+| **Core/theme split — branding at runtime, themes at build time, commerce logic fixed** (chosen) | One checkout, one compliance surface, one set of commerce bugs. The tenth theme costs what the second did | Themes must be versioned against core. A bespoke design is a deploy, not a toggle |
+| JSON-composed page-builder blocks | Merchants self-serve their own layouts | A block system is a framework, and nobody has asked for one. [AGENTS.md §1](../AGENTS.md) rung 1: this does not need to exist yet |
+
+### Decision
+
+1. **Three tiers of variation, and only three.**
+   - **Base** — branding *data*: store name, logo, favicon, a font chosen from a curated
+     self-hosted set, and colour tokens. Resolved per request in the shared runtime. No build, no
+     deploy, no engineering per merchant.
+   - **Pro** — a **theme package**: own components, own layout, own animation, compiled in and
+     deployed to its own target.
+   - **Custom** — a services engagement with our engineers. Not a tier a merchant can buy by
+     clicking. Governed by decision 8.
+
+2. **Checkout is core at every tier — but it is never unbranded.** Flow, steps, validation, state
+   machine and the script manifest are not editable. Everything above that line is:
+   - **Base tier**: the tenant's branding record applies on checkout routes exactly as it does
+     everywhere else — store name, logo, favicon, font, colour tokens. A merchant paying nothing
+     still does not hand their customer to a page that looks like someone else's shop at the
+     moment they enter a payment.
+   - **Pro tier**: the theme additionally skins checkout — its own components, type and buttons —
+     while the flow underneath is the same one every other store runs.
+
+   The rule is **skinnable, never rewritable**. Presentation is free at every tier; behaviour is
+   fixed at every tier.
+
+2a. **Branding assets on checkout obey the script manifest.** Logos and CSS custom properties are
+   not scripts and are unaffected. **Fonts must be self-hosted** — the curated set exists partly
+   for this reason. A font pulled from a third-party CDN on a checkout route is a
+   [payment-page-scripts.md](payment-page-scripts.md) violation and fails
+   `check-checkout-scripts.sh`, which is the correct outcome and the reason merchants choose a
+   font key rather than upload a URL.
+
+3. **The reason for decision 2 is not only modularity.** SAQ-A eligibility rests on
+   [payment-page-scripts.md](payment-page-scripts.md): a two-entry allowlist on `/checkout/*`,
+   enforced by `check-checkout-scripts.ps1`. Merchant-specific code on checkout routes is
+   therefore a **compliance** boundary, not a taste boundary, and it already fails the build.
+
+4. **Routes, data access, region resolution and SEO belong to core.** A theme supplies components
+   against a typed contract and receives props. It does not fetch, and it does not route. URL
+   structure is not a design decision.
+
+5. **Themes are build-time; branding is run-time.** No runtime component registry. This is
+   [ADR-001](#adr-001) applied to the frontend, for the identical reason: a plugin API is a
+   promise you cannot withdraw. Base-tier branding is exempt because it is *data* — CSS custom
+   properties and strings — never code.
+
+6. **Payment and fulfillment providers are compile-time; enablement is tenant data.** One binary
+   carries every provider. Which ones a merchant may use is rows in
+   `links.link_region_payment_provider`, tenant-owned and RLS-covered. A merchant turning on bKash
+   is a toggle; adding a gateway that has never existed is a release.
+
+7. **Redirect or iframe gateways only.** A gateway that requires a PAN to be posted from our own
+   page is **refused, not integrated** — it would move the platform from SAQ-A to SAQ-A-EP, which
+   is a different compliance posture and a different company. `check-provider-pci.sh` enforces
+   this at build time.
+
+8. **A Custom-tier engagement that modifies checkout removes that merchant from the shared
+   compliance scope**, and requires its own attestation. This is the one exception to decision 2
+   and it is expensive on purpose.
+
+9. **Enforcement is mechanical, never review.** `check-storefront-boundaries.sh`,
+   `check-theme-purity.sh`, the theme conformance e2e pack, `check-provider-conformance.sh` and
+   `check-provider-pci.sh`. A theme or provider that passes review and fails a gate is not
+   shipped. This mirrors [ADR-007](#adr-007): boundaries that are asked for are boundaries that
+   erode at 2am before a launch.
+
+### Rationale
+
+The split is drawn where the cost is. Design changes often and breaks nothing when it is wrong.
+Checkout changes rarely and loses money when it is wrong. Putting them behind the same seam prices
+every design change at the risk of the checkout.
+
+It also matches what is actually being sold. A merchant buying Pro is buying a look, not a
+different commerce engine — and the thing that makes their look affordable to build is that the
+cart, region and payment logic underneath was written once and has been in production across every
+other store.
+
+### Consequences
+
+**Good.** One checkout, one PCI surface, one set of commerce bugs to fix. The tenth theme costs
+what the second did. A new market is one provider crate and one registration line, not a fork.
+Base-tier branding costs zero engineering per merchant, which is what makes a free tier viable at
+all.
+
+**Bad, and worth stating plainly:**
+
+- **Themes must be versioned against core.** Additive-within-a-major is a discipline, not a
+  mechanism — nothing in the type system enforces it. A core major bump is an N-theme migration,
+  and that cost grows with every theme sold.
+- **A Pro merchant's redesign is a deploy, not a setting.** Accepted: designs change twice a year,
+  not twice a day. It will still be argued about by someone in a sales call.
+- **The Custom exception is a real hole in decision 2**, and decision 8 prices it rather than
+  closing it. If Custom engagements become common, the shared compliance scope stops meaning much.
+- **A merchant wanting a genuinely different purchase flow** — subscription, quote-to-order,
+  wholesale approval — is not served by any of the three tiers and will push on this ADR. That is
+  a core feature request, not a theme, and answering it with a theme would be the failure this
+  record exists to prevent.
+
+### Reversal condition
+
+If the conformance pack cannot express a theme's checkout without theme-specific branches, the
+**contract** is wrong, not the pack — fix the contract. If more than a third of Pro merchants
+require changes to `storefront-core` to build their theme, the seam is drawn in the wrong place;
+the answer then is to move routing into themes and ship a heavier core SDK instead, accepting the
+loss of URL and SEO control that implies.
+
+---
+
+<a id="adr-014"></a>
+
+## ADR-014 — A line item's price comes from the catalogue, never from the request
+
+**Status:** Accepted (2026-08-19)
+
+### Context
+
+`POST /store/carts/{id}/line-items` read `unit_price` from the request body and defaulted it
+to `Decimal::ZERO` when absent. `/store/*` is unauthenticated by design — a shopper has no
+token — so this made the price of a sale a client-supplied value. Sending
+`{"unit_price": 0.01}` bought anything for a penny; omitting the field bought it for nothing.
+
+It survived review because nothing could contradict it. `GET /store/products` returned a flat
+product with no `variants` and no prices at all, so there was no catalogue price for a cart to
+disagree with, and the parity tests asserted the endpoint returned 200 — which it faithfully
+did, at whatever price it was told.
+
+The pricing module was complete throughout: `calculate_prices_batch` implements Medusa's full
+precedence (override list > sale list > rules > base). The link `product_variant_price_set` was
+declared in `stheno-links` and never written or read by anything. Nothing joined the two.
+
+### Decision
+
+A line item is priced from the variant, server-side, on every add:
+
+- `unit_price` in the request body is **ignored**, not validated. Rejecting a mismatched price
+  would leak the real one and still invite probing; there is no case where a client's price is
+  the right answer.
+- `update_line_item` ignores it too — changing quantity must not be a path to changing price.
+- `variant_id` becomes **required**. It is the only thing that has a price.
+- A variant with no price in the cart's currency is a **400**, not a zero. "Unpriced" and
+  "free" must never be the same value.
+
+The currency comes from the cart's own `currency_code`, falling back to its region — not from
+the request either, for the same reason.
+
+### Consequences
+
+- Custom-priced line items (a negotiated discount, a manual draft order) are no longer
+  expressible through the store API. That is correct — it is an admin action, and the draft
+  order flow already owns it.
+- Three parity tests had to seed a priced variant instead of asserting on a fabricated price.
+  Each of them had been documenting the bug as expected behaviour.
+- The catalogue endpoints now return `variants[]` with `calculated_price`, `options[]` and
+  `inventory_quantity`, because a storefront that cannot see a price cannot show one — the read
+  and write halves of this had to land together.
