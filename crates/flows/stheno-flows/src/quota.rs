@@ -47,18 +47,20 @@ impl Step for CheckQuotaStep {
     }
 
     async fn invoke(&self, _ctx: &StepContext, input: Value) -> Result<Value> {
-        let mut conn = self
-            .counter
-            .pool()
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+        // Scoped checkout (ADR-012): `entitlement_usage` is keyed by
+        // `(tenant_id, resource)`, so an unscoped connection would take its tenant from
+        // an unset setting and violate NOT NULL rather than counting anything.
+        let counter = self.counter.clone();
+        let resource = self.resource.clone();
+        let limit = self.limit;
+        let pool = self.counter.pool().clone();
 
-        match self
-            .counter
-            .increment(&mut conn, &self.resource, self.limit)
-            .await
-        {
+        let outcome = stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+            Box::pin(async move { counter.increment(conn, &resource, limit).await })
+        })
+        .await;
+
+        match outcome {
             Ok(used) => {
                 let mut out = input;
                 if let Value::Object(ref mut map) = out {
@@ -87,15 +89,19 @@ impl Step for CheckQuotaStep {
     }
 
     async fn compensate(&self, _ctx: &StepContext, _input: Value) -> Result<()> {
-        let mut conn = self
-            .counter
-            .pool()
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+        // Compensation must be scoped exactly as the forward step was, or it decrements
+        // a different tenant's counter than the one it incremented.
+        let counter = self.counter.clone();
+        let resource = self.resource.clone();
+        let pool = self.counter.pool().clone();
 
-        self.counter.decrement(&mut conn, &self.resource).await?;
-        Ok(())
+        stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+            Box::pin(async move {
+                counter.decrement(conn, &resource).await?;
+                Ok(())
+            })
+        })
+        .await
     }
 }
 
@@ -109,29 +115,31 @@ impl QuotaReconciliationJob {
     }
 
     /// Reconcile actual counted rows against entitlement_usage table and alert if drifted
+    /// Reconciles one tenant's counter. The caller establishes which tenant by running
+    /// this inside a scope — counters are per tenant, so a nightly job iterates tenants
+    /// rather than reconciling a single global row.
     pub async fn reconcile_resource(&self, resource: &str, actual_count: i64) -> Result<bool> {
-        let mut conn = self
-            .counter
-            .pool()
-            .get()
-            .await
-            .map_err(|e| Error::Database(e.to_string()))?;
+        let counter = self.counter.clone();
+        let resource = resource.to_string();
+        let pool = self.counter.pool().clone();
 
-        let recorded = self.counter.get_usage(&mut conn, resource).await?;
-        if recorded != actual_count {
-            tracing::warn!(
-                "Quota drift detected for {}: recorded={}, actual={}. Correcting...",
-                resource,
-                recorded,
-                actual_count
-            );
-            self.counter
-                .set_usage(&mut conn, resource, actual_count)
-                .await?;
-            Ok(true) // Drift detected and corrected
-        } else {
-            Ok(false) // No drift
-        }
+        stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+            Box::pin(async move {
+                let recorded = counter.get_usage(conn, &resource).await?;
+                if recorded == actual_count {
+                    return Ok(false);
+                }
+                tracing::warn!(
+                    "Quota drift detected for {}: recorded={}, actual={}. Correcting...",
+                    resource,
+                    recorded,
+                    actual_count
+                );
+                counter.set_usage(conn, &resource, actual_count).await?;
+                Ok(true)
+            })
+        })
+        .await
     }
 }
 

@@ -16,6 +16,9 @@
 //!    skip it. Conversion fires `order.placed` just like a real checkout, and naive
 //!    push logic would notify the merchant about an order their own staff just accepted.
 
+pub mod social_message;
+pub use social_message::{generate_ref_code, render_social_message, SocialMessageLine};
+
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};

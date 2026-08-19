@@ -10,11 +10,12 @@ async fn test_quota_reconciliation_detects_drift_and_reconciles() {
     let counter = QuotaCounter::new(pool.clone());
     let job = QuotaReconciliationJob::new(counter.clone());
 
-    let mut conn = pool.get().await.expect("conn");
+    // Reads and writes go through the scoped helpers: a raw `pool.get()` has no
+    // tenant, so under RLS it would read zero rather than what the saga just wrote.
 
     // 1. Set recorded counter to 15
     counter
-        .set_usage(&mut conn, "products", 15)
+        .set_usage_scoped("products", 15)
         .await
         .expect("set 15");
 
@@ -29,10 +30,7 @@ async fn test_quota_reconciliation_detects_drift_and_reconciles() {
     assert!(drift_detected, "Reconciliation must detect drift");
 
     // 4. Check that counter was corrected to 12
-    let corrected = counter
-        .get_usage(&mut conn, "products")
-        .await
-        .expect("get usage");
+    let corrected = counter.usage_scoped("products").await.expect("get usage");
     assert_eq!(corrected, 12, "Counter must be corrected to actual count");
 
     // 5. Running reconciliation again with same actual count detects no drift

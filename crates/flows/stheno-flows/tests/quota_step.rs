@@ -24,14 +24,9 @@ async fn test_quota_step_atomic_enforcement() {
         assert!(res.is_ok());
     }
 
-    let mut conn = pool.get().await.expect("conn");
-    assert_eq!(
-        counter
-            .get_usage(&mut conn, "products")
-            .await
-            .expect("usage"),
-        3
-    );
+    // Reads and writes go through the scoped helpers: a raw `pool.get()` has no
+    // tenant, so under RLS it would read zero rather than what the saga just wrote.
+    assert_eq!(counter.usage_scoped("products").await.expect("usage"), 3);
 
     // 2. Consume 2 more units (total 5 = limit)
     for i in 4..=5 {
@@ -40,13 +35,7 @@ async fn test_quota_step_atomic_enforcement() {
             .await;
         assert!(res.is_ok());
     }
-    assert_eq!(
-        counter
-            .get_usage(&mut conn, "products")
-            .await
-            .expect("usage"),
-        5
-    );
+    assert_eq!(counter.usage_scoped("products").await.expect("usage"), 5);
 
     // 3. Consume 1 unit -> fails with not_allowed / limit reached
     let res6 = saga

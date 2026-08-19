@@ -38,12 +38,30 @@ impl SubscriberRegistry {
         Ok(())
     }
 
+    /// Attaches `subscriber` to the bus as detached background work.
+    ///
+    /// The handler is re-entered into the emitting tenant's scope (ADR-012). A
+    /// task-local does not survive `tokio::spawn`, so without this every subscriber that
+    /// reaches the database would run unscoped — which under RLS means silently seeing
+    /// nothing. An event carrying no tenant is skipped rather than handled ambiently:
+    /// there is no correct tenant to guess.
     pub fn attach_subscriber(&self, bus: &dyn EventBus, subscriber: Arc<dyn EventSubscriber>) {
         let event_name = subscriber.event_name();
         let mut rx = bus.subscribe(event_name);
         tokio::spawn(async move {
             while let Ok(event) = rx.recv().await {
-                let _ = subscriber.handle(&event).await;
+                if event.tenant_id.is_empty() {
+                    tracing::warn!(
+                        event = %event.name,
+                        id = %event.id,
+                        "skipping event with no tenant; it was emitted outside a tenant scope"
+                    );
+                    continue;
+                }
+                let tenant = event.tenant_id.clone();
+                let sub = subscriber.clone();
+                let _ =
+                    stheno_db::tenant::scope(tenant, async move { sub.handle(&event).await }).await;
             }
         });
     }

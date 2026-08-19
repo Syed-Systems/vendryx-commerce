@@ -9,6 +9,7 @@ authors.workspace = true
 [dependencies]
 stheno-types = { workspace = true }
 stheno-events = { workspace = true }
+stheno-db = { workspace = true }
 stheno-notification = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }

@@ -53,14 +53,9 @@ async fn test_quota_concurrency_100_creates_vs_limit_10() {
     assert_eq!(success_count.load(Ordering::SeqCst), 10);
     assert_eq!(failure_count.load(Ordering::SeqCst), 90);
 
-    let mut conn = pool.get().await.expect("conn");
-    assert_eq!(
-        counter
-            .get_usage(&mut conn, "products")
-            .await
-            .expect("usage"),
-        10
-    );
+    // Reads and writes go through the scoped helpers: a raw `pool.get()` has no
+    // tenant, so under RLS it would read zero rather than what the saga just wrote.
+    assert_eq!(counter.usage_scoped("products").await.expect("usage"), 10);
 
     db.drop().await;
 }

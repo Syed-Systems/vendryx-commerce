@@ -26,12 +26,12 @@ async fn test_grandfathering_412_products_on_limit_100_readable_editable_413th_r
         .expect("create product");
 
     // Set usage to 412 in Postgres entitlement_usage table
-    let mut conn = pool.get().await.expect("conn");
+    // Reads and writes go through the scoped helpers: a raw `pool.get()` has no
+    // tenant, so under RLS it would read zero rather than what the saga just wrote.
     counter
-        .set_usage(&mut conn, "products", 412)
+        .set_usage_scoped("products", 412)
         .await
         .expect("set usage 412");
-    drop(conn);
 
     // Plan downgraded to Free with limit of 100
     let limit = 100;

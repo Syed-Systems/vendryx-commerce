@@ -11,6 +11,7 @@ stheno-types = { workspace = true }
 stheno-db = { workspace = true }
 stheno-workflow = { workspace = true }
 stheno-order = { workspace = true }
+rand = { workspace = true }
 stheno-inventory = { workspace = true }
 stheno-product = { workspace = true }
 stheno-customer = { workspace = true }
