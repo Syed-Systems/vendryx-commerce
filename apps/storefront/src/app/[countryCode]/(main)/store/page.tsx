@@ -1,33 +1,5 @@
-import { Metadata } from "next"
-
-import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
-import StoreTemplate from "@modules/store/templates"
-
-export const metadata: Metadata = {
-  title: "Store",
-  description: "Explore all of our products.",
-}
-
-type Params = {
-  searchParams: Promise<{
-    sortBy?: SortOptions
-    page?: string
-  }>
-  params: Promise<{
-    countryCode: string
-  }>
-}
-
-export default async function StorePage(props: Params) {
-  const params = await props.params;
-  const searchParams = await props.searchParams;
-  const { sortBy, page } = searchParams
-
-  return (
-    <StoreTemplate
-      sortBy={sortBy}
-      page={page}
-      countryCode={params.countryCode}
-    />
-  )
-}
+// Route tree lives in @stheno/storefront-core, per ADR-013 decision 4.
+// Next requires route files on disk in the app directory, so the app shell
+// re-exports core's implementation. This file is a manifest entry, not logic.
+export * from "@core/app/[countryCode]/(main)/store/page"
+export { default } from "@core/app/[countryCode]/(main)/store/page"

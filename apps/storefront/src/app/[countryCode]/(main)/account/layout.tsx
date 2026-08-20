@@ -1,20 +1,5 @@
-import { retrieveCustomer } from "@lib/data/customer"
-import { Toaster } from "@medusajs/ui"
-import AccountLayout from "@modules/account/templates/account-layout"
-
-export default async function AccountPageLayout({
-  dashboard,
-  login,
-}: {
-  dashboard?: React.ReactNode
-  login?: React.ReactNode
-}) {
-  const customer = await retrieveCustomer().catch(() => null)
-
-  return (
-    <AccountLayout customer={customer}>
-      {customer ? dashboard : login}
-      <Toaster />
-    </AccountLayout>
-  )
-}
+// Route tree lives in @stheno/storefront-core, per ADR-013 decision 4.
+// Next requires route files on disk in the app directory, so the app shell
+// re-exports core's implementation. This file is a manifest entry, not logic.
+export * from "@core/app/[countryCode]/(main)/account/layout"
+export { default } from "@core/app/[countryCode]/(main)/account/layout"

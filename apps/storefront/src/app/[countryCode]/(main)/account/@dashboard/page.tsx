@@ -1,22 +1,5 @@
-import { Metadata } from "next"
-
-import Overview from "@modules/account/components/overview"
-import { notFound } from "next/navigation"
-import { retrieveCustomer } from "@lib/data/customer"
-import { listOrders } from "@lib/data/orders"
-
-export const metadata: Metadata = {
-  title: "Account",
-  description: "Overview of your account activity.",
-}
-
-export default async function OverviewTemplate() {
-  const customer = await retrieveCustomer().catch(() => null)
-  const orders = (await listOrders().catch(() => null)) || null
-
-  if (!customer) {
-    notFound()
-  }
-
-  return <Overview customer={customer} orders={orders} />
-}
+// Route tree lives in @stheno/storefront-core, per ADR-013 decision 4.
+// Next requires route files on disk in the app directory, so the app shell
+// re-exports core's implementation. This file is a manifest entry, not logic.
+export * from "@core/app/[countryCode]/(main)/account/@dashboard/page"
+export { default } from "@core/app/[countryCode]/(main)/account/@dashboard/page"

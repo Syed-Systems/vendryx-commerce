@@ -1,23 +1,5 @@
-import { retrieveOrder } from "@lib/data/orders"
-import OrderCompletedTemplate from "@modules/order/templates/order-completed-template"
-import { Metadata } from "next"
-import { notFound } from "next/navigation"
-
-type Props = {
-  params: Promise<{ id: string }>
-}
-export const metadata: Metadata = {
-  title: "Order Confirmed",
-  description: "You purchase was successful",
-}
-
-export default async function OrderConfirmedPage(props: Props) {
-  const params = await props.params
-  const order = await retrieveOrder(params.id).catch(() => null)
-
-  if (!order) {
-    return notFound()
-  }
-
-  return <OrderCompletedTemplate order={order} />
-}
+// Route tree lives in @stheno/storefront-core, per ADR-013 decision 4.
+// Next requires route files on disk in the app directory, so the app shell
+// re-exports core's implementation. This file is a manifest entry, not logic.
+export * from "@core/app/[countryCode]/(main)/order/[id]/confirmed/page"
+export { default } from "@core/app/[countryCode]/(main)/order/[id]/confirmed/page"

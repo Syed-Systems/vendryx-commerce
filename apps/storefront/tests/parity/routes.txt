@@ -1,0 +1,14 @@
+# P25-13 fixed-catalog route list.
+# Anonymous, deterministic routes only: a cart or checkout route mints a new
+# cart id per request, so its rendered id can never be byte-stable. Those
+# journeys are covered by the P25-12 e2e pack instead.
+/us
+/us/store
+/us/collections/featured
+/us/collections/latest-drops
+/us/products/stheno-signature-tee
+/us/products/stheno-performance-hoodie
+/us/account
+/ca
+/ca/store
+/ca/collections/featured

@@ -13,6 +13,8 @@ const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
  */
 const nextConfig = {
   reactStrictMode: true,
+  // ADR-013: core and theme are workspace source packages, not built artifacts.
+  transpilePackages: ["@stheno/storefront-core", "@stheno/theme-default"],
   logging: {
     fetches: {
       fullUrl: true,

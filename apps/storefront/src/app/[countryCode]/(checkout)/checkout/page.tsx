@@ -1,34 +1,5 @@
-import { retrieveCart } from "@lib/data/cart"
-import { retrieveCustomer } from "@lib/data/customer"
-import PaymentWrapper from "@modules/checkout/components/payment-wrapper"
-import CheckoutForm from "@modules/checkout/templates/checkout-form"
-import CheckoutSummary from "@modules/checkout/templates/checkout-summary"
-import { Metadata } from "next"
-import { notFound } from "next/navigation"
-
-export const metadata: Metadata = {
-  title: "Checkout | STHENO Atelier",
-}
-
-export default async function Checkout() {
-  const cart = await retrieveCart()
-
-  if (!cart) {
-    return notFound()
-  }
-
-  const customer = await retrieveCustomer()
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 content-container gap-8 lg:gap-12 py-10 sm:py-16">
-      <div className="lg:col-span-7">
-        <PaymentWrapper cart={cart}>
-          <CheckoutForm cart={cart} customer={customer} />
-        </PaymentWrapper>
-      </div>
-      <div className="lg:col-span-5 lg:sticky lg:top-24">
-        <CheckoutSummary cart={cart} />
-      </div>
-    </div>
-  )
-}
+// Route tree lives in @stheno/storefront-core, per ADR-013 decision 4.
+// Next requires route files on disk in the app directory, so the app shell
+// re-exports core's implementation. This file is a manifest entry, not logic.
+export * from "@core/app/[countryCode]/(checkout)/checkout/page"
+export { default } from "@core/app/[countryCode]/(checkout)/checkout/page"

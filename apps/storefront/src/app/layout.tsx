@@ -1,17 +1,5 @@
-import { getBaseURL } from "@lib/util/env"
-import { Metadata } from "next"
-import "styles/globals.css"
-
-export const metadata: Metadata = {
-  metadataBase: new URL(getBaseURL()),
-}
-
-export default function RootLayout(props: { children: React.ReactNode }) {
-  return (
-    <html lang="en" data-mode="light">
-      <body>
-        <main className="relative">{props.children}</main>
-      </body>
-    </html>
-  )
-}
+// Route tree lives in @stheno/storefront-core, per ADR-013 decision 4.
+// Next requires route files on disk in the app directory, so the app shell
+// re-exports core's implementation. This file is a manifest entry, not logic.
+export * from "@core/app/layout"
+export { default } from "@core/app/layout"

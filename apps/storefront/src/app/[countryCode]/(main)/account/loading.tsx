@@ -1,9 +1,5 @@
-import Spinner from "@modules/common/icons/spinner"
-
-export default function Loading() {
-  return (
-    <div className="flex items-center justify-center w-full h-full text-ui-fg-base">
-      <Spinner size={36} />
-    </div>
-  )
-}
+// Route tree lives in @stheno/storefront-core, per ADR-013 decision 4.
+// Next requires route files on disk in the app directory, so the app shell
+// re-exports core's implementation. This file is a manifest entry, not logic.
+export * from "@core/app/[countryCode]/(main)/account/loading"
+export { default } from "@core/app/[countryCode]/(main)/account/loading"

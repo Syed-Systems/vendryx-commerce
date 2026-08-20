@@ -1,21 +1,5 @@
-import { retrieveCart } from "@lib/data/cart"
-import { retrieveCustomer } from "@lib/data/customer"
-import CartTemplate from "@modules/cart/templates"
-import { Metadata } from "next"
-import { notFound } from "next/navigation"
-
-export const metadata: Metadata = {
-  title: "Cart",
-  description: "View your cart",
-}
-
-export default async function Cart() {
-  const cart = await retrieveCart().catch((error) => {
-    console.error(error)
-    return notFound()
-  })
-
-  const customer = await retrieveCustomer()
-
-  return <CartTemplate cart={cart} customer={customer} />
-}
+// Route tree lives in @stheno/storefront-core, per ADR-013 decision 4.
+// Next requires route files on disk in the app directory, so the app shell
+// re-exports core's implementation. This file is a manifest entry, not logic.
+export * from "@core/app/[countryCode]/(main)/cart/page"
+export { default } from "@core/app/[countryCode]/(main)/cart/page"

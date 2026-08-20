@@ -1,12 +1,5 @@
-import { Metadata } from "next"
-
-import LoginTemplate from "@modules/account/templates/login-template"
-
-export const metadata: Metadata = {
-  title: "Sign in",
-  description: "Sign in to your Stheno account.",
-}
-
-export default function Login() {
-  return <LoginTemplate />
-}
+// Route tree lives in @stheno/storefront-core, per ADR-013 decision 4.
+// Next requires route files on disk in the app directory, so the app shell
+// re-exports core's implementation. This file is a manifest entry, not logic.
+export * from "@core/app/[countryCode]/(main)/account/@login/page"
+export { default } from "@core/app/[countryCode]/(main)/account/@login/page"
