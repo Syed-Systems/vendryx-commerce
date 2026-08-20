@@ -507,6 +507,9 @@ impl PromotionService {
 
                 use diesel_async::RunQueryDsl;
 
+                // Rebound as mutable so the repository calls below can borrow it: they
+                // take Option<&mut Conn>, and Conn is itself &mut AsyncPgConnection.
+                let mut conn = conn;
                 let amount_str = amount.to_string();
                 let cid = campaign_id.to_string();
                 let sql = "UPDATE promotion.campaign_budget AS t \
@@ -521,7 +524,7 @@ impl PromotionService {
                     diesel::sql_query(sql)
                         .bind::<diesel::sql_types::Text, _>(&amount_str)
                         .bind::<diesel::sql_types::Text, _>(&cid)
-                        .get_result(conn)
+                        .get_result(&mut *conn)
                         .await
                 };
 
@@ -533,7 +536,12 @@ impl PromotionService {
                             .with_predicate("campaign_id", FilterOp::Eq(cid.clone()))
                             .with_predicate("deleted_at", FilterOp::IsNull)
                             .with_pagination(0, 1);
-                        let list = budgets.list(None, &spec).await?;
+                        // On the open transaction, not a fresh checkout. `None` takes a
+                        // SECOND connection from the same pool while this one still holds
+                        // the budget row's transaction, so N concurrent consumes against a
+                        // pool of N deadlock: every task holds one connection and waits
+                        // for another that only a peer can release.
+                        let list = budgets.list(Some(&mut conn), &spec).await?;
                         if let Some(b) = list.into_iter().next() {
                             return Err(Error::Conflict {
                                 code: "budget_exhausted",
@@ -566,7 +574,11 @@ impl PromotionService {
                     deleted_at: None,
                 };
 
-                let created_usage = budget_usages.create(None, usage).await?;
+                // Same pool deadlock as above, and this is the path every successful
+                // consume takes. Writing on the open transaction also makes the usage row
+                // atomic with the budget it accounts for — on a fresh connection a
+                // rolled-back budget update would leave the usage row behind.
+                let created_usage = budget_usages.create(Some(&mut conn), usage).await?;
 
                 Ok(CampaignBudgetUsageDTO {
                     id: created_usage.id.to_string(),
