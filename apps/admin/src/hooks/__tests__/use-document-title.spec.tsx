@@ -110,7 +110,7 @@ describe("getTitleFromMatch", () => {
 
     it("returns null for React-element breadcrumbs", () => {
       const match = buildMatch({
-        loaderData: { product: { title: "Medusa Sweatpants" } },
+        loaderData: { product: { title: "Stheno Sweatpants" } },
         handle: { breadcrumb: () => createElement("span", null, "Hidden") },
       })
 

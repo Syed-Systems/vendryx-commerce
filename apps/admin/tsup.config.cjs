@@ -2,13 +2,13 @@ import { defineConfig } from "tsup"
 
 export default defineConfig({
   entry: {
-    // `@medusajs/dashboard`
+    // `@stheno/dashboard`
     app: "./src/app.tsx",
-    // `@medusajs/dashboard/components`
+    // `@stheno/dashboard/components`
     components: "./src/exports/components.tsx",
-    // `@medusajs/dashboard/hooks`
+    // `@stheno/dashboard/hooks`
     hooks: "./src/exports/hooks.ts",
-    // `@medusajs/dashboard/lib`
+    // `@stheno/dashboard/lib`
     lib: "./src/exports/lib.ts",
   },
   format: ["cjs", "esm"],

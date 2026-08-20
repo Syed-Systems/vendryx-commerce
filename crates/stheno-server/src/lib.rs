@@ -706,7 +706,7 @@ impl AppServer {
                             "engine": "Stheno Commerce Engine",
                             "version": "0.1.0",
                             "architecture": "Modular Monolith (Rust / Axum)",
-                            "compatibility": "Medusa v2 Parity",
+                            "compatibility": "Commerce REST v2",
                             "database": database
                         }))
                     }

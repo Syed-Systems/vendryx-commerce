@@ -8,7 +8,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import AvatarBox from "../../components/common/logo-box/avatar-box"
 import { useAuthProviders } from "../../hooks/api"
 import { useExtension } from "../../providers/extension-provider"
-import { CloudAuthLogin } from "./components/cloud-auth-login"
 import { EmailPassLogin } from "./components/email-pass-login"
 import { MfaChallengeCard } from "./components/mfa-challenge-card"
 import { SsoLogin } from "./components/sso-login"
@@ -96,7 +95,6 @@ export const Login = () => {
           {getWidgets("login.after").map((Component, i) => {
             return <Component key={i} />
           })}
-          <CloudAuthLogin onMfaChallenge={handleMfaChallenge} />
           <SsoLogin
             providers={providerList}
             onMfaChallenge={handleMfaChallenge}

@@ -20,11 +20,6 @@ import { queryKeysFactory } from "../../lib/query-key-factory"
 const MFA_QUERY_KEY = "mfa" as const
 export const mfaQueryKeys = queryKeysFactory(MFA_QUERY_KEY)
 
-export const callbackWithCloudAuth = async (
-  query: Record<string, unknown>
-): ReturnType<typeof sdk.auth.callback> =>
-  sdk.auth.callback("user", "cloud", query)
-
 export const useAuthMfa = (
   options?: Omit<
     UseQueryOptions<

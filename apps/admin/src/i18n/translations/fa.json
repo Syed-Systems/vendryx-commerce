@@ -3642,8 +3642,7 @@
   },
   "auth": {
     "login": {
-      "authenticationFailed": "احراز هویت ناموفق بود",
-      "cloud": "ورود با Medusa Cloud"
+      "authenticationFailed": "احراز هویت ناموفق بود"
     }
   },
   "permissions": {

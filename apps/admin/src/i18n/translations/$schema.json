@@ -14306,9 +14306,6 @@
             "authenticationFailed": {
               "type": "string"
             },
-            "cloud": {
-              "type": "string"
-            },
             "noProviders": {
               "type": "string"
             },
@@ -14324,7 +14321,6 @@
           },
           "required": [
             "authenticationFailed",
-            "cloud",
             "noProviders",
             "continueWithProvider",
             "or",
