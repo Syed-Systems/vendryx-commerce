@@ -20,6 +20,20 @@ pub enum TransactionState {
 }
 
 impl TransactionState {
+    /// The name the `state` column stores. Matches the serde representation, which is the
+    /// bare variant name, so a row written by one and read by the other agrees.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TransactionState::NotStarted => "NotStarted",
+            TransactionState::Invoking => "Invoking",
+            TransactionState::Waiting => "Waiting",
+            TransactionState::Compensating => "Compensating",
+            TransactionState::Done => "Done",
+            TransactionState::Failed => "Failed",
+            TransactionState::Reverted => "Reverted",
+        }
+    }
+
     pub fn can_transition_to(&self, next: TransactionState) -> bool {
         matches!(
             (*self, next),
@@ -47,6 +61,18 @@ pub enum StepState {
 }
 
 impl StepState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            StepState::Pending => "Pending",
+            StepState::Running => "Running",
+            StepState::Completed => "Completed",
+            StepState::Failed => "Failed",
+            StepState::Compensating => "Compensating",
+            StepState::Compensated => "Compensated",
+            StepState::Skipped => "Skipped",
+        }
+    }
+
     pub fn can_transition_to(&self, next: StepState) -> bool {
         matches!(
             (*self, next),
@@ -163,6 +189,34 @@ pub struct WorkflowStore {
     executions: Arc<Mutex<HashMap<String, WorkflowExecution>>>,
 }
 
+/// Reads one execution on a caller-supplied connection.
+///
+/// A free function rather than a method so the transactional bodies below can read on the
+/// connection they already hold. Calling `get_execution_async` from inside one of them
+/// would take a SECOND connection from the same pool while the first is still in a
+/// transaction — N concurrent workflows against a pool of N then deadlock, each holding
+/// one connection and waiting for another only a peer can release.
+async fn read_execution(
+    conn: &mut diesel_async::AsyncPgConnection,
+    transaction_id: &str,
+) -> Result<Option<WorkflowExecution>> {
+    let rows: Vec<JsonRow> = diesel::sql_query(
+        "SELECT row_to_json(e)::text AS value FROM workflow.execution e \
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind::<diesel::sql_types::Text, _>(transaction_id)
+    .load(conn)
+    .await
+    .map_err(|e| Error::Database(e.to_string()))?;
+
+    match rows.into_iter().next() {
+        Some(row) => serde_json::from_str(&row.value)
+            .map(Some)
+            .map_err(|e| Error::Database(e.to_string())),
+        None => Ok(None),
+    }
+}
+
 impl WorkflowStore {
     pub fn new() -> Self {
         Self {
@@ -188,63 +242,57 @@ impl WorkflowStore {
         workflow_name: &str,
         initial_payload: Value,
     ) -> Result<WorkflowExecution> {
-        if let Some(pool) = &self.pool {
-            let mut conn = pool
-                .get()
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
+        let Some(pool) = &self.pool else {
+            return Ok(self.get_or_create(transaction_id, workflow_name, initial_payload));
+        };
 
-            let query = format!(
-                "SELECT row_to_json(e)::text AS value FROM workflow.execution e WHERE id = '{}' AND deleted_at IS NULL",
-                transaction_id.replace('\'', "''")
-            );
-            let rows: Vec<JsonRow> = diesel::sql_query(query)
-                .load(&mut conn)
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
+        let transaction_id = transaction_id.to_string();
+        let workflow_name = workflow_name.to_string();
 
-            if let Some(row) = rows.into_iter().next() {
-                let exec: WorkflowExecution =
-                    serde_json::from_str(&row.value).map_err(|e| Error::Database(e.to_string()))?;
-                return Ok(exec);
-            }
+        stheno_db::tenant::with_tenant_conn(pool, move |conn| {
+            Box::pin(async move {
+                if let Some(exec) = read_execution(conn, &transaction_id).await? {
+                    return Ok(exec);
+                }
 
-            let now = Utc::now();
-            let exec = WorkflowExecution {
-                transaction_id: transaction_id.to_string(),
-                workflow_name: workflow_name.to_string(),
-                state: TransactionState::NotStarted,
-                step_states: HashMap::new(),
-                context_payload: initial_payload,
-                lease_owner: None,
-                lease_expires_at: None,
-                created_at: now,
-                updated_at: now,
-                deleted_at: None,
-            };
-            let json = serde_json::to_string(&exec).map_err(|e| Error::Database(e.to_string()))?;
-            let insert_sql =
-                "INSERT INTO workflow.execution AS e (id, workflow_name, state, step_states, context_payload, created_at, updated_at) \
-                 SELECT COALESCE(x.id, ($1::json->>'transaction_id')), x.workflow_name, x.state, x.step_states, x.context_payload, x.created_at, x.updated_at \
-                 FROM json_populate_record(NULL::workflow.execution, $1::json) AS x \
-                 ON CONFLICT (id) DO UPDATE SET updated_at = e.updated_at \
-                 RETURNING row_to_json(e)::text AS value";
-            let inserted: Vec<JsonRow> = diesel::sql_query(insert_sql)
-                .bind::<diesel::sql_types::Text, _>(&json)
-                .load(&mut conn)
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
+                let now = Utc::now();
+                let exec = WorkflowExecution {
+                    transaction_id: transaction_id.clone(),
+                    workflow_name,
+                    state: TransactionState::NotStarted,
+                    step_states: HashMap::new(),
+                    context_payload: initial_payload,
+                    lease_owner: None,
+                    lease_expires_at: None,
+                    created_at: now,
+                    updated_at: now,
+                    deleted_at: None,
+                };
+                let json =
+                    serde_json::to_string(&exec).map_err(|e| Error::Database(e.to_string()))?;
+                // tenant_id is deliberately absent from the column list: it carries a
+                // DEFAULT of current_setting('app.tenant_id'), which the scope established
+                // by with_tenant_conn is what populates.
+                let insert_sql =
+                    "INSERT INTO workflow.execution AS e (id, workflow_name, state, step_states, context_payload, created_at, updated_at) \
+                     SELECT COALESCE(x.id, ($1::json->>'transaction_id')), x.workflow_name, x.state, x.step_states, x.context_payload, x.created_at, x.updated_at \
+                     FROM json_populate_record(NULL::workflow.execution, $1::json) AS x \
+                     ON CONFLICT (id) DO UPDATE SET updated_at = e.updated_at \
+                     RETURNING row_to_json(e)::text AS value";
+                let inserted: Vec<JsonRow> = diesel::sql_query(insert_sql)
+                    .bind::<diesel::sql_types::Text, _>(&json)
+                    .load(&mut *conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
 
-            if let Some(row) = inserted.into_iter().next() {
-                let res: WorkflowExecution =
-                    serde_json::from_str(&row.value).map_err(|e| Error::Database(e.to_string()))?;
-                Ok(res)
-            } else {
-                Ok(exec)
-            }
-        } else {
-            Ok(self.get_or_create(transaction_id, workflow_name, initial_payload))
-        }
+                match inserted.into_iter().next() {
+                    Some(row) => serde_json::from_str(&row.value)
+                        .map_err(|e| Error::Database(e.to_string())),
+                    None => Ok(exec),
+                }
+            })
+        })
+        .await
     }
 
     pub fn get_or_create(
@@ -271,28 +319,31 @@ impl WorkflowStore {
     }
 
     pub async fn list_executions_async(&self) -> Result<Vec<WorkflowExecution>> {
-        if let Some(pool) = &self.pool {
-            let mut conn = pool
-                .get()
+        let Some(pool) = &self.pool else {
+            return Ok(self.list_executions());
+        };
+
+        // No tenant predicate in the SQL: RLS supplies it. Adding one by hand would be a
+        // second, weaker copy of the rule that could drift out of step with the policy.
+        stheno_db::tenant::with_tenant_conn(pool, move |conn| {
+            Box::pin(async move {
+                let rows: Vec<JsonRow> = diesel::sql_query(
+                    "SELECT row_to_json(e)::text AS value FROM workflow.execution e \
+                     WHERE deleted_at IS NULL ORDER BY created_at DESC",
+                )
+                .load(conn)
                 .await
                 .map_err(|e| Error::Database(e.to_string()))?;
 
-            let query = "SELECT row_to_json(e)::text AS value FROM workflow.execution e WHERE deleted_at IS NULL ORDER BY created_at DESC";
-            let rows: Vec<JsonRow> = diesel::sql_query(query)
-                .load(&mut conn)
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
-
-            let mut list = Vec::new();
-            for row in rows {
-                let exec: WorkflowExecution =
-                    serde_json::from_str(&row.value).map_err(|e| Error::Database(e.to_string()))?;
-                list.push(exec);
-            }
-            Ok(list)
-        } else {
-            Ok(self.list_executions())
-        }
+                rows.into_iter()
+                    .map(|row| {
+                        serde_json::from_str::<WorkflowExecution>(&row.value)
+                            .map_err(|e| Error::Database(e.to_string()))
+                    })
+                    .collect()
+            })
+        })
+        .await
     }
 
     /// All known executions, newest first. Read-only; used by admin observability.
@@ -307,31 +358,15 @@ impl WorkflowStore {
         &self,
         transaction_id: &str,
     ) -> Result<Option<WorkflowExecution>> {
-        if let Some(pool) = &self.pool {
-            let mut conn = pool
-                .get()
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
+        let Some(pool) = &self.pool else {
+            return Ok(self.get_execution(transaction_id));
+        };
 
-            let query = format!(
-                "SELECT row_to_json(e)::text AS value FROM workflow.execution e WHERE id = '{}' AND deleted_at IS NULL",
-                transaction_id.replace('\'', "''")
-            );
-            let rows: Vec<JsonRow> = diesel::sql_query(query)
-                .load(&mut conn)
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
-
-            if let Some(row) = rows.into_iter().next() {
-                let exec: WorkflowExecution =
-                    serde_json::from_str(&row.value).map_err(|e| Error::Database(e.to_string()))?;
-                Ok(Some(exec))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(self.get_execution(transaction_id))
-        }
+        let transaction_id = transaction_id.to_string();
+        stheno_db::tenant::with_tenant_conn(pool, move |conn| {
+            Box::pin(async move { read_execution(conn, &transaction_id).await })
+        })
+        .await
     }
 
     pub fn get_execution(&self, transaction_id: &str) -> Option<WorkflowExecution> {
@@ -343,49 +378,48 @@ impl WorkflowStore {
         transaction_id: &str,
         new_state: TransactionState,
     ) -> Result<()> {
-        if let Some(pool) = &self.pool {
-            let mut conn = pool
-                .get()
+        let Some(pool) = &self.pool else {
+            return self.update_state(transaction_id, new_state);
+        };
+
+        let transaction_id = transaction_id.to_string();
+        stheno_db::tenant::with_tenant_conn(pool, move |conn| {
+            Box::pin(async move {
+                // Read and write on one connection inside one transaction: the guard and
+                // the write it guards are now atomic, where two checkouts left a window in
+                // which a peer could move the state between them.
+                let current = read_execution(conn, &transaction_id)
+                    .await?
+                    .ok_or_else(|| Error::NotFound {
+                        entity: "workflow_execution",
+                        id: transaction_id.clone(),
+                    })?;
+
+                if !current.state.can_transition_to(new_state) {
+                    return Err(Error::Invalid {
+                        code: "invalid_state_transition",
+                        message: format!(
+                            "Cannot transition from {:?} to {:?}",
+                            current.state, new_state
+                        ),
+                        field: None,
+                    });
+                }
+
+                diesel::sql_query(
+                    "UPDATE workflow.execution SET state = $1, updated_at = now() \
+                     WHERE id = $2 AND deleted_at IS NULL",
+                )
+                .bind::<diesel::sql_types::Text, _>(new_state.as_str())
+                .bind::<diesel::sql_types::Text, _>(&transaction_id)
+                .execute(conn)
                 .await
                 .map_err(|e| Error::Database(e.to_string()))?;
 
-            let current = self
-                .get_execution_async(transaction_id)
-                .await?
-                .ok_or_else(|| Error::NotFound {
-                    entity: "workflow_execution",
-                    id: transaction_id.to_string(),
-                })?;
-
-            if !current.state.can_transition_to(new_state) {
-                return Err(Error::Invalid {
-                    code: "invalid_state_transition",
-                    message: format!(
-                        "Cannot transition from {:?} to {:?}",
-                        current.state, new_state
-                    ),
-                    field: None,
-                });
-            }
-
-            let state_str = serde_json::to_string(&new_state)
-                .unwrap_or_default()
-                .trim_matches('"')
-                .to_string();
-            let update_sql = format!(
-                "UPDATE workflow.execution SET state = '{}', updated_at = now() WHERE id = '{}' AND deleted_at IS NULL",
-                state_str,
-                transaction_id.replace('\'', "''")
-            );
-            diesel::sql_query(update_sql)
-                .execute(&mut conn)
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
-
-            Ok(())
-        } else {
-            self.update_state(transaction_id, new_state)
-        }
+                Ok(())
+            })
+        })
+        .await
     }
 
     pub fn update_state(&self, transaction_id: &str, new_state: TransactionState) -> Result<()> {
@@ -414,74 +448,79 @@ impl WorkflowStore {
         step_key: &str,
         new_state: StepState,
     ) -> Result<()> {
-        if let Some(pool) = &self.pool {
-            let mut conn = pool
-                .get()
+        let Some(pool) = &self.pool else {
+            return self.set_step_state(transaction_id, step_key, new_state);
+        };
+
+        let transaction_id = transaction_id.to_string();
+        let step_key = step_key.to_string();
+
+        stheno_db::tenant::with_tenant_conn(pool, move |conn| {
+            Box::pin(async move {
+                let current = read_execution(conn, &transaction_id)
+                    .await?
+                    .ok_or_else(|| Error::NotFound {
+                        entity: "workflow_execution",
+                        id: transaction_id.clone(),
+                    })?;
+
+                let current_step = current
+                    .step_states
+                    .get(&step_key)
+                    .copied()
+                    .unwrap_or(StepState::Pending);
+
+                if !current_step.can_transition_to(new_state) {
+                    return Err(Error::Invalid {
+                        code: "invalid_step_state_transition",
+                        message: format!(
+                            "Cannot transition step '{}' from {:?} to {:?}",
+                            step_key, current_step, new_state
+                        ),
+                        field: None,
+                    });
+                }
+
+                let state_str = new_state.as_str();
+                let step_id = format!("{transaction_id}_{step_key}");
+                let step_name = step_key.split('_').nth(2).unwrap_or(&step_key).to_string();
+
+                diesel::sql_query(
+                    "UPDATE workflow.execution \
+                     SET step_states = jsonb_set(step_states, ARRAY[$1], to_jsonb($2::text)), \
+                         updated_at = now() \
+                     WHERE id = $3 AND deleted_at IS NULL",
+                )
+                .bind::<diesel::sql_types::Text, _>(&step_key)
+                .bind::<diesel::sql_types::Text, _>(state_str)
+                .bind::<diesel::sql_types::Text, _>(&transaction_id)
+                .execute(&mut *conn)
                 .await
                 .map_err(|e| Error::Database(e.to_string()))?;
 
-            let current = self
-                .get_execution_async(transaction_id)
-                .await?
-                .ok_or_else(|| Error::NotFound {
-                    entity: "workflow_execution",
-                    id: transaction_id.to_string(),
-                })?;
-
-            let current_step = current
-                .step_states
-                .get(step_key)
-                .copied()
-                .unwrap_or(StepState::Pending);
-
-            if !current_step.can_transition_to(new_state) {
-                return Err(Error::Invalid {
-                    code: "invalid_step_state_transition",
-                    message: format!(
-                        "Cannot transition step '{}' from {:?} to {:?}",
-                        step_key, current_step, new_state
-                    ),
-                    field: None,
-                });
-            }
-
-            let state_str = serde_json::to_string(&new_state)
-                .unwrap_or_default()
-                .trim_matches('"')
-                .to_string();
-            let step_id = format!("{}_{}", transaction_id, step_key);
-            let step_name = step_key.split('_').nth(2).unwrap_or(step_key);
-
-            let update_sql = format!(
-                "UPDATE workflow.execution \
-                 SET step_states = jsonb_set(step_states, ARRAY['{}'], '\"{}\"'::jsonb), updated_at = now() \
-                 WHERE id = '{}' AND deleted_at IS NULL",
-                step_key.replace('\'', "''"),
-                state_str,
-                transaction_id.replace('\'', "''")
-            );
-            diesel::sql_query(update_sql)
-                .execute(&mut conn)
+                // The step_state row is the per-step audit trail; the jsonb column above is
+                // what the coordinator reads. Both are written in the one transaction, so a
+                // failure cannot leave them disagreeing.
+                diesel::sql_query(
+                    "INSERT INTO workflow.step_state \
+                         (id, transaction_id, step_key, step_name, state, updated_at) \
+                     VALUES ($1, $2, $3, $4, $5, now()) \
+                     ON CONFLICT (transaction_id, step_key) \
+                     DO UPDATE SET state = $5, updated_at = now()",
+                )
+                .bind::<diesel::sql_types::Text, _>(&step_id)
+                .bind::<diesel::sql_types::Text, _>(&transaction_id)
+                .bind::<diesel::sql_types::Text, _>(&step_key)
+                .bind::<diesel::sql_types::Text, _>(&step_name)
+                .bind::<diesel::sql_types::Text, _>(state_str)
+                .execute(conn)
                 .await
                 .map_err(|e| Error::Database(e.to_string()))?;
 
-            let upsert_step = format!(
-                "INSERT INTO workflow.step_state (id, transaction_id, step_key, step_name, state, updated_at) \
-                 VALUES ('{}', '{}', '{}', '{}', '{}', now()) \
-                 ON CONFLICT (transaction_id, step_key) DO UPDATE SET state = '{}', updated_at = now()",
-                step_id.replace('\'', "''"),
-                transaction_id.replace('\'', "''"),
-                step_key.replace('\'', "''"),
-                step_name.replace('\'', "''"),
-                state_str,
-                state_str
-            );
-            let _ = diesel::sql_query(upsert_step).execute(&mut conn).await;
-
-            Ok(())
-        } else {
-            self.set_step_state(transaction_id, step_key, new_state)
-        }
+                Ok(())
+            })
+        })
+        .await
     }
 
     pub fn set_step_state(
@@ -523,51 +562,59 @@ impl WorkflowStore {
         worker_id: &str,
         lease_duration_secs: i64,
     ) -> Result<bool> {
-        if let Some(pool) = &self.pool {
-            let mut conn = pool
-                .get()
+        let Some(pool) = &self.pool else {
+            return Ok(self.try_claim(transaction_id, worker_id, lease_duration_secs));
+        };
+
+        let transaction_id = transaction_id.to_string();
+        let worker_id = worker_id.to_string();
+
+        stheno_db::tenant::with_tenant_conn(pool, move |conn| {
+            Box::pin(async move {
+                // The interval is built from a bound integer rather than interpolated, so a
+                // lease duration can never reach the parser as text.
+                let count = diesel::sql_query(
+                    "UPDATE workflow.execution \
+                     SET lease_owner = $1, \
+                         lease_expires_at = now() + make_interval(secs => $2::double precision), \
+                         updated_at = now() \
+                     WHERE id = $3 \
+                       AND state NOT IN ('Done', 'Failed', 'Reverted') \
+                       AND (lease_expires_at IS NULL OR lease_expires_at < now() OR lease_owner = $1) \
+                       AND deleted_at IS NULL",
+                )
+                .bind::<diesel::sql_types::Text, _>(&worker_id)
+                .bind::<diesel::sql_types::BigInt, _>(lease_duration_secs)
+                .bind::<diesel::sql_types::Text, _>(&transaction_id)
+                .execute(&mut *conn)
                 .await
                 .map_err(|e| Error::Database(e.to_string()))?;
 
-            let update_sql = format!(
-                "UPDATE workflow.execution \
-                 SET lease_owner = '{}', lease_expires_at = now() + interval '{} seconds', updated_at = now() \
-                 WHERE id = '{}' \
-                   AND state NOT IN ('Done', 'Failed', 'Reverted') \
-                   AND (lease_expires_at IS NULL OR lease_expires_at < now() OR lease_owner = '{}') \
-                   AND deleted_at IS NULL",
-                worker_id.replace('\'', "''"),
-                lease_duration_secs,
-                transaction_id.replace('\'', "''"),
-                worker_id.replace('\'', "''")
-            );
-            let count = diesel::sql_query(update_sql)
-                .execute(&mut conn)
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
+                if count == 0 {
+                    return Ok(false);
+                }
 
-            if count > 0 {
-                let lease_id = format!("lease_{}", transaction_id);
-                let upsert_lease = format!(
-                    "INSERT INTO workflow.lease (id, transaction_id, owner_id, lease_expires_at, renewed_at, updated_at) \
-                     VALUES ('{}', '{}', '{}', now() + interval '{} seconds', now(), now()) \
+                diesel::sql_query(
+                    "INSERT INTO workflow.lease \
+                         (id, transaction_id, owner_id, lease_expires_at, renewed_at, updated_at) \
+                     VALUES ($1, $2, $3, now() + make_interval(secs => $4::double precision), now(), now()) \
                      ON CONFLICT (transaction_id) DO UPDATE \
-                     SET owner_id = '{}', lease_expires_at = now() + interval '{} seconds', renewed_at = now(), updated_at = now()",
-                    lease_id.replace('\'', "''"),
-                    transaction_id.replace('\'', "''"),
-                    worker_id.replace('\'', "''"),
-                    lease_duration_secs,
-                    worker_id.replace('\'', "''"),
-                    lease_duration_secs
-                );
-                let _ = diesel::sql_query(upsert_lease).execute(&mut conn).await;
+                     SET owner_id = $3, \
+                         lease_expires_at = now() + make_interval(secs => $4::double precision), \
+                         renewed_at = now(), updated_at = now()",
+                )
+                .bind::<diesel::sql_types::Text, _>(format!("lease_{transaction_id}"))
+                .bind::<diesel::sql_types::Text, _>(&transaction_id)
+                .bind::<diesel::sql_types::Text, _>(&worker_id)
+                .bind::<diesel::sql_types::BigInt, _>(lease_duration_secs)
+                .execute(conn)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+
                 Ok(true)
-            } else {
-                Ok(false)
-            }
-        } else {
-            Ok(self.try_claim(transaction_id, worker_id, lease_duration_secs))
-        }
+            })
+        })
+        .await
     }
 
     /// Simulates Postgres SKIP LOCKED claiming with lease timeout
@@ -598,27 +645,28 @@ impl WorkflowStore {
     }
 
     pub async fn apply_retention_policy_async(&self, transaction_id: &str) -> Result<()> {
-        if let Some(pool) = &self.pool {
-            let mut conn = pool
-                .get()
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
-
-            let update_sql = format!(
-                "UPDATE workflow.execution \
-                 SET context_payload = '{{\"[REDACTED]\": \"retention_policy_applied\"}}'::jsonb, updated_at = now() \
-                 WHERE id = '{}' AND deleted_at IS NULL",
-                transaction_id.replace('\'', "''")
-            );
-            diesel::sql_query(update_sql)
-                .execute(&mut conn)
-                .await
-                .map_err(|e| Error::Database(e.to_string()))?;
-            Ok(())
-        } else {
+        let Some(pool) = &self.pool else {
             self.apply_retention_policy(transaction_id);
-            Ok(())
-        }
+            return Ok(());
+        };
+
+        let transaction_id = transaction_id.to_string();
+        stheno_db::tenant::with_tenant_conn(pool, move |conn| {
+            Box::pin(async move {
+                diesel::sql_query(
+                    "UPDATE workflow.execution \
+                     SET context_payload = '{\"[REDACTED]\": \"retention_policy_applied\"}'::jsonb, \
+                         updated_at = now() \
+                     WHERE id = $1 AND deleted_at IS NULL",
+                )
+                .bind::<diesel::sql_types::Text, _>(&transaction_id)
+                .execute(conn)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+                Ok(())
+            })
+        })
+        .await
     }
 
     /// Redacts PII / context payload after retention window (Task P1-16)
