@@ -8,6 +8,13 @@ services:
     # until an ordinary query fails with `could not resize shared memory segment ... No
     # space left on device` — which reads like a full disk and is not one.
     shm_size: 1gb
+    # Same root cause as shm_size: the suite creates a database per test and cargo runs
+    # them in parallel, so peak backend count is (concurrent tests x pool size) plus the
+    # administrative connection each one opens to create and drop its database. Postgres
+    # ships with max_connections=100, which the admin parity suite alone exceeds — and the
+    # failure reads as "sorry, too many clients already" on whichever test lost the race,
+    # not as a capacity problem.
+    command: ["postgres", "-c", "max_connections=300"]
     environment:
       POSTGRES_USER: stheno
       POSTGRES_PASSWORD: stheno

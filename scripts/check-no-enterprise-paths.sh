@@ -22,11 +22,22 @@ done
 echo "✓ Zero enterprise paths detected in apps/admin/."
 
 echo "[2/2] Verifying clean-room implementations for RBAC and SSO..."
-if [ ! -f apps/admin/src/components/rbac.tsx ] || [ ! -f apps/admin/src/components/sso.tsx ]; then
-    echo "ERROR: Clean-room rbac.tsx or sso.tsx missing!" >&2
-    exit 1
-fi
-echo "✓ Clean-room RBAC and SSO components verified."
+# These were two placeholder files under src/components/ until df42823 replaced them with
+# real route trees. The assertion is unchanged — RBAC and SSO must exist here as our own
+# implementations rather than as Medusa Enterprise imports, which is what [1/2] enforces —
+# only the paths are updated to where those implementations actually live.
+CLEAN_ROOM=(
+    apps/admin/src/routes/roles
+    apps/admin/src/routes/policies
+    apps/admin/src/routes/login/components/sso-login.tsx
+)
+for path in "${CLEAN_ROOM[@]}"; do
+    if [ ! -e "$path" ]; then
+        echo "ERROR: clean-room implementation missing: $path" >&2
+        exit 1
+    fi
+done
+echo "✓ Clean-room RBAC and SSO implementations verified."
 
 echo "=========================================================="
 echo "STATUS: NO ENTERPRISE PATHS AUDIT PASSED (Exit 0)"
