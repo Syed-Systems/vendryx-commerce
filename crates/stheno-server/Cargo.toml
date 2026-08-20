@@ -70,3 +70,4 @@ stheno-server = { path = ".", features = ["testing"] }
 wiremock = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
+tower = { workspace = true }

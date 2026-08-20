@@ -71,6 +71,9 @@ pub struct Subscription {
     pub term_ends_at: Option<DateTime<Utc>>,
     pub quota_overrides: serde_json::Value,
     pub window_overrides: serde_json::Value,
+    /// `{"payment_gateway": true}` — a negotiated grant or revocation for this one
+    /// merchant, applied after the tier resolves.
+    pub feature_overrides: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
@@ -90,4 +93,37 @@ impl CrudEntity for Subscription {
     fn set_deleted(&mut self, deleted: bool) {
         self.deleted_at = if deleted { Some(Utc::now()) } else { None };
     }
+}
+
+/// What a plan means, when the operator has changed it from the shipped default.
+///
+/// `config/tiers.toml` is still the default. A row here replaces that tier's definition
+/// wholesale so a plan can be retuned from the control plane without a release, which a
+/// container-baked config file cannot offer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TierDefinitionRow {
+    pub tier: String,
+    /// `["csv_export", "payment_gateway"]`
+    pub features: serde_json::Value,
+    /// `{"max_products": 100}` — 0 is the unlimited sentinel, same as the TOML.
+    pub quotas: serde_json::Value,
+    pub windows: serde_json::Value,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl CrudEntity for TierDefinitionRow {
+    const TABLE: &'static str = "platform.tier_definition";
+    const ENTITY: &'static str = "tier_definition";
+    const ID_COLUMN: &'static str = "tier";
+
+    fn id(&self) -> String {
+        self.tier.clone()
+    }
+    // No soft delete: a tier definition is either overridden or it is not. Deleting the
+    // row is how an operator returns a plan to the shipped default, and a soft-deleted
+    // row would keep overriding it.
+    fn is_deleted(&self) -> bool {
+        false
+    }
+    fn set_deleted(&mut self, _deleted: bool) {}
 }

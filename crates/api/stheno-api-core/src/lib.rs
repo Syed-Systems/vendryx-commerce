@@ -7,6 +7,7 @@ pub use entitlements::{
     Entitlements, EntitlementsError, Feature, QuotaKey, QuotaState, Tier, TierConfig,
     TierDefinition, WindowKey,
 };
+pub use tenant_entitlements::{overlay_tier_rows, resolve_for_tenant, TenantPlan, TierRow};
 
 use serde::{Deserialize, Serialize};
 

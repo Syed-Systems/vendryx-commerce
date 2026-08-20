@@ -29,6 +29,7 @@ use serde_json::json;
 use std::sync::Arc;
 use stheno_api_core::tenant_entitlements::{resolve_for_tenant, TenantPlan};
 use stheno_api_core::{Entitlements, TierConfig};
+use stheno_api_platform::tier_config_for;
 use stheno_db::tenant;
 use stheno_platform::PlatformService;
 
@@ -38,8 +39,10 @@ const TENANT_FREE_PATHS: [&str; 2] = ["/health", "/"];
 #[derive(Clone)]
 pub struct TenantLayerState {
     pub platform: Arc<PlatformService>,
-    /// Tier *definitions*, loaded once at boot from `config/tiers.toml`. What a tier
-    /// means is deployment config; which tier a tenant is on is a subscription row.
+    /// Tier definitions **as shipped**, from `config/tiers.toml`. Stored overrides from
+    /// `platform.tier_definition` are laid over this per request, so a plan the operator
+    /// retunes in the control plane takes effect on the very next request rather than at
+    /// the next restart — and on every node, with no cache to invalidate.
     pub tier_config: Arc<TierConfig>,
     /// Used when no subscription can be read, so a registry hiccup degrades to the
     /// least-privileged plan rather than to whatever was configured at boot.
@@ -139,9 +142,12 @@ async fn load_entitlements_for(state: &TenantLayerState, tenant_id: &str) -> Arc
         term_ends_at: subscription.term_ends_at,
         quota_overrides: subscription.quota_overrides,
         window_overrides: subscription.window_overrides,
+        feature_overrides: subscription.feature_overrides,
     };
 
-    match resolve_for_tenant(&state.tier_config, &plan) {
+    let config = tier_config_for(&state.platform, &state.tier_config).await;
+
+    match resolve_for_tenant(&config, &plan) {
         Ok(resolved) => Arc::new(resolved),
         Err(_) => state.fallback_entitlements.clone(),
     }

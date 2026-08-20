@@ -9,6 +9,7 @@ import {
   Select,
   StatusBadge,
   Table,
+  Tabs,
   Text,
   Toaster,
   toast,
@@ -21,12 +22,27 @@ import {
   createTenant,
   getToken,
   listTenants,
+  listTiers,
   setTier,
   setToken,
   type Tenant,
 } from "./api"
+import { Plans } from "./plans"
+import { SubscriptionDrawer } from "./subscription"
 
-const TIERS = ["trial", "free", "pro"] as const
+/**
+ * The plans the engine actually has, read from the control plane rather than written out
+ * here. A tier added in Rust turns up in every picker on this page without a matching
+ * edit in TypeScript that would otherwise drift out of step with it.
+ */
+function useTierNames() {
+  const { data } = useQuery({
+    queryKey: ["platform", "tiers"],
+    queryFn: listTiers,
+    retry: false,
+  })
+  return data?.tiers.map((t) => t.tier) ?? []
+}
 
 /** Matches the admin's ThemeProvider contract, so both apps flip the same way. */
 function useTheme() {
@@ -93,6 +109,7 @@ function TokenGate({ onAuthenticated }: { onAuthenticated: () => void }) {
 function CreateTenantForm({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ id: "", name: "", tier: "free", domain: "" })
+  const tiers = useTierNames()
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -148,7 +165,7 @@ function CreateTenantForm({ onCreated }: { onCreated: () => void }) {
               <Select.Value />
             </Select.Trigger>
             <Select.Content>
-              {TIERS.map((tier) => (
+              {tiers.map((tier) => (
                 <Select.Item key={tier} value={tier}>
                   {tier}
                 </Select.Item>
@@ -187,6 +204,7 @@ function CreateTenantForm({ onCreated }: { onCreated: () => void }) {
 }
 
 function TierCell({ tenant, onChanged }: { tenant: Tenant; onChanged: () => void }) {
+  const tiers = useTierNames()
   const mutation = useMutation({
     mutationFn: (tier: string) => setTier(tenant.id, tier),
     onSuccess: (_, tier) => {
@@ -215,7 +233,7 @@ function TierCell({ tenant, onChanged }: { tenant: Tenant; onChanged: () => void
         <Select.Value />
       </Select.Trigger>
       <Select.Content>
-        {TIERS.map((tier) => (
+        {tiers.map((tier) => (
           <Select.Item key={tier} value={tier}>
             {tier}
           </Select.Item>
@@ -225,9 +243,10 @@ function TierCell({ tenant, onChanged }: { tenant: Tenant; onChanged: () => void
   )
 }
 
-function Dashboard({ onSignOut }: { onSignOut: () => void }) {
+function Merchants() {
   const queryClient = useQueryClient()
-  const { theme, toggle } = useTheme()
+  const tiers = useTierNames()
+  const [editing, setEditing] = useState<Tenant | null>(null)
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["platform", "tenants"],
@@ -235,15 +254,173 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
     retry: false,
   })
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["platform", "tenants"] })
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["platform"] })
+
+  if (isError) {
+    return (
+      <Container className="p-6">
+        <Heading level="h2" className="mb-2">
+          Could not read the registry
+        </Heading>
+        <Text size="small" className="text-ui-fg-subtle">
+          {(error as Error).message}
+        </Text>
+      </Container>
+    )
+  }
+
+  const tenants = data?.tenants ?? []
+  const byTier = tiers.map((tier) => ({
+    tier,
+    count: tenants.filter((t) => t.tier === tier).length,
+  }))
+
+  return (
+    <div className="flex flex-col gap-y-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <Heading level="h1">Merchants</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Every tenant on this deployment, and the plan each one is on.
+          </Text>
+        </div>
+        <Button
+          variant="secondary"
+          size="small"
+          onClick={() => refetch()}
+          isLoading={isFetching}
+          aria-label="Refresh"
+        >
+          <ArrowPath />
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Container className="p-4">
+          <div className="flex items-center justify-between">
+            <Text size="small" weight="plus" className="text-ui-fg-subtle">
+              Merchants
+            </Text>
+            <BuildingStorefront className="text-ui-fg-muted" />
+          </div>
+          <Text size="xlarge" weight="plus" className="mt-2 tabular-nums">
+            {tenants.length}
+          </Text>
+        </Container>
+        {byTier.map(({ tier, count }) => (
+          <Container key={tier} className="p-4">
+            <div className="flex items-center justify-between">
+              <Text size="small" weight="plus" className="text-ui-fg-subtle capitalize">
+                {tier}
+              </Text>
+              <CurrencyDollar className="text-ui-fg-muted" />
+            </div>
+            <Text size="xlarge" weight="plus" className="mt-2 tabular-nums">
+              {count}
+            </Text>
+          </Container>
+        ))}
+      </div>
+
+      <CreateTenantForm onCreated={invalidate} />
+
+      <Container className="overflow-hidden p-0">
+        <Table>
+          <Table.Header>
+            <Table.Row>
+              <Table.HeaderCell>Merchant</Table.HeaderCell>
+              <Table.HeaderCell>Tenant</Table.HeaderCell>
+              <Table.HeaderCell>Plan</Table.HeaderCell>
+              <Table.HeaderCell>Subscription</Table.HeaderCell>
+              <Table.HeaderCell>Created</Table.HeaderCell>
+              <Table.HeaderCell />
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            {isLoading ? (
+              <Table.Row>
+                <Table.Cell className="text-ui-fg-muted py-8 text-center">
+                  Loading merchants…
+                </Table.Cell>
+              </Table.Row>
+            ) : tenants.length === 0 ? (
+              <Table.Row>
+                <Table.Cell className="text-ui-fg-muted py-8 text-center">
+                  No merchants yet.
+                </Table.Cell>
+              </Table.Row>
+            ) : (
+              tenants.map((tenant) => (
+                <Table.Row key={tenant.id}>
+                  <Table.Cell className="text-ui-fg-base font-medium">
+                    {tenant.name}
+                  </Table.Cell>
+                  <Table.Cell className="text-ui-fg-subtle font-mono text-xs">
+                    {tenant.id}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <TierCell tenant={tenant} onChanged={invalidate} />
+                  </Table.Cell>
+                  <Table.Cell>
+                    <StatusBadge
+                      color={tenant.subscription_status === "active" ? "green" : "orange"}
+                    >
+                      {tenant.subscription_status}
+                    </StatusBadge>
+                  </Table.Cell>
+                  <Table.Cell className="text-ui-fg-subtle text-xs tabular-nums">
+                    {new Date(tenant.created_at).toLocaleDateString()}
+                  </Table.Cell>
+                  <Table.Cell className="text-right">
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      disabled={tenant.tier === "unknown"}
+                      onClick={() => setEditing(tenant)}
+                    >
+                      Manage
+                    </Button>
+                  </Table.Cell>
+                </Table.Row>
+              ))
+            )}
+          </Table.Body>
+        </Table>
+      </Container>
+
+      {editing && (
+        <SubscriptionDrawer
+          key={editing.id}
+          tenantId={editing.id}
+          tenantName={editing.name}
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditing(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function Dashboard({ onSignOut }: { onSignOut: () => void }) {
+  const { theme, toggle } = useTheme()
+  const [tab, setTab] = useState("merchants")
+
+  // One query stands in for the whole surface: if the token is wrong every call 404s, so
+  // failing here once beats six panels each reporting the same thing.
+  const { isError, error } = useQuery({
+    queryKey: ["platform", "tiers"],
+    queryFn: listTiers,
+    retry: false,
+  })
 
   if (isError) {
     return (
       <div className="bg-ui-bg-subtle flex min-h-dvh items-center justify-center">
         <Container className="m-4 max-w-[420px] p-6">
           <Heading level="h2" className="mb-2">
-            Could not read the registry
+            Could not read the control plane
           </Heading>
           <Text size="small" className="text-ui-fg-subtle mb-4">
             {(error as Error).message}
@@ -256,122 +433,37 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
     )
   }
 
-  const tenants = data?.tenants ?? []
-  const byTier = TIERS.map((tier) => ({
-    tier,
-    count: tenants.filter((t) => t.tier === tier).length,
-  }))
-
   return (
     <div className="bg-ui-bg-subtle min-h-dvh w-dvw">
       <div className="mx-auto flex max-w-[1200px] flex-col gap-y-5 p-6">
-        <div className="flex flex-col gap-y-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <Heading level="h1">Merchants</Heading>
-            <Text size="small" className="text-ui-fg-subtle">
-              Every tenant on this deployment, and the plan each one is on.
-            </Text>
-          </div>
-          <div className="flex items-center gap-x-2">
-            <Button variant="transparent" size="small" onClick={toggle} aria-label="Toggle theme">
-              {theme === "dark" ? <Sun /> : <Moon />}
-            </Button>
-            <Button
-              variant="secondary"
-              size="small"
-              onClick={() => refetch()}
-              isLoading={isFetching}
-              aria-label="Refresh"
-            >
-              <ArrowPath />
-            </Button>
-            <Button variant="secondary" size="small" onClick={onSignOut}>
-              Sign out
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Container className="p-4">
-            <div className="flex items-center justify-between">
-              <Text size="small" weight="plus" className="text-ui-fg-subtle">
-                Merchants
-              </Text>
-              <BuildingStorefront className="text-ui-fg-muted" />
+        <Tabs value={tab} onValueChange={setTab}>
+          <div className="flex items-center justify-between">
+            <Tabs.List>
+              <Tabs.Trigger value="merchants">Merchants</Tabs.Trigger>
+              <Tabs.Trigger value="plans">Plans</Tabs.Trigger>
+            </Tabs.List>
+            <div className="flex items-center gap-x-2">
+              <Button
+                variant="transparent"
+                size="small"
+                onClick={toggle}
+                aria-label="Toggle theme"
+              >
+                {theme === "dark" ? <Sun /> : <Moon />}
+              </Button>
+              <Button variant="secondary" size="small" onClick={onSignOut}>
+                Sign out
+              </Button>
             </div>
-            <Text size="xlarge" weight="plus" className="mt-2 tabular-nums">
-              {tenants.length}
-            </Text>
-          </Container>
-          {byTier.map(({ tier, count }) => (
-            <Container key={tier} className="p-4">
-              <div className="flex items-center justify-between">
-                <Text size="small" weight="plus" className="text-ui-fg-subtle capitalize">
-                  {tier}
-                </Text>
-                <CurrencyDollar className="text-ui-fg-muted" />
-              </div>
-              <Text size="xlarge" weight="plus" className="mt-2 tabular-nums">
-                {count}
-              </Text>
-            </Container>
-          ))}
-        </div>
+          </div>
 
-        <CreateTenantForm onCreated={invalidate} />
-
-        <Container className="overflow-hidden p-0">
-          <Table>
-            <Table.Header>
-              <Table.Row>
-                <Table.HeaderCell>Merchant</Table.HeaderCell>
-                <Table.HeaderCell>Tenant</Table.HeaderCell>
-                <Table.HeaderCell>Plan</Table.HeaderCell>
-                <Table.HeaderCell>Subscription</Table.HeaderCell>
-                <Table.HeaderCell>Created</Table.HeaderCell>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {isLoading ? (
-                <Table.Row>
-                  <Table.Cell className="text-ui-fg-muted py-8 text-center">
-                    Loading merchants…
-                  </Table.Cell>
-                </Table.Row>
-              ) : tenants.length === 0 ? (
-                <Table.Row>
-                  <Table.Cell className="text-ui-fg-muted py-8 text-center">
-                    No merchants yet.
-                  </Table.Cell>
-                </Table.Row>
-              ) : (
-                tenants.map((tenant) => (
-                  <Table.Row key={tenant.id}>
-                    <Table.Cell className="text-ui-fg-base font-medium">
-                      {tenant.name}
-                    </Table.Cell>
-                    <Table.Cell className="text-ui-fg-subtle font-mono text-xs">
-                      {tenant.id}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <TierCell tenant={tenant} onChanged={invalidate} />
-                    </Table.Cell>
-                    <Table.Cell>
-                      <StatusBadge
-                        color={tenant.subscription_status === "active" ? "green" : "orange"}
-                      >
-                        {tenant.subscription_status}
-                      </StatusBadge>
-                    </Table.Cell>
-                    <Table.Cell className="text-ui-fg-subtle text-xs tabular-nums">
-                      {new Date(tenant.created_at).toLocaleDateString()}
-                    </Table.Cell>
-                  </Table.Row>
-                ))
-              )}
-            </Table.Body>
-          </Table>
-        </Container>
+          <Tabs.Content value="merchants" className="pt-5">
+            <Merchants />
+          </Tabs.Content>
+          <Tabs.Content value="plans" className="pt-5">
+            <Plans />
+          </Tabs.Content>
+        </Tabs>
       </div>
       <Toaster />
     </div>

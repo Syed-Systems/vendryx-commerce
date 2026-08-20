@@ -77,6 +77,95 @@ export const setTier = (tenantId: string, tier: string) =>
     { method: "POST", body: JSON.stringify({ tier }) }
   )
 
+/** A plan, as the control plane sees it. */
+export interface TierView {
+  tier: string
+  /** "default" while config/tiers.toml still governs; "stored" once it has been edited. */
+  source: "default" | "stored"
+  features: string[]
+  /** Every known key. 0 means unlimited — the one sentinel, matching the engine. */
+  quotas: Record<string, number>
+  windows: Record<string, number>
+}
+
+/**
+ * Every gate the engine knows how to apply.
+ *
+ * Rendered from the server rather than a constant here, so a feature added in Rust shows
+ * up as a new checkbox without a second edit in this file that would drift out of step.
+ */
+export interface Catalog {
+  features: string[]
+  quotas: string[]
+  windows: string[]
+  statuses: string[]
+}
+
+export interface Subscription {
+  tenant_id: string
+  tier: string
+  status: string
+  trial_started_at: string | null
+  trial_ends_at: string | null
+  term_ends_at: string | null
+  quota_overrides: Record<string, number>
+  window_overrides: Record<string, number>
+  feature_overrides: Record<string, boolean>
+}
+
+/** Tier plus overrides, resolved to what the merchant actually gets. */
+export interface EffectiveEntitlements {
+  tier: string
+  features: string[]
+  quotas: Record<string, number>
+  windows: Record<string, number>
+}
+
+export const listTiers = () =>
+  request<{ tiers: TierView[]; catalog: Catalog }>("/platform/tiers")
+
+export const saveTier = (
+  tier: string,
+  body: { features: string[]; quotas: Record<string, number>; windows: Record<string, number> }
+) =>
+  request<{ tier: TierView }>(`/platform/tiers/${tier}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  })
+
+/** Drops the stored override so the plan means what the shipped config says again. */
+export const resetTier = (tier: string) =>
+  request<{ tier: TierView }>(`/platform/tiers/${tier}`, { method: "DELETE" })
+
+export const getSubscription = (tenantId: string) =>
+  request<{
+    subscription: Subscription
+    effective: EffectiveEntitlements | null
+    error: string | null
+  }>(`/platform/tenants/${tenantId}/subscription`)
+
+/**
+ * Only the keys present are changed. Dates are tri-state: absent leaves the date alone,
+ * an explicit null clears it.
+ */
+export const patchSubscription = (
+  tenantId: string,
+  patch: Partial<{
+    tier: string
+    status: string
+    trial_started_at: string | null
+    trial_ends_at: string | null
+    term_ends_at: string | null
+    quota_overrides: Record<string, number>
+    window_overrides: Record<string, number>
+    feature_overrides: Record<string, boolean>
+  }>
+) =>
+  request<{ subscription: Subscription; effective: EffectiveEntitlements | null }>(
+    `/platform/tenants/${tenantId}/subscription`,
+    { method: "PATCH", body: JSON.stringify(patch) }
+  )
+
 export const createTenant = (input: {
   id: string
   name: string

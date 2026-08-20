@@ -21,6 +21,11 @@ pub enum Tier {
 }
 
 impl Tier {
+    /// Every plan there is. The control plane renders one editor per entry, so a new
+    /// tier appears in the UI by adding it here rather than by editing a list in
+    /// TypeScript that would drift out of step with the enum.
+    pub const ALL: [Tier; 3] = [Tier::Trial, Tier::Free, Tier::Pro];
+
     pub fn as_str(&self) -> &'static str {
         match self {
             Tier::Trial => "trial",
@@ -59,6 +64,19 @@ pub enum Feature {
 }
 
 impl Feature {
+    /// Every gateable feature. The control plane needs the whole universe, not just the
+    /// ones a tier happens to hold, or a feature could never be switched *on* from the UI.
+    pub const ALL: [Feature; 8] = [
+        Feature::SpreadsheetImport,
+        Feature::CsvExport,
+        Feature::WebPush,
+        Feature::AnalyticsBasic,
+        Feature::PaymentGateway,
+        Feature::CourierDispatch,
+        Feature::FraudScore,
+        Feature::CustomDomain,
+    ];
+
     pub fn as_str(&self) -> &'static str {
         match self {
             Feature::SpreadsheetImport => "spreadsheet_import",
@@ -81,6 +99,8 @@ pub enum QuotaKey {
 }
 
 impl QuotaKey {
+    pub const ALL: [QuotaKey; 2] = [QuotaKey::MaxProducts, QuotaKey::MaxStaffSeats];
+
     pub fn as_str(&self) -> &'static str {
         match self {
             QuotaKey::MaxProducts => "max_products",
@@ -96,6 +116,8 @@ pub enum WindowKey {
 }
 
 impl WindowKey {
+    pub const ALL: [WindowKey; 1] = [WindowKey::AnalyticsWindowDays];
+
     pub fn as_str(&self) -> &'static str {
         match self {
             WindowKey::AnalyticsWindowDays => "analytics_window_days",
@@ -162,6 +184,43 @@ pub struct TierDefinition {
     pub term_months: Vec<u32>,
 }
 
+impl TierDefinition {
+    /// Builds a definition from already-validated keys.
+    ///
+    /// Takes the enums rather than strings on purpose: by the time a definition exists,
+    /// an unknown feature or quota key must already have been rejected at the API
+    /// boundary. This constructor makes that a type-level guarantee instead of a comment.
+    pub fn from_parts(
+        features: impl IntoIterator<Item = Feature>,
+        quotas: impl IntoIterator<Item = (QuotaKey, u64)>,
+        windows: impl IntoIterator<Item = (WindowKey, u64)>,
+    ) -> Self {
+        Self {
+            duration_days: None,
+            starts_on: None,
+            features: features.into_iter().map(|f| f.as_str().to_string()).collect(),
+            quotas: quotas
+                .into_iter()
+                .map(|(k, v)| (k.as_str().to_string(), toml::Value::Integer(v as i64)))
+                .collect(),
+            windows: windows
+                .into_iter()
+                .map(|(k, v)| (k.as_str().to_string(), toml::Value::Integer(v as i64)))
+                .collect(),
+            term_months: Vec::new(),
+        }
+    }
+
+    /// Keeps the trial's own mechanics (duration, start trigger) and the Pro commitment
+    /// terms, which the control plane does not edit and must not silently drop.
+    pub fn carrying_terms_of(mut self, base: &TierDefinition) -> Self {
+        self.duration_days = base.duration_days;
+        self.starts_on = base.starts_on.clone();
+        self.term_months = base.term_months.clone();
+        self
+    }
+}
+
 /// The parsed contents of `config/tiers.toml`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct TierConfig {
@@ -178,6 +237,13 @@ impl TierConfig {
         let src = std::fs::read_to_string(path.as_ref())
             .map_err(|e| EntitlementsError::Io(format!("{}: {e}", path.as_ref().display())))?;
         Self::from_toml(&src)
+    }
+
+    /// Replaces one tier's definition. Used to lay a stored `platform.tier_definition`
+    /// row over the shipped TOML defaults; wholesale replacement, never a merge
+    /// (see the migration for why a merge is unsafe).
+    pub fn set(&mut self, tier: Tier, definition: TierDefinition) {
+        self.tiers.insert(tier.as_str().to_string(), definition);
     }
 
     pub fn definition(&self, tier: Tier) -> Result<&TierDefinition, EntitlementsError> {
@@ -245,6 +311,27 @@ impl TierConfig {
             quotas,
             windows,
         })
+    }
+}
+
+impl std::str::FromStr for Feature {
+    type Err = EntitlementsError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_feature(s)
+    }
+}
+
+impl std::str::FromStr for QuotaKey {
+    type Err = EntitlementsError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_quota_key(s)
+    }
+}
+
+impl std::str::FromStr for WindowKey {
+    type Err = EntitlementsError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_window_key(s)
     }
 }
 
@@ -321,6 +408,19 @@ impl Entitlements {
     pub fn with_term_ends_at(mut self, at: Option<DateTime<Utc>>) -> Self {
         self.term_ends_at = at;
         self
+    }
+
+    /// Grants or revokes one feature on an already-resolved value.
+    ///
+    /// This is how a per-tenant override lands (ENTITLEMENTS.md 5b, persisted). It is
+    /// applied during resolution, before the router reads the value, so §6.1 still holds:
+    /// the gate remains a mount-point decision, not a branch in domain code.
+    pub fn set_feature(&mut self, feature: Feature, enabled: bool) {
+        if enabled {
+            self.features.insert(feature);
+        } else {
+            self.features.remove(&feature);
+        }
     }
 
     pub fn has(&self, feature: Feature) -> bool {

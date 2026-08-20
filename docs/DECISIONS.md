@@ -1063,3 +1063,72 @@ through a wrapper, and it is a struct field in Rust either way.
   Every one of these gaps sat behind a passing parity test that asserted a status code and
   a couple of fields. The e2e suites added alongside this ADR drive the real journeys,
   which is the only thing that would have caught them.
+
+---
+
+## ADR-016 — Plan definitions are data the control plane owns, not config baked into the image
+
+**Status:** Accepted · **Date:** 2026-08-20 · **Refines:** [ADR-012](#adr-012) · [ENTITLEMENTS.md 5b](ENTITLEMENTS.md)
+
+### Context
+
+[ENTITLEMENTS.md 5b](ENTITLEMENTS.md) put tier definitions in `config/tiers.toml` and made
+a promise about them: *"Adding or retuning a tier must never require a release."* That
+promise held under [ADR-009](#adr-009), where a deployment was one merchant's binary on
+one merchant's machine and an operator could edit the file in place.
+
+[ADR-012](#adr-012) changed the deployment shape and quietly broke it. One process now
+serves every merchant, that process runs from a container image, and `config/tiers.toml` is
+inside the image. Retuning a plan meant a rebuild and a redeploy — which is a release, and
+which is the thing 5b said would never be required.
+
+The gap was wider than the file. `platform.subscription` already carried
+`quota_overrides` and `window_overrides`, but **nothing wrote them**: there was no API and
+no UI, so the only lever the control plane actually had was moving a merchant between three
+fixed tiers. Features had no per-tenant lever at all, so "sell the payment gateway to this
+one merchant" had no answer short of putting them on Pro and giving away the rest of it.
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| **DB row overrides the shipped TOML** (chosen) | The TOML stays the shipped default, so an untouched deployment behaves exactly as before. Editable from the control plane. One source of truth per tier at any moment | A tier the operator edits stops tracking the defaults a future release ships — stated in the UI as `edited` rather than left to be discovered |
+| Move tier definitions into the database entirely | One place to look | An empty or unreachable table means every plan is undefined. The failure mode of the storage layer becomes "nobody has any features" |
+| Merge the row into the TOML per key | Smaller writes | Needs an answer for *"the row omits `max_products` — unlimited, or unspecified?"*, and every answer to that is a plan silently granting more than the operator believes |
+| Mount the config file as a volume | No code | Moves the problem to whoever operates the volume, and gives the control-plane UI nothing to write to |
+| Let merchants edit their own plan from `/admin/*` | Self-serve | A merchant who can define what Pro includes is a merchant on Pro for free |
+
+### Decision
+
+1. **`platform.tier_definition` replaces a tier's definition wholesale when a row exists.**
+   No row means the shipped TOML governs. Replacement, not merge, for the reason above.
+2. **`platform.subscription.feature_overrides`** completes the per-tenant axis alongside
+   the quota and window overrides that already existed: `{"payment_gateway": true}` grants,
+   an explicit `false` revokes, an absent key defers to the tier.
+3. **Overrides are validated at the write boundary**, not at the next boot. ENTITLEMENTS.md
+   5b makes an unknown key abort startup; a write API can reject the request instead, so
+   the bad key never reaches the table. A stored typo would make every subsequent request
+   for the affected merchants fall back to the least-privileged entitlements — which reads
+   as an outage, days after the typo was made.
+4. **Definitions are read per request, not cached in the process.** That costs one small
+   query on top of the subscription read the tenant layer already does, and it buys an edit
+   that is live on every node immediately with no invalidation to get wrong. A cached node
+   would be serving a plan nobody is on.
+5. **The whole surface lives on `/platform/*`, behind the operator credential.** Nothing
+   about it is reachable from `/admin/*`, where the merchant's view stays read-only.
+
+### Consequences
+
+- ENTITLEMENTS.md 5b's promise is true again, and for hosted deployments for the first
+  time.
+- §6.1 still holds: overrides are applied during *resolution*, before the router reads the
+  value, so a gate remains a mount-point decision and no domain code learns that
+  entitlements exist. `scripts/check-no-domain-gates.sh` still passes.
+- The `0`-means-unlimited sentinel now spans three layers — TOML, tier row, and per-tenant
+  override — and means the same thing in all of them. The control-plane UI says
+  "unlimited" under any field holding 0 rather than letting the operator guess.
+- A tier marked `edited` no longer tracks the shipped defaults. `DELETE /platform/tiers/{tier}`
+  drops the row and returns it to them; that is the only way back, and it is a button.
+- The operator token now defines what every plan includes, not just which one a merchant is
+  on. It is compared in constant time, and it remains a placeholder for the
+  `platform_owner` actor type that belongs with the RBAC work.

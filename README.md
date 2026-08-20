@@ -105,9 +105,26 @@ export DATABASE_URL=postgres://stheno:stheno@localhost:5432/stheno
 cargo run -p stheno-server -- migrate
 cargo run -p stheno-server -- seed --demo
 cargo run -p stheno-server                    # :9000
-cd apps/admin && npm run dev                  # :7001
-cd apps/storefront && npm run dev             # :8000
+cd apps/admin && npm run dev                  # :5173  merchant dashboard
+cd apps/storefront && npm run dev             # :8000  shopper storefront
+cd apps/platform && npm run dev               # :5174  operator control plane
 ```
+
+### The control plane
+
+`apps/platform` is the operator's view: every merchant, what plan each is on, what each
+plan includes, and the negotiated exceptions that apply to one merchant alone
+([ENTITLEMENTS.md 5d](docs/ENTITLEMENTS.md), [ADR-016](docs/DECISIONS.md#adr-016)).
+
+It is gated on `STHENO_PLATFORM_TOKEN`, which the server reads at boot. **Unset means the
+whole `/platform/*` surface 404s** — off by default rather than open by default:
+
+```bash
+STHENO_PLATFORM_TOKEN=dev-platform-token cargo run -p stheno-server
+```
+
+`./scripts/dev-tenants.sh up` sets that token and stands up three tenants on three plans
+against one server, which is the fastest way to see plan changes take effect.
 
 ### Running the tests
 

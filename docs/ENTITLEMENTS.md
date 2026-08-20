@@ -200,6 +200,10 @@ Resolution: **tier defaults → env overrides → daily-job state**. Resolved at
 evaluation into an immutable `Entitlements` value. An unknown key or malformed quota **aborts
 startup** — a typo must never silently grant or deny a feature.
 
+> **Superseded in part by [5d](#5d-the-writable-layer-adr-016).** Under [ADR-012](DECISIONS.md#adr-012)
+> the TOML above ships inside a container image, so editing it *is* a release — the exact thing this
+> section promised would never be needed. It remains the shipped default; the writable layer is below.
+
 ---
 
 ## 5c. What this tier plan needs that the engine does not have
@@ -220,6 +224,72 @@ before the tier plan is sellable, and it is not a small addition.
 
 `courier_dispatch` and `fraud_score` are Pro-only and can follow 1.0 — nothing in Free or Trial
 depends on them.
+
+---
+
+## 5d. The writable layer (ADR-016)
+
+`config/tiers.toml` says what a plan means **by default**. `platform.tier_definition` says what it
+means **on this deployment**, and the control plane writes it. A tier with no row still resolves
+entirely from the TOML, so an untouched deployment behaves exactly as it did before this table
+existed.
+
+```
+platform.tier_definition
+  tier        text PRIMARY KEY   -- 'trial' | 'free' | 'pro'
+  features    jsonb              -- ["csv_export", "payment_gateway"]
+  quotas      jsonb              -- {"max_products": 100}   0 = unlimited
+  windows     jsonb              -- {"analytics_window_days": 30}
+```
+
+**A row replaces that tier wholesale.** Not a merge — a merge needs an answer for *"the row omits
+`max_products`, is that unlimited or unspecified?"*, and every answer to that is a plan silently
+granting more than the operator believes it does.
+
+Per-tenant exceptions gain the axis they were missing. `quota_overrides` and `window_overrides`
+already existed on `platform.subscription` (5b's env overrides, persisted); `feature_overrides`
+completes the set:
+
+```json
+{ "payment_gateway": true, "fraud_score": false }
+```
+
+An explicit `true` grants a feature the plan does not include, an explicit `false` revokes one it
+does, and an absent key leaves the tier's answer standing.
+
+### Resolution order
+
+```
+config/tiers.toml
+  → platform.tier_definition   (replaces the tier, if a row exists)
+  → subscription quota/window overrides
+  → subscription feature overrides
+  → Entitlements
+```
+
+Read **per request**, alongside the subscription row the tenant layer already reads. That costs one
+small query and buys an edit that is live on every node immediately, with no cache to invalidate —
+a stale node would be serving a plan nobody is on.
+
+### Where validation moved
+
+5b aborts startup on an unknown key. The write API rejects the request instead, so the bad key never
+reaches the table at all. Startup validation stays as the backstop for the TOML; it is no longer the
+first line of defence for anything an operator types.
+
+### Control-plane API
+
+| Route | Does |
+|---|---|
+| `GET /platform/tiers` | Every plan, plus the **catalog** — every feature, quota and window key the engine can gate, so the editor renders from the engine rather than from a list in TypeScript |
+| `PUT /platform/tiers/{tier}` | Replaces a plan definition. Unknown key → 400 naming it |
+| `DELETE /platform/tiers/{tier}` | Drops the row; the plan means what the TOML says again |
+| `GET /platform/tenants/{id}/subscription` | The stored row **and** what it resolves to, so an operator is never editing two JSON blobs and guessing at their product |
+| `PATCH /platform/tenants/{id}/subscription` | Tier, status, trial and term dates, and all three override blobs. Absent field leaves it alone; explicit `null` clears a date |
+
+All of it sits behind the operator credential on `/platform/*`. **None of it is reachable from
+`/admin/*`**: a merchant who can define what Pro includes is a merchant on Pro for free. The
+merchant's own `GET /admin/entitlements` (7.2) stays read-only.
 
 ---
 
@@ -364,9 +434,17 @@ new admin UI entitlements require.
 | Tier matrix | Each tier boots, mounts exactly its declared routes, and no others |
 | No domain gates | `scripts/check-no-domain-gates.sh` fails on a planted `Entitlements` reference in a module |
 | Config validation | Unknown feature key or malformed quota aborts startup |
+| Write validation (5d) | An unknown key in a plan definition or a per-tenant override is a 400 and is **not stored** |
+| Plan edit reaches the merchant | Redefining a plan changes what a merchant on it resolves to, on the next request, without a restart |
+| Overrides are per merchant | A grant to one merchant leaves every other merchant on that plan unchanged |
+| Control-plane access | An absent or wrong operator token 404s — never 401, and never 200 |
 
 The tier matrix test is the one that catches drift: as routes are added, it fails loudly when a new
 route is mounted unconditionally that should have been gated.
+
+The last four are one test, `crates/stheno-server/tests/subscription_journey.rs`, and deliberately
+so: what they prove is that an edit made in the control plane arrives in a merchant's request path,
+which no step can assert on its own.
 
 ---
 
