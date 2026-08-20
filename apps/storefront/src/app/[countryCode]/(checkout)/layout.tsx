@@ -24,12 +24,20 @@ export default function CheckoutLayout({
               Back
             </span>
           </LocalizedClientLink>
+          {/* The same logotype the rest of the site uses. This said "Medusa Store" — the
+              template's placeholder — so the one page where a shopper hands over money was
+              also the one page that named a different shop. */}
           <LocalizedClientLink
             href="/"
-            className="txt-compact-xlarge-plus text-ui-fg-subtle hover:text-ui-fg-base uppercase"
+            className="flex flex-col items-center group py-1"
             data-testid="store-link"
           >
-            Medusa Store
+            <span className="text-lg sm:text-xl font-serif tracking-[0.25em] uppercase font-bold text-zinc-950 group-hover:opacity-80 transition-opacity">
+              STHENO
+            </span>
+            <span className="text-[9px] tracking-[0.35em] text-zinc-500 uppercase -mt-1 font-sans">
+              Atelier • Edition
+            </span>
           </LocalizedClientLink>
           <div className="flex-1 basis-0" />
         </nav>

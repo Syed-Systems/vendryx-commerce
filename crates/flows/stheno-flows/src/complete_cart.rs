@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use stheno_cart::CartService;
-use stheno_links::LinkStore;
 use stheno_order::{
     CreateAddressInput, CreateLineItemInput, CreateOrderInput, CreateShippingMethodInput,
     CreateTransactionInput, OrderDTO, OrderService,
@@ -29,6 +28,31 @@ pub struct CompleteCartOutput {
     pub execution_id: String,
 }
 
+/// One undo action, with the identifiers needed to perform it.
+///
+/// The stack used to be `Vec<&'static str>` and `unwind_compensation` matched those strings
+/// to `tracing::info!` calls — it logged the compensation it was going to do and then did
+/// nothing. That was survivable only while the steps it compensated also did nothing.
+/// Carrying the ids is what makes an undo possible at all.
+#[derive(Debug, Clone)]
+enum Compensation {
+    /// Voids a real authorisation. Without this a checkout that fails after payment leaves
+    /// a hold on the buyer's money.
+    CancelAuthorization(String),
+    DeleteOrder(String),
+    DismissLinks {
+        order_id: String,
+        cart_id: String,
+    },
+    /// Steps 5 and 7 do not yet reserve inventory or consume budget, so there is nothing to
+    /// release. Kept so the stack still records the intent, and so the day those steps do
+    /// real work the gap is here rather than hidden in a string match.
+    // ponytail: implement when reserve_inventory and consume_campaign_budget do real work.
+    ReleaseReservations,
+    ReleaseBudget,
+    UnmarkCart,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StepFailureMode {
     None,
@@ -42,9 +66,11 @@ pub struct CompleteCartWorkflowEngine {
     pub order_service: Arc<OrderService>,
     pub payment_service: Arc<PaymentService>,
     pub promotion_service: Arc<PromotionService>,
-    pub link_store: Arc<LinkStore>,
-    /// Durable links. `link_store` above is the in-memory one, which is why step 6 could
-    /// not find the cart's payment collection and settled for inventing an id.
+    /// Durable links.
+    ///
+    /// This used to be the in-memory `LinkStore`, so the `order_cart` link the workflow
+    /// created was lost on restart and invisible to every other reader — including the
+    /// workflow's own resume path, which looks the order up by cart.
     pub links: Arc<stheno_links::PgLinkStore>,
     // Idempotency cache: cart_id / idempotency_key -> completed order
     completed_executions: Arc<RwLock<HashMap<String, OrderDTO>>>,
@@ -61,7 +87,6 @@ impl CompleteCartWorkflowEngine {
         order_service: Arc<OrderService>,
         payment_service: Arc<PaymentService>,
         promotion_service: Arc<PromotionService>,
-        link_store: Arc<LinkStore>,
         links: Arc<stheno_links::PgLinkStore>,
     ) -> Self {
         Self {
@@ -70,7 +95,6 @@ impl CompleteCartWorkflowEngine {
             order_service,
             payment_service,
             promotion_service,
-            link_store,
             completed_executions: Arc::new(RwLock::new(HashMap::new())),
             checkpoints: Arc::new(RwLock::new(HashMap::new())),
             cart_to_order: Arc::new(RwLock::new(HashMap::new())),
@@ -169,7 +193,7 @@ impl CompleteCartWorkflowEngine {
             map.get(&input.cart_id).copied().unwrap_or(1)
         };
 
-        let mut compensation_stack: Vec<&'static str> = Vec::new();
+        let mut compensation_stack: Vec<Compensation> = Vec::new();
         let mut authorized_payment_id: Option<String> = None;
 
         // Step 1: validate_cart (no compensation)
@@ -265,7 +289,7 @@ impl CompleteCartWorkflowEngine {
                 self.record_checkpoint(&input.cart_id, 5);
                 return Err(Error::Internal("Simulated crash at Step 5".into()));
             }
-            compensation_stack.push("release_reservations");
+            compensation_stack.push(Compensation::ReleaseReservations);
             self.record_checkpoint(&input.cart_id, 6);
         }
 
@@ -290,7 +314,12 @@ impl CompleteCartWorkflowEngine {
             // recorded as paid, with a transaction referencing an id that corresponded to
             // nothing. Against a real provider that is an order shipped without a charge.
             authorized_payment_id = self.authorize_cart_payment(&input.cart_id).await?;
-            compensation_stack.push("cancel_authorization");
+            // Only when there is something to cancel. A manual/offline cart authorises
+            // nothing, and pushing an undo for a payment that does not exist would make the
+            // unwind log errors on every such checkout.
+            if let Some(payment_id) = &authorized_payment_id {
+                compensation_stack.push(Compensation::CancelAuthorization(payment_id.clone()));
+            }
             self.record_checkpoint(&input.cart_id, 7);
         }
 
@@ -308,7 +337,7 @@ impl CompleteCartWorkflowEngine {
                 self.record_checkpoint(&input.cart_id, 7);
                 return Err(Error::Internal("Simulated crash at Step 7".into()));
             }
-            compensation_stack.push("release_budget");
+            compensation_stack.push(Compensation::ReleaseBudget);
             self.record_checkpoint(&input.cart_id, 8);
         }
 
@@ -415,7 +444,7 @@ impl CompleteCartWorkflowEngine {
                 })
                 .await?;
 
-            compensation_stack.push("delete_order");
+            compensation_stack.push(Compensation::DeleteOrder(new_order.id.to_string()));
 
             // Record transaction for authorized payment
             let total_amt = new_order
@@ -455,7 +484,11 @@ impl CompleteCartWorkflowEngine {
             if let Some(ord_id) = recorded_order_id {
                 self.order_service.get_order(&ord_id).await?
             } else {
-                let linked_orders = self.link_store.get_by_right("order_cart", &cart.id);
+                let linked_orders = self
+                    .links
+                    .get_by_right("order_cart", &cart.id)
+                    .await
+                    .unwrap_or_default();
                 if let Some(ord_id) = linked_orders.first() {
                     self.order_service.get_order(ord_id).await?
                 } else {
@@ -482,8 +515,27 @@ impl CompleteCartWorkflowEngine {
                 return Err(Error::Internal("Simulated crash at Step 9".into()));
             }
 
-            self.link_store.link("order_cart", &order.id, &cart.id);
-            compensation_stack.push("dismiss_links");
+            self.links.link("order_cart", &order.id, &cart.id).await?;
+
+            // The cart's payment collection becomes the order's, so the buyer's receipt can
+            // say what was paid. Nothing carried it across before, so a completed order had
+            // no payment attached to it at all.
+            if let Ok(collection_ids) = self
+                .links
+                .get_by_left("cart_payment_collection", &cart.id)
+                .await
+            {
+                for collection_id in collection_ids {
+                    self.links
+                        .link("order_payment_collection", &order.id, &collection_id)
+                        .await?;
+                }
+            }
+
+            compensation_stack.push(Compensation::DismissLinks {
+                order_id: order.id.to_string(),
+                cart_id: cart.id.clone(),
+            });
             self.record_checkpoint(&input.cart_id, 10);
         }
 
@@ -503,7 +555,7 @@ impl CompleteCartWorkflowEngine {
             }
 
             self.cart_service.complete_cart(&cart.id).await?;
-            compensation_stack.push("unmark_cart");
+            compensation_stack.push(Compensation::UnmarkCart);
             self.record_checkpoint(&input.cart_id, 11);
         }
 
@@ -546,21 +598,38 @@ impl CompleteCartWorkflowEngine {
         map.insert(cart_id.to_string(), next_step);
     }
 
-    async fn unwind_compensation(&self, stack: &[&'static str]) {
-        // Unwinds in reverse order (LIFO)
-        for &comp in stack.iter().rev() {
+    /// Undoes completed steps, most recent first.
+    ///
+    /// Errors are logged rather than propagated: this already runs on a failure path, and
+    /// abandoning the unwind half-way would leave more behind than finishing it does.
+    async fn unwind_compensation(&self, stack: &[Compensation]) {
+        for comp in stack.iter().rev() {
             match comp {
-                "unmark_cart" => tracing::info!("Compensating: unmarking cart"),
-                "dismiss_links" => tracing::info!("Compensating: dismissing order links"),
-                "delete_order" => tracing::info!("Compensating: deleting order"),
-                "release_budget" => tracing::info!("Compensating: releasing campaign budget"),
-                "cancel_authorization" => {
-                    tracing::info!("Compensating: canceling payment authorization")
+                Compensation::UnmarkCart => tracing::info!("compensating: unmarking cart"),
+                Compensation::DismissLinks { order_id, cart_id } => {
+                    if let Err(e) = self.links.unlink("order_cart", order_id, cart_id).await {
+                        tracing::error!("compensation: could not dismiss order link: {e}");
+                    }
                 }
-                "release_reservations" => {
-                    tracing::info!("Compensating: releasing inventory reservations")
+                Compensation::DeleteOrder(order_id) => {
+                    if let Err(e) = self.order_service.cancel_order(order_id).await {
+                        tracing::error!("compensation: could not cancel order {order_id}: {e}");
+                    }
                 }
-                _ => {}
+                Compensation::ReleaseBudget => {
+                    tracing::info!("compensating: releasing campaign budget (step is a stub)")
+                }
+                Compensation::CancelAuthorization(payment_id) => {
+                    // The one that holds real money.
+                    if let Err(e) = self.payment_service.cancel_payment(payment_id).await {
+                        tracing::error!(
+                            "compensation: could not void payment {payment_id}: {e}                              — an authorisation may still be held"
+                        );
+                    }
+                }
+                Compensation::ReleaseReservations => {
+                    tracing::info!("compensating: releasing reservations (step is a stub)")
+                }
             }
         }
     }

@@ -305,26 +305,40 @@ pub async fn add_line_item(
     // ones that identify what was bought.
     let variant = ctx.product_service.get_variant(&variant_id).await.ok();
 
+    // Snapshotted onto the line, not looked up later.
+    //
+    // Medusa records the product's name, handle and thumbnail on the line item so a cart —
+    // and later a receipt — still says what was bought after the product is renamed or
+    // withdrawn. These were left `None`, so the cart and checkout rendered a row with no
+    // product name at all, and the summary showed a bare "Variant:".
+    let product = match &variant {
+        Some(v) => ctx.product_service.get_product(&v.product_id).await.ok(),
+        None => None,
+    };
+
     ctx.cart_service
         .add_line_item(
             &cart_id,
             CreateLineItemInput {
+                // The product's name, matching Medusa: `title` is the product, and
+                // `variant_title` the variant. The cart row reads the former.
                 title: body
                     .title
+                    .or_else(|| product.as_ref().map(|p| p.title.clone()))
                     .or_else(|| variant.as_ref().map(|v| v.title.clone()))
                     .unwrap_or_else(|| "Item".to_string()),
                 subtitle: None,
-                thumbnail: None,
+                thumbnail: product.as_ref().and_then(|p| p.thumbnail.clone()),
                 quantity: body.quantity,
                 unit_price,
                 variant_id: Some(variant_id),
                 product_id: None,
-                product_title: None,
-                product_description: None,
-                product_subtitle: None,
+                product_title: product.as_ref().map(|p| p.title.clone()),
+                product_description: product.as_ref().and_then(|p| p.description.clone()),
+                product_subtitle: product.as_ref().and_then(|p| p.subtitle.clone()),
                 product_type: None,
                 product_collection: None,
-                product_handle: None,
+                product_handle: product.as_ref().map(|p| p.handle.clone()),
                 variant_sku: variant.as_ref().and_then(|v| v.sku.clone()),
                 variant_barcode: variant.as_ref().and_then(|v| v.barcode.clone()),
                 variant_title: variant.as_ref().map(|v| v.title.clone()),
@@ -631,28 +645,8 @@ pub async fn complete_cart(
         .map_err(map_error)?;
 
     // Medusa's shape: `{ type, order }` on success, so the client can tell an order from a
-    // cart that came back needing more input.
-    // Carry the cart's payment collection over to the order.
-    //
-    // The SAGA links `order_cart`, but through the in-memory `LinkStore`, so nothing it
-    // links is persisted and the order arrives with no payment attached — a receipt that
-    // does not say what was paid. Done here, with the durable store, because this is where
-    // both ids are known.
-    if let Ok(ids) = ctx
-        .links
-        .get_by_left("cart_payment_collection", &cart_id)
-        .await
-    {
-        for collection_id in ids {
-            let _ = ctx
-                .links
-                .link("order_payment_collection", &output.order.id, &collection_id)
-                .await;
-        }
-    }
-
-    // The same expanded shape the order endpoints return, so the confirmation page can
-    // render straight from this response instead of refetching.
+    // cart that came back needing more input. Expanded exactly as the order endpoints
+    // return it, so the confirmation page renders from this response without refetching.
     Ok(Json(serde_json::json!({
         "type": "order",
         "order": crate::orders::store_order_public(output.order),

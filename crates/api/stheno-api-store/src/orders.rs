@@ -61,16 +61,7 @@ pub struct StoreOrder {
     pub payment_collections: Vec<stheno_payment::PaymentCollectionDTO>,
 }
 
-/// Derives the flat totals from the order's own lines.
-///
-/// `total` comes from the order summary, which the complete-cart SAGA computed and is the
-/// figure that was actually charged — not a re-derivation that could disagree with it.
-///
-/// `tax_total` and `discount_total` are reported as zero because `OrderDTO`'s line items
-/// carry neither adjustments nor tax lines (unlike the cart's), so there is nothing to
-/// itemise from. A discounted or taxed order therefore shows the correct total with the
-/// breakdown folded into it, rather than a fabricated split.
-// ponytail: itemise these once order line items carry adjustments and tax lines.
+/// `store_order` for callers outside this module (the cart-completion response).
 pub fn store_order_public(order: OrderDTO) -> StoreOrder {
     store_order(order)
 }
@@ -98,28 +89,77 @@ async fn store_order_expanded(ctx: &StoreOrderContext, order: OrderDTO) -> Store
     expanded
 }
 
+/// Derives the flat totals a storefront reads from the order's own rows.
+///
+/// `total` comes from the order summary — the figure the SAGA computed and the buyer was
+/// actually charged — rather than a re-derivation that could quietly disagree with it. The
+/// breakdown around it is summed from the order's adjustments and tax lines.
 fn store_order(order: OrderDTO) -> StoreOrder {
-    let item_subtotal: Decimal = order
+    let line_total = |i: &stheno_order::LineItemDTO| i.unit_price * Decimal::from(i.quantity);
+    let discounts_on = |adjustments: &[stheno_order::LineItemAdjustmentDTO]| -> Decimal {
+        adjustments.iter().map(|a| a.amount).sum()
+    };
+
+    let item_subtotal: Decimal = order.items.iter().map(line_total).sum();
+    let shipping_subtotal: Decimal = order.shipping_methods.iter().map(|m| m.amount).sum();
+
+    // Promotions are stored as adjustments against the line they discount, and against the
+    // shipping method for delivery promotions.
+    let item_discount: Decimal = order
         .items
         .iter()
-        .map(|i| i.unit_price * Decimal::from(i.quantity))
+        .map(|i| discounts_on(&i.adjustments))
         .sum();
-    let shipping_total: Decimal = order.shipping_methods.iter().map(|m| m.amount).sum();
-    let total = order
-        .summary
-        .as_ref()
-        .map(|s| s.current_order_total)
-        .unwrap_or(item_subtotal + shipping_total);
+    let shipping_discount: Decimal = order
+        .shipping_methods
+        .iter()
+        .flat_map(|m| m.adjustments.iter().map(|a| a.amount))
+        .sum();
+    let discount_total = item_discount + shipping_discount;
+
+    // Tax lines carry a rate, not an amount, and apply after discounts — taxing the
+    // pre-discount figure would overcharge every discounted order.
+    let hundred = Decimal::from(100);
+    let item_tax: Decimal = order
+        .items
+        .iter()
+        .map(|i| {
+            let taxable = line_total(i) - discounts_on(&i.adjustments);
+            i.tax_lines
+                .iter()
+                .map(|t| taxable * t.rate / hundred)
+                .sum::<Decimal>()
+        })
+        .sum();
+    let shipping_tax: Decimal = order
+        .shipping_methods
+        .iter()
+        .map(|m| {
+            let discounts: Decimal = m.adjustments.iter().map(|a| a.amount).sum();
+            let taxable = m.amount - discounts;
+            m.tax_lines
+                .iter()
+                .map(|t| taxable * t.rate / hundred)
+                .sum::<Decimal>()
+        })
+        .sum();
+    let tax_total = item_tax + shipping_tax;
+
+    let subtotal = item_subtotal + shipping_subtotal - discount_total;
 
     StoreOrder {
         item_subtotal,
-        item_total: item_subtotal,
-        shipping_subtotal: shipping_total,
-        shipping_total,
-        tax_total: Decimal::ZERO,
-        discount_total: Decimal::ZERO,
-        subtotal: item_subtotal,
-        total,
+        item_total: item_subtotal - item_discount,
+        shipping_subtotal,
+        shipping_total: shipping_subtotal - shipping_discount,
+        tax_total,
+        discount_total,
+        subtotal,
+        total: order
+            .summary
+            .as_ref()
+            .map(|s| s.current_order_total)
+            .unwrap_or(subtotal + tax_total),
         payment_collections: Vec::new(),
         base: order,
     }

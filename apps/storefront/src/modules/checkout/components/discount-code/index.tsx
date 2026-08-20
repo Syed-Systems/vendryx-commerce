@@ -63,7 +63,8 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
             <button
               onClick={() => setIsOpen(!isOpen)}
               type="button"
-              className="txt-medium text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+              // The palette has no blue in it; `text-ui-fg-interactive` is the template's.
+              className="txt-medium text-zinc-700 underline underline-offset-4 hover:text-zinc-950 transition-colors"
               data-testid="add-discount-button"
             >
               Add Promotion Code(s)

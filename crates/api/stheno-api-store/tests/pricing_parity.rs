@@ -76,7 +76,6 @@ async fn test_store_pricing_endpoints_parity() {
             order_service.clone(),
             payment_service.clone(),
             std::sync::Arc::new(stheno_promotion::PromotionService::new(pool.clone())),
-            std::sync::Arc::new(stheno_links::LinkStore::new()),
             std::sync::Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
         )),
         product_service,

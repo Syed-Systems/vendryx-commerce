@@ -457,6 +457,56 @@ impl PaymentService {
         self.get_payment(&created_payment.id.to_string()).await
     }
 
+    /// Voids an authorised payment, releasing the hold with the provider.
+    ///
+    /// The complete-cart SAGA lists `cancel_authorization` as its compensation for the
+    /// authorisation step. That compensation was a `tracing::info!` and nothing else, which
+    /// was survivable only while the step it compensated also did nothing. Now that
+    /// authorisation is real, a checkout that fails after it would leave a genuine hold on
+    /// the buyer's money with no path to release it.
+    pub async fn cancel_payment(&self, payment_id: &str) -> Result<PaymentDTO> {
+        let payment = self.payments.retrieve(None, payment_id).await?;
+        if payment.canceled_at.is_some() {
+            // Compensation runs on an unwind path that may itself be retried; voiding twice
+            // must not be an error.
+            return self.get_payment(payment_id).await;
+        }
+
+        let provider = self.get_provider(&payment.provider_id)?;
+        let out = provider
+            .cancel(CancelInput {
+                payment_id: payment_id.to_string(),
+                data: payment.data.clone(),
+            })
+            .await?;
+
+        let now = Utc::now();
+        let mut updated = payment.clone();
+        updated.canceled_at = Some(now);
+        updated.data = Some(out.data);
+        updated.updated_at = now;
+        let _ = self.payments.update(None, payment_id, updated).await;
+
+        // The collection no longer holds this amount.
+        if let Ok(mut col) = self
+            .collections
+            .retrieve(None, &payment.payment_collection_id)
+            .await
+        {
+            col.authorized_amount -= payment.amount;
+            col.status = if col.authorized_amount > dec!(0) {
+                "authorized".to_string()
+            } else {
+                "canceled".to_string()
+            };
+            col.updated_at = now;
+            let collection_id = payment.payment_collection_id.clone();
+            let _ = self.collections.update(None, &collection_id, col).await;
+        }
+
+        self.get_payment(payment_id).await
+    }
+
     pub async fn get_payment(&self, id: &str) -> Result<PaymentDTO> {
         let p = self.payments.retrieve(None, id).await?;
         if p.deleted_at.is_some() {

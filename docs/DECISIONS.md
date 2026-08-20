@@ -314,6 +314,30 @@ Property-tested at every ISO 4217 precision, because PRD risk R6 is a silent fin
 Medusa's `raw_amount` jsonb columns are written on export for compatibility and never read as
 truth.
 
+### Amendment (2026-08-20) — amounts serialize as JSON strings, deliberately
+
+`rust_decimal` serializes to a JSON **string** (`"120"`, `"25.000000"`), where Medusa returns a
+JSON number. That difference is repeatedly mistaken for a wire-compatibility defect, so it is
+recorded here as a decision rather than left to be rediscovered.
+
+Emitting a number costs one of two things, and neither is worth it:
+
+- **Via `f64`** (`rust_decimal/serde-float`): reintroduces the exact representation this ADR
+  exists to forbid. A total that round-trips as `0.30000000000000004` is not a formatting
+  quirk, it is a wrong number in a payment path.
+- **Via `serde_json/arbitrary_precision`**: exact, but it is a *global* feature. It changes
+  `serde_json::Value::Number` semantics for every crate in the workspace, including code that
+  reads `as_f64`/`as_i64`, for a cosmetic gain on the wire.
+
+The string form is lossless and unambiguous, and no client is broken by it: JavaScript coerces
+in arithmetic (`original - calculated`), and `Intl.NumberFormat().format("120.000000")` returns
+`$120.00` — verified against the storefront's own `convertToLocale` and `getPercentageDiff`.
+
+What is worth fixing is *inconsistency*: the cart returned `"25.000000"` where a product
+returned `"25"`, because `PricingService` normalizes scale on the way out and the cart did not.
+Scale is a property of the column, not of the price. Compare amounts by value, never by their
+JSON token — the parity suites do.
+
 ---
 
 <a id="adr-007"></a>

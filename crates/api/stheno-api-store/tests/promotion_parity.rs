@@ -196,7 +196,6 @@ fn cart_context(
             std::sync::Arc::new(stheno_order::OrderService::new(pool.clone())),
             std::sync::Arc::new(stheno_payment::PaymentService::new(pool.clone())),
             std::sync::Arc::new(stheno_promotion::PromotionService::new(pool.clone())),
-            std::sync::Arc::new(stheno_links::LinkStore::new()),
             std::sync::Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
         )),
         payment_service: std::sync::Arc::new(stheno_payment::PaymentService::new(pool.clone())),

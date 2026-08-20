@@ -10,7 +10,6 @@ use stheno_cart::{
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
 use stheno_flows::{CompleteCartInput, CompleteCartWorkflowEngine, StepFailureMode};
-use stheno_links::LinkStore;
 use stheno_order::OrderService;
 use stheno_payment::PaymentService;
 use stheno_promotion::PromotionService;
@@ -81,14 +80,12 @@ async fn test_checkout_atomicity_commit_together() {
     let order_service = Arc::new(OrderService::new(pool.clone()));
     let payment_service = Arc::new(PaymentService::new(pool.clone()));
     let promotion_service = Arc::new(PromotionService::new(pool.clone()));
-    let link_store = Arc::new(LinkStore::new());
 
     let engine = CompleteCartWorkflowEngine::new(
         cart_service.clone(),
         order_service.clone(),
         payment_service.clone(),
         promotion_service.clone(),
-        link_store.clone(),
         Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
     );
 
@@ -135,14 +132,12 @@ async fn test_checkout_atomicity_rollback_on_failure() {
     let order_service = Arc::new(OrderService::new(pool.clone()));
     let payment_service = Arc::new(PaymentService::new(pool.clone()));
     let promotion_service = Arc::new(PromotionService::new(pool.clone()));
-    let link_store = Arc::new(LinkStore::new());
 
     let engine = CompleteCartWorkflowEngine::new(
         cart_service.clone(),
         order_service.clone(),
         payment_service.clone(),
         promotion_service.clone(),
-        link_store.clone(),
         Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
     );
 

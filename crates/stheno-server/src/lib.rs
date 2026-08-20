@@ -600,7 +600,6 @@ impl AppServer {
             order_service.clone(),
             payment_service.clone(),
             promotion_service.clone(),
-            Arc::new(stheno_links::LinkStore::default()),
             Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
         ));
         let return_flow = Arc::new(ReturnWorkflowEngine::new(

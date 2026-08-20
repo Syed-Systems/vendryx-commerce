@@ -7,7 +7,6 @@ use stheno_cart::{
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
 use stheno_flows::{CompleteCartInput, CompleteCartWorkflowEngine, StepFailureMode};
-use stheno_links::LinkStore;
 use stheno_order::OrderService;
 use stheno_payment::PaymentService;
 use stheno_promotion::PromotionService;
@@ -20,14 +19,12 @@ async fn test_complete_cart_all_11_steps_happy_path() {
     let order_service = Arc::new(OrderService::new(pool.clone()));
     let payment_service = Arc::new(PaymentService::new(pool.clone()));
     let promotion_service = Arc::new(PromotionService::new(pool.clone()));
-    let link_store = Arc::new(LinkStore::new());
 
     let engine = CompleteCartWorkflowEngine::new(
         cart_service.clone(),
         order_service.clone(),
         payment_service.clone(),
         promotion_service.clone(),
-        link_store.clone(),
         Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
     );
 
@@ -126,7 +123,13 @@ async fn test_complete_cart_all_11_steps_happy_path() {
     let completed_cart = cart_service.get_cart(&cart.id).await.expect("cart fetched");
     assert!(completed_cart.completed_at.is_some());
 
-    // Verify order_cart link
-    let linked_carts = link_store.get_by_left("order_cart", &output.order.id);
+    // The order_cart link, read back from the database rather than from an in-memory map.
+    // It used to be written to `LinkStore`, so it survived only as long as the process did
+    // — and the workflow's own resume path looks the order up through this link.
+    let links = stheno_links::PgLinkStore::new(pool.clone());
+    let linked_carts = links
+        .get_by_left("order_cart", &output.order.id)
+        .await
+        .expect("read order_cart link");
     assert_eq!(linked_carts, vec![cart.id]);
 }
