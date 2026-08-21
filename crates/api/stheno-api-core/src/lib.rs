@@ -4,8 +4,8 @@ pub mod entitlements;
 pub mod tenant_entitlements;
 
 pub use entitlements::{
-    Entitlements, EntitlementsError, Feature, QuotaKey, QuotaState, Tier, TierConfig,
-    TierDefinition, WindowKey,
+    BillingInterval, Entitlements, EntitlementsError, Feature, QuotaKey, QuotaState, Tier,
+    TierConfig, TierDefinition, TierPricing, WindowKey,
 };
 pub use tenant_entitlements::{overlay_tier_rows, resolve_for_tenant, TenantPlan, TierRow};
 

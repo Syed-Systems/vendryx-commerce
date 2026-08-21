@@ -9,3 +9,6 @@ apps/admin/shots/
 apps/admin/test-results/
 apps/admin/playwright-report/
 .dev-tenants/
+
+# Agent orchestration scratch (per-task specs and review notes), not project source.
+.orchestration/

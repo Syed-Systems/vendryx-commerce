@@ -85,6 +85,46 @@ All runtime configuration is supplied via environment variables. Sensitive value
 | `S3_ACCESS_KEY_ID` | String | Optional | Storage IAM access key. |
 | `S3_SECRET_ACCESS_KEY` | String | Optional | Storage IAM secret key. |
 | `S3_ENDPOINT` | String (URI) | Optional | Custom S3 endpoint (e.g. MinIO, Cloudflare R2). |
+| `STHENO_PLATFORM_TOKEN` | String | Optional | Bootstrap credential for the control plane. **Unset disables `/platform/*` entirely** — the surface 404s rather than opening. See §3.1. |
+| `STHENO_TENANT` | String | Optional | Fallback tenant for a single-merchant self-hosted install with no domain registry (ADR-009 shape, still supported). |
+
+---
+
+### 3.1 The control-plane credential
+
+`/platform/*` reads and writes across **every** tenant, outside the RLS layer
+([ADR-012](DECISIONS.md#adr-012)). It is the highest-privilege surface in the deployment,
+and it is credentialed separately from every merchant account.
+
+Two credential kinds reach it, and they are not equivalent:
+
+| | Bootstrap token | Named operator |
+|---|---|---|
+| Storage | `STHENO_PLATFORM_TOKEN` in the environment | `platform.operator`, SHA-256 of the token |
+| Identifies | a secret | a person |
+| Audited as | `op_bootstrap` | their name |
+| Revoke one holder | not possible | `DELETE /platform/operators/{id}` |
+| Rotate | changes it for everyone at once | issue new, revoke old, nobody else disturbed |
+
+**Operational rules:**
+
+1. **Inject `STHENO_PLATFORM_TOKEN` as a Secret**, never as a plain env value in a manifest
+   or a `values.yaml`. It is a break-glass credential to the whole estate.
+2. **Issue a named credential per person on first deploy**, and use those. A row recorded
+   against `op_bootstrap` cannot say which of three people made the change.
+3. **Leave the bootstrap token configured.** It is the way back in if every named
+   credential is revoked or lost — a control plane that can lock its owner out of itself
+   is a worse failure than a shared secret. Retiring it once the team is established is
+   [PHASE4_TASKS.md](PHASE4_TASKS.md) P36-05.
+4. **Unsetting it does not disable named operators** — it only closes the bootstrap path.
+   The surface stays reachable by anyone holding a live `op_...` credential.
+5. **On suspected compromise**, revoke the affected credential first (it takes effect on
+   the next request, with no cache to expire), then read
+   `GET /platform/audit` to establish what it did. Revocation does not delete its rows.
+
+The token cannot be recovered after issue. Only its SHA-256 is stored, so a database read,
+a backup, or a support request cannot produce it; a lost credential is replaced, not
+recovered.
 
 ---
 

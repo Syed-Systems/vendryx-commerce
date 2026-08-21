@@ -451,8 +451,14 @@ which no step can assert on its own.
 ## 9. What this deliberately does not include
 
 - **No multi-tenancy.** One deployment per store ([PRD NG2](PRD.md)).
-- **No usage-based metering or billing.** Entitlements say what is *allowed*; billing systems say
-  what is *owed*. Integrate a billing provider; do not build one here.
+- **No usage-based metering.** Entitlements say what is *allowed*; billing systems say what is
+  *owed*. Every quota here is a cap, not a meter, and nothing counts consumption for a price.
+  **Amended by [ADR-017](DECISIONS.md#adr-017) (2026-08-21):** the original bullet also said
+  *"integrate a billing provider; do not build one here"*, which was correct about the engine
+  and was read as a decision about the product. No provider can collect BDT from bKash or
+  Nagad, so subscription invoicing and collection are first-party and live in the `platform`
+  schema. The warning still holds for metering, revenue recognition and multi-currency
+  dunning — none of those is built.
 - **No in-domain feature branching** (§5.1).
 - **No licence server.** Config now, signed licence file when self-hosting becomes real (§4.3).
 - **No per-user or per-role feature gates.** That is RBAC's job, and it is a separate axis.

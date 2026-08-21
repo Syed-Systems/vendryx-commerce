@@ -4,11 +4,29 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use serde_json::json;
+use std::sync::Arc;
 use stheno_payment::*;
 use stheno_types::Result;
 
 pub struct OfflinePaymentProvider {
     id: String,
+}
+
+pub struct OfflinePaymentProviderFactory;
+
+impl PaymentProviderFactory for OfflinePaymentProviderFactory {
+    fn provider_id(&self) -> &str {
+        "pp_system_default"
+    }
+
+    fn credential_schema(&self) -> &'static [CredentialField] {
+        &[]
+    }
+
+    fn build(&self, creds: &CredentialMap) -> Result<Arc<dyn PaymentProvider>> {
+        validate_credential_map(self.credential_schema(), creds)?;
+        Ok(Arc::new(OfflinePaymentProvider::default()))
+    }
 }
 
 impl OfflinePaymentProvider {

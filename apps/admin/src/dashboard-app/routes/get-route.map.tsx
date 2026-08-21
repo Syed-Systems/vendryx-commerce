@@ -2147,6 +2147,13 @@ export function getRouteMap({
               ],
             },
             {
+              path: "payment-providers",
+              lazy: () => import("../../routes/payment-providers"),
+              handle: {
+                breadcrumb: () => "Payment Providers",
+              },
+            },
+            {
               path: "return-reasons",
               element: <Outlet />,
               handle: {

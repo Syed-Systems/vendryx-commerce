@@ -3,6 +3,13 @@
 # 0 means unlimited for both quotas and windows. One sentinel, so a missing value
 # can never accidentally mean "unrestricted".
 #
+# `price` is a STRING, not a TOML float. TOML has no decimal type, so `price = 1500.00`
+# would parse as an f64 -- which ADR-006 forbids anywhere near money, and would forbid it
+# silently, because 1500.00 survives a float round trip and 1499.95 does not.
+#
+# A plan with no `price` is NOT sold. That is different from free: free is a price of
+# zero. A billing run skips an unpriced plan rather than invoicing it for nothing.
+#
 # Adding or retuning a tier must never require a release: this file ships with the
 # binary and is overridable per deployment.
 
@@ -20,7 +27,11 @@ windows       = { analytics_window_days = 30 }
 
 [pro]
 features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic",
-                 "payment_gateway", "courier_dispatch", "fraud_score", "custom_domain"]
+                 "payment_gateway", "courier_dispatch", "fraud_score", "custom_domain",
+                 "custom_theme", "branding"]
 quotas        = { max_products = 0, max_staff_seats = 10 }
 windows       = { analytics_window_days = 0 }
-term_months   = [6, 12]                       # no month-to-month
+term_months   = [6, 12]                       # commitment length, not billing interval
+price         = "1500.00"                     # BDT/month (ADR-017)
+currency      = "bdt"
+interval      = "month"

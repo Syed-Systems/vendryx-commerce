@@ -23,6 +23,7 @@ use stheno_currency::CurrencyService;
 use stheno_customer::CustomerService;
 use stheno_fulfillment::FulfillmentService;
 use stheno_inventory::InventoryService;
+use stheno_links::PgLinkStore;
 use stheno_order::OrderService;
 use stheno_payment::PaymentService;
 use stheno_pricing::PricingService;
@@ -54,6 +55,7 @@ pub struct AdminApiContext {
     pub currency_service: Arc<CurrencyService>,
     pub tax_service: Arc<TaxService>,
     pub sales_channel_service: Arc<SalesChannelService>,
+    pub links: Arc<PgLinkStore>,
     pub reporting_service: Option<Arc<stheno_reporting::ReportingService>>,
 }
 
@@ -323,12 +325,16 @@ pub fn admin_config_routes(
     currency_service: Arc<CurrencyService>,
     tax_service: Arc<TaxService>,
     sales_channel_service: Arc<SalesChannelService>,
+    payment_service: Arc<PaymentService>,
+    links: Arc<PgLinkStore>,
 ) -> Router {
     let ctx = ConfigContext {
         region_service,
         currency_service,
         tax_service,
         sales_channel_service,
+        payment_service,
+        links,
     };
     Router::new()
         // Regions
@@ -387,6 +393,15 @@ pub fn admin_config_routes(
             get(config::list_payment_providers),
         )
         .route(
+            "/admin/payment-providers/{provider_id}/credentials",
+            post(config::upsert_payment_provider_credentials),
+        )
+        .route(
+            "/admin/regions/{region_id}/payment-providers/{provider_id}",
+            post(config::enable_region_payment_provider)
+                .delete(config::disable_region_payment_provider),
+        )
+        .route(
             "/admin/payment-collections",
             get(config::list_payment_collections),
         )
@@ -410,7 +425,7 @@ pub fn admin_routes(ctx: AdminApiContext) -> Router {
         .merge(admin_order_routes(
             ctx.order_service,
             ctx.fulfillment_service,
-            ctx.payment_service,
+            ctx.payment_service.clone(),
         ))
         .merge(admin_customer_routes(ctx.customer_service))
         .merge(admin_promotion_routes(ctx.promotion_service))
@@ -419,6 +434,8 @@ pub fn admin_routes(ctx: AdminApiContext) -> Router {
             ctx.currency_service,
             ctx.tax_service,
             ctx.sales_channel_service,
+            ctx.payment_service,
+            ctx.links,
         ));
 
     if let Some(reporting) = ctx.reporting_service {

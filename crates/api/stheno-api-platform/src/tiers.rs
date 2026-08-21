@@ -26,7 +26,7 @@ use stheno_api_core::{
 };
 use stheno_platform::TierDefinitionDTO;
 
-use crate::{authorised, bad_request, deny, effective_tier_config, PlatformApiContext};
+use crate::{actor, bad_request, deny, effective_tier_config, record, PlatformApiContext};
 
 /// One plan as the control plane sees it.
 #[derive(Debug, Serialize)]
@@ -86,7 +86,7 @@ fn view(config: &TierConfig, tier: Tier, stored: bool) -> Result<TierView, Entit
 
 /// `GET /platform/tiers` — every plan, plus the full key universe the UI renders from.
 pub async fn get_tiers(State(ctx): State<PlatformApiContext>, headers: HeaderMap) -> Response {
-    if !authorised(&ctx, &headers) {
+    if actor(&ctx, &headers).await.is_none() {
         return deny();
     }
 
@@ -158,9 +158,9 @@ pub async fn put_tier(
     Path(tier): Path<String>,
     Json(body): Json<TierDefinitionBody>,
 ) -> Response {
-    if !authorised(&ctx, &headers) {
+    let Some(actor) = actor(&ctx, &headers).await else {
         return deny();
-    }
+    };
 
     let Ok(parsed) = tier.parse::<Tier>() else {
         return bad_request(format!("unknown tier {tier:?}"));
@@ -203,7 +203,24 @@ pub async fn put_tier(
     // instead of on the next merchant's request.
     let config = effective_tier_config(&ctx).await;
     match view(&config, parsed, true) {
-        Ok(v) => Json(json!({ "tier": v })).into_response(),
+        Ok(v) => {
+            // Recorded as the plan the merchants on it now get, not as the request body:
+            // this is what the router will actually mount, resolution included.
+            record(
+                &ctx,
+                &actor,
+                "tier.define",
+                "tier",
+                parsed.as_str(),
+                Some(json!({
+                    "features": v.features,
+                    "quotas": v.quotas,
+                    "windows": v.windows,
+                })),
+            )
+            .await;
+            Json(json!({ "tier": v })).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "type": "unexpected_state", "message": e.to_string() })),
@@ -218,9 +235,9 @@ pub async fn delete_tier(
     headers: HeaderMap,
     Path(tier): Path<String>,
 ) -> Response {
-    if !authorised(&ctx, &headers) {
+    let Some(actor) = actor(&ctx, &headers).await else {
         return deny();
-    }
+    };
 
     let Ok(parsed) = tier.parse::<Tier>() else {
         return bad_request(format!("unknown tier {tier:?}"));
@@ -231,7 +248,24 @@ pub async fn delete_tier(
 
     let config = effective_tier_config(&ctx).await;
     match view(&config, parsed, false) {
-        Ok(v) => Json(json!({ "tier": v })).into_response(),
+        Ok(v) => {
+            record(
+                &ctx,
+                &actor,
+                "tier.reset",
+                "tier",
+                parsed.as_str(),
+                Some(json!({
+                    "restored_to_shipped_default": {
+                        "features": v.features,
+                        "quotas": v.quotas,
+                        "windows": v.windows,
+                    }
+                })),
+            )
+            .await;
+            Json(json!({ "tier": v })).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "type": "unexpected_state", "message": e.to_string() })),

@@ -13,3 +13,6 @@ axum = { workspace = true }
 stheno-types = { workspace = true }
 chrono = { workspace = true }
 toml = { workspace = true }
+# Prices are exact decimals: ADR-006 forbids f64 anywhere near money, and TOML has no
+# decimal type, so a price is parsed from a string rather than a TOML float.
+rust_decimal = { workspace = true }

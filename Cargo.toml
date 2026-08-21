@@ -45,6 +45,8 @@ members = [
     "crates/modules/stheno-reporting",
     "crates/modules/stheno-demo",
     "crates/providers/stheno-payment-stripe",
+    "crates/providers/stheno-payment-sslcommerz",
+    "crates/providers/stheno-payment-bkash",
     "crates/providers/stheno-payment-offline",
     "crates/providers/stheno-fulfillment-manual",
     "crates/providers/stheno-file-local",
@@ -126,6 +128,8 @@ stheno-order-change = { path = "crates/modules/stheno-order-change", version = "
 stheno-reporting = { path = "crates/modules/stheno-reporting", version = "0.1.0" }
 stheno-payment-offline = { path = "crates/providers/stheno-payment-offline", version = "0.1.0" }
 stheno-payment-stripe = { path = "crates/providers/stheno-payment-stripe", version = "0.1.0" }
+stheno-payment-sslcommerz = { path = "crates/providers/stheno-payment-sslcommerz", version = "0.1.0" }
+stheno-payment-bkash = { path = "crates/providers/stheno-payment-bkash", version = "0.1.0" }
 stheno-fulfillment-manual = { path = "crates/providers/stheno-fulfillment-manual", version = "0.1.0" }
 stheno-file-local = { path = "crates/providers/stheno-file-local", version = "0.1.0" }
 stheno-notification-webpush = { path = "crates/providers/stheno-notification-webpush", version = "0.1.0" }
@@ -175,6 +179,7 @@ diesel_migrations = { version = "2.2", default-features = false }
 deadpool = "0.12"
 
 # Auth & Security
+aes-gcm = "0.10"
 jsonwebtoken = "9.3"
 argon2 = { version = "0.5", features = ["std"] }
 scrypt = "0.11"

@@ -115,9 +115,11 @@ cd apps/platform && npm run dev               # :5174  operator control plane
 `apps/platform` is the operator's view: every merchant, what plan each is on, what each
 plan includes, and the negotiated exceptions that apply to one merchant alone
 ([ENTITLEMENTS.md 5d](docs/ENTITLEMENTS.md), [ADR-016](docs/DECISIONS.md#adr-016)).
+Its full scope — what it is for, and how much of it exists — is
+[CONTROL_PLANE.md](docs/CONTROL_PLANE.md).
 
-It is gated on `STHENO_PLATFORM_TOKEN`, which the server reads at boot. **Unset means the
-whole `/platform/*` surface 404s** — off by default rather than open by default:
+**It is off unless a credential is configured.** `STHENO_PLATFORM_TOKEN` is read at boot;
+unset means the whole `/platform/*` surface 404s. Off by default, never open by default:
 
 ```bash
 STHENO_PLATFORM_TOKEN=dev-platform-token cargo run -p stheno-server
@@ -125,6 +127,45 @@ STHENO_PLATFORM_TOKEN=dev-platform-token cargo run -p stheno-server
 
 `./scripts/dev-tenants.sh up` sets that token and stands up three tenants on three plans
 against one server, which is the fastest way to see plan changes take effect.
+
+#### Two kinds of credential
+
+| | Bootstrap token | Named operator |
+|---|---|---|
+| Where it lives | `STHENO_PLATFORM_TOKEN`, in the environment | a `platform.operator` row, hashed |
+| Who it identifies | nobody — it is a shared secret | one person |
+| Audited as | `op_bootstrap` | their name |
+| Revoke one holder | impossible; rotating it locks everyone out | `DELETE /platform/operators/{id}` |
+
+**Use the bootstrap token to issue the first named credential, then stop using it.** Every
+control-plane write is recorded, and a write recorded against `op_bootstrap` cannot tell
+you which of three people made it.
+
+```bash
+# Issue the first operator. The token in the response is shown once and is not
+# recoverable afterwards -- only its SHA-256 is stored.
+curl -sX POST localhost:9000/platform/operators   -H "Authorization: Bearer $STHENO_PLATFORM_TOKEN"   -H 'Content-Type: application/json'   -d '{"name":"Ayesha"}'
+
+# From then on, use that token.
+curl -s localhost:9000/platform/tenants -H "Authorization: Bearer op_..."
+
+# Who did what, newest first. Cross-tenant on purpose.
+curl -s localhost:9000/platform/audit -H "Authorization: Bearer op_..."
+```
+
+**Rotation is issue-then-revoke, in that order**, and it disturbs nobody else:
+
+```bash
+curl -sX POST localhost:9000/platform/operators   -H "Authorization: Bearer op_old" -d '{"name":"Ayesha"}'
+curl -sX DELETE localhost:9000/platform/operators/op_01J... -H "Authorization: Bearer op_new"
+```
+
+The bootstrap token stays valid after named credentials exist, deliberately: revoking the
+last named credential must not be able to lock the owner out of their own control plane.
+Retiring it once the team is established is [PHASE4_TASKS.md](docs/PHASE4_TASKS.md) P36-05.
+
+A revoked credential stops working immediately and stays listed, so an access review can
+tell "revoked" apart from "never issued". The audit rows it wrote keep naming it.
 
 ### Running the tests
 

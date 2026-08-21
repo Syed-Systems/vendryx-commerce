@@ -204,7 +204,11 @@ async fn an_operator_can_control_every_plan_and_every_subscription() {
             .unwrap(),
     )
     .await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "a wrong token looks the same");
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "a wrong token looks the same"
+    );
 
     // -- 3. The plans as shipped ---------------------------------------------------------
     let (status, plans) = operator(&app, "GET", "/platform/tiers", None).await;
@@ -355,14 +359,11 @@ async fn an_operator_can_control_every_plan_and_every_subscription() {
     assert_eq!(quota_limit(&rival, "max_products"), Some(100));
 
     // A patch that names one field leaves the rest alone — the grant from step 8 survives.
-    let (_, sub) = operator(
-        &app,
-        "GET",
-        "/platform/tenants/ten_acme/subscription",
-        None,
-    )
-    .await;
-    assert_eq!(sub["subscription"]["feature_overrides"]["payment_gateway"], json!(true));
+    let (_, sub) = operator(&app, "GET", "/platform/tenants/ten_acme/subscription", None).await;
+    assert_eq!(
+        sub["subscription"]["feature_overrides"]["payment_gateway"],
+        json!(true)
+    );
 
     // -- 10. Upgrade, then revoke one thing ----------------------------------------------
     let (status, _) = operator(
@@ -382,7 +383,10 @@ async fn an_operator_can_control_every_plan_and_every_subscription() {
     let (_, acme) = as_merchant(&app, ACME, &acme_token, "/admin/entitlements").await;
     let acme_features = features_of(&acme);
     assert_eq!(acme["tier"], "pro");
-    assert!(acme_features.contains(&"courier_dispatch".to_string()), "pro grants it");
+    assert!(
+        acme_features.contains(&"courier_dispatch".to_string()),
+        "pro grants it"
+    );
     assert!(
         !acme_features.contains(&"fraud_score".to_string()),
         "an explicit false revokes a feature the plan grants"

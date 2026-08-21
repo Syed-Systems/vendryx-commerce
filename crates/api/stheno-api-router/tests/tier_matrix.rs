@@ -53,6 +53,12 @@ fn each_tier_mounts_exactly_its_declared_features() {
         Feature::CourierDispatch,
         Feature::FraudScore,
         Feature::CustomDomain,
+        // P35-01 added these two to `[pro]` in config/tiers.toml and did not update this
+        // list, so the drift catcher was red from that moment — exactly as designed, and
+        // unnoticed because `cargo test --workspace` was not being run. They gate P26/P27,
+        // which do not exist yet; the gate shipping before the feature is deliberate.
+        Feature::CustomTheme,
+        Feature::Branding,
     ]);
     pro.sort();
     assert_eq!(mounted_features(&resolve(Tier::Pro)), pro);
@@ -67,6 +73,8 @@ fn paid_only_features_never_leak_into_free_or_trial() {
             Feature::CourierDispatch,
             Feature::FraudScore,
             Feature::CustomDomain,
+            Feature::CustomTheme,
+            Feature::Branding,
         ] {
             assert!(!ent.has(paid), "{:?} must not expose {:?}", tier, paid);
         }

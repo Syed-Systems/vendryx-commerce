@@ -1,4 +1,4 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -89,6 +89,11 @@ pub struct PaymentProviderItem {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct ListPaymentProvidersQuery {
+    pub region_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct StoreCreatePaymentSessionRequest {
     pub provider_id: String,
     pub context: Option<serde_json::Value>,
@@ -155,20 +160,48 @@ pub async fn authorize_payment_session(
 }
 
 pub async fn list_payment_providers(
-    State(_ctx): State<StorePaymentContext>,
+    State(ctx): State<StorePaymentContext>,
+    Query(query): Query<ListPaymentProvidersQuery>,
 ) -> Result<Json<ListPaymentProvidersResponse>, Response> {
-    Ok(Json(ListPaymentProvidersResponse {
-        payment_providers: vec![
-            PaymentProviderItem {
-                id: "pp_system_default".to_string(),
+    let tenant_id = stheno_db::tenant::current().map_err(map_error)?;
+    let mut payment_providers = Vec::new();
+
+    for factory in ctx.payment_service.list_factories() {
+        if ctx
+            .payment_service
+            .get_provider_credential(&tenant_id, factory.provider_id())
+            .await
+            .map_err(map_error)?
+            .is_none()
+        {
+            continue;
+        }
+
+        let enabled = match &query.region_id {
+            Some(region_id) => ctx
+                .links
+                .get_by_left("region_payment_provider", region_id)
+                .await
+                .map_err(map_error)?
+                .into_iter()
+                .any(|provider_id| provider_id == factory.provider_id()),
+            None => !ctx
+                .links
+                .get_by_right("region_payment_provider", factory.provider_id())
+                .await
+                .map_err(map_error)?
+                .is_empty(),
+        };
+
+        if enabled {
+            payment_providers.push(PaymentProviderItem {
+                id: factory.provider_id().to_string(),
                 is_enabled: true,
-            },
-            PaymentProviderItem {
-                id: "pp_stripe_stripe".to_string(),
-                is_enabled: true,
-            },
-        ],
-    }))
+            });
+        }
+    }
+
+    Ok(Json(ListPaymentProvidersResponse { payment_providers }))
 }
 
 fn map_error(e: Error) -> Response {

@@ -4,18 +4,32 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use stheno_api_store::{store_cart_routes, store_payment_routes};
 use stheno_cart::CartService;
-use stheno_payment::PaymentService;
-use stheno_payment_offline::OfflinePaymentProvider;
+use stheno_payment::{CredentialMap, PaymentService};
+use stheno_payment_offline::OfflinePaymentProviderFactory;
 use tower::ServiceExt;
+
+const TEST_KEY_HEX: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const PROVIDER: &str = "pp_system_default";
+const REGION: &str = "reg_cart_parity";
 
 #[tokio::test]
 async fn test_store_cart_and_payment_endpoints_parity() {
+    std::env::set_var("STHENO_CREDENTIAL_KEY", TEST_KEY_HEX);
     let db = stheno_db::testing::TestDb::migrated().await;
     let pool = stheno_db::create_pool(&db.url, 5).expect("pool");
     let cart_service = Arc::new(CartService::new(pool.clone()));
     let payment_service = Arc::new(PaymentService::new(pool.clone()));
-    let offline_provider = Arc::new(OfflinePaymentProvider::new(Some("pp_system_default")));
-    payment_service.register_provider(offline_provider);
+    payment_service.register_factory(Arc::new(OfflinePaymentProviderFactory));
+    let tenant = stheno_db::tenant::current().expect("test tenant");
+    payment_service
+        .upsert_provider_credential(&tenant, PROVIDER, &CredentialMap::new())
+        .await
+        .expect("offline credentials");
+    let links = Arc::new(stheno_links::PgLinkStore::new(pool.clone()));
+    links
+        .link("region_payment_provider", REGION, PROVIDER)
+        .await
+        .expect("offline enabled");
 
     let app = axum::Router::new()
         .merge(store_cart_routes(cart_context(
@@ -27,7 +41,7 @@ async fn test_store_cart_and_payment_endpoints_parity() {
             stheno_api_store::StorePaymentContext {
                 payment_service: payment_service.clone(),
                 cart_service: cart_service.clone(),
-                links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+                links: links.clone(),
             },
         ));
 

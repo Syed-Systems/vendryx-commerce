@@ -21,7 +21,10 @@ use stheno_api_auth::{auth_routes, AuthApiContext};
 use stheno_api_core::{Entitlements, EntitlementsError, Feature, Tier, TierConfig};
 use stheno_api_platform::{platform_routes, PlatformApiContext};
 use stheno_api_router::{mount_gated, GatedGroup};
-use stheno_api_store::{store_routes, StoreApiContext};
+use stheno_api_store::{
+    hooks::{hooks_routes, HooksContext},
+    store_routes, StoreApiContext,
+};
 use stheno_auth::AuthService;
 use stheno_cart::CartService;
 use stheno_currency::CurrencyService;
@@ -33,8 +36,10 @@ use stheno_fulfillment_manual::ManualFulfillmentProvider;
 use stheno_inventory::InventoryService;
 use stheno_order::OrderService;
 use stheno_payment::PaymentService;
-use stheno_payment_offline::OfflinePaymentProvider;
-use stheno_payment_stripe::StripePaymentProvider;
+use stheno_payment_bkash::BkashPaymentProviderFactory;
+use stheno_payment_offline::OfflinePaymentProviderFactory;
+use stheno_payment_sslcommerz::SslcommerzPaymentProviderFactory;
+use stheno_payment_stripe::StripePaymentProviderFactory;
 use stheno_platform::PlatformService;
 use stheno_pricing::PricingService;
 use stheno_product::{CreateCollectionInput, CreateProductInput, ProductService};
@@ -542,6 +547,7 @@ pub struct AppServer {
     pub router: Router,
     pub entitlements: Arc<Entitlements>,
     pub pool: stheno_db::DbPool,
+    pub payment_service: Arc<PaymentService>,
 }
 
 impl AppServer {
@@ -555,21 +561,10 @@ impl AppServer {
         let pricing_service = Arc::new(PricingService::new(pool.clone()));
         let cart_service = Arc::new(CartService::new(pool.clone()));
         let payment_service = Arc::new(PaymentService::new(pool.clone()));
-        // Cash on delivery costs nothing to run, so it is never gated (ENTITLEMENTS.md 4.1).
-        payment_service.register_provider(Arc::new(OfflinePaymentProvider::default()));
-        // The gateway burns per-transaction fees, so it is the Pro line (ENTITLEMENTS.md 4.3).
-        // Enforced by registration, not by a branch in checkout: a tier without it simply
-        // has no gateway provider to select, and the storefront falls back to COD.
-        if entitlements.has(Feature::PaymentGateway) {
-            if let Ok(api_key) = std::env::var("STRIPE_API_KEY") {
-                payment_service.register_provider(Arc::new(StripePaymentProvider::new(
-                    &api_key,
-                    &std::env::var("STRIPE_WEBHOOK_SECRET").unwrap_or_default(),
-                    None,
-                    std::env::var("STRIPE_LIVEMODE").is_ok_and(|v| v == "true"),
-                )));
-            }
-        }
+        payment_service.register_factory(Arc::new(OfflinePaymentProviderFactory));
+        payment_service.register_factory(Arc::new(StripePaymentProviderFactory));
+        payment_service.register_factory(Arc::new(SslcommerzPaymentProviderFactory));
+        payment_service.register_factory(Arc::new(BkashPaymentProviderFactory));
         let order_service = Arc::new(OrderService::new(pool.clone()));
         let fulfillment_service = Arc::new(FulfillmentService::new(pool.clone()));
         fulfillment_service.register_provider(Arc::new(ManualFulfillmentProvider::new()));
@@ -640,6 +635,8 @@ impl AppServer {
                 currency_service.clone(),
                 tax_service.clone(),
                 sales_channel_service.clone(),
+                payment_service.clone(),
+                Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
             ))
             .merge(admin_api_key_routes())
             .merge(admin_rbac_routes(rbac_service.clone()))
@@ -685,7 +682,7 @@ impl AppServer {
             require_admin,
         ));
 
-        let router = Router::new()
+        let tenant_routes = Router::new()
             .route("/health", get({
                 let pool = pool.clone();
                 move || {
@@ -764,7 +761,13 @@ impl AppServer {
                     fallback_tenant: std::env::var("STHENO_TENANT").ok(),
                 },
                 crate::tenant_layer::resolve_tenant,
-            ))
+            ));
+
+        let router = Router::new()
+            .merge(tenant_routes)
+            .merge(hooks_routes(HooksContext {
+                payment_service: payment_service.clone(),
+            }))
             // Mounted OUTSIDE the tenant layer on purpose: the control plane reads across
             // every merchant, so scoping it to one would defeat it. It carries its own
             // credential and 404s without it (ADR-012).
@@ -772,6 +775,7 @@ impl AppServer {
                 platform: platform_service.clone(),
                 tier_config: Arc::new(load_tier_config().expect("config/tiers.toml must parse")),
                 operator_token: std::env::var("STHENO_PLATFORM_TOKEN").ok(),
+                payment_service: Some(payment_service.clone()),
             }))
             .layer(cors);
 
@@ -780,6 +784,7 @@ impl AppServer {
             router,
             entitlements,
             pool,
+            payment_service,
         }
     }
 }

@@ -10,7 +10,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use stheno_types::currency::CurrencyCode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -61,12 +63,14 @@ pub enum Feature {
     CourierDispatch,
     FraudScore,
     CustomDomain,
+    CustomTheme,
+    Branding,
 }
 
 impl Feature {
     /// Every gateable feature. The control plane needs the whole universe, not just the
     /// ones a tier happens to hold, or a feature could never be switched *on* from the UI.
-    pub const ALL: [Feature; 8] = [
+    pub const ALL: [Feature; 10] = [
         Feature::SpreadsheetImport,
         Feature::CsvExport,
         Feature::WebPush,
@@ -75,6 +79,8 @@ impl Feature {
         Feature::CourierDispatch,
         Feature::FraudScore,
         Feature::CustomDomain,
+        Feature::CustomTheme,
+        Feature::Branding,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -87,6 +93,8 @@ impl Feature {
             Feature::CourierDispatch => "courier_dispatch",
             Feature::FraudScore => "fraud_score",
             Feature::CustomDomain => "custom_domain",
+            Feature::CustomTheme => "custom_theme",
+            Feature::Branding => "branding",
         }
     }
 }
@@ -182,6 +190,15 @@ pub struct TierDefinition {
     pub windows: BTreeMap<String, toml::Value>,
     #[serde(default)]
     pub term_months: Vec<u32>,
+    /// Price as an exact decimal **string** — see [`TierDefinition::pricing`] for why
+    /// it is not a TOML float. `None` means the plan is not sold, which is not the
+    /// same as free.
+    #[serde(default)]
+    pub price: Option<String>,
+    #[serde(default)]
+    pub currency: Option<String>,
+    #[serde(default)]
+    pub interval: Option<String>,
 }
 
 impl TierDefinition {
@@ -198,7 +215,10 @@ impl TierDefinition {
         Self {
             duration_days: None,
             starts_on: None,
-            features: features.into_iter().map(|f| f.as_str().to_string()).collect(),
+            features: features
+                .into_iter()
+                .map(|f| f.as_str().to_string())
+                .collect(),
             quotas: quotas
                 .into_iter()
                 .map(|(k, v)| (k.as_str().to_string(), toml::Value::Integer(v as i64)))
@@ -208,6 +228,9 @@ impl TierDefinition {
                 .map(|(k, v)| (k.as_str().to_string(), toml::Value::Integer(v as i64)))
                 .collect(),
             term_months: Vec::new(),
+            price: None,
+            currency: None,
+            interval: None,
         }
     }
 
@@ -217,6 +240,12 @@ impl TierDefinition {
         self.duration_days = base.duration_days;
         self.starts_on = base.starts_on.clone();
         self.term_months = base.term_months.clone();
+        // Pricing is carried too. A control-plane edit rewrites features and limits;
+        // silently dropping the price would take the plan off sale as a side effect
+        // of ticking a checkbox.
+        self.price = base.price.clone();
+        self.currency = base.currency.clone();
+        self.interval = base.interval.clone();
         self
     }
 }
@@ -345,6 +374,8 @@ fn parse_feature(raw: &str) -> Result<Feature, EntitlementsError> {
         "courier_dispatch" => Ok(Feature::CourierDispatch),
         "fraud_score" => Ok(Feature::FraudScore),
         "custom_domain" => Ok(Feature::CustomDomain),
+        "custom_theme" => Ok(Feature::CustomTheme),
+        "branding" => Ok(Feature::Branding),
         other => Err(EntitlementsError::UnknownFeature(other.to_string())),
     }
 }
@@ -472,5 +503,124 @@ impl Entitlements {
             Some(limit) if used > limit => QuotaState::Grace,
             _ => QuotaState::Ok,
         }
+    }
+}
+
+/// How often a plan is billed.
+///
+/// Two values, because two are what `config/tiers.toml` can express and a third would be
+/// a plan nobody sells. `term_months` on Pro is a *commitment length*, not a billing
+/// interval — a merchant on a 12-month term is still invoiced monthly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BillingInterval {
+    Month,
+    Year,
+}
+
+impl BillingInterval {
+    pub const ALL: [BillingInterval; 2] = [BillingInterval::Month, BillingInterval::Year];
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            BillingInterval::Month => "month",
+            BillingInterval::Year => "year",
+        }
+    }
+
+    /// How many months one interval covers. Used to place the next period boundary.
+    pub fn months(&self) -> u32 {
+        match self {
+            BillingInterval::Month => 1,
+            BillingInterval::Year => 12,
+        }
+    }
+}
+
+impl std::str::FromStr for BillingInterval {
+    type Err = EntitlementsError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "month" => Ok(BillingInterval::Month),
+            "year" => Ok(BillingInterval::Year),
+            other => Err(EntitlementsError::Parse(format!(
+                "unknown billing interval `{other}`; expected month or year"
+            ))),
+        }
+    }
+}
+
+/// What a plan costs, when it is sold at all.
+///
+/// A plan with no price is **not free** — it is *not sold*. Free is a price of zero, and
+/// the difference matters: an invoice run must skip a plan that is not sold rather than
+/// invoice it for nothing, and a plan that is meant to cost money but whose price went
+/// missing must not silently become free.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TierPricing {
+    pub price: Decimal,
+    pub currency: CurrencyCode,
+    pub interval: BillingInterval,
+}
+
+impl TierDefinition {
+    /// The plan's price, or `None` when the plan is not sold.
+    ///
+    /// # Why the TOML value is a string
+    ///
+    /// TOML has no decimal type. `price = 1500.00` parses as an **f64**, which
+    /// [ADR-006](../../../docs/DECISIONS.md#adr-006) forbids anywhere near money — and it
+    /// would be forbidden here silently, because 1500.00 survives a float round trip and
+    /// 1499.95 does not. Writing it as `price = "1500.00"` keeps the value exact from the
+    /// file to the invoice, and makes the constraint visible in the config rather than
+    /// buried in a deserializer.
+    pub fn pricing(&self) -> Result<Option<TierPricing>, EntitlementsError> {
+        let Some(raw) = self.price.as_deref() else {
+            // No price and no currency is a plan that is not sold. A currency without a
+            // price is a half-written plan, and that is worth refusing loudly.
+            if self.currency.is_some() || self.interval.is_some() {
+                return Err(EntitlementsError::Parse(
+                    "a plan with a currency or interval must also have a price".to_string(),
+                ));
+            }
+            return Ok(None);
+        };
+
+        let price = Decimal::from_str_exact(raw.trim()).map_err(|e| {
+            EntitlementsError::Parse(format!("price `{raw}` is not an exact decimal: {e}"))
+        })?;
+
+        if price.is_sign_negative() {
+            return Err(EntitlementsError::Parse(format!(
+                "price `{raw}` is negative; a plan cannot pay the merchant"
+            )));
+        }
+
+        let currency = self
+            .currency
+            .as_deref()
+            .ok_or_else(|| EntitlementsError::Parse("a priced plan needs a currency".to_string()))?
+            .parse::<CurrencyCode>()
+            .map_err(|e| EntitlementsError::Parse(e.to_string()))?;
+
+        let interval = self
+            .interval
+            .as_deref()
+            .ok_or_else(|| EntitlementsError::Parse("a priced plan needs an interval".to_string()))?
+            .parse::<BillingInterval>()?;
+
+        Ok(Some(TierPricing {
+            price,
+            currency,
+            interval,
+        }))
+    }
+}
+
+impl TierConfig {
+    /// What this tier costs on this deployment, or `None` when it is not sold.
+    pub fn pricing(&self, tier: Tier) -> Result<Option<TierPricing>, EntitlementsError> {
+        self.definition(tier)?.pricing()
     }
 }

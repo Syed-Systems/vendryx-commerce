@@ -13,8 +13,7 @@
 use std::collections::BTreeMap;
 
 use crate::entitlements::{
-    Entitlements, EntitlementsError, Feature, QuotaKey, Tier, TierConfig, TierDefinition,
-    WindowKey,
+    Entitlements, EntitlementsError, Feature, QuotaKey, Tier, TierConfig, TierDefinition, WindowKey,
 };
 
 /// A tenant's plan, as stored. Kept structural rather than importing the platform module
@@ -271,13 +270,19 @@ mod tests {
         let mut granted = plan("free", serde_json::json!({}));
         granted.feature_overrides = serde_json::json!({ "payment_gateway": true });
         let granted = resolve_for_tenant(&config, &granted).unwrap();
-        assert!(granted.has(Feature::PaymentGateway), "negotiated grant on Free");
+        assert!(
+            granted.has(Feature::PaymentGateway),
+            "negotiated grant on Free"
+        );
 
         let mut revoked = plan("pro", serde_json::json!({}));
         revoked.feature_overrides = serde_json::json!({ "fraud_score": false });
         let revoked = resolve_for_tenant(&config, &revoked).unwrap();
         assert!(!revoked.has(Feature::FraudScore));
-        assert!(revoked.has(Feature::PaymentGateway), "only the named one moves");
+        assert!(
+            revoked.has(Feature::PaymentGateway),
+            "only the named one moves"
+        );
     }
 
     #[test]

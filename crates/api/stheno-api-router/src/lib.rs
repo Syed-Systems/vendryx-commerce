@@ -61,7 +61,13 @@ pub fn feature_flags(entitlements: &Entitlements) -> Vec<(&'static str, bool)> {
 }
 
 /// Every gateable feature. Kept exhaustive so `feature_flags` cannot silently omit one.
-pub const ALL_FEATURES: [Feature; 8] = [
+///
+/// "Kept exhaustive" was a comment and nothing more until P37-22: `CustomTheme` and
+/// `Branding` were added to `Feature` and never added here, so the map the dashboard reads
+/// omitted them for as long as they existed — and the dashboard reads absent and false
+/// differently. `all_features_lists_every_variant` in `tests/gated_mounting.rs` now makes
+/// the compiler enforce it, because a comment cannot.
+pub const ALL_FEATURES: [Feature; 10] = [
     Feature::SpreadsheetImport,
     Feature::CsvExport,
     Feature::WebPush,
@@ -70,4 +76,6 @@ pub const ALL_FEATURES: [Feature; 8] = [
     Feature::CourierDispatch,
     Feature::FraudScore,
     Feature::CustomDomain,
+    Feature::CustomTheme,
+    Feature::Branding,
 ];

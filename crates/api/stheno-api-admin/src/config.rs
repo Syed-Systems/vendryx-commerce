@@ -5,10 +5,16 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::Utc;
-use serde_json::json;
+use serde::Deserialize;
+use serde_json::{json, Value};
 use std::sync::Arc;
 use stheno_api_core::ErrorResponse;
 use stheno_currency::CurrencyService;
+use stheno_links::PgLinkStore;
+use stheno_payment::{
+    CredentialField, CredentialHealth, CredentialMap, PaymentProviderCredentialDTO,
+    PaymentProviderFactory, PaymentService,
+};
 use stheno_region::{CreateRegionInput, RegionService, UpdateRegionInput};
 use stheno_sales_channel::{CreateSalesChannelInput, SalesChannelService};
 use stheno_tax::{
@@ -22,6 +28,8 @@ pub struct ConfigContext {
     pub currency_service: Arc<CurrencyService>,
     pub tax_service: Arc<TaxService>,
     pub sales_channel_service: Arc<SalesChannelService>,
+    pub payment_service: Arc<PaymentService>,
+    pub links: Arc<PgLinkStore>,
 }
 
 // ── Regions ──────────────────────────────────────────────────────────────────
@@ -626,35 +634,193 @@ pub async fn create_shipping_option(
     ))
 }
 
-pub async fn list_payment_providers() -> Result<impl IntoResponse, Response> {
-    let providers = vec![
-        json!({
-            "id": "pp_system_default",
-            "is_enabled": true,
-            "name": "Stheno Payment Gateway"
-        }),
-        json!({
-            "id": "stripe",
-            "is_enabled": true,
-            "name": "Stripe Payments"
-        }),
-        json!({
-            "id": "manual_payment",
-            "is_enabled": true,
-            "name": "Manual / Cash on Delivery"
-        }),
-    ];
+const REGION_PAYMENT_PROVIDER_LINK: &str = "region_payment_provider";
 
+#[derive(Deserialize)]
+pub struct UpsertPaymentProviderCredentialRequest {
+    pub credentials: CredentialMap,
+}
+
+pub async fn list_payment_providers(
+    State(ctx): State<ConfigContext>,
+) -> Result<impl IntoResponse, Response> {
+    let tenant_id = stheno_db::tenant::current().map_err(map_error)?;
+    let mut providers = Vec::new();
+
+    for factory in ctx.payment_service.list_factories() {
+        let credential = ctx
+            .payment_service
+            .get_provider_credential(&tenant_id, factory.provider_id())
+            .await
+            .map_err(map_error)?;
+        let enabled_regions = ctx
+            .links
+            .get_by_right(REGION_PAYMENT_PROVIDER_LINK, factory.provider_id())
+            .await
+            .map_err(map_error)?;
+        providers.push(provider_json(factory.as_ref(), credential, enabled_regions));
+    }
+
+    let count = providers.len();
     Ok((
         StatusCode::OK,
         Json(json!({
             "payment_providers": providers,
             "data": providers,
-            "count": 3,
+            "count": count,
             "offset": 0,
             "limit": 50,
         })),
     ))
+}
+
+pub async fn upsert_payment_provider_credentials(
+    State(ctx): State<ConfigContext>,
+    Path(provider_id): Path<String>,
+    Json(input): Json<UpsertPaymentProviderCredentialRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let tenant_id = stheno_db::tenant::current().map_err(map_error)?;
+    let credential = ctx
+        .payment_service
+        .upsert_provider_credential(&tenant_id, &provider_id, &input.credentials)
+        .await
+        .map_err(map_error)?;
+    let factory = ctx
+        .payment_service
+        .get_factory(&provider_id)
+        .map_err(map_error)?;
+    let enabled_regions = ctx
+        .links
+        .get_by_right(REGION_PAYMENT_PROVIDER_LINK, &provider_id)
+        .await
+        .map_err(map_error)?;
+
+    let provider = provider_json(factory.as_ref(), Some(credential), enabled_regions);
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "payment_provider": provider, "data": provider })),
+    ))
+}
+
+pub async fn enable_region_payment_provider(
+    State(ctx): State<ConfigContext>,
+    Path((region_id, provider_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    let factory = ctx
+        .payment_service
+        .get_factory(&provider_id)
+        .map_err(map_error)?;
+    ctx.links
+        .link(REGION_PAYMENT_PROVIDER_LINK, &region_id, &provider_id)
+        .await
+        .map_err(map_error)?;
+    let tenant_id = stheno_db::tenant::current().map_err(map_error)?;
+    let credential = ctx
+        .payment_service
+        .get_provider_credential(&tenant_id, &provider_id)
+        .await
+        .map_err(map_error)?;
+    let enabled_regions = ctx
+        .links
+        .get_by_right(REGION_PAYMENT_PROVIDER_LINK, &provider_id)
+        .await
+        .map_err(map_error)?;
+
+    let provider = provider_json(factory.as_ref(), credential, enabled_regions);
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "payment_provider": provider, "data": provider })),
+    ))
+}
+
+pub async fn disable_region_payment_provider(
+    State(ctx): State<ConfigContext>,
+    Path((region_id, provider_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    let factory = ctx
+        .payment_service
+        .get_factory(&provider_id)
+        .map_err(map_error)?;
+    ctx.links
+        .unlink(REGION_PAYMENT_PROVIDER_LINK, &region_id, &provider_id)
+        .await
+        .map_err(map_error)?;
+    let tenant_id = stheno_db::tenant::current().map_err(map_error)?;
+    let credential = ctx
+        .payment_service
+        .get_provider_credential(&tenant_id, &provider_id)
+        .await
+        .map_err(map_error)?;
+    let enabled_regions = ctx
+        .links
+        .get_by_right(REGION_PAYMENT_PROVIDER_LINK, &provider_id)
+        .await
+        .map_err(map_error)?;
+
+    let provider = provider_json(factory.as_ref(), credential, enabled_regions);
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "payment_provider": provider, "data": provider })),
+    ))
+}
+
+fn provider_json(
+    factory: &dyn PaymentProviderFactory,
+    credential: Option<PaymentProviderCredentialDTO>,
+    enabled_regions: Vec<String>,
+) -> Value {
+    let configured = credential.is_some();
+    let credential_health = credential
+        .as_ref()
+        .map(|credential| credential.health)
+        .unwrap_or(CredentialHealth::Unconfigured);
+
+    json!({
+        "id": factory.provider_id(),
+        "name": provider_name(factory.provider_id()),
+        "is_enabled": !enabled_regions.is_empty(),
+        "enabled_regions": enabled_regions,
+        "configured": configured,
+        "credential_health": credential_health,
+        "credential_schema": credential_schema_json(factory.credential_schema()),
+        "credential": credential,
+    })
+}
+
+fn credential_schema_json(schema: &[CredentialField]) -> Vec<Value> {
+    schema.iter().map(|field| json!(field)).collect()
+}
+
+fn provider_name(provider_id: &str) -> String {
+    provider_id
+        .trim_start_matches("pp_")
+        .replace('_', " ")
+        .split_whitespace()
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn map_error(e: stheno_types::Error) -> Response {
+    let (status, r#type) = match e {
+        stheno_types::Error::NotFound { .. } => (StatusCode::NOT_FOUND, "not_found"),
+        stheno_types::Error::Invalid { .. } => (StatusCode::BAD_REQUEST, "invalid_data"),
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, "unexpected_state"),
+    };
+    (
+        status,
+        Json(ErrorResponse::new(
+            r#type,
+            "Payment provider configuration failed",
+        )),
+    )
+        .into_response()
 }
 
 pub async fn list_payment_collections() -> Result<impl IntoResponse, Response> {

@@ -20,6 +20,10 @@ a stated cost is a preference wearing a suit.
 | [ADR-013](#adr-013) | Storefront presentation is swappable; commerce logic is not | Accepted |
 | [ADR-014](#adr-014) | A line item's price comes from the catalogue, never from the request | Accepted |
 | [ADR-015](#adr-015) | Wire-shape expansion lives in the API layer, not in module DTOs | Accepted |
+| [ADR-016](#adr-016) | Plan definitions are data the control plane owns, not config baked into the image | Accepted |
+| [ADR-017](#adr-017) | Subscription billing is first-party, collected on the gateways already integrated | Accepted |
+| [ADR-018](#adr-018) | Support impersonation: time-boxed, scope-limited, fully audited, secret-opaque | Accepted |
+| [ADR-019](#adr-019) | Provider credentials are tenant-owned, encrypted, and resolved through factories | Accepted |
 
 ---
 
@@ -1066,6 +1070,8 @@ through a wrapper, and it is a struct field in Rust either way.
 
 ---
 
+<a id="adr-016"></a>
+
 ## ADR-016 — Plan definitions are data the control plane owns, not config baked into the image
 
 **Status:** Accepted · **Date:** 2026-08-20 · **Refines:** [ADR-012](#adr-012) · [ENTITLEMENTS.md 5b](ENTITLEMENTS.md)
@@ -1132,3 +1138,260 @@ one merchant" had no answer short of putting them on Pro and giving away the res
 - The operator token now defines what every plan includes, not just which one a merchant is
   on. It is compared in constant time, and it remains a placeholder for the
   `platform_owner` actor type that belongs with the RBAC work.
+
+---
+
+<a id="adr-017"></a>
+
+## ADR-017 — Subscription billing is first-party, collected on the gateways already integrated
+
+**Status:** Accepted · **Date:** 2026-08-21 · **Refines:** [ADR-012](#adr-012) · [ADR-016](#adr-016) · **Amends:** [ENTITLEMENTS.md §9](ENTITLEMENTS.md) · **Tasks:** [PHASE4_TASKS.md](PHASE4_TASKS.md) P30
+
+### Context
+
+[ENTITLEMENTS.md §9](ENTITLEMENTS.md) scoped billing out of the engine, in one sentence:
+
+> *No usage-based metering or billing. Entitlements say what is allowed; billing systems say
+> what is owed. Integrate a billing provider; do not build one here.*
+
+That was the right call for the **engine**. It was read as a decision about the **product**,
+and nothing picked the product side up. The result, found while completing P29 and recorded
+in [CONTROL_PLANE.md](CONTROL_PLANE.md) §2 D3:
+
+- An operator can move a merchant onto Pro. Nothing then invoices them.
+- Nothing notices when a merchant does not pay.
+- `platform.tenant.status` has a `suspended` value that **no code path writes**.
+- Zero of nine billing capabilities exist.
+
+The business has a working product, a plan editor, per-merchant negotiated exceptions — and
+no way to charge anyone for any of it. There is no enforcement behind its own pricing.
+
+The obvious reading of §9 is "integrate Stripe Billing or Chargebee and be done". That
+reading does not survive contact with the market [PRODUCT.md](PRODUCT.md) §1 describes.
+
+### The constraint that decides this
+
+The customers are **Bangladeshi social-commerce sellers**. They pay in **BDT**, from
+**bKash** and **Nagad** wallets, on **Android phones**. Most do not hold an international
+card.
+
+Every hosted subscription-billing vendor is built around card-on-file in a supported
+currency. Stripe Billing does not process BDT. Paddle is a merchant-of-record for card and
+PayPal. Chargebee orchestrates gateways it supports, and the BD wallets are not among them.
+
+So the vendor would collect nothing. We would still write the bKash and SSLCommerz
+collection path ourselves, and then pay a vendor to hold a copy of the invoice we already
+had to generate in order to drive it. **The integration cost is not avoided by the vendor;
+it is duplicated by it.**
+
+We also already have the expensive half. P21–P24 build the outbound ledger, idempotent
+provider calls, webhook replay guards and reconciliation — for merchants' own commerce.
+Subscription collection is the same rails pointed at ourselves.
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| **First-party, on the existing gateways** (chosen) | Collects in the currency and wallets the customers actually hold. Reuses the outbound ledger, idempotency and reconciliation already built. One invoice, in one database, next to the subscription it bills | We own dunning, proration and VAT correctness. This is real money-handling code and it is ours to get right |
+| Hosted billing vendor (Stripe Billing, Chargebee, Paddle) | Dunning, proration, revenue reporting and tax as someone else's problem | **Cannot collect BDT from bKash or Nagad.** We write the collection path anyway and pay for a duplicate invoice record. Also puts every merchant's billing identity in a third party under [ADR-012](#adr-012) |
+| Collect manually — invoice by hand, reconcile in a spreadsheet | Zero code today | Fails at the third merchant. It is also the state we are in, and it is why `suspended` is unwritten |
+| Build metered / usage billing now | Future-proof | No plan is metered. Every quota in `tiers.toml` is a cap, not a meter. Speculative, and the largest thing on this list |
+
+### Decision
+
+1. **Billing is first-party and lives in the `platform` schema**, global and cross-tenant,
+   alongside `tenant`, `subscription` and `tier_definition`. A merchant's subscription
+   invoice is not one of that merchant's own commerce records and must not sit in their
+   RLS-scoped tables — that would make our revenue readable and, worse, writable through
+   the tenant's own surface.
+2. **Collection uses the same outbound-ledger *pattern* as merchant payments, in its own
+   table.** `platform.billing_attempt` carries an idempotency key, a request hash and the
+   same `in_flight → succeeded | failed` states as `payment.payment_provider_request`, and
+   a convergence sweep settles what a crash left ambiguous. An ambiguous timeout on a
+   subscription charge is a double charge to a customer already reluctant to pay us.
+
+   It is **not** the same table, and that is deliberate rather than duplication for its own
+   sake. `payment.payment_provider_request` is tenant-scoped and RLS-forced: writing our
+   own revenue collection into it would put it inside the merchant's row set, reachable
+   through the merchant's own surface — which is exactly what decision 1 forbids. It is
+   also unreachable: `stheno-platform` may not depend on `stheno-payment`
+   ([ADR-007](#adr-007), `check-module-isolation.sh`), and reaching into `payment.*` from
+   the `platform` schema fails `check-sql-boundaries.sh`. Both gates are pointing at the
+   same fact: our revenue is not one of the merchant's payments.
+3. **Money follows [ADR-006](#adr-006)** — `numeric(20,6)` plus a currency column. No minor
+   units, and no exception for "it is only subscriptions". Proration produces sub-minor
+   intermediates, which is precisely the case ADR-006 was written for.
+4. **Dunning is a state machine and the sole writer of `subscription.status`.**
+   `active → past_due → grace → suspended`, reversible on payment. An operator override is
+   an explicit, audited exception rather than a second writer — two things writing that
+   column is how a paying merchant gets suspended.
+5. **Suspension is enforced at the tenant layer**, not in domain code. A suspended
+   merchant's storefront stops serving; a merchant who is merely `past_due` does not. This
+   keeps [ADR-013](#adr-013)'s rule intact: no domain code learns that billing exists.
+6. **What is deliberately not built:** usage metering, revenue recognition, multi-currency
+   dunning, a merchant-facing billing portal, and tax jurisdictions beyond Bangladesh VAT.
+   The §9 warning stands for all six. If any becomes real, that is the moment to reconsider
+   a vendor — and by then there is an invoice table to migrate *from*, which is a better
+   position than today's.
+
+### Consequences
+
+- **ENTITLEMENTS.md §9 is amended, not overturned.** "Do not build a billing *engine*"
+  still holds: what P30 builds is an invoice, a collection attempt, and a dunning ladder.
+  Anything that starts to look like a metering pipeline is out of scope by this record.
+- **The business gains enforcement.** `suspended` becomes a state something writes, which is
+  what makes a price a price rather than a suggestion.
+- **We own correctness in a money path.** Six P30 rows are marked `[BP]` for that reason:
+  invoice idempotency, proration summing to the period, ledger-backed collection, the
+  dunning ladder, its sole-writer property, and revenue computed from invoices rather than
+  from tier assignment.
+- **Revenue is computed from invoices, never from `subscription.tier`.** A merchant sitting
+  on Pro who has not paid is not revenue, and an MRR figure that counts them is a number
+  that makes the business feel solvent while it is not.
+- **A second collection currency is a schema change, not a rewrite** — the currency column
+  is there from the first migration even though BDT is its only value for now.
+- **What would reverse this:** the customer base shifting to card-paying merchants in a
+  currency a vendor supports, or the dunning and tax surface growing past what P30 scopes.
+  The invoice table is the migration source in both cases.
+
+---
+
+<a id="adr-018"></a>
+
+## ADR-018 — Support impersonation: time-boxed, scope-limited, and audited
+
+**Status:** Accepted · **Date:** 2026-08-21 · **Tasks:** [PHASE4_TASKS.md](PHASE4_TASKS.md) P34
+
+### Context
+
+Platform support operators need to assist merchants by inspecting issues within a specific tenant's admin scope. Without a formal impersonation mechanism, operators resort to database-level access or asking merchants for passwords—both violating tenant isolation, opacity, and auditability rules.
+
+### Decision
+
+1. **Time-Boxed Tokens:** Impersonation tokens are ephemeral (max 60 minutes, server-side enforced).
+2. **Strict Scope Limitations:** An impersonating operator is restricted from:
+   - Reading or updating provider credentials (`payment` and `fulfillment` secrets).
+   - Changing subscription plans or issuing operator credentials.
+   - Accessing platform-wide settings or other tenants.
+3. **Comprehensive Audit Trail:**
+   - Impersonation session creation (`impersonation.start`), every mutating write made under the session, and explicit termination (`impersonation.end`) are recorded in `platform.operator_audit`.
+4. **Merchant Notification:**
+   - Active and past support impersonations are visible to the tenant in their own admin audit view so no shadow access occurs.
+
+### Consequences
+
+- Operators can troubleshoot merchant setups safely within defined boundaries.
+- No secrets or credentials can be leaked through impersonation sessions.
+- Reversal condition: If fine-grained RBAC per operator completely eliminates the need for tenant scope assumption.
+
+---
+
+<a id="adr-019"></a>
+
+## ADR-019 — Provider credentials are tenant-owned, encrypted, and resolved through factories
+
+**Status:** Accepted · **Date:** 2026-08-21 · **Refines:** [ADR-001](#adr-001) ·
+[ADR-012](#adr-012) · [ADR-013](#adr-013) · **Tasks:** [PHASE3_TASKS.md](PHASE3_TASKS.md)
+P21-P24
+
+### Context
+
+[ADR-013](#adr-013) decided that payment and fulfillment providers are compile-time code, while
+provider enablement is tenant data. That is only half of a hosted provider platform. A merchant
+also brings their own gateway and courier accounts, and those credentials are tenant data too.
+
+The current shape cannot safely express that:
+
+- Admin and Store provider listing routes return hardcoded provider literals instead of reading
+  the registry or the tenant's enabled regions.
+- `PaymentService` holds a process-global provider map keyed by provider id.
+- `PaymentService::get_provider` takes only the provider id, so a caller can forget tenancy.
+- The Stripe provider is constructed once at boot from environment variables, giving the whole
+  process one Stripe account.
+- The payment webhook route is provider-addressed, not tenant-addressed, and inbound signature
+  verification needs the tenant's own signing secret before it can run.
+- No encryption primitive exists in the workspace, while credentials include API keys, webhook
+  secrets, PEM keys, and courier portal passwords.
+
+A credential table alone would not fix the system. If the provider registry remains a
+process-global map of already-constructed providers, every tenant still shares the same provider
+instance and therefore the same secret-bearing client.
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| **Per-tenant provider instance built by a factory** (chosen) | Keeps credentials inside the tenant boundary; changes one resolution point; supports provider-specific credential shapes; cache keys can include credential version | Adds a factory trait and credential schema contract |
+| Pass credential context into every provider method | Makes credentials explicit at every call site | Rewrites every provider trait method and every provider implementation for no extra isolation |
+| Mutate one provider instance's credentials per call | Small diff | Shared mutable secret state is unsafe under concurrency and makes tenant leaks a timing bug |
+| Keep process-global environment credentials | Already implemented | Single-tenant behavior in a multi-tenant product; one wrong handler affects every merchant |
+
+### Decision
+
+1. **Provider credentials are tenant-owned database rows.** Payment gateway credentials live in
+   `payment.payment_provider_credential`; courier credentials use the same table shape, encryption
+   model, versioning model, and factory pattern rather than a parallel design. Rows are RLS-forced,
+   soft-deletable, unique per `(tenant_id, provider_id)`, and carry a globally unique opaque
+   `webhook_slug`.
+2. **Credentials are encrypted in application code before persistence.** The master key comes from
+   `STHENO_CREDENTIAL_KEY`. Writes use AEAD with a fresh random nonce. Additional authenticated data
+   binds the ciphertext to `tenant_id` and `provider_id`, so moving encrypted bytes between tenants
+   or providers fails to decrypt.
+3. **Use a direct RustCrypto AEAD dependency for credential encryption.** Postgres `pgcrypto` is
+   rejected because the key would travel through SQL text and risk exposure in query logs or
+   `pg_stat_statements`. A narrow `aes-gcm` dependency is accepted because no AEAD primitive exists
+   in the workspace and credential encryption is a security boundary, not a convenience helper.
+4. **Provider registration is by factory.** Each provider crate registers a
+   `PaymentProviderFactory` or fulfillment equivalent. A factory exposes `provider_id()`,
+   `credential_schema()`, and `build(credentials)`. Provider structs may still carry their native
+   clients and secrets, but only after being built for one tenant's decrypted credential row.
+5. **Credential schemas are the UI and validation contract.** `CredentialField`,
+   `CredentialKind`, and `CredentialMap` describe provider-specific fields such as text secrets,
+   PEM blocks, URLs, and booleans. PEM and URL validation happens at credential write time, not at
+   first checkout or first webhook delivery.
+6. **Provider resolution always includes tenant identity.** `get_provider(tenant_id, provider_id)`
+   reads the tenant credential, decrypts it, builds the provider, and may cache the result by
+   `(tenant_id, provider_id, credential_version)`. The no-tenant overload is removed. A caller that
+   forgot tenancy must fail to compile.
+7. **Credential rotation invalidates by version.** Updating a credential increments
+   `credential_version`. Caches key on that version, so rotation does not need explicit eviction to
+   stop using the old secret.
+8. **Provider read DTOs are structurally opaque.** No returned credential DTO contains plaintext
+   fields. Secret values are write-only; reads can expose schema, health, version, masked state, and
+   webhook URL, but never decrypted credential material.
+9. **Inbound webhooks route by opaque slug before signature verification.** The public payment
+   webhook route is `/hooks/payment/{webhook_slug}` and fulfillment mirrors it. The route is mounted
+   outside the tenant layer, resolves exactly one `(tenant_id, provider_id)` from the slug, then
+   enters tenant scope and verifies the signature with that tenant's provider instance.
+10. **Unknown webhook slugs fail closed.** An unknown slug returns 404 and writes no replay row, no
+    audit row containing secrets, and no tenant-scoped event. A slug is random and not derivable
+    from `tenant_id`, provider id, store domain, or region.
+11. **Gateway entitlement is per request, not boot-time.** Provider code is compiled into the
+    binary, but whether a tenant may configure or use a provider is resolved from that tenant's
+    current entitlements and region enablement. Domain logic still does not know entitlements
+    exist.
+12. **What is deliberately not built:** merchant-supplied provider code, runtime provider plugins,
+    credential sharing or inheritance between tenants, automated key rotation, and KMS integration.
+    `credential_version` leaves room for rotation and KMS later without changing provider call
+    sites.
+
+### Consequences
+
+- A hosted process can serve two tenants using the same provider id with different credentials,
+  without provider instances or webhook secrets crossing tenant boundaries.
+- A missing tenant at provider resolution becomes a compile-time error rather than a hidden
+  single-tenant fallback.
+- The admin UI gets one credential renderer from `credential_schema()` instead of one bespoke form
+  per provider. This matters because Bangladeshi gateways and couriers have different credential
+  shapes, including multi-line PEM keys and portal passwords.
+- Webhook URLs become merchant-facing configuration values. A merchant copies the slug URL into the
+  provider portal; gateways do not need to know Stheno tenant ids or storefront hostnames.
+- Credential health is derived from real provider outcomes, not from the existence of a row. A row
+  can be present and invalid.
+- The system now carries long-lived third-party secrets. Logs, audit rows, error messages, tests,
+  fixtures, and serialized DTOs are part of the credential boundary and must prove opacity.
+- The `aes-gcm` dependency is a deliberate exception to the default "no new dependency" posture
+  because credential encryption cannot be implemented safely with the current workspace primitives.
+- Reversal condition: if per-tenant provider construction becomes a measured throughput bottleneck,
+  the cache policy can change behind the factory interface. Reverting to process-global
+  secret-bearing providers is not an acceptable reversal in a multi-tenant deployment.

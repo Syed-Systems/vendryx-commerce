@@ -40,6 +40,8 @@ stheno-fulfillment = { workspace = true }
 stheno-fulfillment-manual = { workspace = true }
 stheno-payment-offline = { workspace = true }
 stheno-payment-stripe = { workspace = true }
+stheno-payment-sslcommerz = { workspace = true }
+stheno-payment-bkash = { workspace = true }
 stheno-pricing = { workspace = true }
 stheno-promotion = { workspace = true }
 stheno-customer = { workspace = true }

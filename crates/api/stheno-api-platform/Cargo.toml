@@ -9,8 +9,11 @@ authors.workspace = true
 [dependencies]
 stheno-types = { workspace = true }
 stheno-platform = { workspace = true }
+stheno-payment = { workspace = true }
+stheno-fulfillment = { workspace = true }
 stheno-api-core = { workspace = true }
 stheno-db = { workspace = true }
+rust_decimal = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -19,5 +22,7 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 stheno-db = { workspace = true, features = ["testing"] }
+stheno-payment-bkash = { workspace = true }
+stheno-payment-sslcommerz = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }

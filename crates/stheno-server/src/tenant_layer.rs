@@ -111,6 +111,42 @@ pub async fn resolve_tenant(
         return not_found();
     };
 
+    let tenant = match state.platform.get_tenant(&tenant_id).await {
+        Ok(t) => t,
+        Err(_) => return not_found(),
+    };
+
+    if tenant.status == "suspended" {
+        if path.starts_with("/admin") {
+            let reason = tenant
+                .status_reason
+                .unwrap_or_else(|| "Account suspended due to billing or policy".to_string());
+            return (
+                StatusCode::FORBIDDEN,
+                Json(json!({
+                    "type": "tenant_suspended",
+                    "message": "This store is currently suspended",
+                    "reason": reason,
+                    "pay_url": "/admin/subscription/pay"
+                })),
+            )
+                .into_response();
+        } else {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({
+                    "type": "tenant_suspended",
+                    "message": "This store is currently unavailable"
+                })),
+            )
+                .into_response();
+        }
+    }
+
+    if tenant.status == "closed" {
+        return not_found();
+    }
+
     // Entitlements are per tenant now, not per process (ADR-012 supersedes ADR-009 §4).
     // Resolved here, once per request, and carried as an extension so handlers and the
     // feature gate read the same value.

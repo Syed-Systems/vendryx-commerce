@@ -15,6 +15,11 @@ pub enum CurrencyCode {
     Cny,
     Sek,
     Nzd,
+    /// Bangladeshi Taka. Two decimals, so it needs no entry in
+    /// `minor_unit_exponent`. Added because the product sells subscriptions in BDT
+    /// ([ADR-017](../../../docs/DECISIONS.md#adr-017)) and the money type could not
+    /// express the only currency the business actually charges in.
+    Bdt,
     // Zero-decimal currencies (PAYMENTS.md §5)
     Bif,
     Clp,
@@ -83,6 +88,7 @@ impl CurrencyCode {
             CurrencyCode::Cny => "cny",
             CurrencyCode::Sek => "sek",
             CurrencyCode::Nzd => "nzd",
+            CurrencyCode::Bdt => "bdt",
             CurrencyCode::Bif => "bif",
             CurrencyCode::Clp => "clp",
             CurrencyCode::Djf => "djf",
@@ -129,6 +135,7 @@ impl FromStr for CurrencyCode {
             "cny" => Ok(CurrencyCode::Cny),
             "sek" => Ok(CurrencyCode::Sek),
             "nzd" => Ok(CurrencyCode::Nzd),
+            "bdt" => Ok(CurrencyCode::Bdt),
             "bif" => Ok(CurrencyCode::Bif),
             "clp" => Ok(CurrencyCode::Clp),
             "djf" => Ok(CurrencyCode::Djf),

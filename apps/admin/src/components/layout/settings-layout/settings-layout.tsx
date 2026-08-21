@@ -63,6 +63,10 @@ const useSettingRoutes = (): INavItem[] => {
         to: "/settings/regions",
       },
       {
+        label: "Payment Providers",
+        to: "/settings/payment-providers",
+      },
+      {
         label: t("taxRegions.domain"),
         to: "/settings/tax-regions",
       },

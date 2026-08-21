@@ -806,12 +806,15 @@ async fn test_admin_config() {
     let region_service = Arc::new(RegionService::new(pool.clone()));
     let currency_service = Arc::new(CurrencyService::new(pool.clone()));
     let tax_service = Arc::new(TaxService::new(pool.clone()));
-    let sales_channel_service = Arc::new(SalesChannelService::new(pool));
+    let sales_channel_service = Arc::new(SalesChannelService::new(pool.clone()));
+    let payment_service = Arc::new(PaymentService::new(pool.clone()));
     let app = admin_config_routes(
         region_service,
         currency_service,
         tax_service,
         sales_channel_service,
+        payment_service,
+        Arc::new(stheno_links::PgLinkStore::new(pool)),
     );
 
     // 1. POST /admin/regions

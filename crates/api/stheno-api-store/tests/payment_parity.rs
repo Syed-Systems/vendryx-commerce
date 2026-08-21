@@ -9,24 +9,38 @@ use std::sync::Arc;
 use stheno_api_store::store_payment_routes;
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
-use stheno_payment::{CreatePaymentCollectionInput, PaymentService};
-use stheno_payment_offline::OfflinePaymentProvider;
+use stheno_payment::{CreatePaymentCollectionInput, CredentialMap, PaymentService};
+use stheno_payment_offline::OfflinePaymentProviderFactory;
 use tower::ServiceExt;
+
+const TEST_KEY_HEX: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const PROVIDER: &str = "pp_system_default";
+const REGION: &str = "reg_payment_parity";
 
 #[tokio::test]
 async fn test_store_payment_parity_fixture() {
+    std::env::set_var("STHENO_CREDENTIAL_KEY", TEST_KEY_HEX);
     let db = TestDb::migrated().await;
     let pool = create_pool(&db.url, 5).expect("pool");
     let payment_service = Arc::new(PaymentService::new(pool.clone()));
-    let offline_provider = Arc::new(OfflinePaymentProvider::new(Some("pp_system_default")));
-    payment_service.register_provider(offline_provider);
+    payment_service.register_factory(Arc::new(OfflinePaymentProviderFactory));
+    let tenant = stheno_db::tenant::current().expect("test tenant");
+    payment_service
+        .upsert_provider_credential(&tenant, PROVIDER, &CredentialMap::new())
+        .await
+        .expect("offline credentials");
+    let links = Arc::new(stheno_links::PgLinkStore::new(pool.clone()));
+    links
+        .link("region_payment_provider", REGION, PROVIDER)
+        .await
+        .expect("offline enabled");
 
     // The router opens collections for carts now, so it needs the cart service and the
     // link store alongside payments.
     let app = store_payment_routes(stheno_api_store::StorePaymentContext {
         payment_service: payment_service.clone(),
         cart_service: Arc::new(stheno_cart::CartService::new(pool.clone())),
-        links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+        links: links.clone(),
     });
 
     // 1. Seed payment collection
@@ -56,7 +70,7 @@ async fn test_store_payment_parity_fixture() {
 
     // 3. POST /store/payment-collections/:id/payment-sessions
     let session_payload = json!({
-        "provider_id": "pp_system_default"
+        "provider_id": PROVIDER
     });
     let req = Request::builder()
         .method("POST")

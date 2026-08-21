@@ -13,7 +13,13 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true }
+rust_decimal = { workspace = true }
 tracing = { workspace = true }
+# Operator credentials: 32 random bytes, stored as their SHA-256. Same construction as
+# `stheno-api-key`, which already hashes its secrets this way.
+rand = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
 
 [dev-dependencies]
 stheno-db = { workspace = true, features = ["testing"] }
