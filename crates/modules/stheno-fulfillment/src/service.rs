@@ -10,8 +10,9 @@ use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
 use crate::models::{
-    Address, Fulfillment, FulfillmentItem, FulfillmentLabel, FulfillmentSet, GeoZone, ServiceZone,
-    ShippingOption, ShippingOptionRule, ShippingOptionType, ShippingProfile,
+    Address, Fulfillment, FulfillmentItem, FulfillmentLabel, FulfillmentProviderRequest,
+    FulfillmentSet, GeoZone, ServiceZone, ShippingOption, ShippingOptionRule, ShippingOptionType,
+    ShippingProfile,
 };
 use crate::provider::FulfillmentProvider;
 
@@ -28,6 +29,7 @@ pub struct FulfillmentService {
     fulfillments: Arc<PgCrudRepository<Fulfillment>>,
     fulfillment_items: Arc<PgCrudRepository<FulfillmentItem>>,
     fulfillment_labels: Arc<PgCrudRepository<FulfillmentLabel>>,
+    outbound_requests: Arc<PgCrudRepository<FulfillmentProviderRequest>>,
     addresses: Arc<PgCrudRepository<Address>>,
     pool: DbPool,
 }
@@ -46,6 +48,7 @@ impl FulfillmentService {
             fulfillments: Arc::new(PgCrudRepository::new(pool.clone())),
             fulfillment_items: Arc::new(PgCrudRepository::new(pool.clone())),
             fulfillment_labels: Arc::new(PgCrudRepository::new(pool.clone())),
+            outbound_requests: Arc::new(PgCrudRepository::new(pool.clone())),
             addresses: Arc::new(PgCrudRepository::new(pool.clone())),
             pool,
         }
@@ -544,6 +547,117 @@ impl FulfillmentService {
             .await
     }
 
+    // ── Outbound request ledger (mirrors payment.payment_provider_request) ───
+    //
+    // A courier call that times out is worse than a gateway call that times out. Retry a
+    // create and you get a second consignment: two parcels, two deliveries, and in a COD
+    // market two cash collections against one order. So the durable record is written
+    // *before* the call, and a repeat of the same key returns the first answer instead of
+    // creating anything.
+
+    #[allow(clippy::too_many_arguments)]
+    async fn idempotent_provider_call<F, Fut, T>(
+        &self,
+        idempotency_key: &str,
+        provider_id: &str,
+        operation: &str,
+        resource_type: &str,
+        resource_id: &str,
+        payload: &serde_json::Value,
+        call_fn: F,
+    ) -> Result<T>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = Result<T>>,
+        T: serde::Serialize + for<'de> serde::Deserialize<'de> + Clone,
+    {
+        // Same canonicalisation as payment's ledger. Duplicated deliberately rather
+        // than shared: a module may not depend on another module (check-module-isolation).
+        let request_hash = {
+            use sha2::{Digest, Sha256};
+            let canonical = serde_json::to_string(payload).unwrap_or_default();
+            let mut hasher = Sha256::new();
+            hasher.update(canonical.as_bytes());
+            hex::encode(hasher.finalize())
+        };
+
+        let spec = FilterSpec::new()
+            .with_predicate("idempotency_key", FilterOp::Eq(idempotency_key.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        if let Some(req) = self.outbound_requests.list(None, &spec).await?.into_iter().next() {
+            if req.request_hash != request_hash {
+                return Err(Error::Invalid {
+                    code: "idempotency_key_payload_mismatch",
+                    message: "Idempotency key reused with a different request payload".to_string(),
+                    field: None,
+                });
+            }
+            if req.state == "succeeded" {
+                if let Some(resp) = req.response {
+                    if let Ok(parsed) = serde_json::from_value::<T>(resp) {
+                        return Ok(parsed);
+                    }
+                }
+            }
+            // in_flight / unknown deliberately fall through to nothing: creating a second
+            // consignment is the failure this table exists to prevent. The row stays
+            // undecided until a human or a courier lookup settles it.
+            if req.state == "in_flight" || req.state == "unknown" {
+                return Err(Error::Conflict {
+                    code: "provider_request_unsettled",
+                    message: format!(
+                        "A previous {operation} for {resource_id} is unsettled. Resolve it                          before retrying, or a duplicate consignment will be created."
+                    ),
+                });
+            }
+        }
+
+        let now = Utc::now();
+        let mut recorded = self
+            .outbound_requests
+            .create(
+                None,
+                FulfillmentProviderRequest {
+                    id: Id::new(),
+                    idempotency_key: idempotency_key.to_string(),
+                    provider_id: provider_id.to_string(),
+                    operation: operation.to_string(),
+                    resource_type: resource_type.to_string(),
+                    resource_id: resource_id.to_string(),
+                    request_hash,
+                    state: "in_flight".to_string(),
+                    response: None,
+                    error: None,
+                    attempts: 1,
+                    first_sent_at: now,
+                    settled_at: None,
+                    deleted_at: None,
+                },
+            )
+            .await?;
+
+        let result = call_fn().await;
+
+        match &result {
+            Ok(output) => {
+                recorded.state = "succeeded".to_string();
+                recorded.response = serde_json::to_value(output).ok();
+            }
+            Err(e) => {
+                // Ambiguous, not failed. We do not know whether a parcel exists.
+                recorded.state = "unknown".to_string();
+                recorded.error = Some(serde_json::json!({ "error": format!("{e:?}") }));
+            }
+        }
+        recorded.settled_at = Some(Utc::now());
+        let id = recorded.id.to_string();
+        let _ = self.outbound_requests.update(None, &id, recorded).await;
+
+        result
+    }
+
     // ── 5. Fulfillment Lifecycle (P5-13) ─────────────────────────────────────
 
     pub async fn create_fulfillment(
@@ -552,9 +666,46 @@ impl FulfillmentService {
     ) -> Result<FulfillmentDTO> {
         let provider = self.get_provider(&input.provider_id)?;
 
-        // Call provider.create_fulfillment (P5-13)
-        let response = provider
-            .create_fulfillment(input.data.as_ref(), &input.items, None)
+        // Keyed on the caller's reference when there is one. Without a stable reference
+        // a retry cannot be told apart from a second, intentional shipment, so the
+        // caller must supply one to get dedupe rather than merely a durable record.
+        //
+        // P37-26: the no-reference case used to be the constant "no_reference", which did
+        // not withhold dedupe — it made every unreferenced call *share* one key. The
+        // second genuinely different parcel for a courier was then refused as a replay
+        // (`idempotency_key_payload_mismatch`), and shipping two parcels through one
+        // courier is the ordinary case, not a retry. A fresh id withholds dedupe, which is
+        // what the paragraph above always meant, and still writes the durable ledger row.
+        let idem_key = format!(
+            "create_fulfillment:{}:{}",
+            input.provider_id,
+            input
+                .shipping_option_id
+                .clone()
+                .unwrap_or_else(|| Id::<Fulfillment>::new().to_string())
+        );
+        let payload = serde_json::json!({
+            "data": input.data,
+            "items": input.items,
+            "location_id": input.location_id,
+        });
+        let data_for_call = input.data.clone();
+        let items_for_call = input.items.clone();
+        let provider_for_call = provider.clone();
+        let response = self
+            .idempotent_provider_call(
+                &idem_key,
+                &input.provider_id,
+                "create_fulfillment",
+                "fulfillment",
+                &idem_key,
+                &payload,
+                move || async move {
+                    provider_for_call
+                        .create_fulfillment(data_for_call.as_ref(), &items_for_call, None)
+                        .await
+                },
+            )
             .await?;
 
         let mut delivery_address_id = None;
@@ -723,6 +874,22 @@ impl FulfillmentService {
         };
 
         Ok(Self::to_fulfillment_dto(&ful, address, items, labels))
+    }
+
+    pub async fn lookup_by_reference(&self, reference: &str) -> Result<Option<FulfillmentDTO>> {
+        let spec = FilterSpec::new().with_predicate("deleted_at", FilterOp::IsNull);
+        let list = self.fulfillments.list(None, &spec).await?;
+        for ful in list {
+            if let Some(data) = &ful.data {
+                if data.get("reference").and_then(|v| v.as_str()) == Some(reference)
+                    || data.get("merchant_reference").and_then(|v| v.as_str()) == Some(reference)
+                    || data.get("tracking_number").and_then(|v| v.as_str()) == Some(reference)
+                {
+                    return self.get_fulfillment(&ful.id.to_string()).await.map(Some);
+                }
+            }
+        }
+        Ok(None)
     }
 
     // ── Internal Helpers ────────────────────────────────────────────────────

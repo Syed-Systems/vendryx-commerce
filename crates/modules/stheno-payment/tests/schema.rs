@@ -16,6 +16,7 @@ async fn every_payment_table_exists() {
         "refund",
         "account_holder",
         "payment_provider_request",
+        "payment_provider_credential",
         "payment_webhook_event",
         "payment_reconciliation_run",
     ] {
@@ -45,6 +46,7 @@ async fn every_table_carries_deleted_at() {
         "refund",
         "account_holder",
         "payment_provider_request",
+        "payment_provider_credential",
         "payment_webhook_event",
         "payment_reconciliation_run",
     ] {
@@ -56,6 +58,96 @@ async fn every_table_carries_deleted_at() {
             .await;
         assert_eq!(exists, 1, "payment.{table}.deleted_at is missing");
     }
+
+    db.drop().await;
+}
+
+#[tokio::test]
+async fn payment_provider_credentials_are_tenant_scoped_and_opaque() {
+    let db = TestDb::migrated().await;
+
+    for column in [
+        "id",
+        "tenant_id",
+        "provider_id",
+        "ciphertext",
+        "nonce",
+        "credential_version",
+        "webhook_slug",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+    ] {
+        let exists = db
+            .count(&format!(
+                "SELECT count(*) FROM information_schema.columns \
+                 WHERE table_schema = 'payment' \
+                   AND table_name = 'payment_provider_credential' \
+                   AND column_name = '{column}'"
+            ))
+            .await;
+        assert_eq!(
+            exists, 1,
+            "payment.payment_provider_credential.{column} is missing"
+        );
+    }
+
+    let has_plaintext = db
+        .count(
+            "SELECT count(*) FROM information_schema.columns \
+             WHERE table_schema = 'payment' \
+               AND table_name = 'payment_provider_credential' \
+               AND column_name IN ('secret', 'plaintext', 'api_key', 'webhook_secret')",
+        )
+        .await;
+    assert_eq!(
+        has_plaintext, 0,
+        "credential table must not expose plaintext-shaped columns"
+    );
+
+    let tenant_provider_unique = db
+        .count(
+            "SELECT count(*) \
+             FROM pg_indexes \
+             WHERE schemaname = 'payment' \
+               AND tablename = 'payment_provider_credential' \
+               AND indexdef ILIKE '%UNIQUE%' \
+               AND indexdef ILIKE '%tenant_id%' \
+               AND indexdef ILIKE '%provider_id%'",
+        )
+        .await;
+    assert_eq!(
+        tenant_provider_unique, 1,
+        "credential table needs a unique tenant/provider index"
+    );
+
+    let webhook_slug_unique = db
+        .count(
+            "SELECT count(*) \
+             FROM pg_indexes \
+             WHERE schemaname = 'payment' \
+               AND tablename = 'payment_provider_credential' \
+               AND indexdef ILIKE '%UNIQUE%' \
+               AND indexdef ILIKE '%webhook_slug%'",
+        )
+        .await;
+    assert_eq!(
+        webhook_slug_unique, 1,
+        "webhook_slug must be globally unique"
+    );
+
+    let rls_forced = db
+        .count(
+            "SELECT count(*) \
+             FROM pg_class c \
+             JOIN pg_namespace n ON n.oid = c.relnamespace \
+             WHERE n.nspname = 'payment' \
+               AND c.relname = 'payment_provider_credential' \
+               AND c.relrowsecurity \
+               AND c.relforcerowsecurity",
+        )
+        .await;
+    assert_eq!(rls_forced, 1, "credential table must have forced RLS");
 
     db.drop().await;
 }

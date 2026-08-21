@@ -11,6 +11,7 @@ owned_tables = [
     "refund_reason",
     "account_holder",
     "payment_provider_request",
+    "payment_provider_credential",
     "payment_webhook_event",
     "payment_reconciliation_run"
 ]

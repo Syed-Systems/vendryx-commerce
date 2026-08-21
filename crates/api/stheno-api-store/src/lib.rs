@@ -4,6 +4,7 @@ pub mod carts;
 pub mod categories;
 pub mod collections;
 pub mod currencies;
+pub mod hooks;
 pub mod customers;
 pub mod locales;
 pub mod orders;

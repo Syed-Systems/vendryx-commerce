@@ -6,6 +6,7 @@ use chrono::{TimeZone, Utc};
 use hmac::{Hmac, Mac};
 use reqwest::Client;
 use sha2::Sha256;
+use std::sync::Arc;
 use std::time::Duration;
 use subtle::ConstantTimeEq;
 
@@ -21,6 +22,75 @@ pub struct StripePaymentProvider {
     base_url: String,
     is_livemode: bool,
     client: Client,
+}
+
+pub struct StripePaymentProviderFactory;
+
+const STRIPE_CREDENTIAL_SCHEMA: &[CredentialField] = &[
+    CredentialField {
+        key: "api_key",
+        label: "API key",
+        kind: CredentialKind::Secret,
+        required: true,
+    },
+    CredentialField {
+        key: "webhook_secret",
+        label: "Webhook secret",
+        kind: CredentialKind::Secret,
+        required: true,
+    },
+    CredentialField {
+        key: "base_url",
+        label: "Base URL",
+        kind: CredentialKind::Url,
+        required: false,
+    },
+    CredentialField {
+        key: "livemode",
+        label: "Live mode",
+        kind: CredentialKind::Bool,
+        required: false,
+    },
+];
+
+impl PaymentProviderFactory for StripePaymentProviderFactory {
+    fn provider_id(&self) -> &str {
+        "pp_stripe_stripe"
+    }
+
+    fn credential_schema(&self) -> &'static [CredentialField] {
+        STRIPE_CREDENTIAL_SCHEMA
+    }
+
+    fn build(&self, creds: &CredentialMap) -> Result<Arc<dyn PaymentProvider>> {
+        validate_credential_map(self.credential_schema(), creds)?;
+
+        let api_key = credential_str(creds, "api_key")?;
+        let webhook_secret = credential_str(creds, "webhook_secret")?;
+        let base_url = creds.get("base_url").and_then(|value| value.as_str());
+        let livemode = creds
+            .get("livemode")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+
+        Ok(Arc::new(StripePaymentProvider::new(
+            api_key,
+            webhook_secret,
+            base_url,
+            livemode,
+        )))
+    }
+}
+
+fn credential_str<'a>(creds: &'a CredentialMap, key: &'static str) -> Result<&'a str> {
+    creds
+        .get(key)
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| Error::Invalid {
+            code: "credential_field_required",
+            message: format!("Credential field '{key}' is required"),
+            field: Some(key.to_string()),
+        })
 }
 
 impl StripePaymentProvider {
@@ -288,6 +358,10 @@ impl PaymentProvider for StripePaymentProvider {
     }
 
     /// Webhook Signature Verification with 5-minute tolerance & livemode check (PAYMENTS §7.1, E10, E13, E14).
+    fn signature_header(&self) -> Option<&'static str> {
+        Some("Stripe-Signature")
+    }
+
     fn verify_webhook(&self, raw: &[u8], signature_header: Option<&str>) -> Result<VerifiedEvent> {
         let sig_header = signature_header.ok_or_else(|| Error::Invalid {
             code: "missing_signature_header",

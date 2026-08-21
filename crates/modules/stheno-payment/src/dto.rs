@@ -1,10 +1,14 @@
 //! DTOs, State Machines, Money Boundary, and Provider Traits for `stheno-payment` (PAYMENTS §2-§6).
 
+use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng, Payload};
+use aes_gcm::{Aes256Gcm, Nonce};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::time::Duration;
 use stheno_types::{Error, Result};
 
@@ -89,6 +93,310 @@ pub enum WebhookAction {
     Canceled,
     PendingAuthorization,
     NotSupported,
+}
+
+// Provider Credential Schema (ADR-019, P21-C2)
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialKind {
+    Text,
+    Secret,
+    Pem,
+    Url,
+    Bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct CredentialField {
+    pub key: &'static str,
+    pub label: &'static str,
+    pub kind: CredentialKind,
+    pub required: bool,
+}
+
+pub type CredentialMap = BTreeMap<String, serde_json::Value>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialHealth {
+    Configured,
+    Unconfigured,
+    Invalid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CredentialFieldReadDTO {
+    pub key: String,
+    pub label: String,
+    pub kind: CredentialKind,
+    pub required: bool,
+    pub configured: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaymentProviderCredentialDTO {
+    pub id: String,
+    pub provider_id: String,
+    pub credential_version: i32,
+    pub webhook_slug: String,
+    pub health: CredentialHealth,
+    pub fields: Vec<CredentialFieldReadDTO>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EncryptedCredential {
+    pub ciphertext: Vec<u8>,
+    pub nonce: Vec<u8>,
+}
+
+pub trait PaymentProviderFactory: Send + Sync + 'static {
+    fn provider_id(&self) -> &str;
+    fn credential_schema(&self) -> &'static [CredentialField];
+    fn build(&self, creds: &CredentialMap) -> Result<Arc<dyn PaymentProvider>>;
+}
+
+pub fn validate_credential_map(schema: &[CredentialField], creds: &CredentialMap) -> Result<()> {
+    for key in creds.keys() {
+        if !schema.iter().any(|field| field.key == key) {
+            return Err(Error::Invalid {
+                code: "credential_field_unknown",
+                message: format!("Unknown credential field '{key}'"),
+                field: Some(key.clone()),
+            });
+        }
+    }
+
+    for field in schema {
+        let value = creds.get(field.key);
+        if field.required && value_is_absent(value) {
+            return Err(Error::Invalid {
+                code: "credential_field_required",
+                message: format!("Credential field '{}' is required", field.key),
+                field: Some(field.key.to_string()),
+            });
+        }
+
+        let Some(value) = value else {
+            continue;
+        };
+        if value_is_absent(Some(value)) {
+            continue;
+        }
+
+        match field.kind {
+            CredentialKind::Text | CredentialKind::Secret => {
+                require_string(field, value, "credential_string_required")?;
+            }
+            CredentialKind::Pem => {
+                let raw = require_string(field, value, "credential_pem_invalid")?;
+                if !is_valid_pem(raw) {
+                    return Err(Error::Invalid {
+                        code: "credential_pem_invalid",
+                        message: format!(
+                            "Credential field '{}' must be a valid PEM block",
+                            field.key
+                        ),
+                        field: Some(field.key.to_string()),
+                    });
+                }
+            }
+            CredentialKind::Url => {
+                let raw = require_string(field, value, "credential_url_invalid")?;
+                let parsed = url::Url::parse(raw).map_err(|_| Error::Invalid {
+                    code: "credential_url_invalid",
+                    message: format!("Credential field '{}' must be a valid URL", field.key),
+                    field: Some(field.key.to_string()),
+                })?;
+
+                if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
+                    return Err(Error::Invalid {
+                        code: "credential_url_invalid",
+                        message: format!("Credential field '{}' must be an HTTP(S) URL", field.key),
+                        field: Some(field.key.to_string()),
+                    });
+                }
+            }
+            CredentialKind::Bool => {
+                if !value.is_boolean() {
+                    return Err(Error::Invalid {
+                        code: "credential_bool_required",
+                        message: format!("Credential field '{}' must be a boolean", field.key),
+                        field: Some(field.key.to_string()),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn encrypt_credential_map(
+    tenant_id: &str,
+    provider_id: &str,
+    creds: &CredentialMap,
+) -> Result<EncryptedCredential> {
+    let cipher = credential_cipher_from_env()?;
+    let plaintext = serde_json::to_vec(creds).map_err(|e| Error::Invalid {
+        code: "credential_serialize_failed",
+        message: e.to_string(),
+        field: None,
+    })?;
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let aad = credential_aad(tenant_id, provider_id);
+    let ciphertext = cipher
+        .encrypt(
+            &nonce,
+            Payload {
+                msg: &plaintext,
+                aad: &aad,
+            },
+        )
+        .map_err(|_| Error::Invalid {
+            code: "credential_encrypt_failed",
+            message: "Credential encryption failed".to_string(),
+            field: None,
+        })?;
+
+    Ok(EncryptedCredential {
+        ciphertext,
+        nonce: nonce.to_vec(),
+    })
+}
+
+pub fn decrypt_credential_map(
+    tenant_id: &str,
+    provider_id: &str,
+    encrypted: &EncryptedCredential,
+) -> Result<CredentialMap> {
+    if encrypted.nonce.len() != 12 {
+        return Err(Error::Invalid {
+            code: "credential_nonce_invalid",
+            message: "Credential nonce is invalid".to_string(),
+            field: None,
+        });
+    }
+
+    let cipher = credential_cipher_from_env()?;
+    let nonce = Nonce::from_slice(&encrypted.nonce);
+    let aad = credential_aad(tenant_id, provider_id);
+    let plaintext = cipher
+        .decrypt(
+            nonce,
+            Payload {
+                msg: &encrypted.ciphertext,
+                aad: &aad,
+            },
+        )
+        .map_err(|_| Error::Invalid {
+            code: "credential_decrypt_failed",
+            message: "Credential decryption failed".to_string(),
+            field: None,
+        })?;
+
+    serde_json::from_slice(&plaintext).map_err(|_| Error::Invalid {
+        code: "credential_payload_invalid",
+        message: "Credential payload is invalid".to_string(),
+        field: None,
+    })
+}
+
+fn value_is_absent(value: Option<&serde_json::Value>) -> bool {
+    match value {
+        None | Some(serde_json::Value::Null) => true,
+        Some(serde_json::Value::String(raw)) => raw.trim().is_empty(),
+        _ => false,
+    }
+}
+
+fn credential_cipher_from_env() -> Result<Aes256Gcm> {
+    let raw = std::env::var("STHENO_CREDENTIAL_KEY").map_err(|_| Error::Invalid {
+        code: "credential_key_missing",
+        message: "STHENO_CREDENTIAL_KEY is required".to_string(),
+        field: None,
+    })?;
+
+    let key = if raw.len() == 64 && raw.bytes().all(|b| b.is_ascii_hexdigit()) {
+        hex::decode(raw).map_err(|_| Error::Invalid {
+            code: "credential_key_invalid",
+            message: "STHENO_CREDENTIAL_KEY must be 32 bytes".to_string(),
+            field: None,
+        })?
+    } else {
+        raw.into_bytes()
+    };
+
+    if key.len() != 32 {
+        return Err(Error::Invalid {
+            code: "credential_key_invalid",
+            message: "STHENO_CREDENTIAL_KEY must be 32 bytes".to_string(),
+            field: None,
+        });
+    }
+
+    Aes256Gcm::new_from_slice(&key).map_err(|_| Error::Invalid {
+        code: "credential_key_invalid",
+        message: "STHENO_CREDENTIAL_KEY must be 32 bytes".to_string(),
+        field: None,
+    })
+}
+
+fn credential_aad(tenant_id: &str, provider_id: &str) -> Vec<u8> {
+    let mut aad = Vec::with_capacity(tenant_id.len() + provider_id.len() + 1);
+    aad.extend_from_slice(tenant_id.as_bytes());
+    aad.push(0);
+    aad.extend_from_slice(provider_id.as_bytes());
+    aad
+}
+
+fn require_string<'a>(
+    field: &CredentialField,
+    value: &'a serde_json::Value,
+    code: &'static str,
+) -> Result<&'a str> {
+    value.as_str().ok_or_else(|| Error::Invalid {
+        code,
+        message: format!("Credential field '{}' must be a string", field.key),
+        field: Some(field.key.to_string()),
+    })
+}
+
+fn is_valid_pem(raw: &str) -> bool {
+    let lines: Vec<&str> = raw
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+
+    if lines.len() < 3 {
+        return false;
+    }
+
+    let Some(label) = lines[0]
+        .strip_prefix("-----BEGIN ")
+        .and_then(|s| s.strip_suffix("-----"))
+    else {
+        return false;
+    };
+
+    if lines[lines.len() - 1] != format!("-----END {label}-----") {
+        return false;
+    }
+
+    let body: String = lines[1..lines.len() - 1].join("");
+    if body.is_empty() || body.len() % 4 == 1 {
+        return false;
+    }
+
+    let first_padding = body.find('=').unwrap_or(body.len());
+    body[..first_padding]
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/')
+        && body[first_padding..].bytes().all(|b| b == b'=')
+        && body[first_padding..].len() <= 2
 }
 
 // ── Money Boundary (PAYMENTS §5) ─────────────────────────────────────────────
@@ -352,6 +660,17 @@ pub trait PaymentProvider: Send + Sync + 'static {
     async fn get_status(&self, i: StatusInput) -> Result<PaymentSessionStatus>;
 
     // ---- inbound ----
+    /// The HTTP header carrying this provider's webhook signature, if it signs in a
+    /// header at all. The hooks route reads it and hands the value to `verify_webhook`.
+    ///
+    /// A provider that authenticates its callback some other way — SSLCommerz validates
+    /// an IPN by posting the payload back — returns `None` and does its own checking
+    /// inside `verify_webhook`. Returning `None` is a claim that the body is
+    /// self-authenticating, never a licence to skip verification.
+    fn signature_header(&self) -> Option<&'static str> {
+        None
+    }
+
     fn verify_webhook(&self, raw: &[u8], signature_header: Option<&str>) -> Result<VerifiedEvent>;
     fn map_webhook(&self, event: &VerifiedEvent) -> Result<WebhookAction>;
 
@@ -552,6 +871,18 @@ pub struct RefundPaymentInput {
     pub note: Option<String>,
     pub created_by: Option<String>,
     pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UnsettledReconcileReport {
+    /// Requests old enough to be considered stranded.
+    pub scanned: usize,
+    /// Converged to `succeeded` — the provider confirmed the money moved.
+    pub converged: usize,
+    /// Provider says it did not happen; the request is now `failed`.
+    pub resolved_failed: usize,
+    /// Still ambiguous after asking. These are the ones a human must look at.
+    pub still_unsettled: usize,
 }
 
 // ── Reconciliation DTOs (PAYMENTS §9, Task P8-22) ───────────────────────────

@@ -12,6 +12,12 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::{Arc, RwLock};
+use stheno_db::diesel::{
+    self,
+    sql_types::{Integer, Text, Timestamptz},
+    QueryableByName,
+};
+use stheno_db::diesel_async::RunQueryDsl;
 use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 use tokio::sync::Mutex as AsyncMutex;
@@ -21,6 +27,71 @@ use crate::models::{
     AccountHolder, Capture, Payment, PaymentCollection, PaymentProviderRequest,
     PaymentReconciliationRun, PaymentSession, PaymentWebhookEvent, Refund, RefundReason,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct ProviderCacheKey {
+    tenant_id: String,
+    provider_id: String,
+    credential_version: i32,
+}
+
+#[derive(QueryableByName)]
+struct CredentialRow {
+    #[diesel(sql_type = Text)]
+    ciphertext_hex: String,
+    #[diesel(sql_type = Text)]
+    nonce_hex: String,
+    #[diesel(sql_type = Integer)]
+    credential_version: i32,
+}
+
+#[derive(QueryableByName)]
+struct CredentialSummaryRow {
+    #[diesel(sql_type = Text)]
+    id: String,
+    #[diesel(sql_type = Text)]
+    provider_id: String,
+    #[diesel(sql_type = Integer)]
+    credential_version: i32,
+    #[diesel(sql_type = Text)]
+    webhook_slug: String,
+    #[diesel(sql_type = Timestamptz)]
+    created_at: DateTime<Utc>,
+    #[diesel(sql_type = Timestamptz)]
+    updated_at: DateTime<Utc>,
+}
+
+#[derive(QueryableByName)]
+struct ProviderRequestStateRow {
+    #[diesel(sql_type = Text)]
+    state: String,
+}
+
+fn credential_dto(
+    row: CredentialSummaryRow,
+    schema: &[CredentialField],
+    health: CredentialHealth,
+) -> PaymentProviderCredentialDTO {
+    PaymentProviderCredentialDTO {
+        id: row.id,
+        provider_id: row.provider_id,
+        credential_version: row.credential_version,
+        webhook_slug: row.webhook_slug,
+        health,
+        fields: schema
+            .iter()
+            .map(|field| CredentialFieldReadDTO {
+                key: field.key.to_string(),
+                label: field.label.to_string(),
+                kind: field.kind,
+                required: field.required,
+                configured: matches!(health, CredentialHealth::Configured),
+            })
+            .collect(),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
 
 #[derive(Clone)]
 pub struct PaymentService {
@@ -36,7 +107,8 @@ pub struct PaymentService {
     webhook_events: Arc<PgCrudRepository<PaymentWebhookEvent>>,
     reconciliation_runs: Arc<PgCrudRepository<PaymentReconciliationRun>>,
     payment_locks: Arc<RwLock<HashMap<String, Arc<AsyncMutex<()>>>>>,
-    providers: Arc<RwLock<HashMap<String, Arc<dyn PaymentProvider>>>>,
+    provider_cache: Arc<RwLock<HashMap<ProviderCacheKey, Arc<dyn PaymentProvider>>>>,
+    factories: Arc<RwLock<HashMap<String, Arc<dyn PaymentProviderFactory>>>>,
     ip_session_attempts: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
 }
 
@@ -55,21 +127,270 @@ impl PaymentService {
             reconciliation_runs: Arc::new(PgCrudRepository::new(pool.clone())),
             pool,
             payment_locks: Arc::new(RwLock::new(HashMap::new())),
-            providers: Arc::new(RwLock::new(HashMap::new())),
+            provider_cache: Arc::new(RwLock::new(HashMap::new())),
+            factories: Arc::new(RwLock::new(HashMap::new())),
             ip_session_attempts: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    pub fn register_provider(&self, provider: Arc<dyn PaymentProvider>) {
-        let mut map = self.providers.write().unwrap();
-        map.insert(provider.id().to_string(), provider);
+    pub fn register_provider(&self, _provider: Arc<dyn PaymentProvider>) {
+        // Kept temporarily for older tests and boot code while P21-F2/F3 migrate all
+        // resolution through factories and tenant-owned credentials.
     }
 
-    pub fn get_provider(&self, id: &str) -> Result<Arc<dyn PaymentProvider>> {
-        let map = self.providers.read().unwrap();
+    pub fn register_factory(&self, factory: Arc<dyn PaymentProviderFactory>) {
+        let mut map = self.factories.write().unwrap();
+        map.insert(factory.provider_id().to_string(), factory);
+    }
+
+    pub fn get_factory(&self, id: &str) -> Result<Arc<dyn PaymentProviderFactory>> {
+        let map = self.factories.read().unwrap();
         map.get(id).cloned().ok_or_else(|| Error::NotFound {
-            entity: "payment_provider",
+            entity: "payment_provider_factory",
             id: id.to_string(),
+        })
+    }
+
+    pub fn list_factories(&self) -> Vec<Arc<dyn PaymentProviderFactory>> {
+        let mut factories: Vec<_> = self.factories.read().unwrap().values().cloned().collect();
+        factories.sort_by(|a, b| a.provider_id().cmp(b.provider_id()));
+        factories
+    }
+
+    pub async fn get_provider_credential(
+        &self,
+        tenant_id: &str,
+        provider_id: &str,
+    ) -> Result<Option<PaymentProviderCredentialDTO>> {
+        stheno_db::tenant::validate(tenant_id)?;
+        let factory = self.get_factory(provider_id)?;
+        let Some(row) = self.load_credential_summary(tenant_id, provider_id).await? else {
+            return Ok(None);
+        };
+        let health = self
+            .credential_health_from_last_outcome(tenant_id, provider_id)
+            .await?;
+        Ok(Some(credential_dto(
+            row,
+            factory.credential_schema(),
+            health,
+        )))
+    }
+
+    pub async fn upsert_provider_credential(
+        &self,
+        tenant_id: &str,
+        provider_id: &str,
+        creds: &CredentialMap,
+    ) -> Result<PaymentProviderCredentialDTO> {
+        stheno_db::tenant::validate(tenant_id)?;
+        let factory = self.get_factory(provider_id)?;
+        validate_credential_map(factory.credential_schema(), creds)?;
+        let encrypted = encrypt_credential_map(tenant_id, provider_id, creds)?;
+        let row = self
+            .upsert_credential_row(tenant_id, provider_id, encrypted)
+            .await?;
+        let health = self
+            .credential_health_from_last_outcome(tenant_id, provider_id)
+            .await?;
+        Ok(credential_dto(row, factory.credential_schema(), health))
+    }
+
+    pub async fn get_provider(
+        &self,
+        tenant_id: &str,
+        provider_id: &str,
+    ) -> Result<Arc<dyn PaymentProvider>> {
+        stheno_db::tenant::validate(tenant_id)?;
+        let row = self.load_credential_row(tenant_id, provider_id).await?;
+        let cache_key = ProviderCacheKey {
+            tenant_id: tenant_id.to_string(),
+            provider_id: provider_id.to_string(),
+            credential_version: row.credential_version,
+        };
+
+        if let Some(provider) = self.provider_cache.read().unwrap().get(&cache_key).cloned() {
+            return Ok(provider);
+        }
+
+        let factory = self.get_factory(provider_id)?;
+        let encrypted = EncryptedCredential {
+            ciphertext: hex::decode(row.ciphertext_hex).map_err(|_| Error::Invalid {
+                code: "credential_ciphertext_invalid",
+                message: "Credential ciphertext is invalid".to_string(),
+                field: None,
+            })?,
+            nonce: hex::decode(row.nonce_hex).map_err(|_| Error::Invalid {
+                code: "credential_nonce_invalid",
+                message: "Credential nonce is invalid".to_string(),
+                field: None,
+            })?,
+        };
+        let creds = decrypt_credential_map(tenant_id, provider_id, &encrypted)?;
+        let provider = factory.build(&creds)?;
+
+        self.provider_cache
+            .write()
+            .unwrap()
+            .insert(cache_key, provider.clone());
+
+        Ok(provider)
+    }
+
+    async fn load_credential_row(
+        &self,
+        tenant_id: &str,
+        provider_id: &str,
+    ) -> Result<CredentialRow> {
+        let tenant_id = tenant_id.to_string();
+        let provider_id = provider_id.to_string();
+        let pool = self.pool.clone();
+
+        stheno_db::tenant::scope(tenant_id, async move {
+            stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+                Box::pin(async move {
+                    let row = diesel::sql_query(
+                        "SELECT encode(ciphertext, 'hex') AS ciphertext_hex,
+                                encode(nonce, 'hex') AS nonce_hex,
+                                credential_version
+                           FROM payment.payment_provider_credential
+                          WHERE provider_id = $1
+                            AND deleted_at IS NULL",
+                    )
+                    .bind::<Text, _>(&provider_id)
+                    .get_result(conn)
+                    .await;
+
+                    match row {
+                        Ok(row) => Ok(row),
+                        Err(diesel::result::Error::NotFound) => Err(Error::NotFound {
+                            entity: "payment_provider_credential",
+                            id: provider_id,
+                        }),
+                        Err(e) => Err(Error::Database(e.to_string())),
+                    }
+                })
+            })
+            .await
+        })
+        .await
+    }
+
+    async fn load_credential_summary(
+        &self,
+        tenant_id: &str,
+        provider_id: &str,
+    ) -> Result<Option<CredentialSummaryRow>> {
+        let tenant_id = tenant_id.to_string();
+        let provider_id = provider_id.to_string();
+        let pool = self.pool.clone();
+        stheno_db::tenant::scope(tenant_id, async move {
+            stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+                Box::pin(async move {
+                    let rows: Vec<CredentialSummaryRow> = diesel::sql_query(
+                        "SELECT id,
+                                provider_id,
+                                credential_version,
+                                webhook_slug,
+                                created_at,
+                                updated_at
+                           FROM payment.payment_provider_credential
+                          WHERE provider_id = $1
+                            AND deleted_at IS NULL
+                          LIMIT 1",
+                    )
+                    .bind::<Text, _>(&provider_id)
+                    .load(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+                    Ok(rows.into_iter().next())
+                })
+            })
+            .await
+        })
+        .await
+    }
+
+    async fn upsert_credential_row(
+        &self,
+        tenant_id: &str,
+        provider_id: &str,
+        encrypted: EncryptedCredential,
+    ) -> Result<CredentialSummaryRow> {
+        let tenant_id = tenant_id.to_string();
+        let provider_id = provider_id.to_string();
+        let pool = self.pool.clone();
+        stheno_db::tenant::scope(tenant_id.clone(), async move {
+            stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+                Box::pin(async move {
+                    diesel::sql_query(
+                        "INSERT INTO payment.payment_provider_credential (
+                             id, provider_id, ciphertext, nonce, credential_version, webhook_slug
+                         ) VALUES (
+                             $1, $2, decode($3, 'hex'), decode($4, 'hex'), 1, $5
+                         )
+                         ON CONFLICT (tenant_id, provider_id) WHERE deleted_at IS NULL
+                         DO UPDATE SET
+                             ciphertext = EXCLUDED.ciphertext,
+                             nonce = EXCLUDED.nonce,
+                             credential_version = payment.payment_provider_credential.credential_version + 1,
+                             updated_at = now()
+                         RETURNING id,
+                                   provider_id,
+                                   credential_version,
+                                   webhook_slug,
+                                   created_at,
+                                   updated_at",
+                    )
+                    .bind::<Text, _>(format!("ppcred_{tenant_id}_{provider_id}"))
+                    .bind::<Text, _>(&provider_id)
+                    .bind::<Text, _>(hex::encode(encrypted.ciphertext))
+                    .bind::<Text, _>(hex::encode(encrypted.nonce))
+                    .bind::<Text, _>(format!("wh_{}", ulid::Ulid::new()))
+                    .get_result::<CredentialSummaryRow>(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))
+                })
+            })
+            .await
+        })
+        .await
+    }
+
+    async fn credential_health_from_last_outcome(
+        &self,
+        tenant_id: &str,
+        provider_id: &str,
+    ) -> Result<CredentialHealth> {
+        let tenant_id = tenant_id.to_string();
+        let provider_id = provider_id.to_string();
+        let pool = self.pool.clone();
+        let state = stheno_db::tenant::scope(tenant_id, async move {
+            stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+                Box::pin(async move {
+                    let rows: Vec<ProviderRequestStateRow> = diesel::sql_query(
+                        "SELECT state
+                           FROM payment.payment_provider_request
+                          WHERE provider_id = $1
+                            AND deleted_at IS NULL
+                          ORDER BY COALESCE(settled_at, first_sent_at) DESC
+                          LIMIT 1",
+                    )
+                    .bind::<Text, _>(&provider_id)
+                    .load(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+                    Ok(rows.into_iter().next().map(|row| row.state))
+                })
+            })
+            .await
+        })
+        .await?;
+
+        Ok(match state.as_deref() {
+            Some("succeeded") => CredentialHealth::Configured,
+            Some("failed") => CredentialHealth::Invalid,
+            _ => CredentialHealth::Unconfigured,
         })
     }
 
@@ -185,7 +506,8 @@ impl PaymentService {
             }
         }
 
-        let provider = self.get_provider(&input.provider_id)?;
+        let tenant_id = stheno_db::tenant::current()?;
+        let provider = self.get_provider(&tenant_id, &input.provider_id).await?;
         let init_out = provider
             .initiate(InitiateInput {
                 amount: input.amount,
@@ -298,32 +620,34 @@ impl PaymentService {
                 });
             } else if req.state == "in_flight" || req.state == "unknown" {
                 // Ambiguous timeout recovery path (P4-18, PAYMENTS §6 step 5)
-                if let Ok(provider) = self.get_provider(provider_id) {
-                    let ret_res = provider
-                        .retrieve(RetrieveInput {
-                            reference_id: resource_id.to_string(),
-                            data: None,
-                        })
-                        .await;
+                if let Ok(tenant_id) = stheno_db::tenant::current() {
+                    if let Ok(provider) = self.get_provider(&tenant_id, provider_id).await {
+                        let ret_res = provider
+                            .retrieve(RetrieveInput {
+                                reference_id: resource_id.to_string(),
+                                data: None,
+                            })
+                            .await;
 
-                    if let Ok(ret) = ret_res {
-                        if ret.status == PaymentSessionStatus::Authorized
-                            || ret.status == PaymentSessionStatus::Captured
-                        {
-                            // Succeeded on remote, backfill and return
-                            let resp_json = serde_json::to_value(&ret.data).unwrap_or_default();
-                            let req_id = req.id.to_string();
-                            let mut updated_req = req;
-                            updated_req.state = "succeeded".to_string();
-                            updated_req.response = Some(resp_json.clone());
-                            updated_req.settled_at = Some(Utc::now());
-                            let _ = self
-                                .outbound_requests
-                                .update(None, &req_id, updated_req)
-                                .await;
+                        if let Ok(ret) = ret_res {
+                            if ret.status == PaymentSessionStatus::Authorized
+                                || ret.status == PaymentSessionStatus::Captured
+                            {
+                                // Succeeded on remote, backfill and return
+                                let resp_json = serde_json::to_value(&ret.data).unwrap_or_default();
+                                let req_id = req.id.to_string();
+                                let mut updated_req = req;
+                                updated_req.state = "succeeded".to_string();
+                                updated_req.response = Some(resp_json.clone());
+                                updated_req.settled_at = Some(Utc::now());
+                                let _ = self
+                                    .outbound_requests
+                                    .update(None, &req_id, updated_req)
+                                    .await;
 
-                            if let Ok(parsed) = serde_json::from_value::<T>(resp_json) {
-                                return Ok(parsed);
+                                if let Ok(parsed) = serde_json::from_value::<T>(resp_json) {
+                                    return Ok(parsed);
+                                }
                             }
                         }
                     }
@@ -375,6 +699,106 @@ impl PaymentService {
         result
     }
 
+    // ── Convergence for stranded provider requests ───────────────────────────
+    //
+    // `idempotent_call` converges an ambiguous request only when the *same key is
+    // retried*. After a process dies mid-call nothing retries: the customer has gone,
+    // and bKash-style gateways only send a webhook on success, so silence is not
+    // evidence of failure. Worse, a crash leaves the row `in_flight` rather than
+    // `unknown`, because the state is written after the call returns.
+    //
+    // This sweep is what closes that gap, and it is the difference between
+    // timeout-safety and crash-safety. Without it a stranded row sits forever and the
+    // money is found by a customer complaint or a month-end statement.
+
+    /// Asks the provider what actually happened to one stranded request and settles it.
+    /// Returns the state it reached.
+    async fn converge_request(&self, req: &PaymentProviderRequest) -> Result<String> {
+        let tenant_id = stheno_db::tenant::current()?;
+        let provider = self.get_provider(&tenant_id, &req.provider_id).await?;
+
+        let retrieved = provider
+            .retrieve(RetrieveInput {
+                reference_id: req.resource_id.clone(),
+                data: None,
+            })
+            .await;
+
+        let Ok(ret) = retrieved else {
+            // The provider could not answer. Leave the row alone: guessing here is how
+            // a real payment gets marked failed.
+            return Ok(req.state.clone());
+        };
+
+        let mut updated = req.clone();
+        let now = Utc::now();
+
+        match ret.status {
+            PaymentSessionStatus::Authorized | PaymentSessionStatus::Captured => {
+                updated.state = "succeeded".to_string();
+                updated.response = Some(serde_json::to_value(&ret.data).unwrap_or_default());
+            }
+            PaymentSessionStatus::Canceled | PaymentSessionStatus::Error => {
+                updated.state = "failed".to_string();
+                updated.error = Some(serde_json::json!({
+                    "converged_from": req.state,
+                    "provider_status": ret.status.as_str(),
+                }));
+            }
+            // Still moving. Ask again on the next sweep rather than deciding.
+            _ => return Ok(req.state.clone()),
+        }
+
+        updated.settled_at = Some(now);
+        let state = updated.state.clone();
+        let id = updated.id.to_string();
+        self.outbound_requests.update(None, &id, updated).await?;
+        Ok(state)
+    }
+
+    /// Sweeps provider requests stranded in `in_flight` or `unknown` and settles what
+    /// the provider can confirm. Safe to run repeatedly; it only ever moves a request
+    /// from ambiguous to decided.
+    ///
+    /// `min_age_seconds` keeps the sweep off requests that are simply still running.
+    pub async fn reconcile_unsettled_requests(
+        &self,
+        min_age_seconds: i64,
+        limit: usize,
+    ) -> Result<UnsettledReconcileReport> {
+        let spec = FilterSpec::new()
+            .with_predicate(
+                "state",
+                FilterOp::In(vec!["in_flight".to_string(), "unknown".to_string()]),
+            )
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, limit);
+
+        let cutoff = Utc::now() - chrono::Duration::seconds(min_age_seconds);
+        let candidates: Vec<PaymentProviderRequest> = self
+            .outbound_requests
+            .list(None, &spec)
+            .await?
+            .into_iter()
+            .filter(|r| r.first_sent_at <= cutoff)
+            .collect();
+
+        let mut report = UnsettledReconcileReport {
+            scanned: candidates.len(),
+            ..Default::default()
+        };
+
+        for req in &candidates {
+            match self.converge_request(req).await {
+                Ok(state) if state == "succeeded" => report.converged += 1,
+                Ok(state) if state == "failed" => report.resolved_failed += 1,
+                _ => report.still_unsettled += 1,
+            }
+        }
+
+        Ok(report)
+    }
+
     // ── Authorization & Payment Creation ─────────────────────────────────────
 
     pub async fn authorize_payment_session(
@@ -382,16 +806,31 @@ impl PaymentService {
         input: AuthorizePaymentSessionInput,
     ) -> Result<PaymentDTO> {
         let session = self.get_payment_session(&input.session_id).await?;
-        let provider = self.get_provider(&session.provider_id)?;
+        let tenant_id = stheno_db::tenant::current()?;
+        let provider = self.get_provider(&tenant_id, &session.provider_id).await?;
 
-        let auth_out = provider
-            .authorize(AuthorizeInput {
-                session_id: session.id.clone(),
-                amount: session.amount,
-                currency_code: session.currency_code.clone(),
-                context: input.context.clone(),
-                data: session.data.clone(),
-            })
+        // Every money-moving call goes through the outbound ledger, so an ambiguous
+        // timeout leaves a durable `unknown` row to converge from rather than a lost
+        // payment. A session is authorized once, so the key derives from its id.
+        let auth_input = AuthorizeInput {
+            session_id: session.id.clone(),
+            amount: session.amount,
+            currency_code: session.currency_code.clone(),
+            context: input.context.clone(),
+            data: session.data.clone(),
+        };
+        let auth_payload = serde_json::to_value(&auth_input).unwrap_or_default();
+        let auth_provider = provider.clone();
+        let auth_out = self
+            .idempotent_call(
+                &format!("authorize:{}", session.id),
+                &session.provider_id,
+                "authorize",
+                "payment_session",
+                &session.id,
+                &auth_payload,
+                move |_key| async move { auth_provider.authorize(auth_input).await },
+            )
             .await?;
 
         if auth_out.status != PaymentSessionStatus::Authorized {
@@ -472,12 +911,25 @@ impl PaymentService {
             return self.get_payment(payment_id).await;
         }
 
-        let provider = self.get_provider(&payment.provider_id)?;
-        let out = provider
-            .cancel(CancelInput {
-                payment_id: payment_id.to_string(),
-                data: payment.data.clone(),
-            })
+        let tenant_id = stheno_db::tenant::current()?;
+        let provider = self.get_provider(&tenant_id, &payment.provider_id).await?;
+        // A payment is voided once; double-void is already treated as a no-op above.
+        let cancel_input = CancelInput {
+            payment_id: payment_id.to_string(),
+            data: payment.data.clone(),
+        };
+        let cancel_payload = serde_json::to_value(&cancel_input).unwrap_or_default();
+        let cancel_provider = provider.clone();
+        let out = self
+            .idempotent_call(
+                &format!("cancel:{payment_id}"),
+                &payment.provider_id,
+                "cancel",
+                "payment",
+                payment_id,
+                &cancel_payload,
+                move |_key| async move { cancel_provider.cancel(cancel_input).await },
+            )
             .await?;
 
         let now = Utc::now();
@@ -580,15 +1032,36 @@ impl PaymentService {
             });
         }
 
-        // Call provider capture
-        let provider = self.get_provider(&payment.provider_id)?;
-        provider
-            .capture(CaptureInput {
-                payment_id: payment.id.clone(),
-                amount: amount_to_capture,
-                currency_code: payment.currency_code.clone(),
-                data: payment.data.clone(),
-            })
+        // Call provider capture through the outbound ledger.
+        //
+        // The key carries `current_captured` as a sequence. A retry after a crash sees
+        // the same running total — the capture row was never written — so it dedupes to
+        // the original request. A genuine second capture advances the total and gets its
+        // own key. Keying on amount alone would silently merge two legitimate partial
+        // captures of equal size into one.
+        let tenant_id = stheno_db::tenant::current()?;
+        let provider = self.get_provider(&tenant_id, &payment.provider_id).await?;
+        let capture_input = CaptureInput {
+            payment_id: payment.id.clone(),
+            amount: amount_to_capture,
+            currency_code: payment.currency_code.clone(),
+            data: payment.data.clone(),
+        };
+        let capture_payload = serde_json::to_value(&capture_input).unwrap_or_default();
+        let capture_provider = provider.clone();
+        let _capture_out = self
+            .idempotent_call(
+                &format!(
+                    "capture:{}:{}:{}",
+                    payment.id, current_captured, amount_to_capture
+                ),
+                &payment.provider_id,
+                "capture",
+                "payment",
+                &payment.id,
+                &capture_payload,
+                move |_key| async move { capture_provider.capture(capture_input).await },
+            )
             .await?;
 
         let capture = Capture {
@@ -665,17 +1138,33 @@ impl PaymentService {
             });
         }
 
-        // Call provider refund
-        let provider = self.get_provider(&payment.provider_id)?;
-        provider
-            .refund(RefundInput {
-                payment_id: payment.id.clone(),
-                amount: input.amount,
-                currency_code: payment.currency_code.clone(),
-                reason: input.refund_reason_id.clone(),
-                note: input.note.clone(),
-                data: payment.data.clone(),
-            })
+        // Same sequencing rule as capture: `current_refunded` distinguishes a retry
+        // from a second, legitimate partial refund of the same amount.
+        let tenant_id = stheno_db::tenant::current()?;
+        let provider = self.get_provider(&tenant_id, &payment.provider_id).await?;
+        let refund_input = RefundInput {
+            payment_id: payment.id.clone(),
+            amount: input.amount,
+            currency_code: payment.currency_code.clone(),
+            reason: input.refund_reason_id.clone(),
+            note: input.note.clone(),
+            data: payment.data.clone(),
+        };
+        let refund_payload = serde_json::to_value(&refund_input).unwrap_or_default();
+        let refund_provider = provider.clone();
+        let _refund_out = self
+            .idempotent_call(
+                &format!(
+                    "refund:{}:{}:{}",
+                    payment.id, current_refunded, input.amount
+                ),
+                &payment.provider_id,
+                "refund",
+                "payment",
+                &payment.id,
+                &refund_payload,
+                move |_key| async move { refund_provider.refund(refund_input).await },
+            )
             .await?;
 
         let refund = Refund {
@@ -724,7 +1213,8 @@ impl PaymentService {
         raw_body: &[u8],
         signature_header: Option<&str>,
     ) -> Result<PaymentWebhookEventDTO> {
-        let provider = self.get_provider(provider_id)?;
+        let tenant_id = stheno_db::tenant::current()?;
+        let provider = self.get_provider(&tenant_id, provider_id).await?;
         let verified = provider.verify_webhook(raw_body, signature_header)?;
 
         // Webhook replay guard (PAYMENTS §7.1, §7.3, E9): Unique constraint

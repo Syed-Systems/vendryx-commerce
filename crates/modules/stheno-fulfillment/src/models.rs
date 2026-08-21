@@ -187,6 +187,24 @@ pub(crate) struct Address {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct FulfillmentProviderRequest {
+    pub id: Id<FulfillmentProviderRequest>,
+    pub idempotency_key: String,
+    pub provider_id: String,
+    pub operation: String, // "create_fulfillment", "cancel_fulfillment", "create_return"
+    pub resource_type: String,
+    pub resource_id: String,
+    pub request_hash: String,
+    pub state: String, // "in_flight", "succeeded", "failed", "unknown"
+    pub response: Option<serde_json::Value>,
+    pub error: Option<serde_json::Value>,
+    pub attempts: i32,
+    pub first_sent_at: DateTime<Utc>,
+    pub settled_at: Option<DateTime<Utc>>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
 // Medusa id prefixes for this module's entities (ADR-010).
 stheno_types::prefixed_id! {
     Address => "addr",
@@ -194,6 +212,7 @@ stheno_types::prefixed_id! {
     FulfillmentItem => "ful_item",
     FulfillmentLabel => "ful_lbl",
     FulfillmentProvider => "ful_pv",
+    FulfillmentProviderRequest => "fpreq",
     FulfillmentSet => "fset",
     GeoZone => "gzone",
     ServiceZone => "szone",
@@ -223,6 +242,11 @@ macro_rules! impl_crud_entity {
 }
 
 impl_crud_entity!(Fulfillment, "fulfillment.fulfillment", "fulfillment");
+impl_crud_entity!(
+    FulfillmentProviderRequest,
+    "fulfillment.fulfillment_provider_request",
+    "fulfillment_provider_request"
+);
 impl_crud_entity!(
     FulfillmentItem,
     "fulfillment.fulfillment_item",
