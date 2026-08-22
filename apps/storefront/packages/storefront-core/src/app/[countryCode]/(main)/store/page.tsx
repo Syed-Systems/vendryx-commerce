@@ -2,7 +2,7 @@ import PaginatedProductsLoader from "@core/loaders/paginated-products"
 import { Metadata } from "next"
 
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
-import StoreTemplate from "@theme/store/templates"
+import StoreTemplate from "@frontend/store/templates"
 
 export const metadata: Metadata = {
   title: "Store",

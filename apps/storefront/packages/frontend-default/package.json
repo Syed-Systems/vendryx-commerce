@@ -1,0 +1,14 @@
+{
+  "name": "@stheno/frontend-default",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "peerDependencies": {
+    "@stheno/storefront-core": "^0.1.0"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "description": "Storefront frontend: the Medusa-derived reference UI (ADR-002). A reference, not a starting point for new frontends — see AGENTS.md 12."
+}

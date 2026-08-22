@@ -1,8 +1,8 @@
 import { retrieveCart } from "@lib/data/cart"
-import CartDropdown from "@theme/layout/components/cart-dropdown"
+import CartDropdown from "@frontend/layout/components/cart-dropdown"
 
 /**
- * Was theme-default's cart-button. The read belongs in core (ADR-013 decision
+ * Was frontend-default's cart-button. The read belongs in core (ADR-013 decision
  * 4); the markup it renders is still the theme's.
  */
 export default async function CartButtonLoader() {

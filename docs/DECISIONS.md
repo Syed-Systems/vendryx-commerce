@@ -24,6 +24,7 @@ a stated cost is a preference wearing a suit.
 | [ADR-017](#adr-017) | Subscription billing is first-party, collected on the gateways already integrated | Accepted |
 | [ADR-018](#adr-018) | Support impersonation: time-boxed, scope-limited, fully audited, secret-opaque | Accepted |
 | [ADR-019](#adr-019) | Provider credentials are tenant-owned, encrypted, and resolved through factories | Accepted |
+| [ADR-020](#adr-020) | Content pages a design needs are core routes fed by a theme slot | **Proposed** |
 
 ---
 
@@ -833,6 +834,15 @@ ADR-009's model remains valid for self-hosted single-merchant deployments, which
 
 <a id="adr-013"></a>
 
+> **Vocabulary note (2026-08-22).** This record says "theme" throughout. The code no longer does:
+> the packages are `frontend-*`, the contract type is `FrontendContract`, the alias is
+> `@frontend/*`, and the gates are `check-frontend-*.sh`. Nothing about the decision changed —
+> only the noun, because "theme" was read as *palette* three times running and produced three
+> recolours of `frontend-default` instead of three frontends. The prose below is left as written;
+> an accepted record is not edited to match later naming. See
+> [AGENTS.md §12](../AGENTS.md#12-frontends-adapting-a-design).
+
+
 ## ADR-013 — Storefront presentation is swappable; commerce logic is not
 
 **Status:** Accepted · **Date:** 2026-08-19 · **Implemented by:** [Phase 3](PHASE3_PLAN.md)
@@ -925,7 +935,7 @@ Both pressures reduce to one question: *what varies per merchant, and what must 
    and it is expensive on purpose.
 
 9. **Enforcement is mechanical, never review.** `check-storefront-boundaries.sh`,
-   `check-theme-purity.sh`, the theme conformance e2e pack, `check-provider-conformance.sh` and
+   `check-frontend-purity.sh`, the theme conformance e2e pack, `check-provider-conformance.sh` and
    `check-provider-pci.sh`. A theme or provider that passes review and fails a gate is not
    shipped. This mirrors [ADR-007](#adr-007): boundaries that are asked for are boundaries that
    erode at 2am before a launch.
@@ -1395,3 +1405,80 @@ instance and therefore the same secret-bearing client.
 - Reversal condition: if per-tenant provider construction becomes a measured throughput bottleneck,
   the cache policy can change behind the factory interface. Reverting to process-global
   secret-bearing providers is not an acceptable reversal in a multi-tenant deployment.
+
+---
+
+<a id="adr-020"></a>
+
+## ADR-020 — Content pages a design needs are core routes fed by a theme slot
+
+**Status:** Proposed — **decision required before any frontend's own pages are built** · **Date:** 2026-08-22 ·
+**Raised by:** `ADAPT The Matrix Hours` ([FRONTEND_MATRIX_SLOTS.md](FRONTEND_MATRIX_SLOTS.md))
+
+### Context
+
+[AGENTS.md §12.5](../AGENTS.md#12-frontends-adapting-a-design) requires a frontend that needs the
+design's own pages to stop and get a decision rather than route for itself. This is that stop.
+
+The Matrix Hours ships six routes. Four already have a core equivalent, at a different URL:
+
+| Source route | Core route | Gap |
+|---|---|---|
+| `/` | `/[countryCode]` | none |
+| `/shop` | `/[countryCode]/store` | URL shape only |
+| `/product/[id]` | `/[countryCode]/products/[handle]` | URL shape only, and core's is handle-based |
+| `/checkout` | `/[countryCode]/checkout` | none |
+| `/about` | — | **no core route** |
+| `/policies/[id]` | — | **no core route** |
+
+[ADR-013](#adr-013) decision 4 puts every route and URL shape in core, and
+`check-storefront-boundaries.sh` fails the build on a theme that routes. So the two missing pages
+cannot be added where they naturally live — in the theme that wants them — and the URL-shape
+differences cannot be closed by the theme either.
+
+That is the whole decision. It is not "should the storefront have an about page"; it is **who owns
+a page that exists only because of a design**, in an engine that sells themes.
+
+### Options
+
+**A. Core owns the routes; the theme fills a slot.** Core adds `/[countryCode]/about` and
+`/[countryCode]/policies/[handle]`, resolves the content, and renders `ContentPage` — a new
+optional contract slot. A theme with no such page exports nothing and the route 404s.
+
+- Keeps ADR-013 decision 4 intact and the boundary gate meaningful.
+- Costs a core minor per *kind* of page. The second design that wants `/lookbook` needs core again,
+  and that is exactly the per-theme core change [P27-07](PHASE3_TASKS.md) budgets against.
+
+**B. One generic content route.** Core owns `/[countryCode]/[...slug]` backed by merchant-authored
+content, and every design's static pages become data rather than routes.
+
+- One core change covers every design, forever. Nothing in `PRODUCT.md` provides the content store
+  it needs, so this is a feature, not a route.
+- A catch-all segment competes with every existing route and is the kind of change that breaks
+  404 behaviour quietly.
+
+**C. Themes may declare routes.** Reverses ADR-013 decision 4.
+
+- Honest about where the pages belong.
+- Gives away the property that makes a theme cheap to review and safe to sell: today a theme
+  cannot fetch, cannot route, and therefore cannot leak another tenant's data through a URL.
+  Recorded for completeness; **not recommended.**
+
+### Recommendation
+
+**A now, B when a second design asks.** A is small, reversible, and keeps the gate honest. If the
+third theme also needs static pages, that is the signal for B — and by then there will be a real
+requirement for the content store instead of a guess at one.
+
+### What this does not decide
+
+The URL-shape differences (`/shop` vs `/store`, `/product/[id]` vs `/products/[handle]`) are
+**not** in scope. Core's Store API is frozen ([AGENTS.md §2.11](../AGENTS.md)) and the storefront
+URLs are covered by SEO and sitemap contracts. A design does not get to rename them; adopting a
+design does not mean adopting its URL taxonomy.
+
+### Cost of the recommendation
+
+Every design with a bespoke page costs a core minor until B lands. That is stated here so the
+count is visible, because [P27-07](PHASE3_TASKS.md) budgets two core changes per theme and this
+would be the third for frontend-matrix.

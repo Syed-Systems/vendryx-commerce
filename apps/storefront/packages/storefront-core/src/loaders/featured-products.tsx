@@ -1,9 +1,9 @@
 import { listProducts } from "@lib/data/products"
 import { HttpTypes } from "@medusajs/types"
-import ProductRail from "@theme/home/components/featured-products/product-rail"
+import ProductRail from "@frontend/home/components/featured-products/product-rail"
 
 /**
- * Was theme-default's featured-products. The per-collection read belongs in
+ * Was frontend-default's featured-products. The per-collection read belongs in
  * core (ADR-013 decision 4); the rail markup is still the theme's.
  */
 export default async function FeaturedProductsLoader({

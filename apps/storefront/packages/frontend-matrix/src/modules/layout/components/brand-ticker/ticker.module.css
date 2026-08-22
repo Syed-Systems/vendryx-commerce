@@ -1,0 +1,78 @@
+.tickerContainer {
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+  padding: 12px 0;
+  display: flex;
+}
+
+.tickerTrack {
+  display: flex;
+  width: max-content;
+  animation: marquee 40s linear infinite;
+  will-change: transform;
+}
+
+.brandSequence {
+  display: flex;
+  gap: 40px;
+  padding-right: 40px;
+}
+
+.brandItem {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+
+.brandText {
+  font-family: var(--font-space-mono);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.15em;
+  transition: color 300ms var(--ease-out);
+  cursor: default;
+}
+
+.brandText:hover {
+  color: var(--text-primary);
+}
+
+.separator {
+  color: var(--border-strong);
+  font-size: 8px;
+}
+
+.tickerReversed {
+  animation-direction: reverse;
+}
+
+@keyframes marquee {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tickerTrack {
+    animation-duration: 150s;
+  }
+}
+
+@media (max-width: 768px) {
+  .tickerContainer {
+    padding: 10px 0;
+  }
+  .brandText {
+    font-size: 10px;
+  }
+  .brandSequence, .brandItem {
+    gap: 24px;
+  }
+  .brandSequence {
+    padding-right: 24px;
+  }
+}

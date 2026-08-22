@@ -11,6 +11,10 @@ and a change that violates them fails the build rather than earning a review com
 **Working a task?** [TASKS.md §1](docs/TASKS.md) is the loop protocol. Rule L3 — never edit an exit
 command to make it pass — is the one that keeps the loop honest.
 
+**Handed a design to build?** Read [§12](#12-frontends-adapting-a-design) first. `ADAPT` means a new
+frontend module built from that design — not `frontend-default` repainted. Guessing that one wrong has
+cost three rebuilds, and `./scripts/check-frontend-not-forked.sh` now fails the build over it.
+
 ---
 
 ## 1. Before any line of code — the ladder
@@ -321,6 +325,18 @@ cargo run -p stheno-cli -- openapi --check      # SDK drift
 k6 run tests/load/<phase>.js                    # at phase gates
 ```
 
+Storefront — run these when a frontend module changes (see [§12](#12-frontends-adapting-a-design)):
+
+```bash
+npm --prefix apps/storefront run typecheck
+./scripts/check-storefront-boundaries.sh   # a frontend may not reach into core
+./scripts/check-frontend-purity.sh            # a frontend presents; it does not fetch
+./scripts/check-frontend-pin.sh               # every frontend pins a core major
+./scripts/check-frontend-resolution.sh        # core binds one frontend, in one place
+./scripts/check-frontend-switch.sh            # the bundler binds the one it was asked for
+./scripts/check-frontend-not-forked.sh        # an independent frontend is not frontend-default repainted
+```
+
 ---
 
 ## 8. Code style
@@ -379,3 +395,109 @@ casually give that away.
   drafts, not scripture — but change them deliberately and in the open, not by quietly
   implementing something else.
 - Do not claim a phase gate is met without running the gate commands.
+
+---
+
+## 12. Frontends: adapting a design
+
+<a id="12-frontends-adapting-a-design"></a>
+
+### 12.1 What is actually being built
+
+The engine is one backend that many frontends plug into. `apps/storefront/packages/frontend-*` are
+called frontends for historical reasons, and the word has caused three rebuilds. **Read them as
+frontends.** A frontend is a complete storefront UI — its own components, its own DOM, its own
+design system — that satisfies [the contract](apps/storefront/packages/storefront-core/src/frontend/contract.ts)
+and plugs into the engine unchanged.
+
+The product is: *hand over a design, get a working storefront on the same trusted backend.*
+Nothing about that sentence is satisfied by recolouring the frontend that already exists.
+
+`frontend-default` is the Medusa-derived one ([ADR-002](docs/DECISIONS.md#adr-002)). It is a
+reference, **not a starting point.** Copying it and restyling is the failure this section exists
+to prevent, and it has happened three times.
+
+### 12.2 `ADAPT <design>` — the standing instruction
+
+> `ADAPT The Matrix Hours into packages/frontend-matrix.`
+
+Build a new frontend module from that design. Three rules, in order:
+
+1. **The design has a component → port it.** Its JSX structure, its stylesheet, its interaction
+   behaviour. Not its data layer: source-shop fetching (context providers, API clients, sheet
+   readers) is **dropped, not adapted** — data arrives as props ([ADR-013](docs/DECISIONS.md#adr-013)
+   decision 4).
+2. **The design has no such component → derive it from the design.** This is most of the work and
+   the part that gets skipped. A lookbook has no address book; a watch shop has no order-transfer
+   screen. Expect **two thirds of the contract to have no counterpart.** Those components are
+   drawn from the design's own rules — its palette, type scale, spacing, border and motion
+   language, as evidenced by the components it *did* ship. Match the components already ported
+   from that design, not the ones in `frontend-default`.
+3. **Never inherit frontend-default's markup.** Not as a base, not as a starting point, not "just for
+   the account pages nobody looks at". If rule 2 is hard, that is the work, not a licence to fall
+   back to rule 3.
+
+**The report is per slot** — every contract slot labelled `ported` / `derived` / `forked`.
+`forked` is a failure state, not a status. Example: [FRONTEND_MATRIX_SLOTS.md](docs/FRONTEND_MATRIX_SLOTS.md).
+
+### 12.3 This is enforced, not trusted
+
+`./scripts/check-frontend-not-forked.sh` strips every `className` from the frontend's files and
+compares the remaining structure to `frontend-default`. Identical structure fails, whatever the
+palette says. It also fails on any `@medusajs/ui` component import, because borrowing Medusa's
+primitives keeps the DOM Medusa's after the class names stop being.
+
+Opt a frontend in with `"stheno": { "independent": true }` in its package.json. `frontend-default` is
+exempt by definition.
+
+It is a **ratchet**, not a cliff: a frontend mid-conversion declares its remaining debt as
+`stheno.forkDebt: { files, medusaUi }`, and the build fails the moment either count goes **up**.
+New forking is blocked today; existing debt is paid down by lowering the numbers, and the gate
+prints the new figure to lower them to. A frontend with no `forkDebt` must have zero of both.
+
+Lower the declared debt in the same commit that lowers the real count. Leaving it high "for
+headroom" re-opens the hole.
+
+Every other storefront gate — purity, boundaries, pin, resolution — passed on all three forks.
+None of them look at markup. Do not read a green build as evidence that this rule was followed.
+
+### 12.4 `SKIN` — when a recolour is genuinely what is wanted
+
+> `SKIN frontend-default to the Matrix palette.`
+
+Tokens only: palette, type, radii, spacing, easings. Markup, DOM and interactions unchanged. If
+you are editing JSX to satisfy a `SKIN`, you have exceeded it — stop and say so.
+
+A `SKIN` is a legitimate, cheap product. It is only a failure when it is delivered in answer to an
+`ADAPT`.
+
+### 12.5 Routes
+
+A design's own pages (`/about`, `/policies/...`) have no core route, and a frontend may not route
+— core owns every URL shape ([ADR-013](docs/DECISIONS.md#adr-013) decision 4,
+`check-storefront-boundaries.sh`). Say so and stop; the fix is a core route plus a recorded
+decision. [ADR-020](docs/DECISIONS.md#adr-020) is the open one.
+
+A design does not get to rename existing URLs either. `/shop` does not become the store route
+because a design called it that — SEO and sitemap contracts cover those, and the Store API is
+frozen ([§2.11](#211-store-api-is-frozen)).
+
+---
+
+### Standing rule — no unsourced figures
+
+This one needs no keyword because it is never optional.
+
+**A number rendered as fact must trace to data or to a named source.** Stock counts, warranty
+terms, delivery windows, percentages, review counts, "trusted by N merchants". If the component
+cannot source it from props, it does not ship — remove the element rather than filling it with a
+plausible value.
+
+Placeholder *prose* reads as placeholder. A figure in a stat position reads as measured, and a
+storefront that quietly states things nobody verified is the same class of defect as
+[§2.5 floating-point money](#25-no-floating-point-in-money): confidently wrong, and invisible
+until it costs someone.
+
+A frontend-matrix hero shipped "120 references in stock · 24 month warranty · 48h authentication".
+All three were invented to balance a layout. See
+[FRONTEND_MATRIX.md §5](docs/FRONTEND_MATRIX.md).

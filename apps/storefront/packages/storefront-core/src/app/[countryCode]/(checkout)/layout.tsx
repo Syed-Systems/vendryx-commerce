@@ -1,5 +1,5 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import ChevronDown from "@theme/common/icons/chevron-down"
+import ChevronDown from "@frontend/common/icons/chevron-down"
 
 export default function CheckoutLayout({
   children,

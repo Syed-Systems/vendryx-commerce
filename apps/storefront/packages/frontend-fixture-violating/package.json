@@ -1,0 +1,10 @@
+{
+  "name": "@stheno/frontend-fixture-violating",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "peerDependencies": {
+    "@stheno/storefront-core": "^0.1.0"
+  }
+}

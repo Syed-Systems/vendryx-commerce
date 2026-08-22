@@ -1,4 +1,4 @@
-import InteractiveLink from "@theme/common/components/interactive-link"
+import InteractiveLink from "@frontend/common/components/interactive-link"
 import { Metadata } from "next"
 
 export const metadata: Metadata = {

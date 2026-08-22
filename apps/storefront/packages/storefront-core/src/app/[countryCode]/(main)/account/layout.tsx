@@ -1,6 +1,6 @@
 import { retrieveCustomer } from "@lib/data/customer"
 import { Toaster } from "@medusajs/ui"
-import AccountLayout from "@theme/account/templates/account-layout"
+import AccountLayout from "@frontend/account/templates/account-layout"
 
 export default async function AccountPageLayout({
   dashboard,

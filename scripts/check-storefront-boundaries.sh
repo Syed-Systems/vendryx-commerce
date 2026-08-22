@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# P25-09 — a theme may not reach into core, or fetch for itself.
+# P25-09 — a frontend may not reach into core, or fetch for itself.
 #
 # The frontend equivalent of check-module-isolation.sh, and it exists for the
 # same reason ADR-013 decision 9 gives: a boundary that is asked for is a
 # boundary that erodes at 2am before a launch.
 #
-# ADR-013 decision 4: a theme supplies components against a typed contract and
+# ADR-013 decision 4: a frontend supplies components against a typed contract and
 # receives props. It does not fetch, and it does not route.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PKGS="apps/storefront/packages"
-FIXTURE="$PKGS/theme-fixture-violating"
+FIXTURE="$PKGS/frontend-fixture-violating"
 
-# What a theme may never import: the SDK, core internals (@lib/*, @core/*), or
-# core's checkout module. A theme reaches core only through the versioned
+# What a frontend may never import: the SDK, core internals (@lib/*, @core/*), or
+# core's checkout module. A frontend reaches core only through the versioned
 # package entry points, @stheno/storefront-core and .../server.
 FORBIDDEN='@medusajs/js-sdk|@lib/|@core/|@modules/checkout'
 
@@ -33,8 +33,8 @@ fi
 echo "self-test: fixture flagged $(printf '%s\n' "$FIXTURE_HITS" | wc -l) violation(s), as designed."
 
 FAIL=0
-for pkg in "$PKGS"/theme-*/; do
-  case "$pkg" in *theme-fixture-*) continue ;; esac
+for pkg in "$PKGS"/frontend-*/; do
+  case "$pkg" in *frontend-fixture-*) continue ;; esac
   HITS="$(scan "$pkg")"
   if [ -n "$HITS" ]; then
     COUNT="$(printf '%s\n' "$HITS" | wc -l)"

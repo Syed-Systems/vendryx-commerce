@@ -1,7 +1,7 @@
 import { HttpTypes } from "@medusajs/types"
-import Input from "@theme/common/components/input"
+import Input from "@frontend/common/components/input"
 import React, { useState } from "react"
-import CountrySelect from "@theme/common/components/country-select"
+import CountrySelect from "@frontend/common/components/country-select"
 
 const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
   const [formData, setFormData] = useState<any>({

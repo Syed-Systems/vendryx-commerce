@@ -263,7 +263,7 @@ wrong.
 1. **`@stheno/storefront-core`** — `src/lib/data`, `src/lib/context`, `src/lib/hooks`, the
    middleware, and **the `app/` route tree**. Routing, region resolution, SEO, and the entire
    checkout flow live here and are not theme-editable, per [ADR-013](DECISIONS.md#adr-013).
-2. **`@stheno/theme-default`** — everything currently in `src/modules`, converted to a theme
+2. **`@stheno/frontend-default`** — everything currently in `src/modules`, converted to a theme
    package exporting a typed component map.
 3. **The theme contract** — one typed interface enumerating every component a theme must export and
    the props it receives. A theme is complete when it type-checks against it.
@@ -276,11 +276,11 @@ wrong.
 
 ### Exit gate
 
-- The storefront builds and serves from `core` + `theme-default` with zero behaviour change.
+- The storefront builds and serves from `core` + `frontend-default` with zero behaviour change.
 - The existing e2e pack passes unmodified.
 - `check-storefront-boundaries.sh` fails against a fixture theme that imports `core/lib/data`.
-- `theme-default` contains **no** data fetching, no server actions, and no checkout state.
-- Deleting `theme-default` produces type errors in exactly one place — the theme resolution point.
+- `frontend-default` contains **no** data fetching, no server actions, and no checkout state.
+- Deleting `frontend-default` produces type errors in exactly one place — the theme resolution point.
 
 ### Risk
 
@@ -413,7 +413,7 @@ task and it is the critical path for P22.
 2. **Sandbox applications are filed before Phase 3 starts.** See P22's risk.
 3. **No gateway merges without the conformance suite.** The suite exists first, in P21.
 4. **No theme merges without the e2e pack.** The pack exists in P27 and is retrofitted to
-   `theme-default` before theme B is written, not after.
+   `frontend-default` before theme B is written, not after.
 5. **P25 changes no behaviour.** Any improvement discovered during extraction is filed, not made.
 6. **Confirm ADR-012's tenancy audit is green before P26.**
 
@@ -664,7 +664,7 @@ pack" becomes decorative, and N designs become N broken checkouts, which is the 
 of Phase 3 exists to prevent.
 
 **Required effort:** the pack targets the **theme contract** — stable test ids and semantic roles
-that the contract *requires* every theme to expose — never markup. Retrofit it to `theme-default`
+that the contract *requires* every theme to expose — never markup. Retrofit it to `frontend-default`
 in P27-02 and prove it green there **before** theme B exists, because that is the only moment you
 can still tell the difference between a contract test and a theme test.
 

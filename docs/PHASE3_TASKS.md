@@ -208,17 +208,17 @@ readiness** — see the P22 risk. P3-00e blocks P21-01 and P25-01.
 
 | ID | Task | Deps | Exit |
 |---|---|---|---|
-| P25-01 | Workspace restructure: `packages/storefront-core`, `packages/theme-default`, app shell consuming both. No code moved yet | P3-00e | `npm --prefix apps/storefront run build` |
-| P25-02 | **Theme B component inventory drawn up now**, before the contract is frozen — the list theme B will need, from the designer, not from core's authors | P3-00e | `test -f docs/THEME_CONTRACT_INPUTS.md` |
+| P25-01 | Workspace restructure: `packages/storefront-core`, `packages/frontend-default`, app shell consuming both. No code moved yet | P3-00e | `npm --prefix apps/storefront run build` |
+| P25-02 | **Theme B component inventory drawn up now**, before the contract is frozen — the list theme B will need, from the designer, not from core's authors | P3-00e | `test -f docs/FRONTEND_CONTRACT_INPUTS.md` |
 | P25-03 | Move `src/lib/data`, `src/lib/context`, `src/lib/hooks`, `middleware.ts` into core, unchanged | P25-01 | `npm --prefix apps/storefront run typecheck` |
 | P25-04 | **[BP]** Move the `app/` route tree into core. Routing, region resolution and SEO are not theme-editable | P25-03 | `npm --prefix apps/storefront run build` |
 | P25-05 | Define the theme contract: one typed interface enumerating every required export and its props | P25-02, P25-04 | `npm --prefix apps/storefront run typecheck` |
-| P25-06 | Move `src/modules` into `theme-default`, conforming it to the contract | P25-05 | `npm --prefix apps/storefront run typecheck` |
-| P25-07 | Theme resolution point — the single place core binds a theme. Deleting the theme errors here and nowhere else | P25-06 | `./scripts/check-theme-resolution.sh` |
+| P25-06 | Move `src/modules` into `frontend-default`, conforming it to the contract | P25-05 | `npm --prefix apps/storefront run typecheck` |
+| P25-07 | Theme resolution point — the single place core binds a theme. Deleting the theme errors here and nowhere else | P25-06 | `./scripts/check-frontend-resolution.sh` |
 | P25-08 | Checkout components live in core and are styled by theme tokens, per ADR-013 — flow, steps and validation are not overridable | P25-06 | `npm --prefix apps/storefront run test -- checkout-ownership` |
 | P25-09 | `scripts/check-storefront-boundaries.sh` — fails on a theme importing core internals or the SDK. Includes a violating fixture theme that must fail | P25-07 | `./scripts/check-storefront-boundaries.sh` |
-| P25-10 | Assert `theme-default` contains no data fetching, no server actions, no checkout state | P25-09 | `./scripts/check-theme-purity.sh` |
-| P25-11 | Core/theme versioning policy: themes pin a core major, core changes additive within a major | P25-07 | `test -f docs/THEME_VERSIONING.md && ./scripts/check-theme-pin.sh` |
+| P25-10 | Assert `frontend-default` contains no data fetching, no server actions, no checkout state | P25-09 | `./scripts/check-frontend-purity.sh` |
+| P25-11 | Core/theme versioning policy: themes pin a core major, core changes additive within a major | P25-07 | `test -f docs/FRONTEND_VERSIONING.md && ./scripts/check-frontend-pin.sh` |
 | P25-12 | Existing e2e pack passes unmodified against the restructured storefront | P25-08 | `npm --prefix apps/storefront run test:e2e` |
 | P25-13 | **[BP]** **Zero-behaviour-change proof**: pre- and post-extraction route snapshots are byte-identical for a fixed catalog | P25-12 | `./scripts/check-extraction-parity.sh` |
 
@@ -249,16 +249,16 @@ readiness** — see the P22 risk. P3-00e blocks P21-01 and P25-01.
 
 | ID | Task | Deps | Exit |
 |---|---|---|---|
-| P27-01 | **[BP]** **Theme conformance e2e pack**, written against the theme contract, not against markup: browse → product → cart → checkout → order confirmed | P26-09 | `npm --prefix apps/storefront run test:conformance -- --theme=default` |
-| P27-02 | Retrofit the pack to `theme-default` and make it the gate for that theme too, before theme B exists | P27-01 | `./scripts/check-theme-conformance.sh` |
-| P27-03 | `packages/theme-<b>` skeleton conforming to the contract, from the P25-02 inventory | P27-02 | `npm --prefix apps/storefront run typecheck` |
-| P27-04 | Theme B catalog and product surfaces | P27-03 | `npm --prefix apps/storefront run test:conformance -- --theme=b` |
-| P27-05 | Theme B cart and account surfaces | P27-04 | `npm --prefix apps/storefront run test:conformance -- --theme=b` |
+| P27-01 | **[BP]** **Theme conformance e2e pack**, written against the theme contract, not against markup: browse → product → cart → checkout → order confirmed | P26-09 | `npm --prefix apps/storefront run test:conformance -- --frontend=default` |
+| P27-02 | Retrofit the pack to `frontend-default` and make it the gate for that theme too, before theme B exists | P27-01 | `./scripts/check-frontend-conformance.sh` |
+| P27-03 | `packages/frontend-<b>` skeleton conforming to the contract, from the P25-02 inventory | P27-02 | `npm --prefix apps/storefront run typecheck` |
+| P27-04 | Theme B catalog and product surfaces | P27-03 | `npm --prefix apps/storefront run test:conformance -- --frontend=b` |
+| P27-05 | Theme B cart and account surfaces | P27-04 | `npm --prefix apps/storefront run test:conformance -- --frontend=b` |
 | P27-06 | Theme B checkout **skinning** — restyled pages, unaltered flow, steps and scripts | P27-05 | `./scripts/check-checkout-scripts.sh && npm --prefix apps/storefront run test -- checkout-ownership` |
-| P27-07 | **Log every core change theme B required.** More than two means the P25 contract was drawn wrong and is fixed here | P27-06 | `test -f docs/THEME_B_CORE_DELTAS.md && ./scripts/check-core-delta-budget.sh` |
+| P27-07 | **Log every core change theme B required.** More than two means the P25 contract was drawn wrong and is fixed here | P27-06 | `test -f docs/FRONTEND_MATRIX_CORE_DELTAS.md && ./scripts/check-core-delta-budget.sh` |
 | P27-08 | Per-tenant themed build and deploy pipeline: one command, one target, theme pinned to a core major | P27-06 | `./scripts/deploy-themed-storefront.sh --dry-run` |
-| P27-09 | Tenant switched from theme A to theme B by configuration plus one deploy | P27-08 | `./scripts/check-theme-switch.sh` |
-| P27-10 | Theme authoring documentation, checkout rule stated first; time-to-new-theme measured and recorded | P27-09 | `test -f docs-site/docs/theme-authoring.md && ./scripts/check-theme-docs.sh` |
+| P27-09 | Tenant switched from theme A to theme B by configuration plus one deploy | P27-08 | `./scripts/check-frontend-switch.sh` |
+| P27-10 | Theme authoring documentation, checkout rule stated first; time-to-new-theme measured and recorded | P27-09 | `test -f docs-site/docs/frontend-authoring.md && ./scripts/check-frontend-docs.sh` |
 
 **Phase gate:** `./scripts/gate-p27.sh`
 

@@ -10,10 +10,10 @@ import CartButtonLoader from "@core/loaders/cart-button"
 import { retrieveCustomer } from "@lib/data/customer"
 import { getBaseURL } from "@lib/util/env"
 import { StoreCartShippingOption, StoreRegion } from "@medusajs/types"
-import CartMismatchBanner from "@theme/layout/components/cart-mismatch-banner"
-import Footer from "@theme/layout/templates/footer"
-import Nav from "@theme/layout/templates/nav"
-import FreeShippingPriceNudge from "@theme/shipping/components/free-shipping-price-nudge"
+import CartMismatchBanner from "@frontend/layout/components/cart-mismatch-banner"
+import Footer from "@frontend/layout/templates/footer"
+import Nav from "@frontend/layout/templates/nav"
+import FreeShippingPriceNudge from "@frontend/shipping/components/free-shipping-price-nudge"
 
 export const metadata: Metadata = {
   metadataBase: new URL(getBaseURL()),

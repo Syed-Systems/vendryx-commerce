@@ -1,6 +1,6 @@
 import { Heading, Text } from "@medusajs/ui"
-import TransferActions from "@theme/order/components/transfer-actions"
-import TransferImage from "@theme/order/components/transfer-image"
+import TransferActions from "@frontend/order/components/transfer-actions"
+import TransferImage from "@frontend/order/components/transfer-image"
 
 export default async function TransferPage({
   params,

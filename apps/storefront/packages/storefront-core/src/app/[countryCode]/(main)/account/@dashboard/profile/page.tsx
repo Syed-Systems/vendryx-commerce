@@ -1,10 +1,10 @@
 import { Metadata } from "next"
 
-import ProfilePhone from "@theme/account/components/profile-phone"
-import ProfileBillingAddress from "@theme/account/components/profile-billing-address"
-import ProfileEmail from "@theme/account/components/profile-email"
-import ProfileName from "@theme/account/components/profile-name"
-import ProfilePassword from "@theme/account/components/profile-password"
+import ProfilePhone from "@frontend/account/components/profile-phone"
+import ProfileBillingAddress from "@frontend/account/components/profile-billing-address"
+import ProfileEmail from "@frontend/account/components/profile-email"
+import ProfileName from "@frontend/account/components/profile-name"
+import ProfilePassword from "@frontend/account/components/profile-password"
 
 import { notFound } from "next/navigation"
 import { listRegions } from "@lib/data/regions"

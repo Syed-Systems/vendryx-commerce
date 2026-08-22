@@ -20,13 +20,13 @@ npm --prefix "$APP" run build
 
 echo ""
 echo "[3/8] P25-02/11: contract inputs and versioning policy are recorded..."
-test -f docs/THEME_CONTRACT_INPUTS.md
-test -f docs/THEME_VERSIONING.md
-./scripts/check-theme-pin.sh
+test -f docs/FRONTEND_CONTRACT_INPUTS.md
+test -f docs/FRONTEND_VERSIONING.md
+./scripts/check-frontend-pin.sh
 
 echo ""
 echo "[4/8] P25-07: core binds a theme in exactly one place..."
-./scripts/check-theme-resolution.sh
+./scripts/check-frontend-resolution.sh
 
 echo ""
 echo "[5/8] P25-09: a theme cannot reach into core..."
@@ -34,7 +34,7 @@ echo "[5/8] P25-09: a theme cannot reach into core..."
 
 echo ""
 echo "[6/8] P25-10: a theme presents and nothing else..."
-./scripts/check-theme-purity.sh
+./scripts/check-frontend-purity.sh
 
 echo ""
 echo "[7/8] P25-08: checkout scripts still satisfy SAQ-A..."

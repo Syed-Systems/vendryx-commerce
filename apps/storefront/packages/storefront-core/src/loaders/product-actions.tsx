@@ -1,9 +1,9 @@
 import { listProducts } from "@lib/data/products"
 import { HttpTypes } from "@medusajs/types"
-import ProductActions from "@theme/products/components/product-actions"
+import ProductActions from "@frontend/products/components/product-actions"
 
 /**
- * Was theme-default's product-actions-wrapper. It was only ever a read wrapped
+ * Was frontend-default's product-actions-wrapper. It was only ever a read wrapped
  * around a themed component, which is core's job under ADR-013 decision 4.
  *
  * Fetches real time pricing for a product and renders the product actions.

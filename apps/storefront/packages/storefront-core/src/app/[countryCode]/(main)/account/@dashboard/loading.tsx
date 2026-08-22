@@ -1,4 +1,4 @@
-import Spinner from "@theme/common/icons/spinner"
+import Spinner from "@frontend/common/icons/spinner"
 
 export default function Loading() {
   return (

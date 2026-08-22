@@ -1,10 +1,10 @@
 import { listProducts } from "@lib/data/products"
 import { getRegion } from "@lib/data/regions"
 import { HttpTypes } from "@medusajs/types"
-import RelatedProducts from "@theme/products/components/related-products"
+import RelatedProducts from "@frontend/products/components/related-products"
 
 /**
- * Was the read half of theme-default's related-products. The selection rules
+ * Was the read half of frontend-default's related-products. The selection rules
  * are commerce logic and belong in core (ADR-013 decision 4); the grid markup
  * is still the theme's.
  */

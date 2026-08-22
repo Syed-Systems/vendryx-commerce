@@ -1,0 +1,21 @@
+{
+  "name": "@stheno/frontend-matrix",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "peerDependencies": {
+    "@stheno/storefront-core": "^0.1.0"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "stheno": {
+    "independent": true,
+    "forkDebt": {
+      "files": 79,
+      "medusaUi": 37
+    }
+  },
+  "description": "Storefront frontend: The Matrix Hours. Its own components and design system, plugged into the same engine — see AGENTS.md 12."
+}

@@ -1,6 +1,6 @@
 import { retrieveOrder } from "@lib/data/orders"
 import { cookies as nextCookies } from "next/headers"
-import OrderCompletedTemplate from "@theme/order/templates/order-completed-template"
+import OrderCompletedTemplate from "@frontend/order/templates/order-completed-template"
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 

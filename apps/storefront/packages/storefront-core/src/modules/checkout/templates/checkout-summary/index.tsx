@@ -1,9 +1,9 @@
 import { Heading } from "@medusajs/ui"
 
-import ItemsPreviewTemplate from "@theme/cart/templates/preview"
-import DiscountCode from "@theme/common/components/discount-code"
-import CartTotals from "@theme/common/components/cart-totals"
-import Divider from "@theme/common/components/divider"
+import ItemsPreviewTemplate from "@frontend/cart/templates/preview"
+import DiscountCode from "@frontend/common/components/discount-code"
+import CartTotals from "@frontend/common/components/cart-totals"
+import Divider from "@frontend/common/components/divider"
 
 const CheckoutSummary = ({ cart }: { cart: any }) => {
   return (

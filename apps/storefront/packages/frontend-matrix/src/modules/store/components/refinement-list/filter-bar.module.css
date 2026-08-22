@@ -1,0 +1,57 @@
+.filterBarWrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  padding-bottom: 8px; /* Safe space for scroll */
+  margin-bottom: 32px;
+}
+
+.filterBarWrapper::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+}
+
+.chip {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-family: var(--font-space-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 200ms var(--ease-out);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip:hover {
+  border-color: var(--accent-gold);
+  color: var(--text-primary);
+}
+
+.chip.active {
+  background: var(--accent-gold);
+  color: var(--text-inverse);
+  border-color: var(--accent-gold);
+  box-shadow: 0 2px 8px rgba(201, 169, 110, 0.25);
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  background-color: var(--border-strong);
+  margin: 0 4px;
+}

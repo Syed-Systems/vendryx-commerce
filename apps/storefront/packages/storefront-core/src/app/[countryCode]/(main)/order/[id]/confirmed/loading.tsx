@@ -1,4 +1,4 @@
-import SkeletonOrderConfirmed from "@theme/skeletons/templates/skeleton-order-confirmed"
+import SkeletonOrderConfirmed from "@frontend/skeletons/templates/skeleton-order-confirmed"
 
 export default function Loading() {
   return <SkeletonOrderConfirmed />

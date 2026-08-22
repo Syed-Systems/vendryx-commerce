@@ -6,7 +6,7 @@ import { HttpTypes } from "@medusajs/types"
 import { Button } from "@medusajs/ui"
 import { useElements, useStripe } from "@stripe/react-stripe-js"
 import React, { useState } from "react"
-import ErrorMessage from "@theme/common/components/error-message"
+import ErrorMessage from "@frontend/common/components/error-message"
 
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart

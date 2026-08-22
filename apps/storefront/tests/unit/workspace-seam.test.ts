@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 
 import { expect, test } from "vitest"
 
-import { THEME_ID } from "@stheno/theme-default"
+import { FRONTEND_ID } from "@stheno/frontend-default"
 
 // Core is not imported at runtime here on purpose: its public API re-exports
 // "use server" modules that reach for next/headers, which has no meaning
@@ -12,7 +12,7 @@ const corePkg = JSON.parse(
 )
 
 test("the theme package resolves and declares its identity", () => {
-  expect(THEME_ID).toBe("default")
+  expect(FRONTEND_ID).toBe("default")
 })
 
 test("core exposes exactly the entry points a theme is allowed to reach", () => {
@@ -26,7 +26,7 @@ test("core exposes exactly the entry points a theme is allowed to reach", () => 
 
 test("the theme pins a core major", () => {
   const themePkg = JSON.parse(
-    readFileSync("packages/theme-default/package.json", "utf8")
+    readFileSync("packages/frontend-default/package.json", "utf8")
   )
   expect(themePkg.peerDependencies["@stheno/storefront-core"]).toMatch(/^\^?\d/)
 })

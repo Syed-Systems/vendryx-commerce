@@ -1,0 +1,253 @@
+/**
+ * The Matrix Hours form and control primitives.
+ *
+ * Written from design-system/MASTER.md, not adapted from anything: the source
+ * shop had no account area, so it never drew a checkbox, a radio or a labelled
+ * field. These are what its rules produce — square corners, 1px borders instead
+ * of shadows, solid surfaces, gold as the only interactive colour, Space Mono
+ * for labels because MASTER.md §3 puts every technical string in mono.
+ *
+ * Replaces @medusajs/ui's Checkbox, Label, Input, Text and Button in this theme.
+ */
+
+/* --- field --- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: var(--space-2);
+}
+
+.label {
+  font-family: var(--font-space-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.required {
+  color: var(--accent-gold);
+  margin-left: 4px;
+}
+
+.input {
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--space-4);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: 0;
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 14px;
+  transition: border-color 200ms var(--ease-out);
+  appearance: none;
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input:hover {
+  border-color: var(--border-strong);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+}
+
+.input:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  width: 100%;
+}
+
+.revealBtn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 48px;
+  padding: 0 var(--space-4);
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 200ms var(--ease-out);
+}
+
+.revealBtn:hover,
+.revealBtn:focus-visible {
+  color: var(--accent-gold);
+}
+
+/* --- select --- */
+
+.select {
+  composes: input;
+  cursor: pointer;
+  padding-right: var(--space-8);
+}
+
+.selectWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.selectChevron {
+  position: absolute;
+  right: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-secondary);
+}
+
+/* --- checkbox: a square that fills gold. No radius, per MASTER.md §1. --- */
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-strong);
+  color: var(--text-inverse);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background-color 150ms var(--ease-out),
+    border-color 150ms var(--ease-out);
+}
+
+.checkbox[data-state="checked"] {
+  background-color: var(--accent-gold);
+  border-color: var(--accent-gold);
+}
+
+.checkbox:focus-visible {
+  outline: 1px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.checkLabel {
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* --- radio: the one place a circle is allowed, because a square radio lies
+       about whether it is exclusive. --- */
+
+.radio {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 150ms var(--ease-out);
+}
+
+.radio[data-state="checked"] {
+  border-color: var(--accent-gold);
+}
+
+.radioDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background-color: var(--accent-gold);
+}
+
+.radio:focus-visible {
+  outline: 1px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+/* --- misc --- */
+
+.divider {
+  height: 1px;
+  width: 100%;
+  background-color: var(--border-default);
+  border: 0;
+}
+
+.error {
+  font-family: var(--font-space-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--error);
+  padding-top: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.errorBar {
+  width: 2px;
+  align-self: stretch;
+  background-color: var(--error);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-space-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-gold);
+  border-bottom: 1px solid transparent;
+  transition: border-color 200ms var(--ease-out);
+}
+
+.link:hover {
+  border-bottom-color: var(--accent-gold);
+}
+
+.linkArrow {
+  transition: transform 200ms var(--ease-out);
+}
+
+.link:hover .linkArrow {
+  transform: translateX(3px);
+}
+
+.spinner {
+  animation: matrixSpin 900ms linear infinite;
+}
+
+@keyframes matrixSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 3s;
+  }
+}

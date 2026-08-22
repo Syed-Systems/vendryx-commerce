@@ -1,8 +1,8 @@
 import { listProductsWithSort } from "@lib/data/products"
 import { getRegion } from "@lib/data/regions"
 import { HttpTypes } from "@medusajs/types"
-import PaginatedProducts from "@theme/store/templates/paginated-products"
-import { SortOptions } from "@theme/store/components/refinement-list/sort-products"
+import PaginatedProducts from "@frontend/store/templates/paginated-products"
+import { SortOptions } from "@frontend/store/components/refinement-list/sort-products"
 
 type PaginatedProductsParams = {
   limit: number
@@ -13,7 +13,7 @@ type PaginatedProductsParams = {
 }
 
 /**
- * Was the read half of theme-default's paginated-products. Paging, sorting and
+ * Was the read half of frontend-default's paginated-products. Paging, sorting and
  * region resolution are commerce logic, not presentation - ADR-013 decision 4.
  */
 export default async function PaginatedProductsLoader({

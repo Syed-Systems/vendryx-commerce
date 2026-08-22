@@ -11,11 +11,11 @@
  * plain server module (lib/data/categories.ts, lib/data/cookies.ts) would drag
  * next/headers into the client graph and fail the build outright.
  *
- * Versioned per docs/THEME_VERSIONING.md. Reaching past this into @lib/* or
+ * Versioned per docs/FRONTEND_VERSIONING.md. Reaching past this into @lib/* or
  * @core/* is what scripts/check-storefront-boundaries.sh fails on.
  */
 
-// Formatting. Money lives in core on purpose - THEME_CONTRACT_INPUTS.md §6.3.
+// Formatting. Money lives in core on purpose - FRONTEND_CONTRACT_INPUTS.md §6.3.
 export { convertToLocale } from "./lib/util/money"
 export { getPercentageDiff } from "./lib/util/get-percentage-diff"
 export { getProductPrice } from "./lib/util/get-product-price"

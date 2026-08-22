@@ -1,10 +1,10 @@
 import { Metadata } from "next"
 
-import OrderOverview from "@theme/account/components/order-overview"
+import OrderOverview from "@frontend/account/components/order-overview"
 import { notFound } from "next/navigation"
 import { listOrders } from "@lib/data/orders"
-import Divider from "@theme/common/components/divider"
-import TransferRequestForm from "@theme/account/components/transfer-request-form"
+import Divider from "@frontend/common/components/divider"
+import TransferRequestForm from "@frontend/account/components/transfer-request-form"
 
 export const metadata: Metadata = {
   title: "Orders",

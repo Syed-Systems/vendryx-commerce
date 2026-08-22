@@ -1,5 +1,5 @@
 import { retrieveOrder } from "@lib/data/orders"
-import OrderDetailsTemplate from "@theme/order/templates/order-details-template"
+import OrderDetailsTemplate from "@frontend/order/templates/order-details-template"
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
