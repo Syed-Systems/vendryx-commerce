@@ -6,7 +6,7 @@ a stated cost is a preference wearing a suit.
 | # | Decision | Status |
 |---|---|---|
 | [ADR-001](#adr-001) | Extensibility is compile-time; no runtime plugins | Accepted |
-| [ADR-002](#adr-002) | Full wire compatibility, Store **and** Admin. Fork the dashboard | Accepted (revised) |
+| [ADR-002](#adr-002) | Full wire compatibility, Store **and** Admin. Fork the dashboard | Accepted · **amended by [ADR-027](#adr-027)** |
 | [ADR-003](#adr-003) | Durable workflows run on a custom Postgres SAGA engine | Accepted |
 | [ADR-004](#adr-004) | Diesel + diesel-async for persistence | Accepted |
 | [ADR-005](#adr-005) | Postgres only; no other database backends | Accepted |
@@ -25,6 +25,13 @@ a stated cost is a preference wearing a suit.
 | [ADR-018](#adr-018) | Support impersonation: time-boxed, scope-limited, fully audited, secret-opaque | Accepted |
 | [ADR-019](#adr-019) | Provider credentials are tenant-owned, encrypted, and resolved through factories | Accepted |
 | [ADR-020](#adr-020) | Content pages a design needs are core routes fed by a theme slot | **Proposed** |
+| [ADR-021](#adr-021) | AI-authored storefront content is data against a closed schema, never code | **Proposed** |
+| [ADR-022](#adr-022) | Tenant identity is the Host header; the Store API is served same-origin | **Proposed** |
+| [ADR-023](#adr-023) | One storefront build per theme, routed by host | **Proposed** |
+| [ADR-024](#adr-024) | Compute next to the data; delivery by CDN over an origin that speaks HTTP caching | **Proposed** |
+| [ADR-025](#adr-025) | Connection pooling is transaction-mode, with a session-mode route | **Proposed** |
+| [ADR-026](#adr-026) | Docker Compose now, Kubernetes at scale | **Proposed** |
+| [ADR-027](#adr-027) | Medusa compatibility is an implementation detail, never a product claim | **Proposed** |
 
 ---
 
@@ -1482,3 +1489,343 @@ design does not mean adopting its URL taxonomy.
 Every design with a bespoke page costs a core minor until B lands. That is stated here so the
 count is visible, because [P27-07](PHASE3_TASKS.md) budgets two core changes per theme and this
 would be the third for frontend-matrix.
+
+---
+
+<a id="adr-021"></a>
+
+## ADR-021 — AI-authored storefront content is data against a closed schema, never code
+
+**Status:** Proposed · **Date:** 2026-09-02 · **Relates to:** [ADR-013](#adr-013), [ADR-020](#adr-020)
+
+### Context
+
+Onboarding assigns a new merchant a theme and a look automatically, from a short brief. That
+output has to land somewhere. [ADR-013](#adr-013) considered and rejected exactly this shape —
+its option 4 reads *"A block system is a framework, and nobody has asked for one. Rung 1: this
+does not need to exist yet."*
+
+Somebody has now asked. This is a reversal on new information, not an oversight, so it is
+recorded rather than absorbed quietly into ADR-013.
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| **Branding record + typed section list** (chosen) | No build, no deploy; regenerating a store is an UPDATE. Reviewable by an operator in seconds | A schema per section type; core changes when a theme wants a new kind of section |
+| Generated components per merchant | Maximum visual uniqueness | Forks the storefront per merchant with unreviewed code — the exact cost [ADR-013](#adr-013) rejected — and collides with the `/checkout/*` script allowlist |
+| Theme and palette only, no content | Smallest surface; needs no new ADR | Every free store shares one silhouette; the brief's answers go unused |
+
+### Decision
+
+1. **The model's entire output is one validated JSON document**: `theme`, colour `tokens`,
+   `font`, and `home` — an ordered list of typed sections.
+2. **`font` is a key into the curated self-hosted set, never a URL.** ADR-013 decision 2a: a
+   third-party font on a checkout route fails `check-checkout-scripts.sh`, which is a
+   compliance boundary, not a style rule.
+3. **`theme` must be a registered frontend key.** Unknown keys fall back to `default` and warn.
+   A storefront never renders unthemed and never 500s on a bad generation.
+4. **Section types are a closed enum, declared per theme.** A section the bound theme cannot
+   render is rejected at submission, in front of an operator — never at request time in front
+   of a buyer.
+5. **The document may not contain JSX, CSS text, HTML, third-party URLs, or script
+   references.** The validator rejects these structurally, not by scanning strings.
+6. **Regeneration must never cost a build or a deploy.** A design that makes it cost one has
+   reintroduced the per-merchant fork and is a spec violation, not an optimisation.
+
+### Consequences
+
+**Good.** A merchant's look is tenant data: instant to change, cheap to review, trivially
+reversible. Human review stays in the Launch Requests queue that already exists.
+
+**Bad.** This is a schema, and schemas grow. The discipline that keeps it from becoming the
+framework ADR-013 refused is decision 4 — a *closed* enum per theme. The day it gains an
+`html` or `custom` section type, this ADR has been abandoned in practice.
+
+**Reverses if** merchants demand self-service layout editing, at which point the honest move is
+to admit a page builder is being built and design one deliberately.
+
+---
+
+<a id="adr-022"></a>
+
+## ADR-022 — Tenant identity is the Host header, and the Store API is served same-origin
+
+**Status:** Proposed · **Date:** 2026-09-02 · **Relates to:** [ADR-012](#adr-012), [ADR-013](#adr-013)
+
+### Context
+
+`tenant_layer.rs` resolves the tenant from `Host` and says so plainly: *"`Host` is
+client-supplied. This is only safe behind a proxy that overwrites it … that is the single
+assumption the whole scheme rests on."* For `/store/*` there is no alternative — a shopper has
+no token, so a JWT cannot be the source of tenant identity.
+
+The storefront breaks that chain. Its server-side fetches address a single
+`STHENO_BACKEND_URL`, so the Host the engine sees is the backend's, not the merchant's. One
+storefront process therefore serves exactly one tenant, which is incompatible with
+[ADR-023](#adr-023).
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| **Serve the API same-origin at `merchant.<domain>/api/*`** (chosen) | Host is already correct for both browser and SSR. **No application code.** Makes CORS moot. `/api` is already excluded from the storefront route matcher | SSR hairpins through the ingress; the rewrite annotation must be right |
+| Forward the buyer's host on a trusted internal header | Slightly faster for SSR | Needs a second mechanism for the browser path, which posts to the API directly. Adds a forgeable tenant path if an edge strip-rule is ever wrong |
+| Publishable API key identifies the tenant | Already sent on every store request | The key is a build-time public env var, so this reimposes one build per merchant — see [ADR-023](#adr-023) |
+| `x-tenant-id` header (the common community answer) | Simple | Its own guidance requires verifying an authenticated user owns the tenant. `/store/*` has no authenticated user, so the check can never be performed |
+
+### Decision
+
+1. **`Host` remains the sole source of tenant identity for `/store/*`.** No header, key, or
+   parameter may override it.
+2. **The engine is reachable at `/api/*` on each merchant's own hostname**, so the Host is
+   correct by construction rather than by forwarding.
+3. **No second tenant-identity path is introduced.** The security precondition in
+   `tenant_layer.rs` stays exactly as written; nothing new becomes trusted.
+4. **Per-merchant values are runtime data, never build inputs.** Backend URL, publishable key
+   and social handles resolve through `/store/config`.
+
+### Consequences
+
+**Good.** One mechanism for browser and server. CORS stops applying to storefront traffic, so
+the boot-time origin allowlist stops being a per-merchant operational burden. Same-origin also
+removes a DNS lookup, a TLS handshake and a CORS preflight from every cross-origin POST — which
+matters most on the high-latency mobile connections this product targets.
+
+**Bad.** SSR requests hairpin through the ingress rather than addressing the service directly,
+costing an in-cluster hop. Split-horizon DNS removes it if a measurement ever justifies the
+extra moving part.
+
+**Landmine.** `middleware.ts` caches the region map in a **module-level `Map` with no tenant
+key**. It is harmless only while one process serves one tenant. This ADR makes one process
+serve many, so **host-keying that cache is part of this change, not a follow-up.** Shipping the
+routing alone converts a dormant bug into a live cross-tenant leak.
+
+---
+
+<a id="adr-023"></a>
+
+## ADR-023 — One storefront build per theme, routed by host
+
+**Status:** Proposed · **Date:** 2026-09-02 · **Relates to:** [ADR-013](#adr-013), [ADR-022](#adr-022)
+
+### Context
+
+`STHENO_FRONTEND` binds a frontend at build time and each gets its own `distDir`, so every
+theme is a separate deployed artifact. Nothing maps a tenant's host to the right artifact.
+With two themes this is invisible; it becomes a manual release checklist at five.
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| **N builds, host → build routing table** (chosen) | Deploy count is O(themes). Ten thousand merchants, still N builds | A routing table to maintain; a tenant column to keep honest |
+| One deploy per merchant | Total per-store freedom | O(merchants) projects and env sets; every engine change is an N-way redeploy. Rejected by [ADR-013](#adr-013) |
+| Single build, themes resolved at runtime | One deploy | Dynamic imports throughout, no tree-shaking, and a component API that can never change. [ADR-001](#adr-001) in TypeScript |
+
+### Decision
+
+1. **A `frontend` column on the tenant**, `not null default 'default'`, RLS-covered like every
+   other tenant column, exposed on `/store/config`.
+2. **A host → build routing table** keyed on the same wildcard the API already resolves.
+3. **A CI build matrix over every frontend**, running `check-frontend-switch.sh` per build.
+   Non-negotiable: that grep exists because a matrix build once reported *"Compiled
+   successfully"* while emitting another frontend's markup, and every other gate passed.
+4. **Deployed artifact count must equal registered frontend count, asserted in CI.** It is the
+   invariant the model rests on, and it will be violated by someone in a hurry.
+
+### Consequences
+
+**Good.** Theme count and merchant count are decoupled. Adding a merchant is a row, not a build.
+
+**Bad.** A bespoke Pro theme is still a deploy, and themes must be versioned against core.
+Budget them against an honestly-built theme, not against `frontend-matrix`, which was cheap
+only because it began as a copy of `frontend-default`.
+
+---
+
+<a id="adr-024"></a>
+
+## ADR-024 — Compute sits next to the data; delivery is a CDN over an origin that speaks HTTP caching
+
+**Status:** Proposed · **Date:** 2026-09-02 · **Relates to:** [ADR-012](#adr-012), [ADR-022](#adr-022)
+
+### Context
+
+Two questions arrive together: where does the storefront render, and how is it delivered
+cheaply? A global edge network makes both look like one answer — run everything at the edge —
+and for this architecture that answer is wrong.
+
+### Decision
+
+1. **The renderer runs next to Postgres, never at the edge.** Cached responses are already
+   served near the buyer by the CDN; edge compute only changes *uncached* requests, and those
+   are precisely the ones that must reach the single database of [ADR-012](#adr-012). A query
+   costs five round trips — ~2.5 ms beside the database, a full second from 200 ms away. Edge
+   rendering moves compute 5 ms closer to the buyer and 200 ms further from its data.
+2. **A CDN is configuration, never an integration.** No CDN-specific code, ever. The origin
+   emits correct HTTP cache semantics and any compliant CDN then works with a DNS record and
+   credentials, which is also what keeps the vendor choice reversible.
+3. **"CDN-ready" is defined, so it is testable:**
+   - `Cache-Control: public, s-maxage=<n>, stale-while-revalidate=<n>` on cacheable responses.
+   - **No `Set-Cookie` on anything cacheable.** Every CDN refuses to cache such a response —
+     correctly, since caching one would serve a visitor's cookie to every visitor.
+   - `Vary: Accept-Encoding`, never `Vary: Cookie`, which fragments the cache per visitor.
+   - Cache key is host + path. Host *is* the tenant ([ADR-022](#adr-022)), so tenant-correct
+     caching needs no key-construction code and therefore has no key-construction bug.
+   - Tag purges emit both `Surrogate-Key` and `Cache-Tag`; they are headers, and emitting both
+     is cheaper than caring which vendor is in front.
+4. **Storefront SSR targets the Node runtime.** This keeps every host open except edge-only
+   adapters, and closing that one is deliberate: the frontend binding is a webpack plugin an
+   edge adapter does not honour, and its failure mode is serving another merchant's theme.
+
+### Consequences
+
+**Good.** The bill scales with cache misses rather than page views. Vendor choice stays a DNS
+change.
+
+**Bad, and currently blocking.** `getCacheOptions()` and `getAuthHeaders()` call `cookies()`,
+and every data function calls `getCacheOptions` — so no route is in the Full Route Cache and
+every page view is a render plus database work. `middleware.ts` also sets a cookie on
+responses. **Until the cookie write leaves the cacheable path and the shell stops calling
+`cookies()`, a CDN in front of this origin will cache almost nothing.** That is a refactor, not
+a setting, and it is the single largest cost item in the system.
+
+---
+
+<a id="adr-025"></a>
+
+## ADR-025 — Connection pooling is transaction-mode, with a session-mode route for session state
+
+**Status:** Proposed · **Date:** 2026-09-02 · **Relates to:** [ADR-012](#adr-012)
+
+### Context
+
+The engine autoscales and every replica holds its own connection pool, so connections to
+Postgres are `replicas x pool_size`. Without a pooler a traffic spike triggers a scale-out that
+exhausts `max_connections` and takes down tenants that were already healthy. Postgres
+connections, not CPU, are the first ceiling a multi-tenant deployment meets — and the small
+binary that makes fine-grained autoscaling attractive is exactly what makes this worse.
+
+### Decision
+
+1. **A pooler sits in front of Postgres in every environment**, including local development.
+   Transaction pooling changes runtime behaviour, not merely capacity; discovering that
+   difference in production is the failure this prevents.
+2. **`pool_mode = transaction`.** [ADR-012](#adr-012) decision 5 already requires `SET LOCAL`
+   so a pooled connection cannot carry a tenant identity between requests, and that is exactly
+   what transaction pooling needs. **`statement` mode breaks `SET LOCAL` outright and must
+   never be set.** Getting this wrong hands the next client the previous tenant's identity, and
+   RLS then faithfully serves someone else's rows — it reads as an RLS bug and is a pooling bug.
+3. **`max_prepared_statements` must be set, on PgBouncer >= 1.21.** diesel-async runs on
+   tokio-postgres, which uses protocol-level prepared statements; without tracking they fail
+   under transaction pooling.
+4. **Session-scoped state gets its own connection string** — a session-mode alias onto the same
+   database. `PostgresAdvisoryLockProvider` takes a session-level `pg_try_advisory_lock` and
+   unlocks on the same connection; under transaction pooling the lock leaks onto a server
+   connection that then serves other tenants, presenting as an intermittent hang no test
+   reproduces. Anything using this route gets no pooling, so it stays low-volume.
+5. **Test connections address Postgres directly.** The suite creates and drops a database per
+   test and a pooler's database list is static.
+
+### Consequences
+
+**Good.** Connection count stops growing with replica count, so autoscaling becomes safe.
+
+**Bad.** Another hop and another component. And transaction duration now caps concurrency —
+throughput is `pool_size / transaction duration` — which makes the extra round trips on the
+non-transactional path a *concurrency* cost rather than merely a latency one.
+
+---
+
+<a id="adr-026"></a>
+
+## ADR-026 — Docker Compose now, Kubernetes at scale
+
+**Status:** Proposed · **Date:** 2026-09-02
+
+### Context
+
+The Helm chart exists and is the eventual target. What runs today is Docker Compose. Recording
+this stops the chart being mistaken for the current environment, and stops each decision being
+implemented in only one of the two.
+
+### Decision
+
+1. **Everything is containerised. Docker Compose is the current runtime**; Kubernetes is
+   adopted when scale requires it, not before.
+2. **Every infrastructure decision lands in both**, or it is not done — the pooler as a Compose
+   service and a chart template, same-origin routing as a reverse-proxy container and an
+   Ingress.
+3. **No platform primitive may carry a decision.** Every mechanism chosen is HTTP or Postgres,
+   which is what keeps the eventual migration a translation rather than a redesign.
+
+### Consequences
+
+**Good.** The move to Kubernetes stays mechanical. Local development matches production
+behaviour.
+
+**Bad.** Two deployment descriptions to keep honest, and they drift silently — nothing fails
+when only one is updated. Autoscaling has no Compose equivalent and is simply absent until the
+Kubernetes phase.
+
+---
+
+<a id="adr-027"></a>
+
+## ADR-027 — Medusa compatibility is an implementation detail, never a product claim
+
+**Status:** Proposed · **Date:** 2026-09-02 · **Amends:** [ADR-002](#adr-002)
+
+### Context
+
+[ADR-002](#adr-002) chose full wire compatibility with Medusa v2 for two reasons. One was
+engineering economy: fork the dashboard rather than rebuild it. The other was commercial —
+*"Existing storefronts, `@medusajs/js-sdk`, and Medusa's own admin dashboard work unmodified"* —
+a migration story for Medusa users switching to Stheno.
+
+The second reason is withdrawn. Stheno is sold as its own service, not as a Medusa-compatible
+one. The first reason stands and is the only one that ever paid: `apps/admin` is coupled to
+Medusa at build level through `@medusajs/admin-shared` and `@medusajs/admin-vite-plugin`, and
+keeping `/admin/*` shapes stable is what lets ~278 admin route contracts and 38 route groups
+keep working without a rewrite.
+
+### Decision
+
+1. **The Medusa name appears nowhere a customer can see it** — not in marketing copy, product
+   pages, dashboard links, cookie names, environment variables, or error messages.
+2. **Admin wire compatibility is retained**, as an internal economy. It is never marketed, and
+   it is not a promise to any third party.
+3. **The Store wire is free to diverge.** Nothing external depends on it once the migration
+   story is withdrawn, so `@medusajs/js-sdk` may be replaced by a thin fetch client. Doing so
+   removes `x-medusa-locale` from the wire, the Node-only constraint on `lib/data/`, and the
+   build-time publishable key together — see [ADR-022](#adr-022) decision 4.
+4. **Engineering provenance stays.** ADRs, `UPSTREAM.md`, `PARITY_MATRIX.md` and source
+   comments continue to name Medusa where it explains why something is the way it is. Removing
+   that would make the codebase harder to reason about and fools nobody.
+5. **`@medusajs/ui`, `@medusajs/icons` and `@medusajs/ui-preset` are a design system, not a
+   brand tie.** They emit `ui-*` class names, so the name does not reach the DOM. Replacing
+   them is cost without benefit.
+
+### What changed on 2026-09-02
+
+Cookies renamed to `_stheno_*`; every `MEDUSA_*` environment variable renamed to `STHENO_*`
+across apps, gate scripts and CI; the dashboard's Documentation and Changelog links moved off
+`medusajs.com` to configured URLs that hide when unset; Medusa Cloud's hosted-Stripe fallback
+and demo image buckets deleted; and both marketing claims rewritten.
+
+One `docs.medusajs.com` link remains in `edit-profile-form.tsx`, inside a JSX block comment
+around a disabled usage-insights feature. It is unreachable and was left rather than edited.
+
+### Consequences
+
+**Good.** The product stands on its own name. The store wire stops constraining decisions that
+were only ever made to preserve a promise no longer being kept.
+
+**Bad.** Diverging the store wire means the forked storefront must be maintained against an API
+only we define — the fork is now genuinely ours, with no upstream to pull from. That was
+already true in practice; this records it.
+
+**Cost of the exception.** Keeping `/admin/*` compatible means a Medusa upgrade can still, in
+principle, force admin-side work. That is accepted: it is cheaper than owning 278 route
+contracts against a UI we did not write.
