@@ -19,6 +19,17 @@ pub struct StoreOrderContext {
     /// Resolves `links.link_order_payment_collection`.
     pub links: Arc<stheno_links::PgLinkStore>,
     pub payment_service: Arc<stheno_payment::PaymentService>,
+    /// Resolves the caller from the bearer token so an order listing can be scoped to the
+    /// shopper who owns it.
+    pub auth_service: Arc<stheno_auth::AuthService>,
+}
+
+fn unauthorized(message: &str) -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({ "type": "unauthorized", "message": message })),
+    )
+        .into_response()
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -196,11 +207,38 @@ pub struct TransferResponse {
 }
 
 /// `GET /store/orders`
+/// `GET /store/orders` — the signed-in shopper's own orders.
+///
+/// This took no token and set no `customer_id`, so it answered with every order in the
+/// tenant to anyone holding the publishable key — which is public by design and shipped in
+/// the storefront bundle. That is order enumeration: display ids, emails, addresses and
+/// line items for the whole store. `OrderFilter` already had `customer_id`; nothing ever
+/// set it.
 pub async fn list_orders(
     State(ctx): State<StoreOrderContext>,
+    headers: axum::http::HeaderMap,
     Query(query): Query<ListOrdersQuery>,
 ) -> Result<Json<OrderListResponse>, Response> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| unauthorized("Missing Authorization bearer token"))?;
+
+    let claims = ctx
+        .auth_service
+        .verify_jwt(token)
+        .await
+        .map_err(|_| unauthorized("Invalid or expired token"))?;
+
+    // No actor means the identity exists but no customer was ever created for it. Such a
+    // caller owns nothing, and must not therefore be shown everything.
+    let customer_id = claims
+        .actor_id
+        .ok_or_else(|| unauthorized("Token is not bound to a customer"))?;
+
     let filter = OrderFilter {
+        customer_id: Some(customer_id),
         display_id: query.display_id,
         status: query.status,
         limit: query.limit,

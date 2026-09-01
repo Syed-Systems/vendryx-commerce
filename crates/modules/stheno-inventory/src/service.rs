@@ -322,6 +322,44 @@ impl InventoryService {
         Ok(out)
     }
 
+    /// The inventory items behind each variant, with their location levels.
+    ///
+    /// The admin's product detail page reads
+    /// `variant.inventory_items[].inventory.location_levels`. The field was never sent, so
+    /// the page threw `Cannot read properties of undefined (reading 'length')` and no
+    /// product with `manage_inventory` could be opened at all.
+    pub async fn items_for_variants(
+        &self,
+        variant_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, Vec<(InventoryItemDTO, Vec<InventoryLevelDTO>)>>>
+    {
+        if variant_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        let links = stheno_links::PgLinkStore::new(self.pool.clone());
+        let items_by_variant = links
+            .get_by_left_many("product_variant_inventory_item", variant_ids)
+            .await?;
+
+        let mut out = std::collections::HashMap::new();
+        for (variant_id, item_ids) in items_by_variant {
+            let mut items = Vec::with_capacity(item_ids.len());
+            for item_id in item_ids {
+                // ponytail: two round trips per inventory item. A product detail page holds
+                // a handful of variants, so batch these only if kit-heavy catalogs make it
+                // measurable.
+                let Ok(item) = self.get_item(&item_id).await else {
+                    continue;
+                };
+                let levels = self.list_levels(&item_id).await.unwrap_or_default();
+                items.push((item, levels));
+            }
+            out.insert(variant_id, items);
+        }
+        Ok(out)
+    }
+
     /// One inventory item.
     ///
     /// The API answered this with a mock JSON object carrying a fabricated SKU, so the

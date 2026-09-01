@@ -676,13 +676,18 @@ impl FulfillmentService {
         // (`idempotency_key_payload_mismatch`), and shipping two parcels through one
         // courier is the ordinary case, not a retry. A fresh id withholds dedupe, which is
         // what the paragraph above always meant, and still writes the durable ledger row.
+        //
+        // The `shipping_option_id` branch had that same defect and outlived the fix: a
+        // shipping option is a rate, not a consignment. Every parcel sent by one method
+        // reuses it, so an outbound shipment and the return that follows it collided on
+        // one key and the second was refused — deterministically, for the ordinary case.
+        // `CreateFulfillmentInput` carries no idempotency key, so there is no caller
+        // reference to key on at all: withhold dedupe here too rather than invent one out
+        // of a field that does not identify the request.
         let idem_key = format!(
             "create_fulfillment:{}:{}",
             input.provider_id,
-            input
-                .shipping_option_id
-                .clone()
-                .unwrap_or_else(|| Id::<Fulfillment>::new().to_string())
+            Id::<Fulfillment>::new()
         );
         let payload = serde_json::json!({
             "data": input.data,

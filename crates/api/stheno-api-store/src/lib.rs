@@ -63,7 +63,6 @@ pub struct StoreApiContext {
     pub order_flows: Arc<OrderWorkflowEngine>,
     pub return_flows: Arc<ReturnWorkflowEngine>,
     pub fulfillment_service: Arc<FulfillmentService>,
-    pub customer_service: Arc<CustomerService>,
     pub auth_service: Arc<AuthService>,
     pub translation_service: Arc<TranslationService>,
 }
@@ -215,12 +214,17 @@ pub fn store_return_routes(
         .with_state(ctx)
 }
 
-/// Mounts the store customer routes. `/store/customers/me` is authenticated by bearer JWT.
+/// Mounts the store customer routes. Both are authenticated by bearer JWT.
+///
+/// `POST /store/customers` completes a registration the auth route can only half-finish:
+/// the identity exists before the customer does, so something has to create the profile
+/// and bind them. Without it the storefront's sign-up form failed outright.
 pub fn store_customer_routes(
     customer_service: Arc<CustomerService>,
     auth_service: Arc<AuthService>,
 ) -> Router {
     Router::new()
+        .route("/store/customers", post(customers::create_customer))
         .route("/store/customers/me", get(customers::get_current_customer))
         .with_state(StoreCustomerContext {
             customer_service,
@@ -274,13 +278,14 @@ pub fn store_routes(ctx: StoreApiContext) -> Router {
             order_flows: ctx.order_flows,
             links: ctx.links.clone(),
             payment_service: ctx.payment_service.clone(),
+            auth_service: ctx.auth_service.clone(),
         }))
         .merge(store_shipping_option_routes(ctx.fulfillment_service))
         .merge(store_return_routes(ctx.order_service, ctx.return_flows))
-        .merge(store_customer_routes(
-            ctx.customer_service,
-            ctx.auth_service,
-        ))
+        // Customer routes are deliberately NOT merged here. Buyer accounts are an
+        // archetype the merchant picks at store-request time (PRODUCT.md 2), so
+        // `store_customer_routes` mounts through a GatedGroup in stheno-server, the
+        // same way admin reporting does. Merging it here would make it ungateable.
         .merge(store_locale_routes(ctx.translation_service))
 }
 

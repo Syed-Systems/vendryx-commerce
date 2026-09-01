@@ -4,6 +4,7 @@ use rust_decimal_macros::dec;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use stheno_api_store::{store_order_routes, store_shipping_option_routes};
+use stheno_auth::{AuthService, AuthenticateInput, CreateIdentityInput};
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
 use stheno_flows::OrderWorkflowEngine;
@@ -21,6 +22,7 @@ async fn test_store_order_and_shipping_option_endpoints_parity() {
     let order_service = Arc::new(OrderService::new(pool.clone()));
     let order_flows = Arc::new(OrderWorkflowEngine::new(order_service.clone()));
     let fulfillment_service = Arc::new(FulfillmentService::new(pool.clone()));
+    let auth_service = Arc::new(AuthService::new(pool.clone(), None));
 
     let app = axum::Router::new()
         // Orders expand their payment collections now, so the router needs the link store
@@ -30,6 +32,7 @@ async fn test_store_order_and_shipping_option_endpoints_parity() {
             order_flows: order_flows.clone(),
             links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
             payment_service: Arc::new(stheno_payment::PaymentService::new(pool.clone())),
+            auth_service: auth_service.clone(),
         }))
         .merge(store_shipping_option_routes(fulfillment_service.clone()));
 
@@ -75,12 +78,56 @@ async fn test_store_order_and_shipping_option_endpoints_parity() {
         .await
         .expect("order created");
 
+    // A shopper's own token. `/store/orders` is per-customer, so the listing needs an
+    // identity bound to the order's customer to return anything at all.
+    auth_service
+        .create_identity(CreateIdentityInput {
+            provider_id: "emailpass".to_string(),
+            entity_id: "alice@example.com".to_string(),
+            password: Some("Sup3rSecret!".to_string()),
+            actor_id: Some("cus_store_alice".to_string()),
+            actor_type: Some("customer".to_string()),
+            provider_metadata: None,
+            app_metadata: None,
+            user_metadata: None,
+        })
+        .await
+        .expect("identity created");
+    let (_, tokens) = auth_service
+        .authenticate(AuthenticateInput {
+            provider_id: "emailpass".to_string(),
+            entity_id: "alice@example.com".to_string(),
+            password: Some("Sup3rSecret!".to_string()),
+        })
+        .await
+        .expect("authenticated");
+    let bearer = format!("Bearer {}", tokens.access_token);
+
+    // 0. The listing is not public. It used to answer with every order in the tenant to
+    // anyone holding the publishable key, which is shipped in the storefront bundle.
+    let anon_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/store/orders")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        anon_resp.status(),
+        StatusCode::UNAUTHORIZED,
+        "an unauthenticated caller must not be able to enumerate orders"
+    );
+
     // 1. GET /store/orders
     let list_resp = app
         .clone()
         .oneshot(
             Request::builder()
                 .uri("/store/orders")
+                .header("authorization", &bearer)
                 .body(Body::empty())
                 .unwrap(),
         )

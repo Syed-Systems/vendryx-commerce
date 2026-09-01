@@ -20,8 +20,8 @@ async fn test_store_pricing_endpoints_parity() {
     let currency_service = Arc::new(CurrencyService::new(pool.clone()));
     let pricing_service = Arc::new(PricingService::new(pool.clone()));
 
-    // 1. Seed Product
-    let _prod = product_service
+    // 1. Seed Product. Created as a draft, and the store lists published products only.
+    let prod = product_service
         .create_product(CreateProductInput {
             title: "Medusa Parity Silk Scarf".to_string(),
             handle: Some("medusa-parity-silk-scarf".to_string()),
@@ -29,6 +29,21 @@ async fn test_store_pricing_endpoints_parity() {
             description: Some("Luxury scarf".to_string()),
             discountable: Some(true),
         })
+        .await
+        .unwrap();
+    product_service
+        .update_product(
+            &prod.id.to_string(),
+            stheno_product::UpdateProductInput {
+                title: None,
+                handle: None,
+                subtitle: None,
+                description: None,
+                status: Some("published".to_string()),
+                thumbnail: None,
+                discountable: None,
+            },
+        )
         .await
         .unwrap();
 
@@ -56,7 +71,6 @@ async fn test_store_pricing_endpoints_parity() {
         None,
     ));
     let fulfillment_service = Arc::new(stheno_fulfillment::FulfillmentService::new(pool.clone()));
-    let customer_service = Arc::new(stheno_customer::CustomerService::new(pool.clone()));
     let auth_service = Arc::new(stheno_auth::AuthService::new(pool.clone(), None));
     let translation_service = Arc::new(stheno_translation::TranslationService::new(pool.clone()));
 
@@ -88,7 +102,6 @@ async fn test_store_pricing_endpoints_parity() {
         order_flows,
         return_flows,
         fulfillment_service,
-        customer_service,
         auth_service,
         translation_service,
         promotion_service: None,

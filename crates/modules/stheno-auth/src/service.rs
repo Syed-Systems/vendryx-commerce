@@ -740,6 +740,45 @@ impl AuthService {
         }
     }
 
+    /// Binds an auth identity to the actor it authenticates.
+    ///
+    /// Registration necessarily creates the identity before the customer row exists, so
+    /// `actor_id` starts null and every token minted from it carries no actor. That is why
+    /// a freshly registered shopper could authenticate and still be refused by
+    /// `/store/customers/me` — the second half of the handshake had nowhere to write.
+    ///
+    /// Rebinding is refused rather than performed: repointing an identity at a different
+    /// actor would let an already-issued token authenticate as somebody else. Binding the
+    /// same actor twice is a no-op so a retried registration is safe.
+    pub async fn bind_actor(
+        &self,
+        identity_id: &str,
+        actor_id: &str,
+        actor_type: &str,
+    ) -> Result<AuthIdentityDTO> {
+        let mut identity = self.identities.retrieve(None, identity_id).await?;
+
+        if let Some(existing) = identity.actor_id.clone() {
+            if existing != actor_id {
+                return Err(Error::Conflict {
+                    code: "identity_already_bound",
+                    message: "This login is already bound to a different account".to_string(),
+                });
+            }
+            return Ok(self.to_identity_dto(&identity));
+        }
+
+        identity.actor_id = Some(actor_id.to_string());
+        identity.actor_type = Some(actor_type.to_string());
+        identity.updated_at = Utc::now();
+
+        let updated = self
+            .identities
+            .update(None, &identity.id.to_string(), identity)
+            .await?;
+        Ok(self.to_identity_dto(&updated))
+    }
+
     pub async fn get_identity(&self, id: &str) -> Result<AuthIdentityDTO> {
         let identity = self.identities.retrieve(None, id).await?;
         Ok(self.to_identity_dto(&identity))

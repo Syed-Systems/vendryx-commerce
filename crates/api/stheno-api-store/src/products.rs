@@ -7,6 +7,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use stheno_pricing::PricingService;
+use stheno_product::models::ProductStatus;
 use stheno_product::{ProductDTO, ProductService};
 use stheno_region::RegionService;
 
@@ -71,6 +72,31 @@ fn internal(e: impl std::fmt::Display) -> Response {
         }),
     )
         .into_response()
+}
+
+/// The 404 the store returns for a product it will not serve.
+///
+/// Shared by "no such id" and "exists but is not published": a shopper must not be able to
+/// tell those apart, or the catalog leaks the existence of unreleased products.
+fn product_not_found(id: &str) -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ErrorResponse {
+            r#type: "not_found".to_string(),
+            message: format!("Product with id {} was not found", id),
+        }),
+    )
+        .into_response()
+}
+
+/// Only published products are public.
+///
+/// The store API had no status filter at all, so every draft, proposed and rejected
+/// product was served to shoppers the moment it was created — a merchant drafting a
+/// product published it by accident. Admin keeps seeing every status; this is the store
+/// boundary, so it is enforced here rather than in ProductService.
+fn is_public(p: &ProductDTO) -> bool {
+    p.status == ProductStatus::Published.as_str()
 }
 
 /// Resolves the currency to price in.
@@ -141,6 +167,9 @@ pub async fn list_products(
     let filtered: Vec<ProductDTO> = all
         .into_iter()
         .filter(|p| {
+            if !is_public(p) {
+                return false;
+            }
             if !handles.is_empty() && !handles.iter().any(|h| h == &p.handle) {
                 return false;
             }
@@ -188,16 +217,15 @@ pub async fn get_product(
     Path(id): Path<String>,
     Query(query): Query<GetProductQuery>,
 ) -> Result<Json<GetProductResponse>, Response> {
-    let product = ctx.product_service.get_product(&id).await.map_err(|_| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                r#type: "not_found".to_string(),
-                message: format!("Product with id {} was not found", id),
-            }),
-        )
-            .into_response()
-    })?;
+    let product = ctx
+        .product_service
+        .get_product(&id)
+        .await
+        .map_err(|_| product_not_found(&id))?;
+
+    if !is_public(&product) {
+        return Err(product_not_found(&id));
+    }
 
     let currency = resolve_currency(&ctx, query.region_id.as_ref(), query.currency_code).await;
     let mut expanded = expand_products(
