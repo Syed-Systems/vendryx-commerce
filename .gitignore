@@ -24,3 +24,6 @@ apps/admin/playwright-report/
 # Python bytecode from scripts/
 __pycache__/
 *.pyc
+
+# Local preview screenshots, not site assets
+apps/marketing/*-preview.png
