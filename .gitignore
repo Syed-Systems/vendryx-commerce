@@ -16,6 +16,11 @@ apps/admin/shots/
 apps/admin/test-results/
 apps/admin/playwright-report/
 .dev-tenants/
+.seo-cache/
 
 # Agent orchestration scratch (per-task specs and review notes), not project source.
 .orchestration/
+
+# Python bytecode from scripts/
+__pycache__/
+*.pyc
