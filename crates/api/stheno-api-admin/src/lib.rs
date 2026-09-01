@@ -15,6 +15,7 @@ pub mod rbac;
 pub mod reports;
 pub mod store;
 pub mod users;
+pub mod views;
 
 use axum::routing::{get, post};
 use axum::Router;
@@ -63,7 +64,23 @@ pub struct AdminApiContext {
 pub fn admin_catalog_routes(
     product_service: Arc<ProductService>,
     pricing_service: Arc<stheno_pricing::PricingService>,
+    inventory_service: Arc<InventoryService>,
 ) -> Router {
+    // The product-detail routes carry their own state for the same reason the variant
+    // routes below do: the dashboard's variant table reads inventory off each variant, and
+    // a router has exactly one state type.
+    let detail_routes: Router = Router::new()
+        .route(
+            "/admin/products/{id}",
+            get(catalog::get_product)
+                .post(catalog::update_product)
+                .delete(catalog::delete_product),
+        )
+        .with_state(catalog::ProductDetailContext {
+            product_service: product_service.clone(),
+            inventory_service: inventory_service.clone(),
+        });
+
     // Variant routes need pricing — a variant's price is set on the variant form — so
     // they carry their own state. Everything else here is products only.
     let variant_routes: Router = Router::new()
@@ -80,18 +97,13 @@ pub fn admin_catalog_routes(
         .with_state(catalog::VariantContext {
             product_service: product_service.clone(),
             pricing_service,
+            inventory_service,
         });
 
     Router::new()
         .route(
             "/admin/products",
             get(catalog::list_products).post(catalog::create_product),
-        )
-        .route(
-            "/admin/products/{id}",
-            get(catalog::get_product)
-                .post(catalog::update_product)
-                .delete(catalog::delete_product),
         )
         .route(
             "/admin/products/{id}/options",
@@ -145,6 +157,7 @@ pub fn admin_catalog_routes(
         )
         .with_state(product_service)
         .merge(variant_routes)
+        .merge(detail_routes)
 }
 
 /// Mounts admin inventory, stock locations, and reservations routes.
@@ -416,6 +429,7 @@ pub fn admin_routes(ctx: AdminApiContext) -> Router {
         .merge(admin_catalog_routes(
             ctx.product_service,
             ctx.pricing_service.clone(),
+            ctx.inventory_service.clone(),
         ))
         .merge(admin_inventory_routes(
             ctx.inventory_service,
@@ -491,8 +505,14 @@ pub fn admin_user_routes(user_service: Arc<UserService>) -> Router {
 }
 
 /// Mounts admin store and price preferences routes.
-pub fn admin_store_routes(store_service: Arc<StoreService>) -> Router {
-    let ctx = store::AdminStoreContext { store_service };
+pub fn admin_store_routes(
+    store_service: Arc<StoreService>,
+    translation_service: Arc<stheno_translation::TranslationService>,
+) -> Router {
+    let ctx = store::AdminStoreContext {
+        store_service,
+        translation_service,
+    };
     Router::new()
         .route("/admin/stores", get(store::list_stores))
         .route("/admin/store", get(store::list_stores))
@@ -509,6 +529,26 @@ pub fn admin_store_routes(store_service: Arc<StoreService>) -> Router {
 }
 
 /// Mounts admin API key routes.
+/// Mounts the view-configuration routes the dashboard's data tables read.
+///
+/// Stateless: the column definitions are static per entity and saved views are not stored
+/// yet. Mounted unconditionally because `/admin/feature-flags` advertises
+/// `view_configurations`, and a flag that promises an API the router does not serve is what
+/// left every list table rendering zero columns.
+pub fn admin_views_routes() -> Router {
+    Router::new()
+        .route("/admin/views/entities", get(views::list_entities))
+        .route("/admin/views/{entity}/columns", get(views::list_columns))
+        .route(
+            "/admin/views/{entity}/configurations",
+            get(views::list_configurations),
+        )
+        .route(
+            "/admin/views/{entity}/configurations/active",
+            get(views::active_configuration),
+        )
+}
+
 pub fn admin_api_key_routes() -> Router {
     let ctx = api_keys::AdminApiKeyContext;
     Router::new()
@@ -636,6 +676,14 @@ pub fn admin_localisation_routes(
         )
         .route("/admin/locales/{code}", get(localisation::get_locale))
         .route("/admin/translations", post(localisation::set_translation))
+        .route(
+            "/admin/translations/settings",
+            get(localisation::translation_settings),
+        )
+        .route(
+            "/admin/translations/statistics",
+            get(localisation::translation_statistics),
+        )
         .route(
             "/admin/translations/resolve",
             get(localisation::resolve_translation),

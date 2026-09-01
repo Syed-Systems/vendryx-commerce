@@ -1,4 +1,4 @@
-import { SidebarLeft, TriangleRightMini, XMark } from "@medusajs/icons"
+import { Moon, SidebarLeft, Sun, TriangleRightMini, XMark } from "@medusajs/icons"
 import { IconButton, clx } from "@medusajs/ui"
 import { AnimatePresence } from "motion/react"
 import { Dialog as RadixDialog } from "radix-ui"
@@ -16,6 +16,7 @@ import { DocumentTitle } from "../../../hooks/use-document-title"
 import { KeybindProvider } from "../../../providers/keybind-provider"
 import { useGlobalShortcuts } from "../../../providers/keybind-provider/hooks"
 import { useSidebar } from "../../../providers/sidebar-provider"
+import { useTheme } from "../../../providers/theme-provider"
 import { ProgressBar } from "../../common/progress-bar"
 import {
   LayoutCustomizerHostProvider,
@@ -205,6 +206,28 @@ const ToggleSidebar = () => {
   )
 }
 
+/**
+ * The user menu still owns the full picker, including "System". This is the one-click
+ * flip between the two themes a user is actually looking at, kept in the topbar so it
+ * is reachable without opening a menu and a submenu first.
+ */
+const ThemeToggle = () => {
+  const { t } = useTranslation()
+  const { resolvedTheme, setTheme } = useTheme()
+
+  return (
+    <IconButton
+      variant="transparent"
+      size="small"
+      className="text-ui-fg-muted hover:text-ui-fg-subtle"
+      aria-label={t("app.menus.user.theme.label")}
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+    >
+      {resolvedTheme === "dark" ? <Sun /> : <Moon />}
+    </IconButton>
+  )
+}
+
 const Topbar = () => {
   return (
     <div className="grid w-full grid-cols-2 border-b p-3">
@@ -231,6 +254,7 @@ const Topbar = () => {
           customizeId={CUSTOMIZE_IDS.TOPBAR}
           controlSize="xsmall"
         />
+        <ThemeToggle />
       </div>
     </div>
   )

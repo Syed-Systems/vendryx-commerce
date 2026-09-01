@@ -66,7 +66,8 @@ async fn catalog_taxonomy_routes_are_mounted() {
     let db = TestDb::migrated().await;
     let pool = create_pool(&db.url, 5).expect("pool");
     let service = Arc::new(ProductService::new(pool.clone()));
-    let pricing = Arc::new(stheno_pricing::PricingService::new(pool));
+    let pricing = Arc::new(stheno_pricing::PricingService::new(pool.clone()));
+    let inventory = Arc::new(stheno_inventory::InventoryService::new(pool));
 
     // Tags and types answered with hardcoded empty arrays and had no write routes at all.
     for (method, uri) in [
@@ -81,7 +82,7 @@ async fn catalog_taxonomy_routes_are_mounted() {
         ("DELETE", "/admin/product-types/ptyp_x"),
     ] {
         assert_mounted(
-            admin_catalog_routes(service.clone(), pricing.clone()),
+            admin_catalog_routes(service.clone(), pricing.clone(), inventory.clone()),
             method,
             uri,
         )
@@ -204,9 +205,9 @@ async fn an_unmounted_route_is_reported_as_missing() {
     let db = TestDb::migrated().await;
     let pool = create_pool(&db.url, 5).expect("pool");
     let service = Arc::new(ProductService::new(pool.clone()));
-    let pricing = Arc::new(stheno_pricing::PricingService::new(pool));
-
-    let response = admin_catalog_routes(service, pricing)
+    let pricing = Arc::new(stheno_pricing::PricingService::new(pool.clone()));
+    let inventory = Arc::new(stheno_inventory::InventoryService::new(pool));
+    let response = admin_catalog_routes(service, pricing, inventory)
         .oneshot(
             Request::builder()
                 .uri("/admin/definitely-not-a-route")

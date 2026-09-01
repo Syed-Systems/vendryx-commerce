@@ -74,6 +74,15 @@ test.describe("admin to storefront round trip", () => {
     expect(variant.status(), await variant.text()).toBe(201)
     const variantId = (await variant.json()).variant.id
 
+    // Publish it. Products are created as drafts and the store serves published ones only,
+    // so this is the step a merchant takes to put it in front of shoppers — without it the
+    // storefront is right to not list it.
+    const published = await request.post(`${BACKEND}/admin/products/${productId}`, {
+      headers: admin,
+      data: { status: "published" },
+    })
+    expect(published.ok(), await published.text()).toBeTruthy()
+
     // The storefront's view of the same product.
     const listed = await request.get(
       `${BACKEND}/store/products?handle=${handle}`,

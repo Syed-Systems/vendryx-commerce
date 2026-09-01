@@ -20,7 +20,7 @@ import {
 import { INavItem } from "../components/layout/nav-item"
 import { Providers } from "../providers"
 import coreTranslations from "../i18n/translations"
-import { getRouteMap } from "./routes/get-route.map"
+import { curateMerchantWorkspace, getRouteMap } from "./routes/get-route.map"
 import { createRouteMap, getRouteExtensions } from "./routes/utils"
 import { sortMenuItemsByRank } from "./utils/sort-menu-items-by-rank"
 import { CORE_LAYOUTS } from "../components/layout-composer/core-layouts"
@@ -572,10 +572,10 @@ export class DashboardApp {
   }
 
   render() {
-    const routes = getRouteMap({
+    const routes = curateMerchantWorkspace(getRouteMap({
       settingsRoutes: this.settingsRoutes,
       coreRoutes: this.coreRoutes,
-    })
+    }))
 
     const router = createBrowserRouter(routes, {
       basename: __BASE__ || "/",

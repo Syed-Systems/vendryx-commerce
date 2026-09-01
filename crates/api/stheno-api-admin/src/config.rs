@@ -808,19 +808,27 @@ fn provider_name(provider_id: &str) -> String {
 }
 
 fn map_error(e: stheno_types::Error) -> Response {
-    let (status, r#type) = match e {
-        stheno_types::Error::NotFound { .. } => (StatusCode::NOT_FOUND, "not_found"),
-        stheno_types::Error::Invalid { .. } => (StatusCode::BAD_REQUEST, "invalid_data"),
-        _ => (StatusCode::INTERNAL_SERVER_ERROR, "unexpected_state"),
+    // Every branch used to return the same fixed string, so an operator configuring a
+    // provider saw "Payment provider configuration failed" whatever the actual cause —
+    // a missing STHENO_CREDENTIAL_KEY, a required field, an unknown field all looked
+    // identical. A 4xx is the caller's to fix, so it carries the reason; a 5xx stays
+    // generic because its detail is ours, not the client's.
+    let (status, r#type, message) = match &e {
+        stheno_types::Error::NotFound { .. } => {
+            (StatusCode::NOT_FOUND, "not_found", e.to_string())
+        }
+        stheno_types::Error::Invalid { message, .. } => (
+            StatusCode::BAD_REQUEST,
+            "invalid_data",
+            message.clone(),
+        ),
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "unexpected_state",
+            "Payment provider configuration failed".to_string(),
+        ),
     };
-    (
-        status,
-        Json(ErrorResponse::new(
-            r#type,
-            "Payment provider configuration failed",
-        )),
-    )
-        .into_response()
+    (status, Json(ErrorResponse::new(r#type, &message))).into_response()
 }
 
 pub async fn list_payment_collections() -> Result<impl IntoResponse, Response> {

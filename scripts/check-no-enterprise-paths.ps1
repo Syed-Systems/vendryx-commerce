@@ -27,9 +27,16 @@ if (Test-Path "apps/admin/src") {
 Write-Host "Zero enterprise paths detected in apps/admin/."
 
 Write-Host "[2/2] Verifying clean-room implementations for RBAC and SSO..."
-if (!(Test-Path "apps/admin/src/components/rbac.tsx") -or !(Test-Path "apps/admin/src/components/sso.tsx")) {
-    Write-Error "Clean-room rbac.tsx or sso.tsx missing!"
-    exit 1
+$cleanRoom = @(
+    "apps/admin/src/routes/roles",
+    "apps/admin/src/routes/policies",
+    "apps/admin/src/routes/login/components/sso-login.tsx"
+)
+foreach ($path in $cleanRoom) {
+    if (!(Test-Path $path)) {
+        Write-Error "ERROR: clean-room implementation missing: $path"
+        exit 1
+    }
 }
 Write-Host "Clean-room RBAC and SSO components verified."
 

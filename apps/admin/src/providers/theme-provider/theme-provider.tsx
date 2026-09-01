@@ -77,7 +77,7 @@ export const ThemeProvider = ({ children }: PropsWithChildren) => {
   }, [value])
 
   return (
-    <ThemeContext.Provider value={{ theme: state, setTheme }}>
+    <ThemeContext.Provider value={{ theme: state, resolvedTheme: value, setTheme }}>
       {children}
     </ThemeContext.Provider>
   )

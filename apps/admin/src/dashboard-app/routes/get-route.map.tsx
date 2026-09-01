@@ -9,6 +9,100 @@ import { SettingsLayout } from "../../components/layout/settings-layout"
 import { ErrorBoundary } from "../../components/utilities/error-boundary"
 import { HydrateFallback } from "../../components/utilities/hydrate-fallback"
 
+const MERCHANT_WORKSPACE_ROUTES = new Set([
+  "/",
+  "/analytics",
+  "/onboarding",
+  "/orders",
+  "/orders/social",
+  "/products",
+  "/collections",
+  "/categories",
+  "/inventory",
+  "/customers",
+  "/promotions",
+  "/price-lists",
+  "/profile",
+])
+
+const MERCHANT_SETTINGS_ROUTES = new Set([
+  "",
+  "profile",
+  "entitlements",
+  "store",
+  "users",
+  "notifications",
+  "billing",
+  "brand-kit",
+  "gateways",
+  "couriers",
+  "domains",
+  "bespoke-theme",
+  // Everything below is linked from the settings sidebar. They were absent from this set,
+  // so each of those links resolved through the public 404 — fourteen dead links out of
+  // eighteen, including the payment-providers page a merchant needs to take money at all.
+  // An allowlist that disagrees with the navigation is worse than either choice on its own:
+  // the merchant is shown the door and then told it does not exist. Narrow this again if a
+  // tier should not see one of these, but hide its link in the same change.
+  "regions",
+  "payment-providers",
+  "tax-regions",
+  "return-reasons",
+  "refund-reasons",
+  "sales-channels",
+  "product-types",
+  "product-tags",
+  "locations",
+  "property-labels",
+  "translations",
+  "publishable-api-keys",
+  "secret-api-keys",
+  "workflows",
+])
+
+/**
+ * The Medusa fork remains the implementation underneath this map, but a small merchant is not
+ * offered every inherited control plane. This filtering happens before the browser router is
+ * created, which means excluded URLs are genuinely unmounted and resolve through the public 404.
+ * Entitlement-specific Pro route mounting still happens in the backend route composer.
+ */
+export function curateMerchantWorkspace(routes: RouteObject[]): RouteObject[] {
+  const mainChildren = routes[0]?.children?.[0]?.children
+  if (mainChildren) {
+    routes[0] = {
+      ...routes[0],
+      children: [
+        {
+          ...routes[0].children![0],
+          children: mainChildren.filter(
+            (route) =>
+              typeof route.path !== "string" ||
+              !route.path.startsWith("/") ||
+              MERCHANT_WORKSPACE_ROUTES.has(route.path)
+          ),
+        },
+      ],
+    } as RouteObject
+  }
+
+  const settings = routes[1]?.children?.[0]
+  if (settings?.path === "/settings" && settings.children) {
+    routes[1] = {
+      ...routes[1],
+      children: [
+        {
+          ...settings,
+          children: settings.children.filter(
+            (route) => route.index === true || MERCHANT_SETTINGS_ROUTES.has(route.path ?? "")
+          ),
+        },
+      ],
+    } as RouteObject
+  }
+
+  return routes
+}
+
 export function getRouteMap({
   settingsRoutes,
   coreRoutes,

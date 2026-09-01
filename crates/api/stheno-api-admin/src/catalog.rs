@@ -110,13 +110,83 @@ pub async fn list_products(
     ))
 }
 
+/// State for the product-detail routes.
+///
+/// Products alone are not enough to answer `GET /admin/products/{id}`: the dashboard's
+/// variant table reads inventory off each variant, so the handler needs the inventory
+/// module too. Kept to these three routes rather than widening the whole catalog router.
+#[derive(Clone)]
+pub struct ProductDetailContext {
+    pub product_service: Arc<ProductService>,
+    pub inventory_service: Arc<stheno_inventory::InventoryService>,
+}
+
+/// Attaches what the dashboard's variant table reads to each variant.
+///
+/// `inventory_items` is not optional on the client: it does
+/// `variant.inventory_items?.map(..).filter(..)` and then reads `.length` on the result,
+/// and optional chaining short-circuits the whole chain — so an absent field became
+/// `undefined.length` and took the page down. An empty array is the honest answer for a
+/// variant with no inventory item, and it renders.
+async fn variants_with_inventory(
+    inventory_service: &stheno_inventory::InventoryService,
+    variants: &[stheno_product::ProductVariantDTO],
+) -> Vec<serde_json::Value> {
+    let variant_ids: Vec<String> = variants.iter().map(|v| v.id.to_string()).collect();
+    let items = inventory_service
+        .items_for_variants(&variant_ids)
+        .await
+        .unwrap_or_default();
+    let availability = inventory_service
+        .availability_for_variants(&variant_ids)
+        .await
+        .unwrap_or_default();
+
+    variants
+        .iter()
+        .map(|variant| {
+            let variant_id = variant.id.to_string();
+            let mut value = serde_json::to_value(variant).unwrap_or(json!({}));
+            if let Some(map) = value.as_object_mut() {
+                let inventory_items: Vec<serde_json::Value> = items
+                    .get(&variant_id)
+                    .map(|list| {
+                        list.iter()
+                            .map(|(item, levels)| {
+                                let mut inventory =
+                                    serde_json::to_value(item).unwrap_or(json!({}));
+                                if let Some(inv) = inventory.as_object_mut() {
+                                    inv.insert("location_levels".to_string(), json!(levels));
+                                }
+                                json!({
+                                    "inventory": inventory,
+                                    "inventory_item_id": item.id.to_string(),
+                                    "variant_id": variant_id,
+                                })
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                map.insert("inventory_items".to_string(), json!(inventory_items));
+                map.insert(
+                    "inventory_quantity".to_string(),
+                    json!(availability.get(&variant_id).copied().unwrap_or(0)),
+                );
+            }
+            value
+        })
+        .collect()
+}
+
 pub async fn get_product(
-    State(service): State<Arc<ProductService>>,
+    State(ctx): State<ProductDetailContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, Response> {
+    let service = &ctx.product_service;
     match service.get_product(&id).await {
         Ok(product) => {
-            let variants = service.list_variants(&id).await.unwrap_or_default();
+            let variant_dtos = service.list_variants(&id).await.unwrap_or_default();
+            let variants = variants_with_inventory(&ctx.inventory_service, &variant_dtos).await;
             let options_raw = service.list_options(&id).await.unwrap_or_default();
             let options: Vec<serde_json::Value> = options_raw
                 .into_iter()
@@ -249,10 +319,11 @@ pub async fn create_product(
 }
 
 pub async fn update_product(
-    State(service): State<Arc<ProductService>>,
+    State(ctx): State<ProductDetailContext>,
     Path(id): Path<String>,
     Json(input): Json<UpdateProductInput>,
 ) -> Result<impl IntoResponse, Response> {
+    let service = &ctx.product_service;
     let product = service.update_product(&id, input).await.map_err(|e| {
         (
             StatusCode::NOT_FOUND,
@@ -270,10 +341,10 @@ pub async fn update_product(
 }
 
 pub async fn delete_product(
-    State(service): State<Arc<ProductService>>,
+    State(ctx): State<ProductDetailContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, Response> {
-    service.delete_product(&id).await.map_err(|e| {
+    ctx.product_service.delete_product(&id).await.map_err(|e| {
         (
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new("not_found", &e.to_string())),
@@ -803,7 +874,12 @@ pub async fn list_product_variants(
     Path(product_id): Path<String>,
 ) -> Result<impl IntoResponse, Response> {
     let service = &ctx.product_service;
-    let variants = service.list_variants(&product_id).await.unwrap_or_default();
+    let variant_dtos = service.list_variants(&product_id).await.unwrap_or_default();
+
+    // This, not `GET /admin/products/{id}`, is what the product page's variant table reads:
+    // it asks for `*inventory_items.inventory.location_levels,inventory_quantity` by name.
+    // Serving bare variants here is what threw `undefined.length` and blanked the page.
+    let variants = variants_with_inventory(&ctx.inventory_service, &variant_dtos).await;
 
     Ok((
         StatusCode::OK,
@@ -836,6 +912,7 @@ pub struct CreateVariantAdminRequest {
 pub struct VariantContext {
     pub product_service: Arc<ProductService>,
     pub pricing_service: Arc<stheno_pricing::PricingService>,
+    pub inventory_service: Arc<stheno_inventory::InventoryService>,
 }
 
 /// Reads Medusa's `prices: [{ currency_code, amount }]` payload.

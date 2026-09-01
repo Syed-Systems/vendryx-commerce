@@ -5,6 +5,8 @@ export type ThemeValue = "light" | "dark"
 
 type ThemeContextValue = {
   theme: ThemeOption
+  /** The theme actually painted, with "system" already resolved against the OS. */
+  resolvedTheme: ThemeValue
   setTheme: (theme: ThemeOption) => void
 }
 

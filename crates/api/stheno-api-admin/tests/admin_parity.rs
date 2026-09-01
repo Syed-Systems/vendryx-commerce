@@ -33,7 +33,7 @@ async fn test_admin_catalog_endpoints_parity() {
     let db = TestDb::migrated().await;
     let pool = create_pool(&db.url, 5).expect("pool");
     let service = Arc::new(ProductService::new(pool.clone()));
-    let pricing = Arc::new(PricingService::new(pool));
+    let pricing = Arc::new(PricingService::new(pool.clone()));
 
     // 1. Seed product
     let prod = service
@@ -58,7 +58,8 @@ async fn test_admin_catalog_endpoints_parity() {
         .await
         .unwrap();
 
-    let app = admin_catalog_routes(service.clone(), pricing);
+    let inventory = Arc::new(stheno_inventory::InventoryService::new(pool.clone()));
+    let app = admin_catalog_routes(service.clone(), pricing, inventory);
 
     // 3. GET /admin/products
     let response = app
