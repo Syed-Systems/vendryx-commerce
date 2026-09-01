@@ -21,23 +21,37 @@ House wiring and breaker switches. You need both, and only the first one existed
 
 ## 2. Deployment model
 
-**One binary and one database per store.** No `tenant_id`, no row-level isolation, no shared
-database. [PRD NG2](PRD.md) stands.
+**One database, `tenant_id` on every row, isolation enforced by Postgres RLS.** One binary and
+one process serve every tenant. [ADR-012](DECISIONS.md#adr-012) supersedes ADR-009, which is
+what this section used to describe.
 
 ```
-shop-a.example.com → stheno + postgres-a     TIER=pro
-shop-b.example.com → stheno + postgres-b     TIER=free
-shop-c.example.com → stheno + postgres-c     TIER=trial   (day 12 of 30)
+shop-a.example.com ─┐
+shop-b.example.com ─┼─→ one stheno process → one postgres, RLS by tenant_id
+shop-c.example.com ─┘     tier resolved per request, not at boot
 ```
 
 Consequences, stated plainly:
 
-- **Data isolation is physical.** A gating bug leaks a *feature*, never another customer's orders.
-  That is the single biggest reason to prefer this model, and it is why the cheap-looking
-  multi-tenant option was not taken.
-- **Entitlements are deployment config**, not database rows keyed by tenant.
-- **Ops cost scales with customers.** A 40 MB binary and a Postgres database per store is cheap,
-  but N upgrades are still N upgrades. Automate provisioning before customer ~10, not after.
+- **Isolation is a database policy, not a deployment boundary.** Every tenant-owned row carries
+  `tenant_id` and every table has `FORCE ROW LEVEL SECURITY`. The "every query needs scoping"
+  cost is paid once, in the database, rather than in each of 127 entities.
+- **Entitlements are per-tenant rows, resolved per request.** A single process serves Trial,
+  Free and Pro simultaneously, so boot-time route mounting cannot express a gate. That is what
+  `mount_gated_for_request` exists for (§6.1). `STHENO_TIER` survives only as a fallback when
+  no tenant is resolvable.
+- **Engine updates do not scale with customers.** One binary deploy and one migration run moves
+  every tenant together. This is the cost model ADR-009 could not offer and the reason it was
+  superseded.
+- **The N-cost moved to the storefront, and has not been paid.** `STHENO_FRONTEND` binds at
+  *build* time with its own `distDir`, so each bespoke theme is a separate Next build, and
+  nothing yet maps a tenant's host to the right one. Invisible at two frontends; a manual
+  release checklist at five. See `.orchestration/task-archetypes-and-platform-design/spec.md`
+  §C2.
+
+> `ponytail:` this section previously described one binary and one database per store, and said
+> "N upgrades are still N upgrades". That was true under ADR-009 and false since ADR-012.
+> Corrected rather than deleted, because the superseded model is the one people remember.
 
 ---
 
@@ -62,13 +76,13 @@ scale with the window, not with the feature.
 
 **Trial and Free are states of one account, not separate products.** There is no Enterprise tier.
 
-| Capability | Trial (30 days) | Free (after trial) | Pro |
+| Capability | Trial (14 days) | Free (after trial) | Pro |
 |---|---|---|---|
 | Dashboard, order management | Full | Full | Full |
 | Inventory tracking | Full | Full | Full |
 | Products | Unlimited | **100** (existing grandfathered) | Unlimited |
 | Staff seats | 10 | **Owner + 2** | 10 |
-| Storefront | subdomain | subdomain | subdomain **+ custom domain** |
+| Storefront | supported brand kit + subdomain | supported brand kit + subdomain | developer-built bespoke storefront + custom domain |
 | Order placement + COD | Yes | Yes | Yes |
 | Spreadsheet import / CSV export | Yes | Yes | Yes |
 | Analytics | Basic | Basic, **30-day window** | **Full history** |
@@ -76,6 +90,8 @@ scale with the window, not with the feature.
 | **Payment gateway** | No | No | **Yes** |
 | **Courier dispatch** | No | No | **Yes** |
 | **Buyer fraud / risk score** | No | No | **Yes** |
+| **Brand kit** | Yes | Yes | Yes |
+| **Bespoke storefront service** | No | No | **Yes, after payment** |
 
 Pro is sold on a **6- or 12-month commitment**, never month-to-month. That is defensible only
 because the free tier is indefinite: a merchant runs a real store and takes real orders before
@@ -127,10 +143,11 @@ Platform gates read the same `Entitlements` value; they are simply enforced outs
 Three details here are load-bearing, and getting any of them wrong damages trust in a way that is
 hard to recover.
 
-**The trial starts on first product created, not at signup.** A merchant who signs up on Monday and
-gets busy until Friday has not used four days of trial. Setup hesitation must never burn trial days.
+**The 14-day trial starts when an email-verified merchant submits a store request, not at account
+signup or first product creation.** A draft is intentionally free to resume. The submitted request
+is the point at which Stheno begins review and provisioning work, so it is the honest start point.
 
-**At day 30 the account moves to Free. Nothing is deleted, nothing is hidden.** A merchant with 400
+**At day 14 the account moves to Free. Nothing is deleted, nothing is hidden.** A merchant with 400
 products keeps all 400 — they are grandfathered, visible, and sellable. They are simply blocked
 from creating the 401st until they upgrade or delete. **Removing a seller's live products is an
 unrecoverable trust failure.**
@@ -139,15 +156,15 @@ This is exactly the grace state already specified in §6.4: `used > limit` means
 continue and creates are rejected. The trial expiry path and the downgrade path are **the same
 code**, which is the right outcome — one mechanism, tested once.
 
-**Warnings at day 23 and day 29**, by web push and email. Both are zero marginal cost.
+**Warnings at day 7 and day 13**, by web push and email. Both are zero marginal cost.
 
 Trial state is evaluated by a **daily job**, not computed per request:
 
 ```
 entitlement_state
   tier             text          -- 'trial' | 'free' | 'pro'
-  trial_started_at timestamptz   -- set on first product creation, once, never reset
-  trial_ends_at    timestamptz   -- trial_started_at + 30 days
+  trial_started_at timestamptz   -- set on store-request submission, once, never reset
+  trial_ends_at    timestamptz   -- trial_started_at + 14 days
   term_ends_at     timestamptz   -- Pro commitment end, null otherwise
   state            text          -- 'active' | 'grace'
 ```
@@ -169,14 +186,14 @@ must never require a release.
 # config/tiers.toml
 
 [trial]
-duration_days = 30
-starts_on     = "first_product_created"      # never on signup
-features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic"]
+duration_days = 14
+starts_on     = "store_request_submitted"    # never on account signup
+features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic", "branding"]
 quotas        = { max_products = 0, max_staff_seats = 10 }   # 0 = unlimited
 windows       = { analytics_window_days = 0 }                # 0 = unlimited
 
 [free]
-features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic"]
+features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic", "branding"]
 quotas        = { max_products = 100, max_staff_seats = 3 }  # owner + 2
 windows       = { analytics_window_days = 30 }
 

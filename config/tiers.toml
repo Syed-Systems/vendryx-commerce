@@ -14,14 +14,14 @@
 # binary and is overridable per deployment.
 
 [trial]
-duration_days = 30
-starts_on     = "first_product_created"      # never on signup
-features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic"]
+duration_days = 14
+starts_on     = "store_request_submitted"    # never on account signup
+features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic", "branding"]
 quotas        = { max_products = 0, max_staff_seats = 10 }
 windows       = { analytics_window_days = 0 }
 
 [free]
-features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic"]
+features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic", "branding"]
 quotas        = { max_products = 100, max_staff_seats = 3 }   # owner + 2
 windows       = { analytics_window_days = 30 }
 

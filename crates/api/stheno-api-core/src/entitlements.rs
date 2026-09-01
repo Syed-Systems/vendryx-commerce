@@ -65,12 +65,16 @@ pub enum Feature {
     CustomDomain,
     CustomTheme,
     Branding,
+    /// Buyers get accounts. Not a tier lever: every tier can have either archetype,
+    /// so no tier grants it (config/tiers.toml). It arrives as a per-merchant override
+    /// written at provisioning from the launch request (PRODUCT.md 2).
+    BuyerAccounts,
 }
 
 impl Feature {
     /// Every gateable feature. The control plane needs the whole universe, not just the
     /// ones a tier happens to hold, or a feature could never be switched *on* from the UI.
-    pub const ALL: [Feature; 10] = [
+    pub const ALL: [Feature; 11] = [
         Feature::SpreadsheetImport,
         Feature::CsvExport,
         Feature::WebPush,
@@ -81,6 +85,7 @@ impl Feature {
         Feature::CustomDomain,
         Feature::CustomTheme,
         Feature::Branding,
+        Feature::BuyerAccounts,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -95,6 +100,7 @@ impl Feature {
             Feature::CustomDomain => "custom_domain",
             Feature::CustomTheme => "custom_theme",
             Feature::Branding => "branding",
+            Feature::BuyerAccounts => "buyer_accounts",
         }
     }
 }
@@ -376,6 +382,7 @@ fn parse_feature(raw: &str) -> Result<Feature, EntitlementsError> {
         "custom_domain" => Ok(Feature::CustomDomain),
         "custom_theme" => Ok(Feature::CustomTheme),
         "branding" => Ok(Feature::Branding),
+        "buyer_accounts" => Ok(Feature::BuyerAccounts),
         other => Err(EntitlementsError::UnknownFeature(other.to_string())),
     }
 }

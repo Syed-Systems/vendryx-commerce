@@ -6,7 +6,9 @@ use axum::routing::get;
 use axum::Router;
 use std::collections::BTreeMap;
 use stheno_api_core::{Feature, Tier, TierConfig};
-use stheno_api_router::{feature_flags, mount_gated, GatedGroup, ALL_FEATURES};
+use stheno_api_router::{
+    feature_flags, gate_buyer_auth, mount_gated, mount_gated_for_request, GatedGroup, ALL_FEATURES,
+};
 use tower::ServiceExt;
 
 const TIERS: &str = include_str!("../../../../config/tiers.toml");
@@ -144,13 +146,15 @@ fn all_features_lists_every_variant() {
         CustomDomain,
         CustomTheme,
         Branding,
+        BuyerAccounts,
     ];
 
     for feature in every {
         // Non-exhaustive match = compile error. That is the whole point of this arm.
         match feature {
             SpreadsheetImport | CsvExport | WebPush | AnalyticsBasic | PaymentGateway
-            | CourierDispatch | FraudScore | CustomDomain | CustomTheme | Branding => {}
+            | CourierDispatch | FraudScore | CustomDomain | CustomTheme | Branding
+            | BuyerAccounts => {}
         }
         assert!(
             ALL_FEATURES.contains(&feature),
@@ -164,4 +168,156 @@ fn all_features_lists_every_variant() {
         every.len(),
         "ALL_FEATURES has an entry that is not a Feature variant"
     );
+}
+
+#[tokio::test]
+async fn hosted_admin_routes_use_the_request_tenant_not_the_boot_tier() {
+    let app = mount_gated_for_request(
+        Router::new().route("/admin/orders", get(|| async { "orders" })),
+        vec![GatedGroup::new(
+            Feature::PaymentGateway,
+            Router::new().route("/admin/gateways", get(|| async { "gateways" })),
+        )],
+    );
+
+    for tier in [Tier::Trial, Tier::Free] {
+        let mut request = Request::builder()
+            .uri("/admin/gateways")
+            .body(Body::empty())
+            .unwrap();
+        request
+            .extensions_mut()
+            .insert(std::sync::Arc::new(entitlements(tier)));
+        assert_eq!(
+            app.clone().oneshot(request).await.unwrap().status(),
+            StatusCode::NOT_FOUND,
+            "a disabled feature must look unmounted for {tier:?}"
+        );
+    }
+
+    let mut pro = Request::builder()
+        .uri("/admin/gateways")
+        .body(Body::empty())
+        .unwrap();
+    pro.extensions_mut()
+        .insert(std::sync::Arc::new(entitlements(Tier::Pro)));
+    assert_eq!(
+        app.clone().oneshot(pro).await.unwrap().status(),
+        StatusCode::OK
+    );
+
+    for tier in [Tier::Trial, Tier::Free, Tier::Pro] {
+        let mut request = Request::builder()
+            .uri("/admin/orders")
+            .body(Body::empty())
+            .unwrap();
+        request
+            .extensions_mut()
+            .insert(std::sync::Arc::new(entitlements(tier)));
+        assert_eq!(
+            app.clone().oneshot(request).await.unwrap().status(),
+            StatusCode::OK
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Buyer-account archetype (PRODUCT.md 2). The merchant picks this on the store
+// request; no tier grants it, so it always arrives as a per-tenant override.
+// ---------------------------------------------------------------------------
+
+fn buyer_auth_app() -> Router {
+    gate_buyer_auth(
+        Router::new()
+            .route("/auth/{actor_type}/providers", get(|| async { "providers" }))
+            .route("/auth/token/refresh", get(|| async { "refresh" })),
+    )
+}
+
+fn with_buyer_accounts(uri: &str, enabled: bool) -> Request<Body> {
+    let mut entitlements = entitlements(Tier::Free);
+    entitlements.set_feature(Feature::BuyerAccounts, enabled);
+    let mut request = Request::builder().uri(uri).body(Body::empty()).unwrap();
+    request
+        .extensions_mut()
+        .insert(std::sync::Arc::new(entitlements));
+    request
+}
+
+#[test]
+fn no_tier_grants_buyer_accounts() {
+    // The archetype is a store property, not something a plan sells. If a tier ever
+    // starts granting it, a merchant who chose "no accounts" would silently get them
+    // by upgrading, which is a product change disguised as a pricing change.
+    for tier in [Tier::Trial, Tier::Free, Tier::Pro] {
+        assert!(
+            !entitlements(tier).has(Feature::BuyerAccounts),
+            "{} must not grant buyer_accounts from config/tiers.toml",
+            tier.as_str()
+        );
+    }
+}
+
+#[tokio::test]
+async fn buyer_auth_404s_without_the_entitlement() {
+    let response = buyer_auth_app()
+        .oneshot(with_buyer_accounts("/auth/customer/providers", false))
+        .await
+        .unwrap();
+    // 404, never 403: a 403 confirms the feature exists and invites probing.
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn buyer_auth_is_reachable_with_the_entitlement() {
+    let response = buyer_auth_app()
+        .oneshot(with_buyer_accounts("/auth/customer/providers", true))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn staff_auth_is_never_touched_by_the_buyer_gate() {
+    // The whole risk of gating on a path segment instead of a mount point: getting it
+    // wrong locks every merchant's staff out of their own dashboard. /auth/user and
+    // /auth/token must be unaffected with the archetype off.
+    for uri in ["/auth/user/providers", "/auth/token/refresh"] {
+        let response = buyer_auth_app()
+            .oneshot(with_buyer_accounts(uri, false))
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "{uri} must not be gated by buyer_accounts"
+        );
+    }
+}
+
+#[tokio::test]
+async fn store_customer_routes_follow_the_archetype() {
+    let app = mount_gated_for_request(
+        Router::new().route("/store/products", get(|| async { "products" })),
+        vec![GatedGroup::new(
+            Feature::BuyerAccounts,
+            Router::new().route("/store/customers/me", get(|| async { "me" })),
+        )],
+    );
+
+    for (enabled, expected) in [(false, StatusCode::NOT_FOUND), (true, StatusCode::OK)] {
+        let response = app
+            .clone()
+            .oneshot(with_buyer_accounts("/store/customers/me", enabled))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+    }
+
+    // Guest checkout is the default path under both archetypes and must never move.
+    let response = app
+        .oneshot(with_buyer_accounts("/store/products", false))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
 }

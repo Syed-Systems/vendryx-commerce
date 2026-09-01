@@ -11,7 +11,12 @@
 //! Domain modules never see `Entitlements`; `scripts/check-no-domain-gates.sh` fails the
 //! build if they do.
 
-use axum::Router;
+use std::sync::Arc;
+
+use axum::extract::Request;
+use axum::middleware::Next;
+use axum::response::IntoResponse;
+use axum::{middleware, Router};
 use stheno_api_core::{Entitlements, Feature};
 
 /// A route group that only mounts when its feature is entitled.
@@ -36,6 +41,62 @@ pub fn mount_gated(core: Router, entitlements: &Entitlements, gated: Vec<GatedGr
         .into_iter()
         .filter(|group| entitlements.has(group.feature))
         .fold(core, |app, group| app.merge(group.routes))
+}
+
+/// Mounts tenant-aware feature groups for the shared hosted server.
+///
+/// A single process serves Trial, Free and Pro tenants, so a startup-time router selection
+/// cannot be the source of truth. This composition-level guard runs before the feature router
+/// is entered and returns the exact response an unmounted route would return. Domain modules
+/// remain unaware of plans; the tenant layer places the resolved entitlements in the request.
+pub fn mount_gated_for_request(core: Router, gated: Vec<GatedGroup>) -> Router {
+    gated.into_iter().fold(core, |app, group| {
+        let feature = group.feature;
+        let routes = group.routes.layer(middleware::from_fn(
+            move |request: Request, next: Next| async move {
+                let permitted = request
+                    .extensions()
+                    .get::<Arc<Entitlements>>()
+                    .is_some_and(|entitlements| entitlements.has(feature));
+                if permitted {
+                    next.run(request).await
+                } else {
+                    axum::http::StatusCode::NOT_FOUND.into_response()
+                }
+            },
+        ));
+        app.merge(routes)
+    })
+}
+
+/// Gates the buyer half of `/auth/{actor_type}/…`.
+///
+/// The customer and staff auth surfaces share one route: the actor is a path parameter,
+/// so there is no separate mount point to withhold and `mount_gated_for_request` has
+/// nothing to act on. This is the same guard keyed on the path segment instead of the
+/// mount, and it returns the same 404 — a store whose buyers have no accounts must be
+/// indistinguishable from one where the route never existed.
+///
+/// Deliberately not generic over the feature or the segment. There is one caller and one
+/// feature; a second one can generalise it then.
+pub fn gate_buyer_auth(routes: Router) -> Router {
+    routes.layer(middleware::from_fn(
+        |request: Request, next: Next| async move {
+            let mut segments = request.uri().path().trim_start_matches('/').split('/');
+            let is_buyer_auth =
+                segments.next() == Some("auth") && segments.next() == Some("customer");
+            let permitted = !is_buyer_auth
+                || request
+                    .extensions()
+                    .get::<Arc<Entitlements>>()
+                    .is_some_and(|entitlements| entitlements.has(Feature::BuyerAccounts));
+            if permitted {
+                next.run(request).await
+            } else {
+                axum::http::StatusCode::NOT_FOUND.into_response()
+            }
+        },
+    ))
 }
 
 /// The features this deployment will actually mount, sorted.
@@ -67,7 +128,7 @@ pub fn feature_flags(entitlements: &Entitlements) -> Vec<(&'static str, bool)> {
 /// omitted them for as long as they existed — and the dashboard reads absent and false
 /// differently. `all_features_lists_every_variant` in `tests/gated_mounting.rs` now makes
 /// the compiler enforce it, because a comment cannot.
-pub const ALL_FEATURES: [Feature; 10] = [
+pub const ALL_FEATURES: [Feature; 11] = [
     Feature::SpreadsheetImport,
     Feature::CsvExport,
     Feature::WebPush,
@@ -78,4 +139,5 @@ pub const ALL_FEATURES: [Feature; 10] = [
     Feature::CustomDomain,
     Feature::CustomTheme,
     Feature::Branding,
+    Feature::BuyerAccounts,
 ];
