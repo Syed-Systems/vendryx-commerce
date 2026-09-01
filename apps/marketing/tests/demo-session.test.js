@@ -27,7 +27,7 @@ async function runTests() {
     // Test 1: Create session
     const session = createDemoSession()
     assert.ok(session.id, "Session must have an ID")
-    assert.equal(session.storeName, "Nodi Studio")
+    assert.equal(session.storeName, "Satheno Studio")
     assert.equal(session.products.length, 4, "Default session should have 4 products")
     assert.equal(session.orders.length, 3, "Default session should have 3 initial orders")
     console.log("  ✔ Test 1: Session creation and defaults verified")
