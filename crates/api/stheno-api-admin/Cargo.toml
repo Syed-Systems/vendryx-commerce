@@ -60,3 +60,4 @@ stheno-payment-offline = { workspace = true }
 stheno-payment-stripe = { workspace = true }
 rust_decimal_macros = { workspace = true }
 async-trait = { workspace = true }
+serde_yaml = "0.9"

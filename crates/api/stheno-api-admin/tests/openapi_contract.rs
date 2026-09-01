@@ -74,75 +74,42 @@ struct Operation {
     tag: String,
 }
 
-/// Reads the `paths:` block of the specification.
+/// Every operation in the specification's `paths:` block.
 ///
-/// Only path, method and tag are needed. The document is 3.8 MB and most of it is
-/// `components:` — deserialising the whole thing on every test run is work nobody reads.
+/// `serde_yaml` rather than a hand-rolled scan: the parser is already in the lock file, and
+/// a line reader that depends on the generated document's exact indentation is a second
+/// thing to maintain for no gain. The document is 3.8 MB, so this is the slow part of the
+/// test — it still costs less than the database this test does not need.
 fn load_operations() -> Vec<Operation> {
+    #[derive(serde::Deserialize)]
+    struct Spec {
+        paths: BTreeMap<String, BTreeMap<String, serde_yaml::Value>>,
+    }
+
     let raw = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../openapi.yaml"
     ))
     .expect("openapi.yaml must be readable from the repository root");
 
-    let paths_block = raw
-        .split_once("\npaths:\n")
-        .expect("openapi.yaml must have a paths: block")
-        .1;
+    let spec: Spec = serde_yaml::from_str(&raw).expect("openapi.yaml must parse");
 
     let mut operations = Vec::new();
-    let mut path = String::new();
-    let mut index: BTreeMap<(String, String), usize> = BTreeMap::new();
-    let mut in_tags = false;
-
-    for line in paths_block.lines() {
-        // A top-level key ends the paths block.
-        if !line.is_empty() && !line.starts_with(' ') {
-            break;
-        }
-
-        if let Some(rest) = line.strip_prefix("  /") {
-            if let Some(name) = rest.strip_suffix(':') {
-                path = format!("/{name}");
-                in_tags = false;
-                continue;
-            }
-        }
-
-        if let Some(rest) = line.strip_prefix("    ") {
-            if !rest.starts_with(' ') {
-                if let Some(verb) = rest.strip_suffix(':') {
-                    if HTTP_VERBS.contains(&verb) {
-                        index.insert(
-                            (path.clone(), verb.to_uppercase()),
-                            operations.len(),
-                        );
-                        operations.push(Operation {
-                            method: verb.to_uppercase(),
-                            path: path.clone(),
-                            tag: String::new(),
-                        });
-                    }
-                    in_tags = false;
-                    continue;
-                }
-            }
-        }
-
-        if line.trim_end() == "      tags:" {
-            in_tags = true;
-            continue;
-        }
-
-        if in_tags {
-            if let Some(tag) = line.strip_prefix("        - ") {
-                if let Some(op) = operations.last_mut() {
-                    if op.tag.is_empty() {
-                        op.tag = tag.trim().trim_matches('\'').trim_matches('"').to_string();
-                    }
-                }
-            }
-            in_tags = false;
+    for (path, item) in spec.paths {
+        for verb in HTTP_VERBS {
+            let Some(op) = item.get(*verb) else { continue };
+            let tag = op
+                .get("tags")
+                .and_then(|t| t.as_sequence())
+                .and_then(|t| t.first())
+                .and_then(|t| t.as_str())
+                .unwrap_or("(untagged)")
+                .to_string();
+            operations.push(Operation {
+                method: verb.to_uppercase(),
+                path: path.clone(),
+                tag,
+            });
         }
     }
 
