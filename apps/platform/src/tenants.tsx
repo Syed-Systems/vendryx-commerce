@@ -2,7 +2,6 @@ import {
   ArrowPath,
   BuildingStorefront,
   CurrencyDollar,
-  CheckCircle,
   ExclamationCircle,
   Trash,
   Plus,
@@ -30,7 +29,6 @@ import {
   closeTenant,
   createTenant,
   exportTenantData,
-  getDomainVerification,
   getTenantHealth,
   getTenantOnboarding,
   listTenantDomains,
@@ -40,15 +38,21 @@ import {
   reactivateTenant,
   removeTenantDomain,
   setPrimaryDomain,
-  setTier,
   suspendTenant,
-  type DomainVerification,
-  type MerchantHealth,
-  type OnboardingState,
   type Tenant,
-  type TenantDomain,
 } from "./api"
 import { SubscriptionDrawer } from "./subscription"
+
+/**
+ * `Table.Cell` renders a <td> and forwards every prop to it, but @medusajs/ui types it as
+ * `HTMLAttributes<HTMLTableCellElement>` — which omits `colSpan`, because colSpan lives on
+ * `TdHTMLAttributes`. Widened to the attributes the element actually accepts rather than
+ * cast to `any`, so the rest of the props stay type-checked.
+ */
+const SpanningCell = Table.Cell as React.FC<
+  React.PropsWithChildren<React.TdHTMLAttributes<HTMLTableCellElement>>
+>
+
 
 function useTierNames() {
   const { data } = useQuery({
@@ -629,15 +633,15 @@ export function MerchantsView() {
           <Table.Body>
             {isLoading ? (
               <Table.Row>
-                <Table.Cell className="text-ui-fg-muted py-8 text-center" colSpan={6}>
+                <SpanningCell className="text-ui-fg-muted py-8 text-center" colSpan={6}>
                   Loading merchants…
-                </Table.Cell>
+                </SpanningCell>
               </Table.Row>
             ) : tenants.length === 0 ? (
               <Table.Row>
-                <Table.Cell className="text-ui-fg-muted py-8 text-center" colSpan={6}>
+                <SpanningCell className="text-ui-fg-muted py-8 text-center" colSpan={6}>
                   No merchants match the current filters.
-                </Table.Cell>
+                </SpanningCell>
               </Table.Row>
             ) : (
               tenants.map((tenant) => (

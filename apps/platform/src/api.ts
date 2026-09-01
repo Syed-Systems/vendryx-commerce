@@ -282,6 +282,66 @@ export const createTenant = (input: {
     body: JSON.stringify(input),
   })
 
+/* -- Launch requests ------------------------------------------------------------ */
+
+export type LaunchStatus =
+  | "submitted"
+  | "in_review"
+  | "provisioning"
+  | "online"
+  | "needs_changes"
+  | "rejected"
+
+export interface LaunchRequest {
+  id: string
+  merchant_id: string
+  merchant_email: string
+  merchant_name: string | null
+  business_name: string | null
+  whatsapp: string | null
+  category: string | null
+  store_name: string
+  subdomain: string
+  tier: "free" | "pro"
+  payment_status: "not_required" | "pending" | "confirmed" | "failed"
+  status: LaunchStatus
+  logo_url: string | null
+  accent_color: string
+  icon_choice: string
+  buyer_accounts: boolean
+  bespoke_brief: string | null
+  validation_findings: string[]
+  assigned_developer: string | null
+  submitted_at: string
+  updated_at: string
+}
+
+export interface LaunchTimelineEvent {
+  id: string
+  action: string
+  actor_name: string
+  created_at: string
+  note: string | null
+}
+
+export const listLaunchRequests = () =>
+  request<{ launch_requests: LaunchRequest[]; count: number }>("/platform/launch-requests")
+
+export const getLaunchRequest = (id: string) =>
+  request<{ launch_request: LaunchRequest; timeline: LaunchTimelineEvent[] }>(
+    `/platform/launch-requests/${id}`
+  )
+
+export const transitionLaunchRequest = (
+  id: string,
+  action: "assign" | "request_changes" | "begin_provisioning" | "retry" | "activate" | "reject" | "reopen",
+  body: { assigned_developer?: string; note?: string } = {}
+) =>
+  request<{ launch_request: LaunchRequest }>(`/platform/launch-requests/${id}/${action}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+
 /** Per-tenant health, read through the tenant's own host so the server resolves it. */
 export async function tenantHealth(): Promise<{
   status: string
@@ -464,7 +524,7 @@ export interface ProviderOversight {
   name: string
   kind: string
   supported_regions: string[]
-  is_enabled_globally: bool
+  is_enabled_globally: boolean
   active_merchants_count: number
 }
 
@@ -844,6 +904,4 @@ export const createAnnouncement = (
     method: "POST",
     body: JSON.stringify({ title, message, severity, expires_in_days }),
   })
-
-
 

@@ -190,7 +190,9 @@ export function Billing() {
   })
   const tenants = useQuery({
     queryKey: ["platform", "tenants"],
-    queryFn: listTenants,
+    // Wrapped, not passed bare: react-query calls queryFn with its own context
+    // object, which would arrive as listTenants' `params` argument.
+    queryFn: () => listTenants(),
     retry: false,
   })
 

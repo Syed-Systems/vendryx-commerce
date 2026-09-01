@@ -6,7 +6,6 @@ import {
   EyeSlash,
   InformationCircle,
   LockClosedSolid,
-  XCircle,
 } from "@medusajs/icons"
 import {
   Badge,
@@ -32,6 +31,17 @@ import {
   type CredentialHealth,
   type PlatformPaymentProvider,
 } from "./api"
+
+/**
+ * `Table.Cell` renders a <td> and forwards every prop to it, but @medusajs/ui types it as
+ * `HTMLAttributes<HTMLTableCellElement>` — which omits `colSpan`, because colSpan lives on
+ * `TdHTMLAttributes`. Widened to the attributes the element actually accepts rather than
+ * cast to `any`, so the rest of the props stay type-checked.
+ */
+const SpanningCell = Table.Cell as React.FC<
+  React.PropsWithChildren<React.TdHTMLAttributes<HTMLTableCellElement>>
+>
+
 
 function healthBadge(health: CredentialHealth) {
   switch (health) {
@@ -307,15 +317,15 @@ export function Gateways() {
           <Table.Body>
             {isLoading ? (
               <Table.Row>
-                <Table.Cell colSpan={7} className="text-center py-8 text-ui-fg-muted">
+                <SpanningCell colSpan={7} className="text-center py-8 text-ui-fg-muted">
                   Loading payment gateways...
-                </Table.Cell>
+                </SpanningCell>
               </Table.Row>
             ) : providers.length === 0 ? (
               <Table.Row>
-                <Table.Cell colSpan={7} className="text-center py-8 text-ui-fg-muted">
+                <SpanningCell colSpan={7} className="text-center py-8 text-ui-fg-muted">
                   No payment gateways registered in server.
-                </Table.Cell>
+                </SpanningCell>
               </Table.Row>
             ) : (
               providers.map((p) => (

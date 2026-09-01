@@ -1,32 +1,18 @@
-import { ArrowPath, BuildingStorefront, CurrencyDollar, Sun, Moon } from "@medusajs/icons"
+import { Moon, Sun } from "@medusajs/icons"
 import {
-  Badge,
   Button,
   Container,
   Heading,
   Input,
   Label,
-  Select,
-  StatusBadge,
-  Table,
   Tabs,
   Text,
   Toaster,
-  toast,
 } from "@medusajs/ui"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 
-import {
-  clearToken,
-  createTenant,
-  getToken,
-  listTenants,
-  listTiers,
-  setTier,
-  setToken,
-  type Tenant,
-} from "./api"
+import { clearToken, getToken, listTiers, setToken } from "./api"
 import { Audit } from "./audit"
 import { Billing } from "./billing"
 import { Gateways } from "./gateways"
@@ -36,21 +22,7 @@ import { AnalyticsView } from "./analytics"
 import { SupportView } from "./support"
 import { ConfigurationView } from "./configuration"
 import { Plans } from "./plans"
-import { SubscriptionDrawer } from "./subscription"
-
-/**
- * The plans the engine actually has, read from the control plane rather than written out
- * here. A tier added in Rust turns up in every picker on this page without a matching
- * edit in TypeScript that would otherwise drift out of step with it.
- */
-function useTierNames() {
-  const { data } = useQuery({
-    queryKey: ["platform", "tiers"],
-    queryFn: listTiers,
-    retry: false,
-  })
-  return data?.tiers.map((t) => t.tier) ?? []
-}
+import { LaunchRequests } from "./launch-requests"
 
 /** Matches the admin's ThemeProvider contract, so both apps flip the same way. */
 function useTheme() {
@@ -77,6 +49,13 @@ function TokenGate({ onAuthenticated }: { onAuthenticated: () => void }) {
   return (
     <div className="bg-ui-bg-subtle flex min-h-dvh w-dvw items-center justify-center">
       <Container className="m-4 w-full max-w-[380px] p-6">
+        <div className="mb-4">
+          <img
+            src="/stheno-logo-transparent.png"
+            alt="Stheno by Syed Systems"
+            className="h-8 max-w-full object-contain"
+          />
+        </div>
         <Heading level="h1" className="mb-1">
           Stheno Platform
         </Heading>
@@ -119,9 +98,16 @@ function TokenGate({ onAuthenticated }: { onAuthenticated: () => void }) {
   )
 }
 
-function Dashboard({ onSignOut }: { onSignOut: () => void }) {
-  const { theme, toggle } = useTheme()
-  const [tab, setTab] = useState("merchants")
+function Dashboard({
+  onSignOut,
+  theme,
+  toggle,
+}: {
+  onSignOut: () => void
+  theme: "light" | "dark"
+  toggle: () => void
+}) {
+  const [tab, setTab] = useState("launch-requests")
 
   // One query stands in for the whole surface: if the token is wrong every call 404s, so
   // failing here once beats six panels each reporting the same thing.
@@ -151,35 +137,73 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
 
   return (
     <div className="bg-ui-bg-subtle min-h-dvh w-dvw">
-      <div className="mx-auto flex max-w-[1200px] flex-col gap-y-5 p-6">
+      <div className="mx-auto flex max-w-[1320px] flex-col gap-y-5 p-6">
+        <div className="flex items-center justify-between border-b border-ui-border-base pb-3">
+          <div className="flex items-center gap-x-3">
+            <img
+              src="/stheno-logo-transparent.png"
+              alt="Stheno by Syed Systems"
+              className="h-7 object-contain"
+            />
+            <span className="text-ui-border-strong hidden h-4 w-px bg-ui-border-base sm:inline-block" />
+            <Text size="xsmall" weight="plus" className="text-ui-fg-muted uppercase tracking-wider hidden sm:inline-block">
+              Platform Control Plane
+            </Text>
+          </div>
+          <div className="flex items-center gap-x-2">
+            <Button
+              variant="transparent"
+              size="small"
+              onClick={toggle}
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? <Sun /> : <Moon />}
+            </Button>
+            <Button variant="secondary" size="small" onClick={onSignOut}>
+              Sign out
+            </Button>
+          </div>
+        </div>
+
         <Tabs value={tab} onValueChange={setTab}>
-          <div className="flex items-center justify-between">
-            <Tabs.List>
-              <Tabs.Trigger value="merchants">Merchants</Tabs.Trigger>
-              <Tabs.Trigger value="analytics">Analytics</Tabs.Trigger>
-              <Tabs.Trigger value="plans">Plans</Tabs.Trigger>
-              <Tabs.Trigger value="billing">Billing</Tabs.Trigger>
-              <Tabs.Trigger value="gateways">Gateways</Tabs.Trigger>
-              <Tabs.Trigger value="support">Support</Tabs.Trigger>
-              <Tabs.Trigger value="config">Config & Themes</Tabs.Trigger>
-              <Tabs.Trigger value="operators">Operators</Tabs.Trigger>
-              <Tabs.Trigger value="audit">Audit</Tabs.Trigger>
-            </Tabs.List>
-            <div className="flex items-center gap-x-2">
-              <Button
-                variant="transparent"
-                size="small"
-                onClick={toggle}
-                aria-label="Toggle theme"
-              >
-                {theme === "dark" ? <Sun /> : <Moon />}
-              </Button>
-              <Button variant="secondary" size="small" onClick={onSignOut}>
-                Sign out
-              </Button>
+          <div className="flex flex-col gap-y-4 border-b border-ui-border-base pb-4">
+            <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <Text size="xsmall" weight="plus" className="text-ui-fg-muted mb-1">Launch</Text>
+                <Tabs.List className="[&>*]:whitespace-nowrap">
+                  <Tabs.Trigger value="launch-requests">Requests</Tabs.Trigger>
+                  <Tabs.Trigger value="merchants">Merchants</Tabs.Trigger>
+                </Tabs.List>
+              </div>
+              <div>
+                <Text size="xsmall" weight="plus" className="text-ui-fg-muted mb-1">Commercial</Text>
+                <Tabs.List className="[&>*]:whitespace-nowrap">
+                  <Tabs.Trigger value="plans">Plans</Tabs.Trigger>
+                  <Tabs.Trigger value="billing">Billing</Tabs.Trigger>
+                  <Tabs.Trigger value="analytics">Revenue</Tabs.Trigger>
+                </Tabs.List>
+              </div>
+              <div>
+                <Text size="xsmall" weight="plus" className="text-ui-fg-muted mb-1">Operations</Text>
+                <Tabs.List className="[&>*]:whitespace-nowrap">
+                  <Tabs.Trigger value="gateways">Gateways</Tabs.Trigger>
+                  <Tabs.Trigger value="support">Support</Tabs.Trigger>
+                </Tabs.List>
+              </div>
+              <div>
+                <Text size="xsmall" weight="plus" className="text-ui-fg-muted mb-1">System</Text>
+                <Tabs.List className="[&>*]:whitespace-nowrap">
+                  <Tabs.Trigger value="config">Configuration</Tabs.Trigger>
+                  <Tabs.Trigger value="operators">Operators</Tabs.Trigger>
+                  <Tabs.Trigger value="audit">Audit</Tabs.Trigger>
+                </Tabs.List>
+              </div>
             </div>
           </div>
 
+          <Tabs.Content value="launch-requests" className="pt-5">
+            <LaunchRequests />
+          </Tabs.Content>
           <Tabs.Content value="merchants" className="pt-5">
             <MerchantsView />
           </Tabs.Content>
@@ -216,6 +240,11 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(() => Boolean(getToken()))
+  // Called here, above the TokenGate branch, not inside Dashboard. useTheme is what puts
+  // the light/dark class on <html>, and Dashboard never mounts until an operator is
+  // authenticated — so an operator on dark got a white login screen every time, because
+  // nothing had applied their saved theme yet.
+  const { theme, toggle } = useTheme()
 
   if (!authenticated) {
     return <TokenGate onAuthenticated={() => setAuthenticated(true)} />
@@ -223,6 +252,8 @@ export default function App() {
 
   return (
     <Dashboard
+      theme={theme}
+      toggle={toggle}
       onSignOut={() => {
         clearToken()
         setAuthenticated(false)
