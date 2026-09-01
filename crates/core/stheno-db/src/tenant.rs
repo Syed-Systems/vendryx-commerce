@@ -139,19 +139,30 @@ pub async fn apply_scope(conn: &mut diesel_async::AsyncPgConnection) -> Result<(
     let tenant = current()?;
     validate(&tenant)?;
 
-    // `SET LOCAL ROLE` takes an identifier, not a bind parameter, so it is formatted in.
-    // APP_ROLE is a compile-time constant, never caller input.
-    diesel::sql_query(format!("SET LOCAL ROLE {APP_ROLE}"))
-        .execute(conn)
-        .await
-        .map_err(|e| Error::Database(format!("could not assume {APP_ROLE}: {e}")))?;
-
-    // `set_config(..., is_local => true)` is `SET LOCAL` with a bind parameter.
-    diesel::sql_query("SELECT set_config('app.tenant_id', $1, true)")
+    // One statement, one round trip. `set_config(..., is_local => true)` is `SET LOCAL`,
+    // and `role` is an ordinary GUC — `set_config('role', 'stheno_app', true)` is exactly
+    // `SET LOCAL ROLE stheno_app`, verified against Postgres 16: `current_user` becomes
+    // the app role, RLS applies, and both settings revert on COMMIT.
+    //
+    // Why one statement rather than two: `with_conn`'s non-transactional path already
+    // costs BEGIN + scope + query + COMMIT, and under a transaction-mode pooler the
+    // duration a transaction holds its server connection is what caps concurrency
+    // (throughput = pool_size / transaction duration). Removing a round trip here removes
+    // it from every read and write the engine performs.
+    //
+    // Evaluation order within the target list is not guaranteed by SQL, and does not need
+    // to be: setting the role first still permits setting `app.tenant_id`, because custom
+    // GUCs are not privileged. Both orders were tested.
+    //
+    // Both values are bind parameters now, so APP_ROLE is no longer formatted into SQL.
+    diesel::sql_query("SELECT set_config('role', $1, true), set_config('app.tenant_id', $2, true)")
+        .bind::<Text, _>(APP_ROLE)
         .bind::<Text, _>(tenant)
         .execute(conn)
         .await
-        .map_err(|e| Error::Database(format!("could not establish tenant scope: {e}")))?;
+        .map_err(|e| {
+            Error::Database(format!("could not establish tenant scope as {APP_ROLE}: {e}"))
+        })?;
 
     Ok(())
 }
