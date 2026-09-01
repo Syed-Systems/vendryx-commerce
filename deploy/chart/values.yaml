@@ -1,4 +1,8 @@
-replicaCount: 3
+# Two, not three: two is the smallest count that survives a single node drain, and the
+# engine's footprint (~40MB binary, <=128MB RSS) is the whole argument for scaling in small
+# increments rather than paying for a large idle floor. The HPA takes over from here when
+# `autoscaling.enabled` — this value only applies when it is off.
+replicaCount: 2
 
 image:
   repository: ghcr.io/stheno/stheno-server
@@ -35,13 +39,59 @@ resources:
 
 autoscaling:
   enabled: true
-  minReplicas: 3
+  # The floor you pay for continuously. Two survives a node drain; the HPA adds capacity
+  # from there in ~128MB steps, which is cheap precisely because the binary is small.
+  minReplicas: 2
   maxReplicas: 10
   targetCPUUtilizationPercentage: 75
   targetMemoryUtilizationPercentage: 80
 
+# Connection pooler. See templates/pgbouncer.yaml for why `poolMode` is not tunable.
+pgbouncer:
+  enabled: true
+  replicaCount: 2
+  # PgBouncer gained transaction-mode prepared-statement support in 1.21. The engine
+  # needs it (diesel-async / tokio-postgres). Do not pin below this.
+  #
+  # Not bitnami/pgbouncer: Bitnami moved its public catalog to `bitnamilegacy` in August
+  # 2025 and the image no longer pulls without a commercial subscription.
+  # edoburu/pgbouncer is <10MB, reads /etc/pgbouncer/pgbouncer.ini, and runs as `postgres`
+  # (so `runAsNonRoot` holds). Verified: this tag reports PgBouncer 1.25.2.
+  image:
+    repository: edoburu/pgbouncer
+    tag: "v1.25.2-p0"
+    pullPolicy: IfNotPresent
+  # The real Postgres, which nothing but the pooler should now address.
+  upstreamHost: postgres-service
+  upstreamPort: 5432
+  database: stheno
+  username: stheno
+  password: password
+  # Client-side ceiling: every server replica's Diesel pool multiplexes onto this.
+  maxClientConn: 1000
+  # Server-side: actual Postgres backends held open. This is the number that must stay
+  # well under the database's `max_connections`, and it no longer grows when the server
+  # autoscales — which is the entire point of the pooler.
+  defaultPoolSize: 25
+  maxPreparedStatements: 200
+  resources:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 32Mi
+
 env:
-  DATABASE_URL: "postgres://stheno:password@postgres-service:5432/stheno"
+  # Points at the pooler when it is enabled, and straight at Postgres when it is not, so
+  # `--set pgbouncer.enabled=false` (a single-tenant self-hosted install, ADR-009) still
+  # renders a working deployment instead of one addressing a service that does not exist.
+  # Rendered through `tpl` — see templates/deployment.yaml.
+  DATABASE_URL: "postgres://stheno:password@{{ if .Values.pgbouncer.enabled }}{{ .Release.Name }}-pgbouncer:6432{{ else }}{{ .Values.pgbouncer.upstreamHost }}:{{ .Values.pgbouncer.upstreamPort }}{{ end }}/stheno"
   REDIS_URL: "redis://redis-service:6379"
   PORT: "9000"
-  RUST_LOG: "info,stheno=debug"
+  # `info` for our own crates too, not `debug`. Debug level on a commerce engine means a
+  # log line per request path on every request, and managed log ingestion (CloudWatch,
+  # Azure Monitor, Datadog) is billed per GB — it is a line item that can rival compute.
+  # Raise it per environment when debugging: `--set env.RUST_LOG="info,stheno=debug"`.
+  RUST_LOG: "info"

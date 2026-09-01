@@ -5,7 +5,11 @@ metadata:
   labels:
     app.kubernetes.io/name: stheno
 spec:
+  {{- if not .Values.autoscaling.enabled }}
+  # Omitted when the HPA is enabled: otherwise Helm writes replicas on every upgrade and
+  # the HPA immediately writes it back, so the deployment oscillates on each release.
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: stheno
@@ -40,8 +44,11 @@ spec:
             periodSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          # Values are rendered through `tpl` so one may reference the release —
+          # DATABASE_URL has to name the pgbouncer service, whose name is release-scoped.
+          # Values without template syntax pass through unchanged.
           env:
             {{- range $key, $val := .Values.env }}
             - name: {{ $key }}
-              value: {{ $val | quote }}
+              value: {{ tpl $val $ | quote }}
             {{- end }}

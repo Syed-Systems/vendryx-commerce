@@ -1,0 +1,45 @@
+{{- if .Values.autoscaling.enabled }}
+# The chart carried an `autoscaling:` values block with no HorizontalPodAutoscaler to read
+# it, so `replicaCount` was the only thing that ever set the replica count and the tuning
+# below was inert. This is that missing object.
+#
+# `replicas` is deliberately omitted from templates/deployment.yaml when this is enabled:
+# leaving both means Helm sets replicas on every upgrade and the HPA sets it back, and the
+# deployment oscillates on each release.
+#
+# Scaling on CPU and memory only. The metric that actually predicts saturation here is
+# pooler queue depth (see templates/pgbouncer.yaml — Postgres connections are the first
+# ceiling, not CPU), but that needs a metrics adapter and an exported PgBouncer metric.
+# ponytail: resource metrics now; add a custom metric when a load test shows CPU lagging
+# real saturation.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Release.Name }}-server
+  labels:
+    app.kubernetes.io/name: stheno
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}-server
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}

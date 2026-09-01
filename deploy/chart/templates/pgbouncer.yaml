@@ -1,0 +1,164 @@
+{{- if .Values.pgbouncer.enabled }}
+# Connection pooler in front of Postgres (ADR-012).
+#
+# # Why this exists
+#
+# The server autoscales (`values.yaml: autoscaling`) and every replica holds its own
+# Diesel pool. Without a pooler, connections to Postgres are `replicas x pool_size`, so a
+# traffic spike triggers a scale-out that exhausts `max_connections` and takes down the
+# tenants that were already healthy. Postgres connections — not CPU — are the first
+# ceiling a multi-tenant deployment hits.
+#
+# # Why transaction mode is not a tuning knob
+#
+# `stheno_db::tenant` sets the tenant with `set_config('app.tenant_id', $1, true)` — that
+# is `SET LOCAL`, and ADR-012 decision 5 requires it precisely so a pooled connection
+# cannot carry a tenant identity between requests. `PgCrudRepository::with_conn` opens a
+# transaction around it, so the setting is discarded at COMMIT.
+#
+#   - `transaction` (below) — correct. SET LOCAL dies with the transaction.
+#   - `session`                — safe but pointless: one server connection per client.
+#   - `statement`              — BREAKS SET LOCAL outright. Never set it here.
+#
+# The failure mode of getting this wrong is the one the whole architecture exists to
+# prevent: the next client to borrow the connection inherits the previous tenant's
+# identity, and RLS faithfully serves them someone else's rows. It reads as an RLS bug and
+# is a pooling bug.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-pgbouncer
+  labels:
+    app.kubernetes.io/name: stheno-pgbouncer
+data:
+  pgbouncer.ini: |
+    [databases]
+    {{ .Values.pgbouncer.database }} = host={{ .Values.pgbouncer.upstreamHost }} port={{ .Values.pgbouncer.upstreamPort }} dbname={{ .Values.pgbouncer.database }}
+
+    # Session-mode alias onto the SAME database, for session-scoped state that transaction
+    # pooling cannot carry. Today that means exactly one thing:
+    # `PostgresAdvisoryLockProvider` (crates/modules/stheno-locking) takes
+    # `pg_try_advisory_lock` — a SESSION-level lock — and pins the connection so `release`
+    # can unlock on it. Under transaction pooling the lock is taken on whichever *server*
+    # connection served the statement, that connection returns to the pool still holding
+    # it, and the later unlock is routed elsewhere and returns false. The lock leaks onto a
+    # connection that then serves other tenants, and it presents as an intermittent hang
+    # that no test reproduces.
+    #
+    # The provider is not wired into the engine yet. This exists so that wiring it in is a
+    # connection-string choice rather than a rediscovery of the above.
+    #
+    # Anything using this must be low-volume: session mode means one server connection per
+    # client connection, i.e. no pooling at all.
+    {{ .Values.pgbouncer.database }}_session = host={{ .Values.pgbouncer.upstreamHost }} port={{ .Values.pgbouncer.upstreamPort }} dbname={{ .Values.pgbouncer.database }} pool_mode=session
+
+    [pgbouncer]
+    listen_addr = 0.0.0.0
+    listen_port = 6432
+    auth_type = plain
+    auth_file = /etc/pgbouncer/userlist.txt
+
+    # See the header. Not a performance setting.
+    pool_mode = transaction
+
+    # diesel-async runs on tokio-postgres, which uses protocol-level prepared statements.
+    # Under transaction pooling those break with "prepared statement does not exist" the
+    # moment a client is handed a different server connection — unless PgBouncer tracks
+    # them, which it has done since 1.21. This line and the pinned image tag are one
+    # decision; do not lower either independently.
+    max_prepared_statements = {{ .Values.pgbouncer.maxPreparedStatements }}
+
+    max_client_conn = {{ .Values.pgbouncer.maxClientConn }}
+    default_pool_size = {{ .Values.pgbouncer.defaultPoolSize }}
+    ignore_startup_parameters = extra_float_digits
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-pgbouncer-auth
+  labels:
+    app.kubernetes.io/name: stheno-pgbouncer
+type: Opaque
+stringData:
+  # ponytail: plaintext userlist, cluster-internal only. The production upgrade is
+  # `auth_user` + `auth_query` so PgBouncer reads verifiers from Postgres and this file
+  # stops existing. Doing that needs a SECURITY DEFINER function in the database, which is
+  # a migration, not a chart change. Matches the existing plaintext DATABASE_URL in
+  # values.yaml — it does not make the chart's secret handling worse, and it does not fix it.
+  userlist.txt: |
+    "{{ .Values.pgbouncer.username }}" "{{ .Values.pgbouncer.password }}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-pgbouncer
+  labels:
+    app.kubernetes.io/name: stheno-pgbouncer
+spec:
+  replicas: {{ .Values.pgbouncer.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stheno-pgbouncer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: stheno-pgbouncer
+      annotations:
+        # Roll the pods when the pooler config changes; pgbouncer.ini is read at startup.
+        # Checksums the values rather than the rendered file: the ConfigMap lives in this
+        # same template, so `include`-ing the file from inside it would recurse.
+        checksum/config: {{ toYaml .Values.pgbouncer | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: pgbouncer
+          image: "{{ .Values.pgbouncer.image.repository }}:{{ .Values.pgbouncer.image.tag }}"
+          imagePullPolicy: {{ .Values.pgbouncer.image.pullPolicy }}
+          ports:
+            - name: pgbouncer
+              containerPort: 6432
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pgbouncer/pgbouncer.ini
+              subPath: pgbouncer.ini
+            - name: auth
+              mountPath: /etc/pgbouncer/userlist.txt
+              subPath: userlist.txt
+          livenessProbe:
+            tcpSocket:
+              port: pgbouncer
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: pgbouncer
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.pgbouncer.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-pgbouncer
+        - name: auth
+          secret:
+            secretName: {{ .Release.Name }}-pgbouncer-auth
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-pgbouncer
+  labels:
+    app.kubernetes.io/name: stheno-pgbouncer
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6432
+      targetPort: pgbouncer
+      protocol: TCP
+      name: pgbouncer
+  selector:
+    app.kubernetes.io/name: stheno-pgbouncer
+{{- end }}
