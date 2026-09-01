@@ -24,10 +24,10 @@ if (FRONTEND !== "default" && process.env.TURBOPACK) {
 }
 
 /**
- * Medusa Cloud-related environment variables
+ * Object-storage host allowed for <Image> optimization of merchant media.
  */
-const S3_HOSTNAME = process.env.MEDUSA_CLOUD_S3_HOSTNAME
-const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
+const S3_HOSTNAME = process.env.STHENO_S3_HOSTNAME
+const S3_PATHNAME = process.env.STHENO_S3_PATHNAME
 
 /**
  * @type {import('next').NextConfig}
@@ -59,11 +59,13 @@ const nextConfig = {
     )
     return config
   },
-  logging: {
-    fetches: {
-      fullUrl: true,
-    },
-  },
+  // Development only. In production this writes a line per server-side fetch on every
+  // render — and managed log ingestion is billed per GB, so it scales with traffic rather
+  // than with anything useful. `fullUrl` also puts query strings into log storage.
+  // `next build` sets NODE_ENV=production, so a production build simply omits the key.
+  ...(process.env.NODE_ENV !== "production" && {
+    logging: { fetches: { fullUrl: true } },
+  }),
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -84,18 +86,9 @@ const nextConfig = {
         protocol: "https",
         hostname: "plus.unsplash.com",
       },
-      {
-        protocol: "https",
-        hostname: "medusa-public-images.s3.eu-west-1.amazonaws.com",
-      },
-      {
-        protocol: "https",
-        hostname: "medusa-server-testing.s3.amazonaws.com",
-      },
-      {
-        protocol: "https",
-        hostname: "medusa-server-testing.s3.us-east-1.amazonaws.com",
-      },
+      // Medusa's demo and test buckets were listed here by the fork. They served no
+      // merchant image and allowed <Image> to load from buckets we do not control.
+      // Removed — a remote pattern is an allowlist, and dead entries only widen it.
       {
         protocol: "https",
         hostname: "**.amazonaws.com",

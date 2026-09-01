@@ -1,9 +1,12 @@
 // / <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_MEDUSA_ADMIN_BACKEND_URL: string
-  readonly VITE_MEDUSA_STOREFRONT_URL: string
-  readonly VITE_MEDUSA_V2: "true" | "false"
+  readonly VITE_STHENO_ADMIN_BACKEND_URL: string
+  readonly VITE_STHENO_STOREFRONT_URL: string
+  readonly VITE_STHENO_V2: "true" | "false"
+  /** Merchant-facing help links. Unset hides the menu item rather than linking nowhere. */
+  readonly VITE_DOCS_URL?: string
+  readonly VITE_CHANGELOG_URL?: string
 }
 
 interface ImportMeta {

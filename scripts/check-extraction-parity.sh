@@ -41,9 +41,9 @@ kill_pid_tree() {
 # builds minutes apart can render different product lists through identical
 # code. Fingerprint it, so a changed fixture reports as a changed fixture
 # instead of masquerading as a rendering regression.
-BACKEND="$(grep -E '^MEDUSA_BACKEND_URL=' "$APP/.env.local" | cut -d= -f2- | tr -d '
+BACKEND="$(grep -E '^STHENO_BACKEND_URL=' "$APP/.env.local" | cut -d= -f2- | tr -d '
 ')"
-PUBKEY="$(grep -E '^NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=' "$APP/.env.local" | cut -d= -f2- | tr -d '
+PUBKEY="$(grep -E '^NEXT_PUBLIC_STHENO_PUBLISHABLE_KEY=' "$APP/.env.local" | cut -d= -f2- | tr -d '
 ')"
 catalog_fingerprint() {
   curl -sf -H "x-publishable-api-key: $PUBKEY" "$BACKEND/store/products?limit=200&fields=handle" 2>/dev/null     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const p=JSON.parse(s).products||[];console.log(p.map(x=>x.handle).sort().join(","))}catch{console.log("UNAVAILABLE")}})'     | sha256sum | cut -d" " -f1
@@ -87,7 +87,7 @@ cleanup() {
 trap cleanup EXIT
 
 # The region middleware answers the first request with a 307 to the same URL,
-# carrying the _medusa_cache_id cookie. Without a jar every request loops.
+# carrying the _stheno_cache_id cookie. Without a jar every request loops.
 JAR="$(mktemp)"
 for _ in $(seq 1 60); do
   if curl -sfL --max-redirs 5 -c "$JAR" -b "$JAR" -o /dev/null "http://127.0.0.1:$PORT/us"; then break; fi

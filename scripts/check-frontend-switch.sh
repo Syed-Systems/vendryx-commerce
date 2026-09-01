@@ -20,7 +20,7 @@ const app = path.resolve(process.argv[2])
 
 // next.config.js runs check-env-variables at require time. This gate resolves
 // module paths and never talks to the backend, so a placeholder is enough.
-process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ||= "pk_theme_switch_gate"
+process.env.NEXT_PUBLIC_STHENO_PUBLISHABLE_KEY ||= "pk_theme_switch_gate"
 
 // Stand in for webpack: capture the request rewriter next.config installs.
 function loadRewriter(frontend) {

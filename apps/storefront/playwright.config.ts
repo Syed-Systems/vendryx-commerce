@@ -7,7 +7,7 @@ import { defineConfig, devices } from "@playwright/test"
  * twelve suites without opening a browser — so gate P19 reported PASS while nothing had
  * ever been verified. Every assertion here drives a real browser against a real backend.
  */
-export const BACKEND = process.env.MEDUSA_BACKEND_URL ?? "http://pro.localhost:9000"
+export const BACKEND = process.env.STHENO_BACKEND_URL ?? "http://pro.localhost:9000"
 
 export default defineConfig({
   testDir: "./e2e",

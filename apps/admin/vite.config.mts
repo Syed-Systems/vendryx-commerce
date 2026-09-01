@@ -36,9 +36,9 @@ function virtualMedusaPlugin(): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "")
 
-  const BASE = env.VITE_MEDUSA_BASE || "/"
-  const BACKEND_URL = env.VITE_MEDUSA_BACKEND_URL || "http://localhost:9000"
-  const STOREFRONT_URL = env.VITE_MEDUSA_STOREFRONT_URL || "http://localhost:8000"
+  const BASE = env.VITE_STHENO_BASE || "/"
+  const BACKEND_URL = env.VITE_STHENO_BACKEND_URL || "http://localhost:9000"
+  const STOREFRONT_URL = env.VITE_STHENO_STOREFRONT_URL || "http://localhost:8000"
 
   return {
     plugins: [

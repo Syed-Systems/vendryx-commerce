@@ -21,7 +21,7 @@ export default async function OrderConfirmedPage(props: Props) {
   }
 
   const cookies = await nextCookies()
-  const isOnboarding = cookies.get("_medusa_onboarding")?.value === "true"
+  const isOnboarding = cookies.get("_stheno_onboarding")?.value === "true"
 
   return <OrderCompletedTemplate order={order} isOnboarding={isOnboarding} />
 }

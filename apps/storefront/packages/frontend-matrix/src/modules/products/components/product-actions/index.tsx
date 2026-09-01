@@ -22,7 +22,7 @@ const SOCIAL_WHATSAPP = process.env.NEXT_PUBLIC_SOCIAL_WHATSAPP || ""
 const SOCIAL_INSTAGRAM = process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM || ""
 const SOCIAL_MESSENGER = process.env.NEXT_PUBLIC_SOCIAL_MESSENGER || ""
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  process.env.NEXT_PUBLIC_STHENO_BACKEND_URL || "http://localhost:9000"
 
 type ProductActionsProps = {
   product: HttpTypes.StoreProduct

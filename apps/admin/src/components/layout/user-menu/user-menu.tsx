@@ -28,6 +28,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useLogout, useMe } from "../../../hooks/api"
 import { queryClient } from "../../../lib/query-client"
 import { useGlobalShortcuts } from "../../../providers/keybind-provider/hooks"
+import { CHANGELOG_URL, DOCS_URL } from "../../../lib/external-links"
 import { useTheme } from "../../../providers/theme-provider"
 import { useDocumentDirection } from "../../../hooks/use-document-direction"
 
@@ -58,18 +59,22 @@ export const UserMenu = () => {
             </Link>
           </DropdownMenu.Item>
           <DropdownMenu.Separator />
-          <DropdownMenu.Item asChild>
-            <Link to="https://docs.medusajs.com" target="_blank">
-              <BookOpen className="text-ui-fg-subtle me-2" />
-              {t("app.menus.user.documentation")}
-            </Link>
-          </DropdownMenu.Item>
-          <DropdownMenu.Item asChild>
-            <Link to="https://medusajs.com/changelog/" target="_blank">
-              <TimelineVertical className="text-ui-fg-subtle me-2" />
-              {t("app.menus.user.changelog")}
-            </Link>
-          </DropdownMenu.Item>
+          {DOCS_URL && (
+            <DropdownMenu.Item asChild>
+              <Link to={DOCS_URL} target="_blank">
+                <BookOpen className="text-ui-fg-subtle me-2" />
+                {t("app.menus.user.documentation")}
+              </Link>
+            </DropdownMenu.Item>
+          )}
+          {CHANGELOG_URL && (
+            <DropdownMenu.Item asChild>
+              <Link to={CHANGELOG_URL} target="_blank">
+                <TimelineVertical className="text-ui-fg-subtle me-2" />
+                {t("app.menus.user.changelog")}
+              </Link>
+            </DropdownMenu.Item>
+          )}
           <DropdownMenu.Separator />
           <DropdownMenu.Item onClick={toggleModal}>
             <Keyboard className="text-ui-fg-subtle me-2" />

@@ -663,6 +663,7 @@ impl AppServer {
         let workflow_store = Arc::new(WorkflowStore::from_pool(pool.clone()));
         let platform_service = Arc::new(PlatformService::new(pool.clone()));
         let rbac_service = Arc::new(stheno_rbac::RbacService::new(pool.clone()));
+        let api_key_service = Arc::new(stheno_api_key::ApiKeyService::new(pool.clone()));
         let settings_service = Arc::new(stheno_settings::SettingsService::new(pool.clone()));
         let auth_flows = Arc::new(AuthWorkflows::new(auth_service.clone()));
         let order_flow = Arc::new(OrderWorkflowEngine::new(order_service.clone()));
@@ -723,7 +724,7 @@ impl AppServer {
                 payment_service.clone(),
                 Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
             ))
-            .merge(admin_api_key_routes())
+            .merge(admin_api_key_routes(api_key_service.clone()))
             .merge(admin_views_routes())
             .merge(admin_rbac_routes(rbac_service.clone()))
             .merge(admin_fulfillment_settings_routes(
@@ -857,6 +858,22 @@ impl AppServer {
             ))
             .merge(admin_routes)
             .merge(gate_buyer_auth(auth_routes(AuthApiContext { auth_flows })))
+            // Inbound gateway callbacks belong inside the tenant scope, not beside it.
+            // Mounted outside, `/hooks/payment/{provider}` answered every callback with
+            // `tenant_not_established`: the handler resolves the tenant's credentials to
+            // verify the signature, and there was no tenant to resolve them for. No bKash,
+            // SSLCommerz or Stripe callback could ever be processed, so a payment
+            // authorised at the gateway never became a paid order here.
+            //
+            // The route's own test wraps its calls in `tenant::scope` by hand, so it passed
+            // throughout — the gap was in the mounting, which no test exercised.
+            //
+            // A gateway must therefore call the merchant's own host, exactly as a shopper
+            // does. That is the same rule as every other route, and it is what makes one
+            // callback URL per tenant resolve to that tenant.
+            .merge(hooks_routes(HooksContext {
+                payment_service: payment_service.clone(),
+            }))
             // Outermost after CORS: every route below this point runs inside a tenant
             // scope, so nothing downstream has to know tenancy exists (ADR-012).
             // `/health` and `/` opt out inside the layer — they report on the process,
@@ -879,9 +896,6 @@ impl AppServer {
 
         let router = Router::new()
             .merge(tenant_routes)
-            .merge(hooks_routes(HooksContext {
-                payment_service: payment_service.clone(),
-            }))
             // Mounted OUTSIDE the tenant layer on purpose: the control plane reads across
             // every merchant, so scoping it to one would defeat it. It carries its own
             // credential and 404s without it (ADR-012).

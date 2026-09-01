@@ -11,15 +11,17 @@ type PaymentWrapperProps = {
   children: React.ReactNode
 }
 
-const stripeKey =
-  process.env.NEXT_PUBLIC_STRIPE_KEY ||
-  process.env.NEXT_PUBLIC_MEDUSA_PAYMENTS_PUBLISHABLE_KEY
+// The fork carried a fallback to NEXT_PUBLIC_MEDUSA_PAYMENTS_PUBLISHABLE_KEY — Medusa
+// Cloud's hosted Stripe Connect. We are not on Medusa Cloud, so it was a fallback to a
+// service that does not exist for us, behind a key that already exists.
+const stripeKey = process.env.NEXT_PUBLIC_STRIPE_KEY
 
-const medusaAccountId = process.env.NEXT_PUBLIC_MEDUSA_PAYMENTS_ACCOUNT_ID
+// Stripe Connect account, kept: the capability is Stripe's, not Medusa's.
+const stripeAccountId = process.env.NEXT_PUBLIC_STRIPE_ACCOUNT_ID
 const stripePromise = stripeKey
   ? loadStripe(
       stripeKey,
-      medusaAccountId ? { stripeAccount: medusaAccountId } : undefined
+      stripeAccountId ? { stripeAccount: stripeAccountId } : undefined
     )
   : null
 
