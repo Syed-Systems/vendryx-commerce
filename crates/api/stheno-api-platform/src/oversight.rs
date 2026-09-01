@@ -145,7 +145,7 @@ async fn collect_ledger(ctx: &PlatformApiContext) -> Vec<OutboundLedgerItemDTO> 
         }
     }
 
-    entries.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    entries.sort_by_key(|e| std::cmp::Reverse(e.created_at));
     entries
 }
 

@@ -11,6 +11,11 @@ use stheno_api_platform::{platform_routes, PlatformApiContext};
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
 use stheno_platform::PlatformService;
+use stheno_payment::PaymentService;
+use stheno_payment_bkash::BkashPaymentProviderFactory;
+use stheno_payment_offline::OfflinePaymentProviderFactory;
+use stheno_payment_sslcommerz::SslcommerzPaymentProviderFactory;
+use stheno_payment_stripe::StripePaymentProviderFactory;
 
 const BOOTSTRAP: &str = "sweepstatus-bootstrap-secret";
 const TIERS_TOML: &str = include_str!("../../../../config/tiers.toml");
@@ -18,13 +23,23 @@ const TIERS_TOML: &str = include_str!("../../../../config/tiers.toml");
 async fn app() -> (TestDb, axum::Router) {
     let db = TestDb::migrated().await;
     let pool = create_pool(&db.url, 5).expect("pool");
-    let platform = Arc::new(PlatformService::new(pool));
+    let platform = Arc::new(PlatformService::new(pool.clone()));
+
+    // The oversight routes report on the payment registry, so a context without one has
+    // nothing to report and says so. These tests previously passed `payment_service: None`
+    // and asserted on values the handlers used to invent — see the note on each assertion.
+    // This mirrors what `stheno-server` registers at boot.
+    let payment_service = Arc::new(PaymentService::new(pool));
+    payment_service.register_factory(Arc::new(OfflinePaymentProviderFactory));
+    payment_service.register_factory(Arc::new(StripePaymentProviderFactory));
+    payment_service.register_factory(Arc::new(SslcommerzPaymentProviderFactory));
+    payment_service.register_factory(Arc::new(BkashPaymentProviderFactory));
 
     let router = platform_routes(PlatformApiContext {
-        platform: Arc::clone(&platform),
+        platform,
         tier_config: Arc::new(TierConfig::from_toml(TIERS_TOML).expect("tiers.toml parses")),
         operator_token: Some(BOOTSTRAP.to_string()),
-        payment_service: None,
+        payment_service: Some(payment_service),
     });
 
     (db, router)
@@ -57,7 +72,11 @@ async fn sweep_status_and_manual_trigger() {
     // 1. Check sweep status
     let (status, body) = call(&router, "GET", "/platform/ledger/sweep-status").await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["sweep_status"]["is_scheduled"], true);
+    // False, and that is the point of the field. `is_scheduled` reported `true`
+    // unconditionally while CONTROL_PLANE.md D4 records the opposite — no scheduler
+    // registers this sweep. An oversight flag that asserts its own health is worst
+    // precisely when an operator checks it because they suspect the sweep has stopped.
+    assert_eq!(body["sweep_status"]["is_scheduled"], false);
 
     // 2. Trigger manual sweep run
     let (status, body) = call(&router, "POST", "/platform/ledger/sweep").await;

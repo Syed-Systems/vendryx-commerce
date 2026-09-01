@@ -25,5 +25,7 @@ tracing = { workspace = true }
 stheno-db = { workspace = true, features = ["testing"] }
 stheno-payment-bkash = { workspace = true }
 stheno-payment-sslcommerz = { workspace = true }
+stheno-payment-offline = { workspace = true }
+stheno-payment-stripe = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }
