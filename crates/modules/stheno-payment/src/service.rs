@@ -14,7 +14,7 @@ use std::future::Future;
 use std::sync::{Arc, RwLock};
 use stheno_db::diesel::{
     self,
-    sql_types::{Integer, Text, Timestamptz},
+    sql_types::{BigInt, Integer, Nullable, Text, Timestamptz},
     QueryableByName,
 };
 use stheno_db::diesel_async::RunQueryDsl;
@@ -59,6 +59,29 @@ struct CredentialSummaryRow {
     created_at: DateTime<Utc>,
     #[diesel(sql_type = Timestamptz)]
     updated_at: DateTime<Utc>,
+}
+
+/// One row of the outbound ledger, as the oversight read selects it.
+#[derive(QueryableByName)]
+struct ProviderRequestOversightRow {
+    #[diesel(sql_type = Text)]
+    id: String,
+    #[diesel(sql_type = Text)]
+    provider_id: String,
+    #[diesel(sql_type = Text)]
+    operation: String,
+    #[diesel(sql_type = Text)]
+    resource_type: String,
+    #[diesel(sql_type = Text)]
+    resource_id: String,
+    #[diesel(sql_type = Text)]
+    state: String,
+    #[diesel(sql_type = Integer)]
+    attempts: i32,
+    #[diesel(sql_type = Timestamptz)]
+    first_sent_at: chrono::DateTime<chrono::Utc>,
+    #[diesel(sql_type = Nullable<Timestamptz>)]
+    settled_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(QueryableByName)]
@@ -133,9 +156,17 @@ impl PaymentService {
         }
     }
 
-    pub fn register_provider(&self, _provider: Arc<dyn PaymentProvider>) {
-        // Kept temporarily for older tests and boot code while P21-F2/F3 migrate all
-        // resolution through factories and tenant-owned credentials.
+    /// Registers a ready-made provider instance under its own id.
+    ///
+    /// This was an empty stub "kept temporarily" while resolution moved to factories and
+    /// tenant-owned credentials, so every caller registered nothing and then failed much
+    /// later with `NotFound { payment_provider_factory }` — a silent no-op is the worst
+    /// shape for a migration shim. It is sugar for a factory that takes no credentials and
+    /// always yields this instance, which is precisely what a provider with nothing to
+    /// configure is. Gateways register a real factory and keep their credential
+    /// requirement.
+    pub fn register_provider(&self, provider: Arc<dyn PaymentProvider>) {
+        self.register_factory(Arc::new(FixedProviderFactory { provider }));
     }
 
     pub fn register_factory(&self, factory: Arc<dyn PaymentProviderFactory>) {
@@ -202,31 +233,52 @@ impl PaymentService {
         provider_id: &str,
     ) -> Result<Arc<dyn PaymentProvider>> {
         stheno_db::tenant::validate(tenant_id)?;
-        let row = self.load_credential_row(tenant_id, provider_id).await?;
+        let factory = self.get_factory(provider_id)?;
+
+        // A provider whose credential schema is empty has nothing to store and nothing to
+        // encrypt, so a stored row is not what makes it resolvable. Requiring one made the
+        // built-in offline/manual provider unusable until somebody saved an empty
+        // credential for it — the failure surfaced far from its cause, as a checkout that
+        // reached payment with no method, and as `NotFound { payment_provider_credential }`
+        // in every test that used it.
+        //
+        // Gateways are unaffected: their schemas are non-empty, so a tenant without a
+        // credential still fails closed, which is what keeps one tenant's keys from ever
+        // building another tenant's provider.
+        let row = match self.load_credential_row(tenant_id, provider_id).await {
+            Ok(row) => Some(row),
+            Err(Error::NotFound { .. }) if factory.credential_schema().is_empty() => None,
+            Err(e) => return Err(e),
+        };
+
         let cache_key = ProviderCacheKey {
             tenant_id: tenant_id.to_string(),
             provider_id: provider_id.to_string(),
-            credential_version: row.credential_version,
+            credential_version: row.as_ref().map(|r| r.credential_version).unwrap_or(0),
         };
 
         if let Some(provider) = self.provider_cache.read().unwrap().get(&cache_key).cloned() {
             return Ok(provider);
         }
 
-        let factory = self.get_factory(provider_id)?;
-        let encrypted = EncryptedCredential {
-            ciphertext: hex::decode(row.ciphertext_hex).map_err(|_| Error::Invalid {
-                code: "credential_ciphertext_invalid",
-                message: "Credential ciphertext is invalid".to_string(),
-                field: None,
-            })?,
-            nonce: hex::decode(row.nonce_hex).map_err(|_| Error::Invalid {
-                code: "credential_nonce_invalid",
-                message: "Credential nonce is invalid".to_string(),
-                field: None,
-            })?,
+        let creds = match row {
+            Some(row) => {
+                let encrypted = EncryptedCredential {
+                    ciphertext: hex::decode(row.ciphertext_hex).map_err(|_| Error::Invalid {
+                        code: "credential_ciphertext_invalid",
+                        message: "Credential ciphertext is invalid".to_string(),
+                        field: None,
+                    })?,
+                    nonce: hex::decode(row.nonce_hex).map_err(|_| Error::Invalid {
+                        code: "credential_nonce_invalid",
+                        message: "Credential nonce is invalid".to_string(),
+                        field: None,
+                    })?,
+                };
+                decrypt_credential_map(tenant_id, provider_id, &encrypted)?
+            }
+            None => CredentialMap::new(),
         };
-        let creds = decrypt_credential_map(tenant_id, provider_id, &encrypted)?;
         let provider = factory.build(&creds)?;
 
         self.provider_cache
@@ -355,6 +407,61 @@ impl PaymentService {
             .await
         })
         .await
+    }
+
+    /// One tenant's outbound provider calls, newest first.
+    ///
+    /// The control plane's payments oversight needs this across every tenant, but these
+    /// rows sit behind RLS and `PLATFORM_SCOPE` deliberately matches nothing in a
+    /// tenant-scoped table — so the cross-tenant view is a fan-out over this, one scope at
+    /// a time, rather than a widened read. Keeping the method tenant-scoped is what makes
+    /// that safe: there is no call shape here that reads another tenant's ledger.
+    pub async fn list_provider_requests(
+        &self,
+        tenant_id: &str,
+        limit: i64,
+    ) -> Result<Vec<ProviderRequestOversightDTO>> {
+        stheno_db::tenant::validate(tenant_id)?;
+        let tenant = tenant_id.to_string();
+        let pool = self.pool.clone();
+
+        stheno_db::tenant::scope(tenant.clone(), async move {
+            stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+                Box::pin(async move {
+                    let rows: Vec<ProviderRequestOversightRow> = diesel::sql_query(
+                        "SELECT id, provider_id, operation, resource_type, resource_id,
+                                state, attempts, first_sent_at, settled_at
+                           FROM payment.payment_provider_request
+                          WHERE deleted_at IS NULL
+                          ORDER BY COALESCE(settled_at, first_sent_at) DESC
+                          LIMIT $1",
+                    )
+                    .bind::<BigInt, _>(limit)
+                    .load(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+                    Ok(rows)
+                })
+            })
+            .await
+        })
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|r| ProviderRequestOversightDTO {
+                    tenant_id: tenant.clone(),
+                    id: r.id,
+                    provider_id: r.provider_id,
+                    operation: r.operation,
+                    resource_type: r.resource_type,
+                    resource_id: r.resource_id,
+                    state: r.state,
+                    attempts: r.attempts,
+                    first_sent_at: r.first_sent_at,
+                    settled_at: r.settled_at,
+                })
+                .collect()
+        })
     }
 
     async fn credential_health_from_last_outcome(
@@ -1217,6 +1324,19 @@ impl PaymentService {
         let provider = self.get_provider(&tenant_id, provider_id).await?;
         let verified = provider.verify_webhook(raw_body, signature_header)?;
 
+        // A parsed payload is not an authenticated one. Providers whose callbacks carry no
+        // signature confirm against their own status API here; the default is a no-op for
+        // the ones that really did verify. Refusing with a signature-shaped code means the
+        // hooks route answers 401 and the gateway stops retrying a payload we will never
+        // accept, rather than 400-looping.
+        if !provider.confirm_webhook_event(&verified).await? {
+            return Err(Error::Invalid {
+                code: "webhook_signature_invalid",
+                message: "The gateway did not confirm this event".to_string(),
+                field: None,
+            });
+        }
+
         // Webhook replay guard (PAYMENTS §7.1, §7.3, E9): Unique constraint
         let spec = FilterSpec::new()
             .with_predicate("provider_id", FilterOp::Eq(provider_id.to_string()))
@@ -1581,4 +1701,24 @@ pub fn compute_sha256(val: &serde_json::Value) -> String {
     let mut hasher = Sha256::new();
     hasher.update(canonical.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+/// Adapts an already-built provider to the factory interface. Carries no credential
+/// schema: the instance is fully configured before it ever reaches the service.
+struct FixedProviderFactory {
+    provider: Arc<dyn PaymentProvider>,
+}
+
+impl PaymentProviderFactory for FixedProviderFactory {
+    fn provider_id(&self) -> &str {
+        self.provider.id()
+    }
+
+    fn credential_schema(&self) -> &'static [CredentialField] {
+        &[]
+    }
+
+    fn build(&self, _creds: &CredentialMap) -> Result<Arc<dyn PaymentProvider>> {
+        Ok(self.provider.clone())
+    }
 }

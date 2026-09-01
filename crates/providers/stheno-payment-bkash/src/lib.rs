@@ -438,7 +438,41 @@ impl PaymentProvider for BkashPaymentProvider {
     }
 
     fn signature_header(&self) -> Option<&'static str> {
+        // bKash does not sign its callbacks, so there is no header to read. The
+        // authenticity check therefore happens in `confirm_webhook_event`, against bKash
+        // itself, rather than being skipped.
         None
+    }
+
+    /// Asks bKash whether the payment the callback names is real, and what state it is in.
+    ///
+    /// The callback body was previously trusted on sight: anyone who could reach the
+    /// webhook URL could post `{"paymentID": "...", "transactionStatus": "Completed"}` and
+    /// have an order marked paid. bKash's query API is the authority, and this provider
+    /// already speaks it — `retrieve` is the same call the ambiguous-timeout recovery path
+    /// uses, so confirmation costs one request and no new integration.
+    async fn confirm_webhook_event(&self, event: &VerifiedEvent) -> Result<bool> {
+        let payment_id = event.payload["paymentID"]
+            .as_str()
+            .or_else(|| event.payload["MessageId"].as_str())
+            .unwrap_or_default();
+
+        // No id to check means nothing to confirm. Refuse rather than accept: an event that
+        // cannot be tied to a payment must never move money.
+        if payment_id.is_empty() {
+            return Ok(false);
+        }
+
+        let retrieved = self
+            .retrieve(RetrieveInput {
+                reference_id: payment_id.to_string(),
+                data: None,
+            })
+            .await?;
+
+        // Any state bKash will actually name is a real payment. The reducer downstream
+        // decides what the state *means*; this only decides whether the event is genuine.
+        Ok(!matches!(retrieved.status, PaymentSessionStatus::Error))
     }
 
     fn verify_webhook(&self, raw: &[u8], _signature_header: Option<&str>) -> Result<VerifiedEvent> {

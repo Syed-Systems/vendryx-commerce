@@ -399,7 +399,37 @@ impl PaymentProvider for SslcommerzPaymentProvider {
     }
 
     fn signature_header(&self) -> Option<&'static str> {
+        // SSLCommerz authenticates an IPN by validation call-back, not by a header. The
+        // check lives in `confirm_webhook_event` for that reason — not because there is
+        // nothing to check.
         None
+    }
+
+    /// Validates the IPN against SSLCommerz's validation API.
+    ///
+    /// The payload was previously trusted as parsed: an unauthenticated POST of
+    /// `status=VALID` with any `tran_id` marked an order paid. SSLCommerz publishes
+    /// `validationserverAPI` for exactly this, and this provider already calls it in
+    /// `retrieve`, keyed on the `val_id` the IPN carries. Validating against the gateway is
+    /// also stronger than recomputing `verify_sign`: it survives a leaked store password,
+    /// because the answer comes from SSLCommerz rather than from the payload.
+    async fn confirm_webhook_event(&self, event: &VerifiedEvent) -> Result<bool> {
+        let val_id = event.payload["val_id"].as_str().unwrap_or_default();
+
+        // Without a `val_id` there is nothing SSLCommerz can be asked about. Refuse: an
+        // unvalidatable IPN is exactly the shape a forged one takes.
+        if val_id.is_empty() {
+            return Ok(false);
+        }
+
+        let retrieved = self
+            .retrieve(RetrieveInput {
+                reference_id: val_id.to_string(),
+                data: None,
+            })
+            .await?;
+
+        Ok(!matches!(retrieved.status, PaymentSessionStatus::Error))
     }
 
     fn verify_webhook(&self, raw: &[u8], _signature_header: Option<&str>) -> Result<VerifiedEvent> {

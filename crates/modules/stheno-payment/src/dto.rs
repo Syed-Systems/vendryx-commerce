@@ -667,6 +667,22 @@ pub trait PaymentProvider: Send + Sync + 'static {
     /// an IPN by posting the payload back — returns `None` and does its own checking
     /// inside `verify_webhook`. Returning `None` is a claim that the body is
     /// self-authenticating, never a licence to skip verification.
+    /// Confirms an already-parsed event against the gateway itself.
+    ///
+    /// The contract above says returning `None` from `signature_header` is a claim that the
+    /// body authenticates itself. Two providers returned `None` and then parsed the payload
+    /// without checking anything, which made a payment confirmation forgeable by anyone who
+    /// could reach the webhook URL — the callback said "paid", so the order was paid.
+    ///
+    /// A gateway that does not sign its callbacks can still be asked. Providers in that
+    /// position override this and query their own status API, which is the authority
+    /// regardless of what arrived on the wire. The default is `true` for providers that
+    /// genuinely do verify in `verify_webhook` — Stripe checks an HMAC, the offline
+    /// provider has no gateway to ask.
+    async fn confirm_webhook_event(&self, _event: &VerifiedEvent) -> Result<bool> {
+        Ok(true)
+    }
+
     fn signature_header(&self) -> Option<&'static str> {
         None
     }
@@ -916,4 +932,23 @@ pub struct ReconciliationReportDTO {
     pub discrepancy_count: usize,
     pub discrepancies: Vec<ReconciliationDiscrepancy>,
     pub generated_at: DateTime<Utc>,
+}
+
+/// One outbound provider call, as the control plane's payments oversight reads it.
+///
+/// Carries `tenant_id` because the cross-tenant view is assembled by fanning out over
+/// tenants: without it, two identical-looking stranded calls from different merchants are
+/// indistinguishable in the operator's list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderRequestOversightDTO {
+    pub id: String,
+    pub tenant_id: String,
+    pub provider_id: String,
+    pub operation: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub state: String,
+    pub attempts: i32,
+    pub first_sent_at: DateTime<Utc>,
+    pub settled_at: Option<DateTime<Utc>>,
 }
