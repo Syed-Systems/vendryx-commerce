@@ -1,6 +1,13 @@
 /target/
 **/*.rs.bk
 .DS_Store
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.next/
+**/.next/
+*.tsbuildinfo
 
 # Binary staged by scripts/restart-durability.sh
 target-bin/
