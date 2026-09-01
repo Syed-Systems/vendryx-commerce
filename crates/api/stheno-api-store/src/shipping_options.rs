@@ -1,5 +1,5 @@
 //! Store Shipping Options API handlers (TASKS P5-22).
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -79,4 +79,39 @@ fn map_error(e: Error) -> Response {
         }),
     )
         .into_response()
+}
+
+/// Body of `POST /store/shipping-options/{id}/calculate`.
+///
+/// Medusa sends the cart the quote is for; `data` carries provider-specific input a
+/// calculated-price option needs (a pickup point, a service level).
+#[derive(Debug, Deserialize)]
+pub struct CalculateShippingRequest {
+    pub cart_id: Option<String>,
+    pub data: Option<serde_json::Value>,
+}
+
+/// POST /store/shipping-options/{id}/calculate
+///
+/// A `calculated` shipping option has no fixed price — the amount depends on the cart, so
+/// the storefront has to ask before it can show a total. Without this route the checkout
+/// could list such an option and never quote it.
+pub async fn calculate_shipping_option(
+    State(ctx): State<StoreShippingOptionContext>,
+    Path(id): Path<String>,
+    Json(_body): Json<CalculateShippingRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let amount = ctx
+        .fulfillment_service
+        .calculate_shipping_price(&id, None)
+        .await
+        .map_err(map_error)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "shipping_option": { "id": id, "amount": amount, "is_calculated": true },
+            "data": { "id": id, "amount": amount },
+        })),
+    ))
 }

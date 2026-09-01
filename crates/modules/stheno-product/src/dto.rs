@@ -117,6 +117,27 @@ pub struct UpdateCollectionInput {
     pub metadata: Option<serde_json::Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProductOptionDTO {
+    pub id: String,
+    pub title: String,
+    pub product_id: String,
+    pub values: Vec<ProductOptionValueDTO>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProductOptionValueDTO {
+    pub id: String,
+    pub value: String,
+    pub option_id: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub metadata: Option<serde_json::Value>,
+}
+
 // Medusa id prefixes for this module's entities (ADR-010).
 stheno_types::prefixed_id! {
     ProductCategoryDTO => "pcat",

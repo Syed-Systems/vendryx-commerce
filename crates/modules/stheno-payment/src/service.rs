@@ -652,6 +652,15 @@ impl PaymentService {
         })
     }
 
+    pub async fn mark_collection_paid(&self, id: &str) -> Result<PaymentCollectionDTO> {
+        let mut col = self.collections.retrieve(None, id).await?;
+        col.status = "paid".to_string();
+        col.captured_amount = col.amount;
+        col.updated_at = Utc::now();
+        let _ = self.collections.update(None, id, col).await?;
+        self.get_payment_collection(id).await
+    }
+
     // ── Payment Session Lifecycle & Card-Testing Limits (P4-27) ──────────────
 
     pub async fn create_payment_session(

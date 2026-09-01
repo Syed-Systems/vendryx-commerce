@@ -12,15 +12,17 @@ export default defineConfig({
   },
   server: { port: 5175 },
   build: {
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: {
-          three: ["three", "@react-three/fiber", "@react-three/drei"],
-          motion: ["motion"],
-          icons: ["@phosphor-icons/react"],
+          "react-vendor": ["react", "react-dom"],
+          "motion-vendor": ["motion"],
+          "gsap-vendor": ["gsap"],
+          "lucide-icons": ["lucide-react"],
         },
       },
     },
-    chunkSizeWarningLimit: 900,
+    chunkSizeWarningLimit: 600,
   },
 })

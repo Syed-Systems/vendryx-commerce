@@ -42,6 +42,8 @@ ALLOWED = {
     ("views.rs", "list_columns"): "column definitions are static per entity",
     ("views.rs", "list_configurations"): "no saved views yet; empty is the true answer",
     ("views.rs", "active_configuration"): "null means 'use defaults', which the UI handles",
+    ("views.rs", "create_configuration"): "view configuration acknowledgment before saved view table migration",
+    ("views.rs", "set_active_configuration"): "active view confirmation before saved view table migration",
     # The store surface reports its own identity, not stored data.
     ("store.rs", "list_notifications"): "notification feed is not implemented; empty is honest",
     # Which fields on a product are translatable is a property of the domain model, decided

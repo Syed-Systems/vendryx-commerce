@@ -574,6 +574,20 @@ impl CartService {
         })
     }
 
+    pub async fn delete_shipping_method_adjustments(&self, shipping_method_id: &str) -> Result<()> {
+        let spec = FilterSpec::new()
+            .with_predicate(
+                "shipping_method_id",
+                FilterOp::Eq(shipping_method_id.to_string()),
+            )
+            .with_pagination(0, 100);
+        let adjs = self.sm_adjustments.list(None, &spec).await?;
+        for a in adjs {
+            let _ = self.sm_adjustments.delete(None, &a.id()).await;
+        }
+        Ok(())
+    }
+
     pub async fn add_shipping_method_tax_line(
         &self,
         shipping_method_id: &str,

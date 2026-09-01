@@ -237,11 +237,7 @@ pub async fn get_policy(
     State(ctx): State<RbacContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, Response> {
-    let policy = ctx
-        .rbac_service
-        .get_policy(&id)
-        .await
-        .map_err(rbac_error)?;
+    let policy = ctx.rbac_service.get_policy(&id).await.map_err(rbac_error)?;
     Ok((
         StatusCode::OK,
         Json(json!({ "policy": policy, "data": policy })),

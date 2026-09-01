@@ -184,3 +184,47 @@ pub async fn create_invite(
 
     Ok((StatusCode::OK, Json(json!({ "invite": invite }))))
 }
+
+/// POST /admin/invites/{id}/resend
+pub async fn resend_invite(
+    State(ctx): State<AdminUserContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, HttpError> {
+    let invite = ctx.user_service.resend_invite(&id).await?;
+    Ok((StatusCode::OK, Json(json!({ "invite": invite, "data": invite }))))
+}
+
+/// DELETE /admin/invites/{id}
+pub async fn revoke_invite(
+    State(ctx): State<AdminUserContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, HttpError> {
+    let invite = ctx.user_service.revoke_invite(&id).await?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": id, "object": "invite", "deleted": true, "invite": invite })),
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AcceptInviteRequest {
+    pub token: String,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+}
+
+/// POST /admin/invites/accept
+pub async fn accept_invite(
+    State(ctx): State<AdminUserContext>,
+    Json(payload): Json<AcceptInviteRequest>,
+) -> Result<impl IntoResponse, HttpError> {
+    let user = ctx
+        .user_service
+        .accept_invite(stheno_user::dto::AcceptInviteInput {
+            token: payload.token,
+            first_name: payload.first_name,
+            last_name: payload.last_name,
+        })
+        .await?;
+    Ok((StatusCode::OK, Json(json!({ "user": user, "data": user }))))
+}

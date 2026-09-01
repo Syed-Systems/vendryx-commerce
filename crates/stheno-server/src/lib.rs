@@ -14,8 +14,8 @@ use stheno_api_admin::{
     admin_api_key_routes, admin_catalog_routes, admin_config_routes, admin_customer_routes,
     admin_fulfillment_settings_routes, admin_inventory_routes, admin_localisation_routes,
     admin_order_routes, admin_pricing_routes, admin_promotion_routes, admin_rbac_routes,
-    admin_reports_routes, admin_store_routes, admin_user_routes, admin_views_routes,
-    auth_guard::require_admin,
+    admin_reports_routes, admin_store_routes, admin_upload_routes, admin_user_routes,
+    admin_views_routes, auth_guard::require_admin,
 };
 use stheno_api_admin_platform::{admin_platform_routes, AdminPlatformContext, UsageSnapshot};
 use stheno_api_auth::{auth_routes, AuthApiContext};
@@ -672,6 +672,8 @@ impl AppServer {
         ));
         // Turns a cart into an order. Built with tests since the cart phase and never
         // mounted, so "Place order" had nothing to call.
+        let file_provider = Arc::new(stheno_file_local::LocalFileProvider::new("uploads", "/uploads"));
+        let file_service = Arc::new(stheno_file::FileService::new(file_provider, pool.clone()));
         let complete_flows = Arc::new(stheno_flows::CompleteCartWorkflowEngine::new(
             cart_service.clone(),
             order_service.clone(),
@@ -712,6 +714,7 @@ impl AppServer {
             .merge(admin_pricing_routes(pricing_service.clone()))
             .merge(admin_promotion_routes(promotion_service.clone()))
             .merge(admin_user_routes(user_service.clone()))
+            .merge(admin_upload_routes(file_service.clone()))
             .merge(admin_store_routes(
                 store_service.clone(),
                 translation_service.clone(),

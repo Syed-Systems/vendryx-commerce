@@ -14,6 +14,21 @@ const dataProcessingRows = [
 function ContentHeader({ eyebrow, title, intro }: { eyebrow: string; title: string; intro: string }) {
   return (
     <header className="content-page-header section-shell">
+      <nav className="breadcrumbs-nav" aria-label="Breadcrumb navigation">
+        <ol className="breadcrumbs-list" itemScope itemType="https://schema.org/BreadcrumbList">
+          <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+            <a href="/" itemProp="item">
+              <span itemProp="name">Home</span>
+            </a>
+            <meta itemProp="position" content="1" />
+          </li>
+          <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+            <span className="breadcrumb-separator" aria-hidden="true">/</span>
+            <span className="breadcrumb-current" aria-current="page" itemProp="name">{eyebrow}</span>
+            <meta itemProp="position" content="2" />
+          </li>
+        </ol>
+      </nav>
       <p className="eyebrow">{eyebrow}</p>
       <h1>{title}</h1>
       <p>{intro}</p>

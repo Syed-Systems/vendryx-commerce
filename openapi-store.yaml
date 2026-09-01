@@ -1,0 +1,541 @@
+# GENERATED FILE - do not edit by hand.
+# Regenerate with: python scripts/generate-openapi-store.py
+# CI runs this with --check, so an edit here is reverted by the next build.
+openapi: 3.0.0
+info:
+  title: Stheno Storefront API
+  version: 1.0.0
+  description: |
+    The contract every storefront codes against.
+
+    Two things are not visible in the paths below and every consumer needs them:
+
+    - The tenant is resolved from the request Host. One deployment serves
+      many merchants; nothing in the path or body selects one.
+    - The customer account surface is per-tenant. A merchant without the
+      `buyer_accounts` entitlement has no /store/customers routes at all, and
+      they answer 404 rather than 403. Read GET /store/config first and adapt;
+      a storefront that assumes accounts exist will break on some tenants.
+servers:
+  - url: http://localhost:9000
+paths:
+  /store/carts:
+    post:
+      operationId: create_cart
+      summary: Create cart
+      tags: [carts]
+      responses:
+        '200': { description: Success }
+  /store/carts/{id}:
+    get:
+      operationId: get_cart
+      summary: Get cart
+      tags: [carts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+    post:
+      operationId: update_cart
+      summary: Update cart
+      tags: [carts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/carts/{id}/complete:
+    post:
+      operationId: complete_cart
+      summary: "POST /store/carts/{id}/complete — turn a cart into an order."
+      tags: [carts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/carts/{id}/customer:
+    post:
+      operationId: associate_customer
+      summary: "POST /store/carts/{id}/customer — associate an authenticated customer with a cart."
+      tags: [carts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/carts/{id}/line-items:
+    post:
+      operationId: add_line_item
+      summary: Add line item
+      tags: [carts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/carts/{id}/line-items/{line_id}:
+    delete:
+      operationId: delete_line_item
+      summary: Delete line item
+      tags: [carts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: line_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+    post:
+      operationId: update_line_item
+      summary: Update line item
+      tags: [carts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: line_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/carts/{id}/promotions:
+    delete:
+      operationId: remove_promotions
+      summary: "DELETE /store/carts/{id}/promotions — remove promotions from cart."
+      tags: [carts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+    post:
+      operationId: apply_promotions
+      summary: Apply promotions
+      tags: [carts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/carts/{id}/shipping-methods:
+    post:
+      operationId: add_shipping_method
+      summary: Add shipping method
+      tags: [carts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/collections:
+    get:
+      operationId: list_collections
+      summary: List collections
+      tags: [collections]
+      responses:
+        '200': { description: Success }
+  /store/collections/{id}:
+    get:
+      operationId: get_collection
+      summary: Get collection
+      tags: [collections]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/currencies:
+    get:
+      operationId: list_currencies
+      summary: List currencies
+      tags: [currencies]
+      responses:
+        '200': { description: Success }
+  /store/currencies/{code}:
+    get:
+      operationId: get_currency
+      summary: Get currency
+      tags: [currencies]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/customers:
+    post:
+      operationId: create_customer
+      summary: Creates the customer record for an already-registered login.
+      tags: [customers]
+      responses:
+        '200': { description: Success }
+  /store/customers/me:
+    get:
+      operationId: get_current_customer
+      summary: Get current customer
+      tags: [customers]
+      responses:
+        '200': { description: Success }
+    post:
+      operationId: update_current_customer
+      summary: Update current customer
+      tags: [customers]
+      responses:
+        '200': { description: Success }
+  /store/customers/me/addresses:
+    get:
+      operationId: list_my_addresses
+      summary: List my addresses
+      tags: [customers]
+      responses:
+        '200': { description: Success }
+    post:
+      operationId: create_my_address
+      summary: Create my address
+      tags: [customers]
+      responses:
+        '200': { description: Success }
+  /store/customers/me/addresses/{address_id}:
+    delete:
+      operationId: delete_my_address
+      summary: Delete my address
+      tags: [customers]
+      parameters:
+        - name: address_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+    get:
+      operationId: get_my_address
+      summary: Get my address
+      tags: [customers]
+      parameters:
+        - name: address_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+    post:
+      operationId: update_my_address
+      summary: Update my address
+      tags: [customers]
+      parameters:
+        - name: address_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/locales:
+    get:
+      operationId: list_locales
+      summary: List locales
+      tags: [locales]
+      responses:
+        '200': { description: Success }
+  /store/orders:
+    get:
+      operationId: list_orders
+      summary: GET /store/orders
+      tags: [orders]
+      responses:
+        '200': { description: Success }
+  /store/orders/transfer:
+    post:
+      operationId: request_transfer
+      summary: POST /store/orders/transfer
+      tags: [orders]
+      responses:
+        '200': { description: Success }
+  /store/orders/transfer/accept:
+    post:
+      operationId: accept_transfer
+      summary: POST /store/orders/transfer/accept
+      tags: [orders]
+      responses:
+        '200': { description: Success }
+  /store/orders/transfer/cancel:
+    post:
+      operationId: cancel_transfer
+      summary: POST /store/orders/transfer/cancel
+      tags: [orders]
+      responses:
+        '200': { description: Success }
+  /store/orders/transfer/decline:
+    post:
+      operationId: decline_transfer
+      summary: POST /store/orders/transfer/decline
+      tags: [orders]
+      responses:
+        '200': { description: Success }
+  /store/orders/{id}:
+    get:
+      operationId: get_order
+      summary: "GET /store/orders/{id}"
+      tags: [orders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/orders/{id}/transfer/accept:
+    post:
+      operationId: accept_transfer_for_order
+      summary: Accept transfer for order
+      tags: [orders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/orders/{id}/transfer/cancel:
+    post:
+      operationId: cancel_transfer_for_order
+      summary: Cancel transfer for order
+      tags: [orders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/orders/{id}/transfer/decline:
+    post:
+      operationId: decline_transfer_for_order
+      summary: Decline transfer for order
+      tags: [orders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/orders/{id}/transfer/request:
+    post:
+      operationId: request_transfer_for_order
+      summary: Request transfer for order
+      tags: [orders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/payment-collections:
+    post:
+      operationId: create_payment_collection
+      summary: POST /store/payment-collections — open a payment collection for a cart.
+      tags: [payment-collections]
+      responses:
+        '200': { description: Success }
+  /store/payment-collections/{id}/payment-sessions:
+    post:
+      operationId: create_payment_session
+      summary: Create payment session
+      tags: [payment-collections]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/payment-collections/{id}/payment-sessions/{session_id}:
+    post:
+      operationId: authorize_payment_session
+      summary: Authorize payment session
+      tags: [payment-collections]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: session_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/payment-providers:
+    get:
+      operationId: list_payment_providers
+      summary: List payment providers
+      tags: [payment-providers]
+      responses:
+        '200': { description: Success }
+  /store/product-categories:
+    get:
+      operationId: list_categories
+      summary: List categories
+      tags: [product-categories]
+      responses:
+        '200': { description: Success }
+  /store/product-categories/{id}:
+    get:
+      operationId: get_category
+      summary: Get category
+      tags: [product-categories]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/product-options:
+    get:
+      operationId: list_product_options
+      summary: GET /store/product-options — list product options
+      tags: [product-options]
+      responses:
+        '200': { description: Success }
+  /store/product-options/{id}:
+    get:
+      operationId: get_product_option
+      summary: "GET /store/product-options/{id} — get product option by id"
+      tags: [product-options]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/product-variants/{id}:
+    get:
+      operationId: get_variant
+      summary: Get variant
+      tags: [product-variants]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/products:
+    get:
+      operationId: list_products
+      summary: List products
+      tags: [products]
+      responses:
+        '200': { description: Success }
+  /store/products/{id}:
+    get:
+      operationId: get_product
+      summary: Get product
+      tags: [products]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/regions:
+    get:
+      operationId: list_regions
+      summary: List regions
+      tags: [regions]
+      responses:
+        '200': { description: Success }
+  /store/regions/{id}:
+    get:
+      operationId: get_region
+      summary: Get region
+      tags: [regions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/returns:
+    get:
+      operationId: list_returns
+      summary: GET /store/returns
+      tags: [returns]
+      responses:
+        '200': { description: Success }
+    post:
+      operationId: create_return
+      summary: POST /store/returns
+      tags: [returns]
+      responses:
+        '200': { description: Success }
+  /store/returns/{id}:
+    get:
+      operationId: get_return
+      summary: "GET /store/returns/{id}"
+      tags: [returns]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/shipping-options:
+    get:
+      operationId: list_shipping_options
+      summary: GET /store/shipping-options
+      tags: [shipping-options]
+      responses:
+        '200': { description: Success }
+  /store/shipping-options/{id}/calculate:
+    post:
+      operationId: calculate_shipping_option
+      summary: Calculate shipping option
+      tags: [shipping-options]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Success }
+  /store/social-drafts:
+    post:
+      operationId: create_social_draft
+      summary: POST /store/social-drafts — queue a draft and return the message to send.
+      tags: [social-drafts]
+      responses:
+        '200': { description: Success }

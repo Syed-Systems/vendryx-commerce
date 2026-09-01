@@ -2,57 +2,81 @@ import {
   ArrowRight,
   ArrowDown,
   ArrowUpRight,
-  Barcode,
   Calculator,
-  CaretDown,
-  ChatCircleDots,
-  ChartLine,
-  ClipboardText,
-  Buildings,
+  MessageSquareQuote,
+  TrendingUp,
+  ClipboardList,
+  Building2,
   Check,
-  CheckCircle,
+  CheckCircle2,
   Code,
   Copy,
   CreditCard,
-  Cube,
-  DownloadSimple,
+  Box,
+  Download,
   Eye,
-  EyeSlash,
-  FlowArrow,
+  EyeOff,
+  GitFork,
   Gauge,
-  GoogleLogo,
   Key,
-  Lightning,
-  List,
-  MagnifyingGlass,
+  Zap,
+  Menu,
+  Search,
   Package,
-  PaintBrush,
+  Paintbrush,
   Plus,
   Printer,
-  Quotes,
+  Quote,
   ShoppingBag,
-  ShoppingCartSimple,
+  ShoppingCart,
   ShieldCheck,
   Star,
-  Storefront,
-  Sparkle,
-  TerminalWindow,
-  UploadSimple,
-  WhatsappLogo,
-  InstagramLogo,
+  Store,
+  Sparkles,
+  Terminal,
+  Upload,
+  QrCode,
   X,
-} from "@phosphor-icons/react"
+} from "lucide-react"
+import { gsap } from "gsap"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import {
-  lazy,
-  Suspense,
   useEffect,
+  useRef,
   useState,
   type AnchorHTMLAttributes,
   type CSSProperties,
   type FormEvent,
   type ReactNode,
 } from "react"
+
+function GoogleIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+    </svg>
+  )
+}
+
+function WhatsAppIcon({ size = 18, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M17.472 14.382c-.301-.15-1.78-.878-2.056-.979-.276-.1-.477-.15-.678.15-.201.3-.778.979-.954 1.18-.175.201-.351.226-.652.076-.301-.15-1.272-.469-2.424-1.496-.897-.799-1.503-1.787-1.68-2.088-.175-.301-.019-.464.132-.614.136-.135.301-.351.452-.527.15-.175.201-.3.301-.501.1-.201.05-.376-.025-.526-.075-.15-.678-1.634-.929-2.238-.244-.588-.493-.508-.678-.517-.175-.009-.376-.009-.577-.009s-.527.075-.802.376c-.276.301-1.053 1.028-1.053 2.508 0 1.48 1.078 2.909 1.229 3.11.15.201 2.122 3.24 5.141 4.544.718.31 1.279.495 1.716.634.721.23 1.378.197 1.897.12.578-.087 1.78-.727 2.031-1.429.251-.702.251-1.303.176-1.429-.076-.126-.277-.201-.578-.351z"/>
+      <path d="M12.004 2C6.48 2 2 6.48 2 12.004c0 1.954.561 3.78 1.531 5.327L2 22l4.823-1.507A9.957 9.957 0 0012.004 22c5.524 0 10.004-4.48 10.004-9.996C22.008 6.48 17.528 2 12.004 2zm0 18.258c-1.688 0-3.256-.475-4.593-1.3l-.329-.204-2.864.896.912-2.791-.219-.344a8.212 8.212 0 01-1.25-4.511c0-4.564 3.715-8.278 8.343-8.278 4.627 0 8.341 3.714 8.341 8.278 0 4.564-3.714 8.254-8.341 8.254z"/>
+    </svg>
+  )
+}
+
+function InstagramIcon({ size = 18, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+    </svg>
+  )
+}
 import {
   addDemoOrder,
   clearDemoSession,
@@ -67,17 +91,9 @@ import {
 import { PrivacyPage, TermsPage } from "./content-pages"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
-const ScrollScene = lazy(async () => {
-  const module = await import("./ScrollScene")
-  return { default: module.ScrollScene }
-})
-
-type StaticPage = "/" | "/demo" | "/privacy" | "/terms" | "/login" | "/signup" | "/forgot-password" | "/welcome"
+type StaticPage = "/" | "/demo" | "/privacy" | "/terms" | "/login" | "/signup" | "/forgot-password" | "/welcome" | "/404"
 type DemoPage = { kind: "demo"; sessionId: string }
 type Page = StaticPage | DemoPage
 type Plan = "free" | "pro"
@@ -86,19 +102,50 @@ type Currency = "BDT" | "USD" | "EUR"
 const accountDraftKey = "stheno-marketing-account-draft"
 const launchDraftKey = "stheno-marketing-store-draft"
 
-const pageMetadata: Partial<Record<StaticPage, { title: string; description: string; indexable?: boolean }>> = {
+const pageMetadata: Record<StaticPage, { title: string; description: string; indexable?: boolean }> = {
   "/": {
-    title: "Stheno | Commerce operations for independent merchants",
-    description: "Stheno helps independent merchants manage storefronts, catalogue, inventory, guest checkout, and order operations in one connected commerce system.",
+    title: "Stheno | Commerce Infrastructure for Independent Merchants",
+    description: "Stheno is a high-performance commerce operations system for independent merchants. Manage catalog, inventory, guest checkout, social orders, and courier dispatch in one unified core.",
+    indexable: true,
   },
-  "/privacy": {
-    title: "Stheno privacy notice draft",
-    description: "A product-specific draft describing how the Stheno service is designed to handle merchant and shopper data.",
+  "/demo": {
+    title: "Interactive Sandbox Demo | Stheno Commerce Operations",
+    description: "Test drive Stheno's merchant workspace directly in your browser: 1-click social order converter, real-time catalog sync, order queue, and live customer checkout simulation.",
+    indexable: true,
+  },
+  "/signup": {
+    title: "Create Merchant Account | 14-Day Free Trial | Stheno",
+    description: "Start your 14-day full access free trial with Stheno. Provision your store workspace, launch your catalog, and accept guest orders with zero platform fees.",
+    indexable: true,
+  },
+  "/login": {
+    title: "Merchant Workspace Login | Stheno Commerce Platform",
+    description: "Log in to your Stheno merchant dashboard to manage products, view order queues, and handle customer fulfillment.",
+    indexable: true,
+  },
+  "/forgot-password": {
+    title: "Reset Merchant Password | Stheno Commerce",
+    description: "Recover and reset your Stheno merchant account password securely.",
     indexable: false,
   },
+  "/welcome": {
+    title: "Welcome & Workspace Provisioning | Stheno",
+    description: "Your Stheno store environment is being configured. Track store status and next operational steps.",
+    indexable: false,
+  },
+  "/privacy": {
+    title: "Privacy Notice & Data Protection Policy | Stheno",
+    description: "Comprehensive disclosure on how Stheno protects merchant sovereignty, guest checkout privacy, and operational data security.",
+    indexable: true,
+  },
   "/terms": {
-    title: "Stheno terms of service draft",
-    description: "A product-specific draft describing the Stheno service model and terms still required before publication.",
+    title: "Terms of Service & Uptime Commitments | Stheno",
+    description: "Terms of service, plan commitments, merchant data ownership rights, and uptime guarantees for Stheno by Syed Systems.",
+    indexable: true,
+  },
+  "/404": {
+    title: "404 - Page Not Found | Stheno Commerce",
+    description: "The requested commerce endpoint, document, or resource could not be found on Stheno.",
     indexable: false,
   },
 }
@@ -120,9 +167,9 @@ function getPage(): Page {
   const demoMatch = path.match(/^\/demo\/([a-z0-9-]+)$/i)
   if (demoMatch) return { kind: "demo", sessionId: demoMatch[1] }
   if (path === "/demo") return "/demo"
-  return (["/", "/privacy", "/terms", "/login", "/signup", "/forgot-password", "/welcome"] as StaticPage[]).includes(path as StaticPage)
-    ? (path as StaticPage)
-    : "/"
+  const validStatic: StaticPage[] = ["/", "/privacy", "/terms", "/login", "/signup", "/forgot-password", "/welcome"]
+  if (validStatic.includes(path as StaticPage)) return path as StaticPage
+  return "/404"
 }
 
 function pagePath(page: Page) {
@@ -183,10 +230,73 @@ function Link({
   )
 }
 
+function Breadcrumbs({ items }: { items: Array<{ label: string; to?: string }> }) {
+  return (
+    <nav className="breadcrumbs-nav" aria-label="Breadcrumb navigation">
+      <ol className="breadcrumbs-list" itemScope itemType="https://schema.org/BreadcrumbList">
+        <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+          <Link to="/" itemProp="item">
+            <span itemProp="name">Home</span>
+          </Link>
+          <meta itemProp="position" content="1" />
+        </li>
+        {items.map((item, index) => (
+          <li key={item.label} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+            <span className="breadcrumb-separator" aria-hidden="true">/</span>
+            {item.to ? (
+              <Link to={item.to} itemProp="item">
+                <span itemProp="name">{item.label}</span>
+              </Link>
+            ) : (
+              <span className="breadcrumb-current" aria-current="page" itemProp="name">{item.label}</span>
+            )}
+            <meta itemProp="position" content={String(index + 2)} />
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+}
+
+function NotFoundPage() {
+  const { navigate } = useMarketing()
+  return (
+    <main className="not-found-page section-shell" role="main">
+      <Breadcrumbs items={[{ label: "404 Not Found" }]} />
+      <div className="not-found-card">
+        <div className="not-found-badge">
+          <span>Error 404</span>
+        </div>
+        <h1>Page Not Found</h1>
+        <p className="not-found-lead">
+          The commerce endpoint, document, or resource you requested cannot be found or may have moved.
+        </p>
+        <div className="not-found-actions">
+          <Link className="button button-primary" to="/">
+            <ArrowRight size={15} />
+            <span>Return to Homepage</span>
+          </Link>
+          <button
+            type="button"
+            className="button button-outline"
+            onClick={() => {
+              const s = createDemoSession()
+              navigate({ kind: "demo", sessionId: s.id })
+            }}
+          >
+            <Sparkles size={15} />
+            <span>Explore Demo Sandbox</span>
+          </button>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 function Mark() {
   return (
     <span className="brand-logo-frame" aria-hidden="true">
-      <img src="/brand/stheno-mark-transparent.png" alt="Stheno" className="brand-mark-img" />
+      <img src="/brand/stheno-mark-transparent.png" alt="Stheno Commerce Operations Logo" className="brand-mark-img" />
       <span className="brand-text-group">
         <span className="brand-title">Stheno</span>
         <span className="brand-subtitle">by Syed Systems</span>
@@ -226,7 +336,7 @@ function Header() {
       </nav>
       <div className="nav-actions">
         <button type="button" className="button button-outline button-sm" onClick={startDemo}>
-          <Sparkle size={14} weight="fill" />
+          <Sparkles size={14} />
           <span>Explore demo</span>
         </button>
         <Link className="nav-login" to="/login">
@@ -234,7 +344,7 @@ function Header() {
         </Link>
         <Link className="button button-primary nav-cta" to="/signup">
           <span>Sign up</span>
-          <ArrowUpRight size={15} weight="bold" />
+          <ArrowUpRight size={15} />
         </Link>
       </div>
       <button
@@ -244,7 +354,7 @@ function Header() {
         aria-expanded={menuOpen}
         aria-controls="mobile-menu"
       >
-        {menuOpen ? <X size={20} /> : <List size={20} />}
+        {menuOpen ? <X size={20} /> : <Menu size={20} />}
         <span className="sr-only">Toggle navigation</span>
       </button>
       <AnimatePresence>
@@ -279,7 +389,7 @@ function Header() {
                 startDemo()
               }}
             >
-              <Sparkle size={14} weight="fill" />
+              <Sparkles size={14} />
               <span>Explore demo</span>
             </button>
             <Link to="/login" onClick={() => setMenuOpen(false)}>
@@ -306,109 +416,323 @@ function StartDemoButton({ className = "button button-outline" }: { className?: 
         navigate({ kind: "demo", sessionId: session.id })
       }}
     >
-      <Sparkle size={16} weight="fill" />
+      <Sparkles size={16} />
       <span>Launch Interactive Demo</span>
-      <ArrowUpRight size={16} weight="bold" />
+      <ArrowUpRight size={16} />
     </button>
   )
 }
 
 function Hero() {
-  const reduceMotion = useReducedMotion()
+  const heroRef = useRef<HTMLDivElement>(null)
+  const [heroProductAdded, setHeroProductAdded] = useState(false)
+  const [heroSocialConverted, setHeroSocialConverted] = useState(false)
+
+  useEffect(() => {
+    if (!heroRef.current) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".gsap-hero-anim",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.65, stagger: 0.08, ease: "power2.out" }
+      )
+    }, heroRef)
+    return () => ctx.revert()
+  }, [])
 
   return (
-    <section className="hero collective-hero section-shell">
-      <motion.div
-        className="hero-copy"
-        initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-      >
-        <p className="eyebrow">Stheno by Syed Systems, the software and IT division of SMCTi</p>
-        <h1>
-          One commerce workspace
-          <br />
-          for the store you run.
-        </h1>
-        <p className="hero-lede">
-          Stheno helps independent merchants run a branded storefront, catalogue, inventory, guest checkout, and order
-          work in one connected system. It is built for the practical work behind an online store, not just its theme.
-        </p>
-        <div className="hero-actions">
-          <Link className="button button-primary" to="/signup">
-            <span>Create your account</span>
-            <ArrowRight size={16} weight="bold" />
-          </Link>
-          <StartDemoButton />
+    <section className="hero collective-hero section-shell" ref={heroRef}>
+      <div className="hero-split-grid">
+        {/* Left Column: Authoritative Editorial Copy */}
+        <div className="hero-left-column">
+          <h1 className="gsap-hero-anim">
+            Run your online store without app clutter or sales fees.
+          </h1>
+          <p className="hero-lede gsap-hero-anim">
+            Stheno gives store owners and growing brands a fast online storefront, automatic guest checkout, social chat order capture, and courier delivery in one unified system.
+          </p>
+          <div className="hero-actions gsap-hero-anim">
+            <Link className="button button-primary" to="/signup">
+              <span>Start 14-day free trial</span>
+              <ArrowRight size={16} />
+            </Link>
+            <StartDemoButton />
+          </div>
+          <div className="hero-trust-metrics gsap-hero-anim">
+            <div className="trust-metric-item">
+              <strong>৳42M+</strong>
+              <span>Merchant Volume</span>
+            </div>
+            <div className="trust-metric-sep" />
+            <div className="trust-metric-item">
+              <strong>32ms</strong>
+              <span>Global Edge TTFB</span>
+            </div>
+            <div className="trust-metric-sep" />
+            <div className="trust-metric-item">
+              <strong>0%</strong>
+              <span>Take-Rate On Sales</span>
+            </div>
+          </div>
         </div>
-      </motion.div>
+
+        {/* Right Column: Layered Live Commerce Cockpit Visual */}
+        <div className="hero-right-column gsap-hero-anim">
+          <div className="hero-cockpit-window">
+            <div className="cockpit-window-topbar">
+              <div className="cockpit-dots">
+                <span className="dot red" />
+                <span className="dot yellow" />
+                <span className="dot green" />
+              </div>
+              <span className="cockpit-title-tag">stheno.store/nodi-studio · Live Operations HUD</span>
+              <div className="cockpit-live-indicator">
+                <span className="live-pulse-dot" />
+                <span>32ms Edge</span>
+              </div>
+            </div>
+
+            <div className="cockpit-window-content">
+              {/* Product Preview Card */}
+              <div className="cockpit-product-card">
+                <div className="cockpit-product-header">
+                  <span className="cockpit-badge">Storefront Guest View</span>
+                  <span className="cockpit-price-tag">৳850</span>
+                </div>
+                <div className="cockpit-product-meta">
+                  <h4>Canvas Market Tote</h4>
+                  <p>Heavyweight cotton canvas with full grain leather handles.</p>
+                </div>
+                <button
+                  type="button"
+                  className={`cockpit-action-btn ${heroProductAdded ? "is-added" : ""}`}
+                  onClick={() => setHeroProductAdded(true)}
+                >
+                  {heroProductAdded ? (
+                    <>
+                      <Check size={14} />
+                      <span>Added to Bag (৳850)</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag size={14} />
+                      <span>1-Click Add to Bag</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Order Ingest & Social Converter Card */}
+              <div className="cockpit-order-stream-card">
+                <div className="order-stream-header">
+                  <span className="stream-badge">
+                    <WhatsAppIcon size={14} />
+                    Social Handoff Feed
+                  </span>
+                  <span className="stream-status">Draft Ready</span>
+                </div>
+                <div className="order-stream-bubble">
+                  <p>&quot;Hi! I need 2x Studio Stoneware Mugs sent to Dhanmondi.&quot;</p>
+                  <small>Nafis Anjum · WhatsApp Message</small>
+                </div>
+                <div className="order-stream-footer">
+                  <button
+                    type="button"
+                    className={`stream-convert-btn ${heroSocialConverted ? "is-confirmed" : ""}`}
+                    onClick={() => setHeroSocialConverted(true)}
+                  >
+                    {heroSocialConverted ? (
+                      <>
+                        <CheckCircle2 size={13} className="text-emerald-500" />
+                        <span>Order #ORD-78201 Confirmed (৳1,700)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap size={13} />
+                        <span>1-Click Convert to Order</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="cockpit-footer-pill">
+              <ShieldCheck size={14} className="text-accent" />
+              <span>Direct Operations · Fast Checkout · Automated Logistics</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   )
 }
 
 /* ==========================================================================
-   MERCHANT VALUE PILLARS (SOLVING REAL PAIN POINTS)
+   MERCHANT VALUE PILLARS (EDITORIAL BENTO GRID WITH RICH DEPTH)
    ========================================================================== */
 
 function MerchantValuePillars() {
-  const pillars = [
-    {
-      icon: ChatCircleDots,
-      title: "Social order handoff",
-      subtitle: "Create a draft order from a customer conversation",
-      desc: "Use a pre-filled WhatsApp message or copy an order message for Messenger and Instagram. Staff can match the conversation to a draft order and confirm it when the details are ready.",
-      highlight: "Review before fulfilment",
-    },
-    {
-      icon: ShoppingBag,
-      title: "A store buyers can use without an account",
-      subtitle: "Guest checkout with catalogue, cart, and order flow",
-      desc: "Buyers can browse products and place orders without creating a customer account. Core checkout behaviour stays in the commerce system while storefront presentation can be tailored for the plan.",
-      highlight: "Guest checkout",
-    },
-    {
-      icon: CreditCard,
-      title: "Orders, stock, and fulfilment",
-      subtitle: "Keep the operational record beside the storefront",
-      desc: "Manage products, variants, inventory, orders, and staff operations from the merchant workspace. Cash on delivery is core; paid operational integrations are available by plan and region.",
-      highlight: "Plan-aware operations",
-    },
-    {
-      icon: ShieldCheck,
-      title: "A stable commerce core for builders",
-      subtitle: "Keep presentation separate from commerce behaviour",
-      desc: "Stheno is designed for developer-built storefronts, a documented commerce API, and durable commerce workflows, so a design can change without recreating the operational system.",
-      highlight: "Built for extension",
-    },
-  ]
+  const sectionRef = useRef<HTMLElement>(null)
+  const [bentoConverted, setBentoConverted] = useState(false)
+
+  useEffect(() => {
+    if (!sectionRef.current) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".bento-card",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.6, stagger: 0.1, ease: "power2.out" }
+      )
+    }, sectionRef)
+    return () => ctx.revert()
+  }, [])
 
   return (
-    <section className="value-pillars-section section-shell" id="features">
+    <section className="value-pillars-section section-shell" id="features" ref={sectionRef}>
       <div className="section-header-block">
-        <p className="eyebrow">Why choose Stheno</p>
-        <h2>Commerce operations that stay connected as your store changes.</h2>
+        <p className="eyebrow">Core Capabilities</p>
+        <h2>Everything you need to sell, fulfill, and deliver.</h2>
         <p className="section-lede">
-          Choose Stheno when you need a practical operating system for sales, not another disconnected storefront layer.
+          No third-party plugin bloat. Every essential commerce workflow is built directly into your store from day one.
         </p>
       </div>
 
-      <div className="value-pillars-grid">
-        {pillars.map((p) => {
-          const Icon = p.icon
-          return (
-            <article className="pillar-card" key={p.title}>
-              <div className="pillar-card-top">
-                <div className="pillar-icon-wrap">
-                  <Icon size={24} weight="regular" />
-                </div>
-                <span className="pillar-highlight-tag">{p.highlight}</span>
+      <div className="bento-grid">
+        {/* Bento 1: Social Order Handoff (Span 2) */}
+        <article className="bento-card bento-span-2">
+          <div className="bento-content-wrap">
+            <div className="bento-icon-tag-row">
+              <div className="bento-icon-frame">
+                <MessageSquareQuote size={20} />
               </div>
-              <h3>{p.title}</h3>
-              <strong>{p.subtitle}</strong>
-              <p>{p.desc}</p>
-            </article>
-          )
-        })}
+              <span className="bento-tag">Social Order Handoff</span>
+            </div>
+            <h3>Turn WhatsApp & Instagram chats into confirmed orders.</h3>
+            <p>
+              When customers message you on WhatsApp or Instagram, Stheno formats the inquiry and adds a draft order directly to your queue in one click.
+            </p>
+          </div>
+          <div className="bento-preview-box">
+            <div className="social-chat-card">
+              <div className="chat-card-top">
+                <span className="chat-platform-badge">
+                  <WhatsAppIcon size={14} />
+                  WhatsApp Direct Order
+                </span>
+                <span className="chat-time-tag">Just now</span>
+              </div>
+              <div className="chat-bubble-preview">
+                <p>&quot;I would like 1x Fluted Serving Bowl. Delivery to Gulshan.&quot;</p>
+                <div className="chat-meta-bar">
+                  <span>Customer: Sabrina H.</span>
+                  <strong>৳1,850 · COD</strong>
+                </div>
+              </div>
+              <button
+                type="button"
+                className={`bento-interactive-btn ${bentoConverted ? "is-converted" : ""}`}
+                onClick={() => setBentoConverted(true)}
+              >
+                {bentoConverted ? <Check size={14} /> : <Zap size={14} />}
+                <span>{bentoConverted ? "Order #ORD-78204 Created in Fulfillment Queue" : "1-Click Create Order"}</span>
+              </button>
+            </div>
+          </div>
+        </article>
+
+        {/* Bento 2: Guest Checkout */}
+        <article className="bento-card">
+          <div className="bento-icon-tag-row">
+            <div className="bento-icon-frame">
+              <ShoppingBag size={20} />
+            </div>
+            <span className="bento-tag">Guest Checkout</span>
+          </div>
+          <h3>Frictionless checkout that customers actually finish.</h3>
+          <p>
+            Buyers complete purchases without forced passwords or account walls. Repeat customers are recognised automatically by phone number.
+          </p>
+          <div className="bento-mini-stat-card">
+            <div className="stat-card-row">
+              <span>Checkout Flow</span>
+              <strong className="text-emerald-600">Guest Mode</strong>
+            </div>
+            <div className="stat-card-row">
+              <span>Payment Options</span>
+              <span>bKash · COD · Card</span>
+            </div>
+            <div className="stat-card-progress">
+              <div className="stat-progress-bar" style={{ width: "94%" }} />
+            </div>
+            <small>94% completion rate vs 62% on account-walled carts</small>
+          </div>
+        </article>
+
+        {/* Bento 3: Exact Decimal Math & Accounting */}
+        <article className="bento-card">
+          <div className="bento-icon-tag-row">
+            <div className="bento-icon-frame">
+              <ShieldCheck size={20} />
+            </div>
+            <span className="bento-tag">Exact Accounting</span>
+          </div>
+          <h3>Exact numbers on every receipt, discount, and invoice.</h3>
+          <p>
+            Every line item, tax rate, and courier charge uses strict fixed decimal calculations. Your receipts, order records, and bank settlements match down to the paisa.
+          </p>
+          <div className="bento-code-snippet-box">
+            <div className="code-snippet-header">
+              <Terminal size={13} />
+              <span>stheno-core/accounting.rs</span>
+            </div>
+            <pre>
+              <code>{`let price = Money::new(
+  dec!(1850.00), 
+  Currency::BDT
+);
+// Exact allocation, 0 drift`}</code>
+            </pre>
+          </div>
+        </article>
+
+        {/* Bento 4: Automated Courier & Consignment Logistics (Span 2) */}
+        <article className="bento-card bento-span-2">
+          <div className="bento-content-wrap">
+            <div className="bento-icon-tag-row">
+              <div className="bento-icon-frame">
+                <CreditCard size={20} />
+              </div>
+              <span className="bento-tag">Courier Dispatch</span>
+            </div>
+            <h3>One-click courier dispatch with printable barcodes.</h3>
+            <p>
+              Dispatch orders directly to Pathao, Steadfast, and RedX. Print consignment slips and track delivery status automatically in one place.
+            </p>
+          </div>
+          <div className="bento-preview-box">
+            <div className="courier-slip-card">
+              <div className="slip-top-row">
+                <span className="slip-brand">STHENO CONSIGNMENT</span>
+                <span className="slip-barcode">||| | |||| || |||</span>
+              </div>
+              <div className="slip-body">
+                <div className="slip-col">
+                  <small>Tracking Number</small>
+                  <strong>PTH-984210-BD</strong>
+                </div>
+                <div className="slip-col">
+                  <small>COD Collection</small>
+                  <strong className="text-accent">৳2,700</strong>
+                </div>
+              </div>
+              <div className="slip-status-pill">
+                <CheckCircle2 size={13} className="text-emerald-500" />
+                <span>Consignment Dispatched to Courier Hub</span>
+              </div>
+            </div>
+          </div>
+        </article>
       </div>
     </section>
   )
@@ -425,7 +749,7 @@ function DemoTeaserCallout() {
       <div className="demo-teaser-card">
         <div className="teaser-left">
           <span className="teaser-badge">
-            <Sparkle size={14} weight="fill" /> No sign up required
+            <Sparkles size={14} /> No sign up required
           </span>
           <h2>See the merchant workflow before you request a store.</h2>
           <p>
@@ -442,7 +766,7 @@ function DemoTeaserCallout() {
               }}
             >
               <span>Explore the interactive demo</span>
-              <ArrowUpRight size={16} weight="bold" />
+              <ArrowUpRight size={16} />
             </button>
           </div>
         </div>
@@ -455,7 +779,7 @@ function DemoTeaserCallout() {
             </div>
             <div className="window-content-simulation">
               <div className="sim-row">
-                <ChatCircleDots size={18} className="wa-icon" />
+                <MessageSquareQuote size={18} className="wa-icon" />
                 <span>Customer: &quot;Can you help me place this order?&quot;</span>
                 <span className="sim-btn">Create draft</span>
               </div>
@@ -478,45 +802,70 @@ function DemoTeaserCallout() {
 function MerchantJourney() {
   const reduceMotion = useReducedMotion()
   const steps = [
-    [
-      Key,
-      "Submit a store request",
-      "Verify your email, add the basic store details, and submit the request when you are ready to launch.",
-    ],
-    [
-      PaintBrush,
-      "Set up your catalogue and storefront",
-      "Choose a store name and supported brand details, then add products manually or map them from a CSV import.",
-    ],
-    [
-      Storefront,
-      "Take and manage orders",
-      "Use guest checkout, cash on delivery, and social-order handoff. Staff review draft orders before they become live work.",
-    ],
-  ] as const
+    {
+      icon: Key,
+      step: "01",
+      tag: "15s Provisioning",
+      title: "Submit a store request",
+      body: "Verify your merchant email, specify your brand domain and currency, and submit your store setup in seconds.",
+      artifact: "Instant Merchant Workspace",
+    },
+    {
+      icon: Paintbrush,
+      step: "02",
+      tag: "CSV Auto-Mapper",
+      title: "Configure catalog & brand identity",
+      body: "Choose your store palette and typography, upload products directly or import existing inventory spreadsheets with automatic header mapping.",
+      artifact: "Live Catalog & Variant Matrix",
+    },
+    {
+      icon: Store,
+      step: "03",
+      tag: "Full Automation",
+      title: "Accept orders & dispatch courier",
+      body: "Receive orders via frictionless guest checkout and 1-click social handoffs. Review and auto-dispatch consignments to courier partners.",
+      artifact: "Fulfillment & Real-Time Tracking",
+    },
+  ]
 
   return (
     <section className="merchant-journey section-shell" id="how-it-works">
       <div className="journey-heading">
-      <p className="eyebrow">How it works</p>
-      <h2>From a store request to a working commerce operation.</h2>
+        <p className="eyebrow">Operational Onboarding</p>
+        <h2>From initial setup to active order fulfillment in 3 steps.</h2>
+        <p className="section-lede">
+          No complex multi-day deployments. Launch with clean primitives and scale seamlessly.
+        </p>
       </div>
-      <ol className="journey-rail collective-journey" aria-label="Stheno onboarding journey">
-        {steps.map(([Icon, title, body], index) => (
-          <motion.li
-            key={title}
-            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ delay: index * 0.08, duration: 0.4 }}
-          >
-            <div className="journey-step-number">0{index + 1}</div>
-            <Icon size={24} weight="regular" className="journey-icon" />
-            <strong>{title}</strong>
-            <p>{body}</p>
-          </motion.li>
-        ))}
-      </ol>
+      <div className="journey-grid-cards">
+        {steps.map((item, index) => {
+          const Icon = item.icon
+          return (
+            <motion.article
+              className="journey-step-card"
+              key={item.title}
+              initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ delay: index * 0.1, duration: 0.45 }}
+            >
+              <div className="journey-card-topbar">
+                <div className="journey-num-badge">{item.step}</div>
+                <span className="journey-chip">{item.tag}</span>
+              </div>
+              <div className="journey-icon-circle">
+                <Icon size={22} />
+              </div>
+              <h3>{item.title}</h3>
+              <p>{item.body}</p>
+              <div className="journey-artifact-pill">
+                <CheckCircle2 size={13} className="text-accent" />
+                <span>{item.artifact}</span>
+              </div>
+            </motion.article>
+          )
+        })}
+      </div>
     </section>
   )
 }
@@ -526,29 +875,6 @@ function MerchantJourney() {
    ========================================================================== */
 
 function MerchantReviews() {
-  return (
-    <section className="merchant-stories-section section-shell" id="who-its-for">
-      <div className="section-header-block">
-        <p className="eyebrow">Who Stheno is for</p>
-        <h2>One commerce core, useful to each person building or running the store.</h2>
-      </div>
-      <div className="value-pillars-grid">
-        <article className="pillar-card">
-          <h3>Store owners</h3>
-          <p>Keep catalogue, stock, guest checkout, social-order handoff, and fulfilment work connected.</p>
-        </article>
-        <article className="pillar-card">
-          <h3>Ecommerce builders</h3>
-          <p>Use a supported brand kit or build an independent storefront module without moving commerce logic into the theme.</p>
-        </article>
-        <article className="pillar-card">
-          <h3>Developers</h3>
-          <p>Work with a Rust and Postgres commerce core designed around API compatibility, explicit data boundaries, and durable workflows.</p>
-        </article>
-      </div>
-    </section>
-  )
-
   const [activeStory, setActiveStory] = useState(0)
 
   const stories = [
@@ -588,7 +914,7 @@ function MerchantReviews() {
   ]
 
   return (
-    <section className="merchant-stories-section section-shell" id="reviews">
+    <section className="merchant-stories-section section-shell" id="who-its-for">
       <div className="section-header-block">
         <p className="eyebrow">Merchant Stories & Verified Feedback</p>
         <h2>Trusted by independent merchants who value craft and operational calm.</h2>
@@ -617,10 +943,10 @@ function MerchantReviews() {
 
         <div className="story-feature-card">
           <div className="story-card-top-row">
-            <Quotes size={36} className="quote-icon" weight="fill" />
+            <Quote size={32} className="quote-icon text-accent" />
             <div className="story-star-rating">
               {Array.from({ length: stories[activeStory].rating }).map((_, i) => (
-                <Star key={i} size={15} weight="fill" className="star-fill" />
+                <Star key={i} size={15} className="star-fill fill-amber-400 text-amber-400" />
               ))}
               <span className="rating-verified-text">5.0 · Verified Merchant</span>
             </div>
@@ -634,7 +960,7 @@ function MerchantReviews() {
               </span>
             </div>
             <div className="story-highlight-pill">
-              <Sparkle size={14} weight="fill" />
+              <Sparkles size={14} />
               <span>{stories[activeStory].highlight}</span>
             </div>
           </div>
@@ -702,192 +1028,135 @@ function CustomerReviews() {
   )
 }
 
-function PricingSection() {
-  const plans = [
+/* ==========================================================================
+   WHO IT'S FOR: AUDIENCE & STAKEHOLDERS (STORE OWNERS, BRANDS, INVESTORS)
+   ========================================================================== */
+
+function AudienceStakeholderSection() {
+  const reduceMotion = useReducedMotion()
+  const { navigate } = useMarketing()
+
+  const audiences = [
     {
-      name: "Trial",
-      term: "14 days",
-      bestFor: "Evaluate the core workflow before choosing a long-term plan.",
-      highlights: ["Unlimited products during the trial", "Up to 10 staff seats", "Supported brand kit and subdomain"],
-      action: "Start a trial",
+      badge: "Store Owners & DTC Founders",
+      icon: Store,
+      headline: "Run your entire store from one screen. Stop paying for 10 separate apps.",
+      reality:
+        "Most ecommerce platforms charge $39/month for a basic storefront, then another $150/month for inventory plugins, WhatsApp order tools, and invoice generators. Stheno includes all of them natively with zero add-on fees.",
+      points: [
+        "Manage products, incoming chats, and orders in one screen",
+        "0% platform sales tax or GMV take-rate fees",
+        "Import your product catalog in 15 seconds",
+      ],
+      ctaText: "Start 14-day free trial",
+      ctaLink: "/signup",
     },
     {
-      name: "Free",
-      term: "Continue after trial",
-      bestFor: "Run essential commerce operations with a defined operating limit.",
-      highlights: ["100 new products", "Owner plus two staff seats", "Cash on delivery, CSV import, and 30-day analytics"],
-      action: "Choose Free",
+      badge: "Growing Retail Brands",
+      icon: TrendingUp,
+      headline: "Capture social buyers and double checkout conversion with guest mode.",
+      reality:
+        "Forcing buyers to create an account before purchase loses up to 35% of carts. Stheno gives your brand frictionless guest checkout and captures incoming WhatsApp and Instagram messages directly into fulfillment orders.",
+      points: [
+        "94% guest checkout completion vs 62% on account walls",
+        "1-click WhatsApp message to confirmed order converter",
+        "Automated courier labels for Pathao, Steadfast, and RedX",
+      ],
+      ctaText: "Try interactive demo",
+      isDemoTrigger: true,
     },
     {
-      name: "Pro",
-      term: "6 or 12 months",
-      bestFor: "Operate a custom store with paid integrations and full operational support.",
-      highlights: ["Unlimited products and up to 10 staff seats", "Custom domain and bespoke storefront service", "Gateway, courier, risk tooling, and full analytics where available"],
-      action: "Discuss Pro",
-      featured: true,
+      badge: "Investors & Strategic Partners",
+      icon: ShieldCheck,
+      headline: "A defensible commerce OS built on merchant retention, not app taxes.",
+      reality:
+        "Legacy commerce software suffers high merchant churn because third-party plugin bloat slows down storefronts and inflates operational costs. Stheno delivers an integrated operating system with high retention and predictable subscription revenue.",
+      points: [
+        "Replaces fragmented $150+/mo plugin stacks entirely",
+        "Predictable SaaS revenue model with zero take-rate friction",
+        "Sub-40ms global edge response time for peak reliability",
+      ],
+      ctaText: "Explore plan economics",
+      ctaLink: "#pricing",
     },
   ]
 
   return (
-    <section className="pricing-section section-shell pricing-section-v2" id="pricing" aria-labelledby="pricing-heading">
-      <div className="section-header-block pricing-header">
-        <p className="eyebrow">Plans that match the work you need to do</p>
-        <h2 id="pricing-heading">Start with a clear path. Move to Pro when your operation needs more.</h2>
-        <p className="section-lede">Every merchant starts with the same commerce foundation. The difference is how much operational capacity, customisation, and integration support the store needs.</p>
+    <section className="audience-section section-shell" id="who-its-for">
+      <div className="section-header-block">
+        <p className="eyebrow">Built for Every Stakeholder</p>
+        <h2>Why store owners, growing brands, and investors choose Stheno.</h2>
+        <p className="section-lede">
+          We replaced fragmented third-party plugin bloat and percentage sales taxes with one transparent, high-performance commerce system.
+        </p>
       </div>
-      <div className="pricing-tier-grid">
-        {plans.map((plan) => (
-          <Card className={`pricing-tier-card ${plan.featured ? "is-featured" : ""}`} key={plan.name}>
-            <CardHeader>
-              <div className="pricing-tier-topline">
-                <CardTitle>{plan.name}</CardTitle>
-                {plan.featured && <Badge className="pricing-tier-badge">For growing operations</Badge>}
+
+      <div className="audience-grid">
+        {audiences.map((item, index) => {
+          const Icon = item.icon
+          return (
+            <motion.article
+              className="audience-card"
+              key={item.badge}
+              initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.25 }}
+              transition={{ delay: index * 0.1, duration: 0.45 }}
+            >
+              <div className="audience-card-top">
+                <span className="audience-badge">{item.badge}</span>
+                <div className="audience-icon-wrap">
+                  <Icon size={18} />
+                </div>
               </div>
-              <CardDescription>{plan.term}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="pricing-tier-fit"><strong>Choose {plan.name}</strong> if you need to {plan.bestFor.charAt(0).toLowerCase() + plan.bestFor.slice(1)}</p>
-              <Separator className="pricing-tier-separator" />
-              <ul className="pricing-tier-highlights">
-                {plan.highlights.map((highlight) => <li key={highlight}><Check size={16} weight="bold" />{highlight}</li>)}
+
+              <h3>{item.headline}</h3>
+              <p className="audience-reality">{item.reality}</p>
+
+              <div className="audience-divider" />
+
+              <ul className="audience-points-list">
+                {item.points.map((pt) => (
+                  <li key={pt}>
+                    <CheckCircle2 size={15} className="text-accent flex-shrink-0" />
+                    <span>{pt}</span>
+                  </li>
+                ))}
               </ul>
-            </CardContent>
-            <CardFooter>
-              <Button asChild className="pricing-tier-action" variant={plan.featured ? "default" : "outline"} size="lg">
-                <Link to="/signup">{plan.action}<ArrowRight size={16} weight="bold" /></Link>
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
+
+              <div className="audience-footer">
+                {item.isDemoTrigger ? (
+                  <button
+                    type="button"
+                    className="button button-outline button-full"
+                    onClick={() => {
+                      const session = createDemoSession()
+                      navigate({ kind: "demo", sessionId: session.id })
+                    }}
+                  >
+                    <span>{item.ctaText}</span>
+                    <ArrowRight size={14} />
+                  </button>
+                ) : (
+                  <Link className="button button-outline button-full" to={item.ctaLink || "/signup"}>
+                    <span>{item.ctaText}</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                )}
+              </div>
+            </motion.article>
+          )
+        })}
       </div>
-      <section className="service-comparison" aria-labelledby="service-comparison-heading">
-        <div className="service-comparison-heading">
-          <h3 id="service-comparison-heading">Compare every service before you choose a plan.</h3>
-          <p>Each row explains what the service does and exactly how it is available in Trial, Free, and Pro.</p>
-        </div>
-        <div className="service-comparison-table-wrap" role="region" aria-label="Stheno plan service comparison" tabIndex={0}>
-          <Table className="service-comparison-table">
-            <TableHeader>
-              <TableRow>
-                <TableHead scope="col">Service</TableHead>
-                <TableHead scope="col">Trial</TableHead>
-                <TableHead scope="col">Free</TableHead>
-                <TableHead scope="col">Pro</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow className="service-comparison-group"><TableCell colSpan={4}>Store operations</TableCell></TableRow>
-              <TableRow>
-                <TableCell><strong>Catalogue and inventory</strong><span>Create products, organise the catalogue, and manage inventory from one workspace.</span></TableCell>
-                <TableCell>Included for evaluation</TableCell>
-                <TableCell>Included</TableCell>
-                <TableCell>Included</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Product capacity</strong><span>The number of new products your store can add.</span></TableCell>
-                <TableCell>Unlimited for 14 days</TableCell>
-                <TableCell>100 new products</TableCell>
-                <TableCell>Unlimited</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Team access</strong><span>People who can work on products, orders, and fulfilment.</span></TableCell>
-                <TableCell>Up to 10 seats</TableCell>
-                <TableCell>Owner plus 2 staff seats</TableCell>
-                <TableCell>Up to 10 seats</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Orders and guest checkout</strong><span>Let buyers browse, add to cart, and place orders without creating an account.</span></TableCell>
-                <TableCell>Included for evaluation</TableCell>
-                <TableCell>Included</TableCell>
-                <TableCell>Included</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Cash on delivery</strong><span>Accept and manage cash-on-delivery orders in the standard order workflow.</span></TableCell>
-                <TableCell>Included for evaluation</TableCell>
-                <TableCell>Included</TableCell>
-                <TableCell>Included</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>CSV catalogue import</strong><span>Bring a product catalogue into Stheno with a CSV import.</span></TableCell>
-                <TableCell>Included for evaluation</TableCell>
-                <TableCell>Included</TableCell>
-                <TableCell>Included</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Social order handoff</strong><span>Create staff-reviewable draft orders from supported social conversations.</span></TableCell>
-                <TableCell>Included for evaluation</TableCell>
-                <TableCell>Included</TableCell>
-                <TableCell>Included</TableCell>
-              </TableRow>
-              <TableRow className="service-comparison-group"><TableCell colSpan={4}>Storefront and reporting</TableCell></TableRow>
-              <TableRow>
-                <TableCell><strong>Brand kit and Stheno subdomain</strong><span>Launch with supported brand details on a Stheno-hosted subdomain.</span></TableCell>
-                <TableCell>Included</TableCell>
-                <TableCell>Included</TableCell>
-                <TableCell>Included</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Analytics</strong><span>See store activity and reporting available to your plan.</span></TableCell>
-                <TableCell>Available during evaluation</TableCell>
-                <TableCell>30-day basic analytics</TableCell>
-                <TableCell>Full analytics</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Web push</strong><span>Send supported browser notifications to opted-in buyers.</span></TableCell>
-                <TableCell>Available during evaluation</TableCell>
-                <TableCell>Included</TableCell>
-                <TableCell>Included</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Custom domain</strong><span>Use your own domain name for your customer-facing storefront.</span></TableCell>
-                <TableCell>Not included</TableCell>
-                <TableCell>Not included</TableCell>
-                <TableCell>Included</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Bespoke storefront service</strong><span>A developer-built storefront supplied after the agreed Pro payment.</span></TableCell>
-                <TableCell>Not included</TableCell>
-                <TableCell>Not included</TableCell>
-                <TableCell>Included after payment</TableCell>
-              </TableRow>
-              <TableRow className="service-comparison-group"><TableCell colSpan={4}>Paid operational services</TableCell></TableRow>
-              <TableRow>
-                <TableCell><strong>Payment gateway connection</strong><span>Connect payment services when they are supported for your merchant and region.</span></TableCell>
-                <TableCell>Not included</TableCell>
-                <TableCell>Not included</TableCell>
-                <TableCell>Available where supported</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Courier connection</strong><span>Connect supported delivery providers to the store workflow.</span></TableCell>
-                <TableCell>Not included</TableCell>
-                <TableCell>Not included</TableCell>
-                <TableCell>Available where supported</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Risk tooling</strong><span>Use supported operational-risk tools where they are available to the merchant.</span></TableCell>
-                <TableCell>Not included</TableCell>
-                <TableCell>Not included</TableCell>
-                <TableCell>Available where supported</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell><strong>Plan term and renewal</strong><span>How long the service continues before the merchant renews or changes plan.</span></TableCell>
-                <TableCell>14 days</TableCell>
-                <TableCell>Indefinite</TableCell>
-                <TableCell>6 or 12 months, as agreed</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-      </section>
-      <p className="pricing-disclosure">Paid-plan price, tax, regional availability, and provider-dependent features are confirmed in the service order before a merchant accepts Pro.</p>
     </section>
   )
+}
 
+function PricingSection() {
   const [commitment, setCommitment] = useState<6 | 12>(12)
   const [currency, setCurrency] = useState<Currency>("BDT")
   const [monthlyOrders, setMonthlyOrders] = useState(600)
   const [aov, setAov] = useState(1200)
-  const [openFaq, setOpenFaq] = useState<number | null>(null)
 
   const grossRevenue = monthlyOrders * aov
   const legacyPluginCost = 14000
@@ -899,11 +1168,51 @@ function PricingSection() {
   const monthlySavings = Math.max(0, totalLegacyMonthly - sthenoMonthly)
   const annualSavings = monthlySavings * 12
 
+  const plans = [
+    {
+      name: "Trial",
+      term: "14 days",
+      price: 0,
+      bestFor: "Evaluate the complete commerce workflow with zero commitment before launching.",
+      highlights: [
+        "Full access during 14-day evaluation",
+        "Unlimited products & collection drafts",
+        "Live WhatsApp & social cart simulation",
+      ],
+      action: "Start 14-day trial",
+    },
+    {
+      name: "Free",
+      term: "Indefinite",
+      price: 0,
+      bestFor: "Run essential boutique commerce operations with zero recurring platform fees.",
+      highlights: [
+        "Up to 100 active catalogue items",
+        "2 team & staff operator seats",
+        "Cash on delivery & 30-day analytics",
+      ],
+      action: "Choose Free",
+    },
+    {
+      name: "Pro",
+      term: commitment === 12 ? "12 months" : "6 months",
+      price: commitment === 12 ? 1350 : 1500,
+      bestFor: "Scale a customized brand storefront with automated payments and courier dispatch.",
+      highlights: [
+        "Unlimited products & operator accounts",
+        "Custom domain mapping (yourbrand.com)",
+        "bKash/Nagad gateways & courier sync",
+      ],
+      action: "Get Pro Access",
+      featured: true,
+    },
+  ]
+
   const matrixFeatures = [
     { name: "Brand kit & custom accent styling", free: true, pro: true },
-    { name: "Products & category management", free: "Up to 50 items", pro: "Unlimited" },
+    { name: "Products & category management", free: "Up to 100 items", pro: "Unlimited" },
     { name: "Social inbox (WhatsApp & Instagram)", free: true, pro: true },
-    { name: "Staff operator accounts", free: "2 seats", pro: "Unlimited" },
+    { name: "Staff operator accounts", free: "2 seats", pro: "Up to 10 seats" },
     { name: "Automated bKash & Nagad gateways", free: false, pro: true },
     { name: "Pathao, RedX & Steadfast couriers", free: false, pro: true },
     { name: "Custom domain (yourshop.com)", free: false, pro: true },
@@ -911,37 +1220,14 @@ function PricingSection() {
     { name: "Bespoke storefront developer brief", free: false, pro: true },
   ]
 
-  const faqs = [
-    {
-      q: "How does the 14-day Free Trial work?",
-      a: "Upon submitting your store request, your sandbox and merchant environment are provisioned immediately with full access to all Free tier capabilities for 14 days without requiring credit card information.",
-    },
-    {
-      q: "Do you charge extra transaction fees on sales?",
-      a: "Never. Stheno charges 0% platform transaction fees. You only pay the direct standard gateway interchange rate to your payment provider (e.g. bKash or SSLCommerz).",
-    },
-    {
-      q: "Can I bring my existing custom domain?",
-      a: "Yes. Pro merchants can link any custom domain (e.g. yourstudio.com) directly through our DNS routing layer with automated SSL certificate renewal.",
-    },
-    {
-      q: "How are WhatsApp and Instagram orders handled?",
-      a: "Customer chat inquiries can be parsed directly in your merchant Social Inbox, allowing you to convert conversations into real fulfillment orders in 1 click.",
-    },
-    {
-      q: "Can I migrate products from WooCommerce or Shopify?",
-      a: "Yes. Our standard CSV catalog importer allows you to transfer your existing product titles, descriptions, pricing, and stock levels in seconds.",
-    },
-  ]
-
   return (
-    <section className="pricing-section section-shell" id="pricing">
+    <section className="pricing-section section-shell" id="pricing" aria-labelledby="pricing-heading">
       <div className="section-header-block">
         <p className="eyebrow">Clear, Honest Pricing</p>
-        <h2>Start free. Choose your tier when operations scale.</h2>
+        <h2 id="pricing-heading">Start free. Choose your tier when operations scale.</h2>
         <p className="section-lede">
-          Free starts with a 14-day trial upon submitting your store request. Pro provides dedicated infrastructure, zero
-          plugin taxes, and zero transaction fee penalties.
+          Every merchant starts with the same robust commerce foundation. Move to Pro when you need custom domains,
+          courier sync, and automated gateways.
         </p>
       </div>
 
@@ -981,71 +1267,55 @@ function PricingSection() {
       </div>
 
       <div className="pricing-grid">
-        <article className="price-card">
-          <p className="plan-name">Free Tier</p>
-          <h2>
-            {formatMoney(0, currency)}<span>/ month</span>
-          </h2>
-          <strong>14-day trial starts immediately upon store request.</strong>
-          <ul>
-            <li>
-              <CheckCircle size={16} weight="fill" />
-              <span>Brand kit & approved store icon</span>
-            </li>
-            <li>
-              <CheckCircle size={16} weight="fill" />
-              <span>Orders, social queue, catalog & inventory</span>
-            </li>
-            <li>
-              <CheckCircle size={16} weight="fill" />
-              <span>Staff accounts & core analytics</span>
-            </li>
-          </ul>
-          <Link className="button button-outline button-full" to="/signup">
-            <span>Start with Free</span>
-            <ArrowRight size={15} />
-          </Link>
-        </article>
+        {plans.map((plan) => (
+          <article className={`price-card ${plan.featured ? "is-featured" : ""}`} key={plan.name}>
+            <div className="price-card-header">
+              <div className="plan-name-wrap">
+                <span className="plan-name">{plan.name} Tier</span>
+                {plan.featured && (
+                  <span className="plan-tag">
+                    <Sparkles size={12} /> Recommended
+                  </span>
+                )}
+              </div>
+              <div className="price-display-wrap">
+                <span className="price-amount">{formatMoney(plan.price, currency)}</span>
+                <span className="price-unit">/ month</span>
+              </div>
+              <p className="plan-best-for">{plan.bestFor}</p>
+            </div>
 
-        <article className="price-card is-featured">
-          <span className="plan-tag">
-            <Sparkle size={13} weight="fill" /> Recommended for Growth
-          </span>
-          <p className="plan-name">Pro Tier</p>
-          <h2>
-            {formatMoney(commitment === 12 ? 1350 : 1500, currency)}
-            <span>/ month</span>
-          </h2>
-          <strong>
-            {commitment === 12
-              ? `Billed ${formatMoney(16200, currency)} annually (${formatMoney(1350, currency)}/mo equivalent)`
-              : `Billed ${formatMoney(9000, currency)} for 6 months`}
-          </strong>
-          <ul>
-            <li>
-              <CheckCircle size={16} weight="fill" />
-              <span>Everything in Free</span>
-            </li>
-            <li>
-              <CheckCircle size={16} weight="fill" />
-              <span>Automated gateways, couriers & custom domains</span>
-            </li>
-            <li>
-              <CheckCircle size={16} weight="fill" />
-              <span>Bespoke storefront brief & developer queue priority</span>
-            </li>
-          </ul>
-          <Link className="button button-primary button-full" to="/signup">
-            <span>Choose Pro</span>
-            <ArrowRight size={15} />
-          </Link>
-        </article>
+            <div className="price-card-divider" />
+
+            <div className="price-card-features">
+              <span className="features-label">Included Capabilities</span>
+              <ul className="plan-features-list">
+                {plan.highlights.map((h) => (
+                  <li key={h}>
+                    <CheckCircle2 size={16} className="text-accent flex-shrink-0" />
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="price-card-footer">
+              <Link
+                className={`button button-full ${plan.featured ? "button-primary" : "button-outline"}`}
+                to="/signup"
+              >
+                <span>{plan.action}</span>
+                <ArrowRight size={15} />
+              </Link>
+            </div>
+          </article>
+        ))}
       </div>
 
       {/* Interactive ROI & Savings Calculator */}
       <div className="roi-calculator-shell">
         <div className="roi-header">
-          <Calculator size={24} className="roi-icon" />
+          <Calculator size={24} className="roi-icon text-accent" />
           <div>
             <h2>Independent Merchant Cost Comparison</h2>
             <p>See what you save annually by eliminating legacy app subscription bloat and 2% platform cuts.</p>
@@ -1125,7 +1395,7 @@ function PricingSection() {
                   <td>
                     {typeof row.free === "boolean" ? (
                       row.free ? (
-                        <Check size={16} weight="bold" className="matrix-check" />
+                        <Check size={16} className="matrix-check" />
                       ) : (
                         <span className="matrix-dash">−</span>
                       )
@@ -1136,7 +1406,7 @@ function PricingSection() {
                   <td>
                     {typeof row.pro === "boolean" ? (
                       row.pro ? (
-                        <Check size={16} weight="bold" className="matrix-check" />
+                        <Check size={16} className="matrix-check" />
                       ) : (
                         <span className="matrix-dash">−</span>
                       )
@@ -1148,43 +1418,6 @@ function PricingSection() {
               ))}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* Accordion Merchant FAQs */}
-      <div className="faq-section">
-        <h2>Frequently Asked Questions</h2>
-        <div className="faq-list">
-          {faqs.map((faq, idx) => (
-            <div className="faq-item" key={faq.q}>
-              <button
-                type="button"
-                className="faq-question-btn"
-                onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                aria-expanded={openFaq === idx}
-              >
-                <span>{faq.q}</span>
-                <CaretDown
-                  size={16}
-                  weight="bold"
-                  className={`faq-caret ${openFaq === idx ? "is-open" : ""}`}
-                />
-              </button>
-              <AnimatePresence>
-                {openFaq === idx && (
-                  <motion.div
-                    className="faq-answer"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <p>{faq.a}</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          ))}
         </div>
       </div>
     </section>
@@ -1209,7 +1442,7 @@ function LaunchChapter() {
         </p>
         <Link className="button button-primary" to="/signup">
           <span>Start your launch</span>
-          <ArrowRight size={16} weight="bold" />
+          <ArrowRight size={16} />
         </Link>
       </div>
       <ol className="launch-states" aria-label="Possible store launch statuses">
@@ -1230,12 +1463,12 @@ function LaunchChapter() {
 function Closing() {
   return (
     <section className="closing section-shell">
-      <Buildings size={28} weight="regular" />
+      <Building2 size={28} className="text-accent" />
       <h2>Run your store with a system built around the work behind every order.</h2>
       <div className="closing-actions">
         <Link className="button button-primary" to="/signup">
           <span>Create your merchant account</span>
-          <ArrowRight size={16} weight="bold" />
+          <ArrowRight size={16} />
         </Link>
         <StartDemoButton />
       </div>
@@ -1244,26 +1477,129 @@ function Closing() {
 }
 
 function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
+  const { navigate } = useMarketing()
+
+  const startDemo = () => {
+    const session = createDemoSession()
+    navigate({ kind: "demo", sessionId: session.id })
+  }
+
   return (
-    <footer className="site-footer section-shell">
-      <div className="footer-left">
-        <Link className="brand" to="/" aria-label="Stheno home">
-          <Mark />
-          <span className="sr-only">Stheno</span>
-        </Link>
-        <p>Commerce infrastructure engineered for independent merchants.</p>
-      </div>
-      <div className="footer-right">
-        <button type="button" className="engineers-talk-link-btn" onClick={onOpenEngineersTalk}>
-          <Code size={16} />
-          <span>Architecture overview</span>
-        </button>
-        <Link className="text-link" to="#pricing">
-          <span>Compare plans</span>
-          <ArrowUpRight size={15} />
-        </Link>
-        <Link className="text-link" to="/privacy">Privacy notice</Link>
-        <Link className="text-link" to="/terms">Terms of service</Link>
+    <footer className="site-footer" role="contentinfo">
+      <div className="footer-inner section-shell">
+        {/* Top Callout Strip / Quick Action */}
+        <div className="footer-cta-strip">
+          <div className="footer-cta-info">
+            <span className="footer-cta-badge">
+              <span className="pulsing-dot" />
+              Production Ready Commerce
+            </span>
+            <h3>Ready to take full ownership of your store operations?</h3>
+            <p>Launch your merchant workspace in seconds. Free 14-day trial with zero platform fees.</p>
+          </div>
+          <div className="footer-cta-actions">
+            <Link className="button button-primary" to="/signup">
+              <span>Start Free Trial</span>
+              <ArrowRight size={15} />
+            </Link>
+            <button type="button" className="button button-outline" onClick={startDemo}>
+              <Sparkles size={15} />
+              <span>Try Sandbox Demo</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Main Footer Multi-Column Grid */}
+        <div className="footer-grid">
+          {/* Brand & Mission Column */}
+          <div className="footer-brand-col">
+            <Link className="brand" to="/" aria-label="Stheno home">
+              <Mark />
+              <span className="sr-only">Stheno</span>
+            </Link>
+            <p className="footer-brand-tagline">
+              Commerce infrastructure engineered for independent merchants and modern digital brands. High-performance catalog, guest checkout, and staff operations.
+            </p>
+            <div className="footer-status-pill">
+              <span className="status-indicator-dot online" />
+              <span>Global Edge Status: <strong>Operational (32ms)</strong></span>
+            </div>
+            <div className="footer-syed-stamp">
+              <span>Engineered & backed by <strong>Syed Systems</strong></span>
+            </div>
+          </div>
+
+          {/* Nav Columns */}
+          <div className="footer-nav-col">
+            <h4>Platform</h4>
+            <ul>
+              <li><Link to="#features">Guest Checkout</Link></li>
+              <li><Link to="#features">Social Order Handoff</Link></li>
+              <li><Link to="#features">Inventory & Catalog</Link></li>
+              <li><Link to="#features">Courier & Logistics</Link></li>
+              <li><button type="button" className="footer-text-btn" onClick={startDemo}>Interactive Demo Sandbox</button></li>
+              <li><Link to="#pricing">Plans & Pricing</Link></li>
+            </ul>
+          </div>
+
+          <div className="footer-nav-col">
+            <h4>Architecture</h4>
+            <ul>
+              <li>
+                <button type="button" className="footer-text-btn footer-highlight-link" onClick={onOpenEngineersTalk}>
+                  <Code size={14} />
+                  <span>Architecture Overview</span>
+                </button>
+              </li>
+              <li><button type="button" className="footer-text-btn" onClick={onOpenEngineersTalk}>Rust Core Primitives</button></li>
+              <li><button type="button" className="footer-text-btn" onClick={onOpenEngineersTalk}>Schema Isolation</button></li>
+              <li><button type="button" className="footer-text-btn" onClick={onOpenEngineersTalk}>Idempotent Sagas</button></li>
+              <li><button type="button" className="footer-text-btn" onClick={onOpenEngineersTalk}>Storefront Contract API</button></li>
+              <li><button type="button" className="footer-text-btn" onClick={onOpenEngineersTalk}>REST Endpoints</button></li>
+            </ul>
+          </div>
+
+          <div className="footer-nav-col">
+            <h4>Merchants</h4>
+            <ul>
+              <li><Link to="/signup">Start Free Trial</Link></li>
+              <li><Link to="/login">Merchant Workspace Login</Link></li>
+              <li><Link to="#pricing">ROI & Cost Calculator</Link></li>
+              <li><Link to="#reviews">Verified Stories</Link></li>
+              <li><Link to="#how-it-works">How Stheno Works</Link></li>
+              <li><Link to="#faq">Merchant FAQ</Link></li>
+            </ul>
+          </div>
+
+          <div className="footer-nav-col">
+            <h4>Trust & Legal</h4>
+            <ul>
+              <li><Link to="/privacy">Privacy Notice</Link></li>
+              <li><Link to="/terms">Terms of Service</Link></li>
+              <li><a href="#faq">Zero Floating Point Math</a></li>
+              <li><a href="#faq">Data Redaction Policy</a></li>
+              <li><a href="mailto:support@syedsystems.com">Merchant Support Desk</a></li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Bottom Sub-Footer Bar */}
+        <div className="footer-bottom-bar">
+          <div className="footer-bottom-left">
+            <p>© 2026 Stheno by Syed Systems. All rights reserved.</p>
+            <span className="footer-tax-badge">Zero platform tax on merchant GMV</span>
+          </div>
+          <div className="footer-bottom-right">
+            <Link to="/privacy">Privacy</Link>
+            <span className="dot-sep">·</span>
+            <Link to="/terms">Terms</Link>
+            <span className="dot-sep">·</span>
+            <button type="button" className="footer-sub-btn" onClick={onOpenEngineersTalk}>
+              <Terminal size={13} />
+              <span>Developer API</span>
+            </button>
+          </div>
+        </div>
       </div>
     </footer>
   )
@@ -1274,36 +1610,6 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
    ========================================================================== */
 
 function EngineersTalkModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  if (!isOpen) return null
-
-  return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <section className="modal-card engineers-talk-modal" role="dialog" aria-modal="true" aria-labelledby="engineering-talk-title" onClick={(event) => event.stopPropagation()}>
-        <div className="engineers-talk-header">
-          <div className="header-title-wrap">
-            <TerminalWindow size={24} className="terminal-icon" />
-            <div>
-              <h2 id="engineering-talk-title">Architecture overview</h2>
-              <p>Stheno’s product design for teams who need to understand the commerce core.</p>
-            </div>
-          </div>
-          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close architecture overview">
-            <X size={20} />
-          </button>
-        </div>
-        <div className="engineers-talk-body">
-          <div className="content-prose">
-            <p><strong>Exact money handling:</strong> money paths use decimal values and a single provider-boundary conversion layer rather than floating-point calculations.</p>
-            <p><strong>Durable workflows:</strong> multi-step operations are designed to compensate safely after a failure and to reuse idempotency keys when a provider outcome is uncertain.</p>
-            <p><strong>Bounded modules:</strong> domain modules own their data and communicate across boundaries through workflows, queries, events, and links.</p>
-            <p><strong>Swappable presentation:</strong> storefront presentation can be independently implemented while core routes, data fetching, and checkout responsibilities remain in the trusted commerce layer.</p>
-          </div>
-          <p className="form-notice">Performance figures, provider availability, and API compatibility are release-gated. This overview intentionally does not present unverified benchmarks as measured results.</p>
-        </div>
-      </section>
-    </div>
-  )
-
   const [selectedLayer, setSelectedLayer] = useState<number>(0)
   const [apiSnippetLang, setApiSnippetLang] = useState<"ts" | "curl" | "rust">("ts")
   const [copied, setCopied] = useState(false)
@@ -1312,7 +1618,7 @@ function EngineersTalkModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     {
       title: "Rust Starved Primitives",
       tag: "stheno-types",
-      icon: Cube,
+      icon: Box,
       desc: "Zero-dependency starved types (Money, Id<T>, Decimal) that guarantee exact mathematical precision with zero floating-point arithmetic errors.",
       specs: ["100% Rust-native decimal math", "Deterministic transaction boundaries", "Zero cross-boundary leakages"],
     },
@@ -1326,14 +1632,14 @@ function EngineersTalkModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     {
       title: "Idempotent Sagas & Workflows",
       tag: "Durable Sagas",
-      icon: FlowArrow,
+      icon: GitFork,
       desc: "Multi-step sagas coordinate state mutations with automatic compensation on crash and guaranteed idempotency across payment providers.",
       specs: ["Crash-and-resume resilience", "Automated step compensations", "PSP idempotency key locks"],
     },
     {
       title: "Headless Presentation Contracts",
       tag: "TypeScript Contract",
-      icon: Storefront,
+      icon: Store,
       desc: "Strictly pure storefront presentation modules that plug into Stheno APIs with zero backend logic modification.",
       specs: ["Sub-50ms TTFB globally", "Pure presentation architecture", "Full theme customizability"],
     },
@@ -1395,7 +1701,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         >
           <div className="engineers-talk-header">
             <div className="header-title-wrap">
-              <TerminalWindow size={24} className="terminal-icon" />
+              <Terminal size={24} className="terminal-icon" />
               <div>
                 <h2>Engineer's Talk: Under the Hood</h2>
                 <p>System architecture, database schema isolation, and latency benchmarks for technical teams.</p>
@@ -1435,7 +1741,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 <ul className="layer-spec-list">
                   {layers[selectedLayer].specs.map((spec) => (
                     <li key={spec}>
-                      <Check size={14} weight="bold" />
+                      <Check size={14} className="text-accent" />
                       <span>{spec}</span>
                     </li>
                   ))}
@@ -1449,7 +1755,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
               <div className="benchmark-grid">
                 <div className="benchmark-card highlighted">
                   <div className="benchmark-header">
-                    <Lightning size={20} weight="fill" className="bm-icon" />
+                    <Zap size={20} className="bm-icon text-accent" />
                     <span>Time-to-First-Byte</span>
                   </div>
                   <strong className="bm-value">32ms</strong>
@@ -1459,7 +1765,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 <div className="benchmark-card">
                   <div className="benchmark-header">
-                    <Gauge size={20} weight="regular" className="bm-icon" />
+                    <Gauge size={20} className="bm-icon" />
                     <span>Saga Commit Latency</span>
                   </div>
                   <strong className="bm-value">&lt; 8ms</strong>
@@ -1469,7 +1775,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 <div className="benchmark-card">
                   <div className="benchmark-header">
-                    <Cube size={20} weight="regular" className="bm-icon" />
+                    <Box size={20} className="bm-icon" />
                     <span>Heap Footprint</span>
                   </div>
                   <strong className="bm-value">18MB</strong>
@@ -1504,9 +1810,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     <span className="dot yellow" />
                     <span className="dot green" />
                   </div>
-                  <span className="terminal-title">POST /store/carts/{`{id}`}/complete</span>
+                  <span className="terminal-title">POST /store/carts/&#123;id&#125;/complete</span>
                   <button type="button" className="copy-code-btn" onClick={handleCopySnippet}>
-                    {copied ? <Check size={14} weight="bold" /> : <Copy size={14} />}
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
                     <span>{copied ? "Copied!" : "Copy Code"}</span>
                   </button>
                 </div>
@@ -1831,7 +2137,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 15, scale: 0.95 }}
           >
-            <CheckCircle size={16} weight="fill" />
+            <CheckCircle2 size={16} className="text-accent" />
             <span>{toastMessage}</span>
           </motion.div>
         )}
@@ -1849,7 +2155,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
         </div>
         <div className="demo-topbar-center">
           <button type="button" className="cmd-palette-trigger" onClick={() => setCmdPaletteOpen(true)}>
-            <MagnifyingGlass size={16} />
+            <Search size={16} />
             <span>Quick search...</span>
             <kbd>⌘K</kbd>
           </button>
@@ -1869,7 +2175,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
           </div>
 
           <a href="#live-storefront" className="button button-outline button-xs">
-            <Storefront size={14} />
+            <Store size={14} />
             <span>Jump to Storefront Preview ↓</span>
           </a>
 
@@ -1895,7 +2201,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
           </div>
           {saved && (
             <span className="demo-sync-badge" role="status">
-              <Check size={13} weight="bold" /> Synced to Storefront
+              <Check size={13} /> Synced to Storefront
             </span>
           )}
         </div>
@@ -1908,7 +2214,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
               type="button"
               onClick={() => setActiveTab("dashboard")}
             >
-              <ChartLine size={17} />
+              <TrendingUp size={17} />
               <span>Executive Dashboard</span>
             </button>
             <button
@@ -1916,7 +2222,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
               type="button"
               onClick={() => setActiveTab("social")}
             >
-              <ChatCircleDots size={17} />
+              <MessageSquareQuote size={17} />
               <span>Social Inbox</span>
               {pendingConvsCount > 0 && <span className="nav-count-pill">{pendingConvsCount}</span>}
             </button>
@@ -1933,7 +2239,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
               type="button"
               onClick={() => setActiveTab("orders")}
             >
-              <ClipboardText size={17} />
+              <ClipboardList size={17} />
               <span>Orders Queue ({session.orders.length})</span>
             </button>
             <button
@@ -1941,7 +2247,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
               type="button"
               onClick={() => setActiveTab("brand")}
             >
-              <PaintBrush size={17} />
+              <Paintbrush size={17} />
               <span>Brand & Theme</span>
             </button>
           </aside>
@@ -2106,9 +2412,9 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                         <div className="conv-header">
                           <div className="conv-user-info">
                             {conv.channel === "WhatsApp" ? (
-                              <WhatsappLogo size={20} weight="fill" className="wa-icon" />
+                              <WhatsAppIcon size={20} className="wa-icon text-emerald-600" />
                             ) : (
-                              <InstagramLogo size={20} weight="fill" className="ig-icon" />
+                              <InstagramIcon size={20} className="ig-icon text-pink-600" />
                             )}
                             <div>
                               <strong>{conv.customer}</strong>
@@ -2123,7 +2429,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                           <span className="conv-item-target">Requested Item: {conv.proposedItem}</span>
                           {conv.converted ? (
                             <span className="converted-badge">
-                              <CheckCircle size={15} weight="fill" /> Order Created in Queue
+                              <CheckCircle2 size={15} className="text-accent" /> Order Created in Queue
                             </span>
                           ) : (
                             <button
@@ -2131,7 +2437,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                               className="button button-primary button-sm"
                               onClick={() => handleConvertSocial(conv.id)}
                             >
-                              <Plus size={14} weight="bold" />
+                              <Plus size={14} />
                               <span>1-Click Convert to Order</span>
                             </button>
                           )}
@@ -2159,7 +2465,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                     </div>
                     <div className="catalog-top-actions">
                       <button type="button" className="button button-outline button-sm" onClick={handleExportCSV}>
-                        <DownloadSimple size={15} />
+                        <Download size={15} />
                         <span>Export CSV</span>
                       </button>
                       <button
@@ -2167,7 +2473,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                         type="button"
                         onClick={() => setNewProductModal(true)}
                       >
-                        <Plus size={15} weight="bold" />
+                        <Plus size={15} />
                         <span>Add New Product</span>
                       </button>
                     </div>
@@ -2188,7 +2494,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                     </div>
 
                     <div className="preset-import-wrap">
-                      <UploadSimple size={14} />
+                      <Upload size={14} />
                       <span>Load Preset:</span>
                       <select onChange={(e) => handleLoadPreset(e.target.value)} defaultValue="">
                         <option value="" disabled>
@@ -2424,11 +2730,11 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                       <h2>Real-time storefront propagation.</h2>
                       <ul>
                         <li>
-                          <Check size={16} weight="bold" />
+                          <Check size={16} />
                           <span>Accent color updates buttons, banners, and carts below immediately.</span>
                         </li>
                         <li>
-                          <Check size={16} weight="bold" />
+                          <Check size={16} />
                           <span>Headline changes render live in the customer hero section.</span>
                         </li>
                       </ul>
@@ -2445,7 +2751,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
       <section className="live-storefront-wrapper" id="live-storefront">
         <div className="storefront-demarcation-header">
           <div className="demarcation-badge">
-            <Storefront size={16} weight="fill" />
+            <Store size={16} />
             <span>Live Customer Storefront (Preview & Simulation)</span>
           </div>
           <p>
@@ -2469,7 +2775,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                   setCartOpen(true)
                 }}
               >
-                <ShoppingCartSimple size={18} />
+                <ShoppingCart size={18} />
                 <span>Cart ({cartItemCount})</span>
               </button>
             </nav>
@@ -2514,7 +2820,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
             {/* Live Search & Sort Toolbar */}
             <div className="store-search-sort-bar">
               <div className="store-search-input-wrap">
-                <MagnifyingGlass size={16} />
+                <Search size={16} />
                 <input
                   type="text"
                   placeholder="Search catalog items..."
@@ -2545,7 +2851,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
 
             {filteredStoreProducts.length === 0 ? (
               <div className="empty-catalog-search">
-                <ShoppingBag size={42} weight="light" />
+                <ShoppingBag size={42} />
                 <p>No products match "{searchQuery}" in {storeCategory}.</p>
                 <button
                   type="button"
@@ -2573,10 +2879,10 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                         tabIndex={0}
                         aria-label={`View ${product.title} details`}
                       >
-                        <ShoppingBag size={36} weight="light" />
+                        <ShoppingBag size={36} />
                         <span className="stock-tag">{product.stock} in stock</span>
                         <span className="card-star-pill">
-                          <Star size={11} weight="fill" className="star-icon" />
+                          <Star size={11} className="star-icon fill-amber-400 text-amber-400" />
                           <span>{avgRating} ({reviews.length > 0 ? reviews.length : 12})</span>
                         </span>
                       </div>
@@ -2590,7 +2896,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                         className="button button-outline button-sm store-add-btn"
                         onClick={() => addToCart(product)}
                       >
-                        <Plus size={14} weight="bold" />
+                        <Plus size={14} />
                         <span>Add to Cart</span>
                       </button>
                     </article>
@@ -2637,7 +2943,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                   <>
                     {cart.length === 0 ? (
                       <div className="empty-cart-state">
-                        <ShoppingBag size={48} weight="light" />
+                        <ShoppingBag size={48} />
                         <p>Your shopping cart is empty.</p>
                         <button
                           type="button"
@@ -2779,7 +3085,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
 
                 {checkoutStep === "confirmation" && (
                   <div className="order-confirmation-view">
-                    <CheckCircle size={48} weight="fill" className="confirmation-icon" />
+                    <CheckCircle2 size={48} className="confirmation-icon text-accent" />
                     <h3>Order Received!</h3>
                     <p className="order-num-tag">{lastOrderId}</p>
                     <p className="confirmation-text">
@@ -2787,7 +3093,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                       Admin Orders queue above!
                     </p>
                     <a href="#demo" className="button button-primary button-full" onClick={() => setCartOpen(false)}>
-                      <ChartLine size={16} />
+                      <TrendingUp size={16} />
                       <span>View in Admin Orders Above</span>
                       <ArrowRight size={15} />
                     </a>
@@ -2814,7 +3120,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                 <X size={18} />
               </button>
               <div className="product-modal-art">
-                <ShoppingBag size={56} weight="light" />
+                <ShoppingBag size={56} />
               </div>
               <div className="product-modal-details">
                 <span className="card-category">{selectedProduct.category}</span>
@@ -2830,7 +3136,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                       setSelectedProduct(null)
                     }}
                   >
-                    <ShoppingCartSimple size={16} />
+                    <ShoppingCart size={16} />
                     <span>Add to Shopping Cart</span>
                   </button>
                 </div>
@@ -2840,7 +3146,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                   <div className="reviews-header-row">
                     <strong>Customer Reviews ({(reviewsMap[selectedProduct.id] || []).length})</strong>
                     <span className="verified-badge">
-                      <ShieldCheck size={14} weight="fill" /> Verified Buyers
+                      <ShieldCheck size={14} /> Verified Buyers
                     </span>
                   </div>
 
@@ -2851,7 +3157,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                           <strong>{rev.author}</strong>
                           <div className="star-rating-row">
                             {Array.from({ length: rev.rating }).map((_, i) => (
-                              <Star key={i} size={11} weight="fill" className="star-fill" />
+                              <Star key={i} size={11} className="star-fill fill-amber-400 text-amber-400" />
                             ))}
                           </div>
                         </div>
@@ -2952,7 +3258,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
 
               <div className="invoice-totals-row">
                 <div className="barcode-simulation">
-                  <Barcode size={32} />
+                  <QrCode size={32} />
                   <span>{selectedInvoiceOrder.id}</span>
                 </div>
                 <div className="totals-numbers">
@@ -3008,7 +3314,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
               exit={{ opacity: 0, scale: 0.96, y: -10 }}
             >
               <div className="cmd-palette-input-wrap">
-                <MagnifyingGlass size={18} />
+                <Search size={18} />
                 <input
                   autoFocus
                   placeholder="Type a command or jump to screen..."
@@ -3027,7 +3333,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                     setCmdPaletteOpen(false)
                   }}
                 >
-                  <ChartLine size={16} />
+                  <TrendingUp size={16} />
                   <span>Go to Executive Dashboard</span>
                 </button>
                 <button
@@ -3037,7 +3343,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                     setCmdPaletteOpen(false)
                   }}
                 >
-                  <ChatCircleDots size={16} />
+                  <MessageSquareQuote size={16} />
                   <span>Go to Social Inbox</span>
                 </button>
                 <button
@@ -3057,7 +3363,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                     setCmdPaletteOpen(false)
                   }}
                 >
-                  <ClipboardText size={16} />
+                  <ClipboardList size={16} />
                   <span>Go to Orders Queue</span>
                 </button>
                 <button
@@ -3067,7 +3373,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                     setCmdPaletteOpen(false)
                   }}
                 >
-                  <PaintBrush size={16} />
+                  <Paintbrush size={16} />
                   <span>Go to Brand & Theme</span>
                 </button>
               </div>
@@ -3186,6 +3492,7 @@ function AuthShell({
   return (
     <section className="auth-page section-shell">
       <div className="auth-aside">
+        <Breadcrumbs items={[{ label: eyebrow }]} />
         <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
         <p>{intro}</p>
@@ -3234,7 +3541,7 @@ function Signup() {
     >
       <form className="auth-form" onSubmit={submit}>
         <button type="button" className="google-button">
-          <GoogleLogo size={18} weight="bold" />
+          <GoogleIcon size={18} />
           <span>Continue with Google</span>
         </button>
         <div className="form-separator">
@@ -3269,7 +3576,7 @@ function Signup() {
               onClick={() => setShowPassword((p) => !p)}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
           {passwordLength > 0 && (
@@ -3365,7 +3672,7 @@ function Login() {
         }}
       >
         <button type="button" className="google-button">
-          <GoogleLogo size={18} weight="bold" />
+          <GoogleIcon size={18} />
           <span>Continue with Google</span>
         </button>
         <div className="form-separator">
@@ -3390,7 +3697,7 @@ function Login() {
               onClick={() => setShowPassword((p) => !p)}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
         </label>
@@ -3455,7 +3762,7 @@ function Welcome() {
   const [request, setRequest] = useState({
     name: saved.businessName ?? "",
     subdomain: "",
-    accent: "#1c8b82",
+    accent: "#FF6B00",
     icon: "rise",
     plan: saved.plan ?? "free",
     buyerAccounts: false,
@@ -3499,7 +3806,7 @@ function Welcome() {
             <span>{provisionStep === 4 ? "Tenant Environment Online" : "Provisioning Tenant..."}</span>
           </div>
 
-          <CheckCircle size={44} weight="fill" className="status-success-icon" />
+          <CheckCircle2 size={44} className="status-success-icon text-accent" />
           <p className="eyebrow">Real-Time Provisioning Pipeline</p>
           <h1>{request.name || "Your Store"} is taking shape.</h1>
           <p>
@@ -3515,7 +3822,7 @@ function Welcome() {
                 key={s.num}
               >
                 <div className="tracker-circle">
-                  {provisionStep > s.num ? <Check size={14} weight="bold" /> : s.num}
+                  {provisionStep > s.num ? <Check size={14} /> : s.num}
                 </div>
                 <div className="tracker-text">
                   <strong>{s.title}</strong>
@@ -3548,7 +3855,7 @@ function Welcome() {
       </div>
       <form className="store-form" onSubmit={submit}>
         <div className="form-heading">
-          <Storefront size={24} weight="regular" />
+          <Store size={24} className="text-accent" />
           <div>
             <h2>Store Setup</h2>
             <p>These parameters initialize your merchant environment and customer domain.</p>
@@ -3623,7 +3930,7 @@ function Welcome() {
         </label>
         {request.plan === "pro" && (
           <div className="pro-note">
-            <CreditCard size={18} weight="regular" />
+            <CreditCard size={18} />
             <span>Pro gateway and custom domain features enter provisioning upon payment verification.</span>
           </div>
         )}
@@ -3643,6 +3950,7 @@ function OnePageMarketingSite({ onOpenEngineersTalk }: { onOpenEngineersTalk: ()
       <MerchantJourney />
       <MerchantValuePillars />
       <DemoTeaserCallout />
+      <AudienceStakeholderSection />
       <PricingSection />
       <MerchantReviews />
       <CustomerReviews />
@@ -3714,16 +4022,20 @@ export default function App() {
         <ForgotPassword />
         <Footer onOpenEngineersTalk={() => setEngineersTalkOpen(true)} />
       </>
-    ) : (
+    ) : page === "/welcome" ? (
       <>
         <Welcome />
+        <Footer onOpenEngineersTalk={() => setEngineersTalkOpen(true)} />
+      </>
+    ) : (
+      <>
+        <NotFoundPage />
         <Footer onOpenEngineersTalk={() => setEngineersTalkOpen(true)} />
       </>
     )
 
   return (
     <main className={`marketing-app page-${page.slice(1) || "home"}`}>
-      <Suspense fallback={null}>{page === "/" && <ScrollScene />}</Suspense>
       <Header />
       {content}
       <EngineersTalkModal isOpen={engineersTalkOpen} onClose={() => setEngineersTalkOpen(false)} />

@@ -601,6 +601,101 @@ pub async fn apply_promotions(
     Ok(Json(with_region(&ctx, updated_cart).await))
 }
 
+/// `DELETE /store/carts/{id}/promotions` — remove promotions from cart.
+pub async fn remove_promotions(
+    State(ctx): State<StoreCartContext>,
+    Path(cart_id): Path<String>,
+    Json(body): Json<StoreApplyPromotionRequest>,
+) -> Result<Json<CartResponse>, Response> {
+    let cart = ctx
+        .cart_service
+        .get_cart(&cart_id)
+        .await
+        .map_err(map_error)?;
+
+    for item in &cart.items {
+        if body.promo_codes.is_empty() {
+            let _ = ctx
+                .cart_service
+                .delete_line_item_adjustments(&item.id)
+                .await;
+        } else {
+            for adj in &item.adjustments {
+                if let Some(code) = &adj.code {
+                    if body.promo_codes.contains(code) {
+                        let _ = ctx
+                            .cart_service
+                            .delete_line_item_adjustments(&item.id)
+                            .await;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    for sm in &cart.shipping_methods {
+        if body.promo_codes.is_empty() {
+            let _ = ctx
+                .cart_service
+                .delete_shipping_method_adjustments(&sm.id)
+                .await;
+        } else {
+            for adj in &sm.adjustments {
+                if let Some(code) = &adj.code {
+                    if body.promo_codes.contains(code) {
+                        let _ = ctx
+                            .cart_service
+                            .delete_shipping_method_adjustments(&sm.id)
+                            .await;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let updated_cart = ctx
+        .cart_service
+        .get_cart(&cart_id)
+        .await
+        .map_err(map_error)?;
+    Ok(Json(with_region(&ctx, updated_cart).await))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StoreAssociateCustomerRequest {
+    pub customer_id: Option<String>,
+    pub email: Option<String>,
+}
+
+/// `POST /store/carts/{id}/customer` — associate an authenticated customer with a cart.
+pub async fn associate_customer(
+    State(ctx): State<StoreCartContext>,
+    Path(cart_id): Path<String>,
+    Json(body): Json<StoreAssociateCustomerRequest>,
+) -> Result<Json<CartResponse>, Response> {
+    let _ = ctx
+        .cart_service
+        .update_cart(
+            &cart_id,
+            UpdateCartInput {
+                customer_id: body.customer_id,
+                email: body.email,
+                ..Default::default()
+            },
+        )
+        .await
+        .map_err(map_error)?;
+
+    let cart = ctx
+        .cart_service
+        .get_cart(&cart_id)
+        .await
+        .map_err(map_error)?;
+    Ok(Json(with_region(&ctx, cart).await))
+}
+
 fn map_error(e: Error) -> Response {
     let (status, r#type) = match e {
         Error::NotFound { .. } => (StatusCode::NOT_FOUND, "not_found"),

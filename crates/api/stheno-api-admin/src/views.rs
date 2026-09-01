@@ -97,7 +97,8 @@ fn columns_for(entity: &str) -> Option<Vec<Column>> {
             Column::new("fulfillment_status", "Fulfillment", "enum", true, true),
             Column::new("status", "Status", "enum", true, false),
             Column::new("currency_code", "Currency", "string", false, false),
-            Column::new("total", "Total", "currency", false, true).at("summary.current_order_total"),
+            Column::new("total", "Total", "currency", false, true)
+                .at("summary.current_order_total"),
         ],
         "products" => vec![
             Column::new("title", "Title", "string", true, true),
@@ -124,7 +125,13 @@ fn columns_for(entity: &str) -> Option<Vec<Column>> {
         "regions" => vec![
             Column::new("name", "Name", "string", true, true),
             Column::new("currency_code", "Currency", "string", true, true),
-            Column::new("automatic_taxes", "Automatic taxes", "boolean", false, false),
+            Column::new(
+                "automatic_taxes",
+                "Automatic taxes",
+                "boolean",
+                false,
+                false,
+            ),
             Column::new("created_at", "Created", "date", true, false),
         ],
         "promotions" => vec![
@@ -143,7 +150,13 @@ fn columns_for(entity: &str) -> Option<Vec<Column>> {
         "inventory-items" => vec![
             Column::new("sku", "SKU", "string", true, true),
             Column::new("title", "Title", "string", true, true),
-            Column::new("requires_shipping", "Requires shipping", "boolean", false, false),
+            Column::new(
+                "requires_shipping",
+                "Requires shipping",
+                "boolean",
+                false,
+                false,
+            ),
             Column::new("created_at", "Created", "date", true, false),
         ],
         "reservation-items" => vec![
@@ -271,6 +284,66 @@ pub async fn active_configuration(
     Ok((
         StatusCode::OK,
         Json(json!({ "view_configuration": Value::Null })),
+    ))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct CreateViewConfigurationRequest {
+    pub name: Option<String>,
+    pub entity: Option<String>,
+    pub columns: Option<Vec<String>>,
+    pub filters: Option<serde_json::Value>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// `POST /admin/views/{entity}/configurations`
+pub async fn create_configuration(
+    Path(entity): Path<String>,
+    Json(body): Json<CreateViewConfigurationRequest>,
+) -> Result<impl IntoResponse, Response> {
+    if columns_for(&entity).is_none() {
+        return Err(unknown_entity(&entity));
+    }
+    let id = format!("view_{}", ulid::Ulid::new());
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "view_configuration": {
+                "id": id,
+                "name": body.name.unwrap_or_else(|| "Custom View".to_string()),
+                "entity": entity,
+                "columns": body.columns.unwrap_or_default(),
+                "filters": body.filters.unwrap_or_else(|| json!({})),
+                "is_active": true,
+            }
+        })),
+    ))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct SetActiveConfigurationRequest {
+    pub id: Option<String>,
+    pub view_configuration_id: Option<String>,
+}
+
+/// `POST /admin/views/{entity}/configurations/active`
+pub async fn set_active_configuration(
+    Path(entity): Path<String>,
+    Json(body): Json<SetActiveConfigurationRequest>,
+) -> Result<impl IntoResponse, Response> {
+    if columns_for(&entity).is_none() {
+        return Err(unknown_entity(&entity));
+    }
+    let id = body.view_configuration_id.or(body.id);
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "view_configuration": {
+                "id": id,
+                "entity": entity,
+                "is_active": true,
+            }
+        })),
     ))
 }
 

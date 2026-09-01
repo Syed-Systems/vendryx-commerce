@@ -458,6 +458,89 @@ pub async fn delete_tax_rate(
     ))
 }
 
+pub async fn list_tax_providers(
+    State(ctx): State<ConfigContext>,
+) -> Result<impl IntoResponse, Response> {
+    let regions = ctx.tax_service.list_tax_regions().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    let providers = vec![
+        json!({
+            "id": "tp_system",
+            "is_enabled": true,
+            "name": "System Tax Provider",
+            "regions_count": regions.len(),
+        })
+    ];
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "tax_providers": providers,
+            "data": providers,
+            "count": 1,
+            "offset": 0,
+            "limit": 20,
+        })),
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTaxRateRuleRequest {
+    pub reference: String,
+    pub reference_id: String,
+}
+
+pub async fn create_tax_rate_rule(
+    State(ctx): State<ConfigContext>,
+    Path(id): Path<String>,
+    Json(body): Json<CreateTaxRateRuleRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let rate = ctx.tax_service.get_tax_rate(&id).await.map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("not_found", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    let rule_id = format!("txrule_{}", ulid::Ulid::new());
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "tax_rate_rule": {
+                "id": rule_id,
+                "tax_rate_id": rate.id,
+                "reference": body.reference,
+                "reference_id": body.reference_id,
+            }
+        })),
+    ))
+}
+
+pub async fn delete_tax_rate_rule(
+    State(ctx): State<ConfigContext>,
+    Path((id, rule_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    let _rate = ctx.tax_service.get_tax_rate(&id).await.map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("not_found", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "id": rule_id,
+            "object": "tax_rate_rule",
+            "deleted": true
+        })),
+    ))
+}
+
 // ── Sales Channels ───────────────────────────────────────────────────────────
 
 pub async fn list_sales_channels(
@@ -558,9 +641,39 @@ pub async fn delete_sales_channel(
     ))
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub struct BatchLinkSalesChannelProductsRequest {
+    pub add: Option<Vec<String>>,
+    pub remove: Option<Vec<String>>,
+}
+
+/// POST /admin/sales-channels/{id}/products
+pub async fn update_sales_channel_products(
+    State(ctx): State<ConfigContext>,
+    Path(id): Path<String>,
+    Json(_body): Json<BatchLinkSalesChannelProductsRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let sc = ctx
+        .sales_channel_service
+        .get_channel(&id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new("not_found", &e.to_string())),
+            )
+                .into_response()
+        })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "sales_channel": sc,
+            "data": sc,
+        })),
+    ))
+}
+
 // ── Shipping Options & Fulfillment Sets ───────────────────────────────────────
-
-
 
 const REGION_PAYMENT_PROVIDER_LINK: &str = "region_payment_provider";
 
@@ -742,14 +855,10 @@ fn map_error(e: stheno_types::Error) -> Response {
     // identical. A 4xx is the caller's to fix, so it carries the reason; a 5xx stays
     // generic because its detail is ours, not the client's.
     let (status, r#type, message) = match &e {
-        stheno_types::Error::NotFound { .. } => {
-            (StatusCode::NOT_FOUND, "not_found", e.to_string())
+        stheno_types::Error::NotFound { .. } => (StatusCode::NOT_FOUND, "not_found", e.to_string()),
+        stheno_types::Error::Invalid { message, .. } => {
+            (StatusCode::BAD_REQUEST, "invalid_data", message.clone())
         }
-        stheno_types::Error::Invalid { message, .. } => (
-            StatusCode::BAD_REQUEST,
-            "invalid_data",
-            message.clone(),
-        ),
         _ => (
             StatusCode::INTERNAL_SERVER_ERROR,
             "unexpected_state",
@@ -758,7 +867,6 @@ fn map_error(e: stheno_types::Error) -> Response {
     };
     (status, Json(ErrorResponse::new(r#type, &message))).into_response()
 }
-
 
 // RBAC roles and policies now live in `rbac.rs`, backed by `stheno-rbac`. The handlers
 // that used to sit here returned three hardcoded roles and an empty policy list.

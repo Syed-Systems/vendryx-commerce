@@ -131,13 +131,18 @@ fn admin_router() -> Router {
     // decided before a handler is polled — so no probe in this test needs a database. Port
     // 1 on loopback refuses instantly, so the handlers that *do* run fail fast instead of
     // holding the test open for a connect timeout.
-    let pool = create_pool("postgres://stheno:stheno@127.0.0.1:1/stheno_contract_probe", 1)
-        .expect("pool handle");
+    let pool = create_pool(
+        "postgres://stheno:stheno@127.0.0.1:1/stheno_contract_probe",
+        1,
+    )
+    .expect("pool handle");
 
     let product = Arc::new(stheno_product::ProductService::new(pool.clone()));
     let pricing = Arc::new(stheno_pricing::PricingService::new(pool.clone()));
     let inventory = Arc::new(stheno_inventory::InventoryService::new(pool.clone()));
-    let stock_location = Arc::new(stheno_stock_location::StockLocationService::new(pool.clone()));
+    let stock_location = Arc::new(stheno_stock_location::StockLocationService::new(
+        pool.clone(),
+    ));
     let order = Arc::new(stheno_order::OrderService::new(pool.clone()));
     let fulfillment = Arc::new(stheno_fulfillment::FulfillmentService::new(pool.clone()));
     let payment = Arc::new(stheno_payment::PaymentService::new(pool.clone()));

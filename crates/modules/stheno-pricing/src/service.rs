@@ -396,6 +396,13 @@ impl PricingService {
         Ok(())
     }
 
+    pub async fn list_prices_for_price_list(&self, price_list_id: &str) -> Result<Vec<PriceDTO>> {
+        let filter = Self::live(LIST_LIMIT)
+            .with_predicate("price_list_id", FilterOp::Eq(price_list_id.to_string()));
+        let list = self.prices.list(None, &filter).await?;
+        Ok(list.iter().map(price_dto).collect())
+    }
+
     /// The placeholder price set used by `batch_price_list_prices`, created on
     /// first use so the foreign key is always satisfiable.
     async fn default_price_set(&self) -> Result<String> {
@@ -485,6 +492,11 @@ impl PricingService {
         if let Some(pref) = self.find_preference(attribute, value).await? {
             self.preferences.delete(None, &pref.id.to_string()).await?;
         }
+        Ok(())
+    }
+
+    pub async fn delete_price_preference_by_id(&self, id: &str) -> Result<()> {
+        let _ = self.preferences.delete(None, id).await;
         Ok(())
     }
 
@@ -900,5 +912,19 @@ fn price_list_dto(l: &PriceList) -> PriceListDTO {
         starts_at: l.starts_at,
         ends_at: l.ends_at,
         created_at: l.created_at,
+    }
+}
+
+fn price_dto(p: &Price) -> PriceDTO {
+    PriceDTO {
+        id: Id::from_ulid(p.id.ulid()),
+        price_set_id: p.price_set_id.clone(),
+        price_list_id: p.price_list_id.clone(),
+        currency_code: p.currency_code.clone(),
+        amount: wire_amount(p.amount),
+        min_quantity: p.min_quantity,
+        max_quantity: p.max_quantity,
+        rules_count: p.rules_count,
+        created_at: p.created_at,
     }
 }

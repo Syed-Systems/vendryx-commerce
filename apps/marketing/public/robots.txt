@@ -1,4 +1,11 @@
+# Robots.txt for Stheno Commerce Platform (https://stheno.shop)
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /dashboard/
 
+# Sitemaps
 Sitemap: https://stheno.shop/sitemap.xml
+
+# LLM & AI Discovery Standard
+# See: https://stheno.shop/llms.txt

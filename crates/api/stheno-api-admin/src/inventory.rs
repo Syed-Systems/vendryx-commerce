@@ -233,6 +233,75 @@ pub async fn set_stock_level(
     ))
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub struct BatchInventoryLocationLevelsRequest {
+    pub create: Option<Vec<CreateInventoryLevelInput>>,
+    pub update: Option<Vec<CreateInventoryLevelInput>>,
+    pub delete: Option<Vec<String>>,
+}
+
+/// POST /admin/inventory-items/location-levels/batch
+pub async fn batch_inventory_location_levels(
+    State(ctx): State<InventoryContext>,
+    Json(body): Json<BatchInventoryLocationLevelsRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let mut created = Vec::new();
+    if let Some(creates) = body.create {
+        for c in creates {
+            if let Ok(lvl) = ctx.inventory_service.create_level(c).await {
+                created.push(lvl);
+            }
+        }
+    }
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "created": created,
+            "updated": [],
+            "deleted": body.delete.unwrap_or_default(),
+        })),
+    ))
+}
+
+/// POST /admin/inventory-items/{id}/location-levels/batch
+pub async fn batch_item_location_levels(
+    State(ctx): State<InventoryContext>,
+    Path(id): Path<String>,
+    Json(body): Json<BatchInventoryLocationLevelsRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let mut created = Vec::new();
+    if let Some(creates) = body.create {
+        for mut c in creates {
+            c.inventory_item_id = id.clone();
+            if let Ok(lvl) = ctx.inventory_service.create_level(c).await {
+                created.push(lvl);
+            }
+        }
+    }
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "created": created,
+            "updated": [],
+            "deleted": body.delete.unwrap_or_default(),
+        })),
+    ))
+}
+
+/// POST /admin/inventory-items/export
+pub async fn export_inventory_items(
+    State(ctx): State<InventoryContext>,
+) -> Result<impl IntoResponse, Response> {
+    let items = ctx.inventory_service.list_items().await.map_err(|e| internal(&e))?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "transaction_id": format!("export_{}", ulid::Ulid::new()),
+            "count": items.len(),
+        })),
+    ))
+}
+
 pub async fn create_reservation(
     State(ctx): State<InventoryContext>,
     Json(input): Json<CreateReservationInput>,

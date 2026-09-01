@@ -22,7 +22,7 @@ console.log("▶ Running automated unit & workflow tests for Stheno Marketing...
 // Test 1: Create session
 const session = createDemoSession()
 assert.ok(session.id, "Session must have an ID")
-assert.equal(session.storeName, "Satheno Studio")
+assert.equal(session.storeName, "Stheno Studio")
 assert.equal(session.products.length, 4, "Default session should have 4 products")
 assert.equal(session.orders.length, 3, "Default session should have 3 initial orders")
 assert.equal(session.conversations.length, 2, "Default session should have 2 social conversations")

@@ -1,0 +1,44 @@
+# Stheno
+
+> High-performance commerce operations platform engineered for independent merchants, ecommerce builders, and modern digital brands.
+
+## Overview
+
+Stheno is an end-to-end commerce infrastructure system developed by Syed Systems. It unifies branded storefronts, dynamic catalogs, real-time inventory management, guest checkout, social conversation order handoffs (WhatsApp/Instagram/Messenger), courier dispatch, and staff operations into a single memory-safe core.
+
+## Docs
+
+- [Homepage](https://stheno.shop/): Overview of Stheno commerce platform, value pillars, merchant stories, and pricing.
+- [Interactive Sandbox Demo](https://stheno.shop/demo): Full browser-based simulation featuring the executive dashboard, 1-click social order converter, catalog editor, order queue, and live customer checkout.
+- [Merchant Account Provisioning](https://stheno.shop/signup): 14-day full access free trial registration with zero platform fees.
+- [Merchant Login](https://stheno.shop/login): Secure merchant workspace authentication and dashboard access.
+- [Privacy Notice](https://stheno.shop/privacy): Clear documentation of data handling, guest checkout confidentiality, and security boundaries.
+- [Terms of Service](https://stheno.shop/terms): Service terms, merchant ownership rights, and uptime commitments.
+
+## Key Capabilities
+
+- **Guest Checkout Architecture**: Frictionless buyer checkout without mandatory account creation, reducing cart abandonment.
+- **1-Click Social Order Handoff**: Converts customer chats from WhatsApp, Messenger, and Instagram into confirmed draft orders.
+- **Zero Platform Tax**: Fixed transparent subscription plans without percentage-based revenue cuts on merchant GMV.
+- **Rust Starved Primitives**: Exact decimal arithmetic without floating-point errors, preventing double-charges and currency mismatch.
+- **Schema Isolation**: Dedicated Postgres schemas per domain module (Product, Cart, Order, Pricing) preventing lateral schema contamination.
+- **Multi-Currency Engine**: Native support for BDT (৳), USD ($), and EUR (€) with real-time conversion.
+
+## Pricing
+
+- **Free Tier**: ৳0/mo — Up to 50 active products, 1 staff seat, guest checkout, WhatsApp order handoff, standard support.
+- **Pro Tier**: ৳2,800/mo (৳2,380/mo billed annually) — Unlimited products, custom domain, courier integration, full analytics, unlimited staff accounts.
+
+## Key Facts
+
+- **Developer**: Syed Systems (Syed Monsur Construction Technology & ideas Ltd.)
+- **Headquarters**: Dhaka, Bangladesh
+- **Target Market**: South Asia & Global Independent Merchants, DTC Brands, and Commerce Builders
+- **Architecture**: Rust backend engine, isolated Postgres schemas, Headless REST API, TypeScript storefront contract
+
+## Contact
+
+- **Website**: https://stheno.shop
+- **Parent Organization**: https://www.smctiltd.com
+- **Support**: support@syedsystems.com
+- **Address**: 395 Purba Goran, Adarsha School Road, Khilgaon, Dhaka 1219, Bangladesh

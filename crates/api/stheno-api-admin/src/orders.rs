@@ -223,6 +223,135 @@ pub async fn refund_payment(
     ))
 }
 
+/// GET /admin/payment-collections/{id}
+pub async fn get_payment_collection(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let col = ctx
+        .payment_service
+        .get_payment_collection(&id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new("not_found", &e.to_string())),
+            )
+                .into_response()
+        })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "payment_collection": col,
+            "data": col,
+        })),
+    ))
+}
+
+/// POST /admin/payment-collections/{id}/mark-as-paid
+pub async fn mark_payment_collection_paid(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let col = ctx
+        .payment_service
+        .mark_collection_paid(&id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("mark_paid_failed", &e.to_string())),
+            )
+                .into_response()
+        })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "payment_collection": col,
+            "data": col,
+        })),
+    ))
+}
+
+/// GET /admin/payments/{id}
+pub async fn get_payment(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let p = ctx
+        .payment_service
+        .get_payment(&id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new("not_found", &e.to_string())),
+            )
+                .into_response()
+        })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "payment": p,
+            "data": p,
+        })),
+    ))
+}
+
+/// POST /admin/payments/{id}/capture
+pub async fn capture_payment_direct(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+    Json(mut input): Json<CapturePaymentInput>,
+) -> Result<impl IntoResponse, Response> {
+    input.payment_id = id;
+    let cap = ctx
+        .payment_service
+        .capture_payment(input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("payment_capture_failed", &e.to_string())),
+            )
+                .into_response()
+        })?;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "capture": cap,
+            "data": cap,
+        })),
+    ))
+}
+
+/// POST /admin/payments/{id}/refund
+pub async fn refund_payment_direct(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+    Json(mut input): Json<RefundPaymentInput>,
+) -> Result<impl IntoResponse, Response> {
+    input.payment_id = id;
+    let ref_dto = ctx
+        .payment_service
+        .refund_payment(input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("payment_refund_failed", &e.to_string())),
+            )
+                .into_response()
+        })?;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "refund": ref_dto,
+            "data": ref_dto,
+        })),
+    ))
+}
+
 // 4. Return Handlers
 pub async fn list_returns(
     State(ctx): State<AdminOrderContext>,
@@ -499,7 +628,11 @@ pub async fn list_order_edits(
 pub async fn list_claims(
     State(ctx): State<AdminOrderContext>,
 ) -> Result<impl IntoResponse, Response> {
-    let claims = ctx.order_service.list_claims(None).await.map_err(internal)?;
+    let claims = ctx
+        .order_service
+        .list_claims(None)
+        .await
+        .map_err(internal)?;
     let count = claims.len();
     Ok((
         StatusCode::OK,
@@ -579,13 +712,17 @@ pub async fn create_exchange(
     State(ctx): State<AdminOrderContext>,
     Json(input): Json<CreateExchangeInput>,
 ) -> Result<impl IntoResponse, Response> {
-    let exchange = ctx.order_service.create_exchange(input).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("invalid_data", &e.to_string())),
-        )
-            .into_response()
-    })?;
+    let exchange = ctx
+        .order_service
+        .create_exchange(input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("invalid_data", &e.to_string())),
+            )
+                .into_response()
+        })?;
     Ok((
         StatusCode::CREATED,
         Json(json!({ "exchange": exchange, "data": exchange })),
@@ -668,10 +805,7 @@ pub async fn cancel_return_receipt(
         .cancel_return_receipt(&id)
         .await
         .map_err(bad_request)?;
-    Ok((
-        StatusCode::OK,
-        Json(json!({ "return": ret, "data": ret })),
-    ))
+    Ok((StatusCode::OK, Json(json!({ "return": ret, "data": ret }))))
 }
 
 fn internal(e: stheno_types::Error) -> Response {
@@ -770,5 +904,129 @@ pub async fn create_payment_collection(
     Ok((
         StatusCode::CREATED,
         Json(json!({ "payment_collection": collection, "data": collection })),
+    ))
+}
+
+/// GET /admin/orders/{id}/preview
+pub async fn preview_order(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let order = ctx
+        .order_service
+        .preview_order(&id)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "order": order, "data": order })),
+    ))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct TransferOrderRequest {
+    pub customer_id: String,
+}
+
+/// POST /admin/orders/{id}/transfer
+pub async fn transfer_order(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+    Json(body): Json<TransferOrderRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let order = ctx
+        .order_service
+        .transfer_order(&id, &body.customer_id)
+        .await
+        .map_err(bad_request)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "order": order, "data": order })),
+    ))
+}
+
+/// GET /admin/claims/{id}
+pub async fn get_claim(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let claim = ctx
+        .order_service
+        .get_claim(&id)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "claim": claim, "data": claim })),
+    ))
+}
+
+/// GET /admin/exchanges/{id}
+pub async fn get_exchange(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let exchange = ctx
+        .order_service
+        .get_exchange(&id)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "exchange": exchange, "data": exchange })),
+    ))
+}
+
+/// GET /admin/draft-orders
+pub async fn list_draft_orders(
+    State(ctx): State<AdminOrderContext>,
+) -> Result<impl IntoResponse, Response> {
+    let drafts = ctx
+        .order_service
+        .list_draft_orders()
+        .await
+        .map_err(internal)?;
+    let count = drafts.len();
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "draft_orders": drafts,
+            "data": drafts,
+            "count": count,
+            "offset": 0,
+            "limit": count,
+        })),
+    ))
+}
+
+/// POST /admin/draft-orders
+pub async fn create_draft_order(
+    State(ctx): State<AdminOrderContext>,
+    Json(input): Json<CreateOrderInput>,
+) -> Result<impl IntoResponse, Response> {
+    let draft = ctx
+        .order_service
+        .create_draft_order(input)
+        .await
+        .map_err(bad_request)?;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "draft_order": draft, "data": draft })),
+    ))
+}
+
+/// GET /admin/draft-orders/{id}
+pub async fn get_draft_order(
+    State(ctx): State<AdminOrderContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let draft = ctx
+        .order_service
+        .get_draft_order(&id)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "draft_order": draft, "data": draft })),
     ))
 }

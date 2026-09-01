@@ -4,8 +4,8 @@ pub mod carts;
 pub mod categories;
 pub mod collections;
 pub mod currencies;
-pub mod hooks;
 pub mod customers;
+pub mod hooks;
 pub mod locales;
 pub mod orders;
 pub mod payment_collections;
@@ -86,6 +86,14 @@ fn store_catalog_secondary_routes(product_service: Arc<ProductService>) -> Route
         .route("/store/collections/{id}", get(collections::get_collection))
         .route("/store/product-variants/{id}", get(variants::get_variant))
         .route(
+            "/store/product-options",
+            get(products::list_product_options),
+        )
+        .route(
+            "/store/product-options/{id}",
+            get(products::get_product_option),
+        )
+        .route(
             "/store/product-categories",
             get(categories::list_categories),
         )
@@ -123,6 +131,10 @@ pub fn store_cart_routes(ctx: StoreCartContext) -> Router {
             "/store/carts/{id}",
             get(carts::get_cart).post(carts::update_cart),
         )
+        .route(
+            "/store/carts/{id}/customer",
+            post(carts::associate_customer),
+        )
         .route("/store/carts/{id}/line-items", post(carts::add_line_item))
         .route("/store/carts/{id}/complete", post(carts::complete_cart))
         .route(
@@ -135,7 +147,7 @@ pub fn store_cart_routes(ctx: StoreCartContext) -> Router {
         )
         .route(
             "/store/carts/{id}/promotions",
-            post(carts::apply_promotions),
+            post(carts::apply_promotions).delete(carts::remove_promotions),
         )
         .with_state(ctx)
 }
@@ -169,6 +181,22 @@ pub fn store_order_routes(ctx: StoreOrderContext) -> Router {
         .route("/store/orders/{id}", get(orders::get_order))
         .route("/store/orders/transfer", post(orders::request_transfer))
         .route(
+            "/store/orders/{id}/transfer/request",
+            post(orders::request_transfer_for_order),
+        )
+        .route(
+            "/store/orders/{id}/transfer/accept",
+            post(orders::accept_transfer_for_order),
+        )
+        .route(
+            "/store/orders/{id}/transfer/decline",
+            post(orders::decline_transfer_for_order),
+        )
+        .route(
+            "/store/orders/{id}/transfer/cancel",
+            post(orders::cancel_transfer_for_order),
+        )
+        .route(
             "/store/orders/transfer/accept",
             post(orders::accept_transfer),
         )
@@ -192,6 +220,10 @@ pub fn store_shipping_option_routes(fulfillment_service: Arc<FulfillmentService>
         .route(
             "/store/shipping-options",
             get(shipping_options::list_shipping_options),
+        )
+        .route(
+            "/store/shipping-options/{id}/calculate",
+            post(shipping_options::calculate_shipping_option),
         )
         .with_state(ctx)
 }
@@ -225,7 +257,20 @@ pub fn store_customer_routes(
 ) -> Router {
     Router::new()
         .route("/store/customers", post(customers::create_customer))
-        .route("/store/customers/me", get(customers::get_current_customer))
+        .route(
+            "/store/customers/me",
+            get(customers::get_current_customer).post(customers::update_current_customer),
+        )
+        .route(
+            "/store/customers/me/addresses",
+            get(customers::list_my_addresses).post(customers::create_my_address),
+        )
+        .route(
+            "/store/customers/me/addresses/{address_id}",
+            get(customers::get_my_address)
+                .post(customers::update_my_address)
+                .delete(customers::delete_my_address),
+        )
         .with_state(StoreCustomerContext {
             customer_service,
             auth_service,

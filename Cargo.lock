@@ -3966,6 +3966,8 @@ dependencies = [
  "stheno-customer",
  "stheno-db",
  "stheno-events",
+ "stheno-file",
+ "stheno-file-local",
  "stheno-flows",
  "stheno-flows-order",
  "stheno-fulfillment",

@@ -1,0 +1,87 @@
+# Stheno Commerce Platform — Complete Technical Specification
+
+> Comprehensive system architecture, data models, developer contracts, and merchant operational workflows for Stheno by Syed Systems.
+
+## 1. System Overview
+
+Stheno is a modular, high-performance commerce operations engine engineered to provide independent merchants and ecommerce developers with an enterprise-grade backend without the bloat, vendor lock-in, or GMV revenue fees of legacy platforms.
+
+- **Canonical URL**: https://stheno.shop
+- **Parent Company**: Syed Systems (SMCTi Ltd.)
+- **Primary Runtime**: Native compiled Rust backend with Tokio async runtime and Postgres relational store.
+- **Storefront Architecture**: Headless pure presentation modules communicating via frozen Medusa v2 compatible REST contracts.
+
+---
+
+## 2. Core Architectural Tenets
+
+### 2.1 Starved Kernel (`stheno-types`)
+`stheno-types` maintains zero external dependencies and holds only pure primitives (`Money`, `Id<T>`, `Error`, `Metadata`).
+All currency operations use arbitrary-precision decimal representations (`rust_decimal`). Floating-point types (`f32`, `f64`) are strictly disallowed in financial arithmetic to prevent rounding drift.
+
+### 2.2 Schema Isolation
+Each domain module owns exactly one PostgreSQL schema:
+- `product`: Products, variants, option values, collections.
+- `pricing`: Price sets, rules, currency overrides.
+- `cart`: Line items, shipping addresses, payment sessions.
+- `order`: Orders, fulfillment records, transactions.
+- `customer`: Buyer profiles, metadata, authentication keys.
+
+Cross-module foreign keys and cross-schema SQL joins are strictly forbidden and enforced by CI static analysis.
+
+### 2.3 Idempotent Sagas & Workflow Compensations
+All state-mutating operations execute through distributed sagas. Every step implements an idempotent `invoke` and `compensate` handler:
+- Automatic compensation triggers on network drops or downstream failures.
+- Mutating payment calls require a persistent idempotency key (`idempotent_call`).
+
+---
+
+## 3. Developer REST API Reference
+
+Stheno exposes a clean, predictable REST API surface:
+
+### Carts & Guest Checkout
+- `POST /store/carts`: Create a new guest cart session.
+- `POST /store/carts/{id}/line-items`: Add item to cart with variant validation.
+- `POST /store/carts/{id}/shipping-address`: Set shipping destination.
+- `POST /store/carts/{id}/payment-collections`: Initialize payment collection.
+- `POST /store/carts/{id}/complete`: Atomically finalize cart, lock inventory, and generate order.
+
+### Social Inbox & Draft Orders
+- `POST /admin/draft-orders`: Create an unconfirmed order from social conversations.
+- `POST /admin/draft-orders/{id}/confirm`: Confirm draft and move into fulfillment queue.
+
+---
+
+## 4. Merchant Plans & Capabilities
+
+| Feature / Capability | Free Plan | Pro Plan |
+|---|---|---|
+| Monthly Subscription | ৳0 (Free Forever) | ৳2,800/mo (৳2,380/mo billed annually) |
+| Active Product Limit | Up to 50 Products | Unlimited Products |
+| Staff Accounts | 1 Account | Unlimited Staff Roles |
+| Storefront Branding | Stheno Subdomain | Custom Branded Domain |
+| Guest Checkout | Included | Included |
+| WhatsApp / Social Handoff | Included | Included |
+| Automated Courier Dispatch | Manual Consignments | Pathao, Steadfast, RedX 1-Click Dispatch |
+| Global Multi-Currency | BDT Only | BDT, USD, EUR Auto-Conversion |
+| Analytics History | 7 Days | Full Historical Analytics & Export |
+
+---
+
+## 5. Security & Data Redaction Standard
+
+- Customer passwords are never stored in plaintext and use Argon2id hashing.
+- Sensitive payment tokens, CVVs, and raw card details are never written to logs or metadata fields.
+- Customer-owned resources enforce scoped verification (`Owned<T, Scope>`) returning 404 on ownership failure to prevent IDOR scanning.
+
+---
+
+## 6. Official Resources & Endpoints
+
+- **Live Sandbox**: https://stheno.shop/demo
+- **Account Sign Up**: https://stheno.shop/signup
+- **Merchant Login**: https://stheno.shop/login
+- **Privacy Policy**: https://stheno.shop/privacy
+- **Terms of Service**: https://stheno.shop/terms
+- **Support Inquiries**: support@syedsystems.com

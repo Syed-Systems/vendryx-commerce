@@ -243,3 +243,64 @@ pub async fn get_product(
         product: expanded.remove(0),
     }))
 }
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ListProductOptionsQuery {
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+    pub product_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ListProductOptionsResponse {
+    pub product_options: Vec<stheno_product::ProductOptionDTO>,
+    pub count: usize,
+    pub offset: usize,
+    pub limit: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GetProductOptionResponse {
+    pub product_option: stheno_product::ProductOptionDTO,
+}
+
+/// `GET /store/product-options` — list product options
+pub async fn list_product_options(
+    State(product_service): State<Arc<ProductService>>,
+    Query(query): Query<ListProductOptionsQuery>,
+) -> Result<Json<ListProductOptionsResponse>, Response> {
+    let limit = query.limit.unwrap_or(20);
+    let offset = query.offset.unwrap_or(0);
+    let (options, count) = product_service
+        .list_product_options_paginated(query.product_id.as_deref(), limit, offset)
+        .await
+        .map_err(internal)?;
+
+    Ok(Json(ListProductOptionsResponse {
+        product_options: options,
+        count,
+        offset,
+        limit,
+    }))
+}
+
+/// `GET /store/product-options/{id}` — get product option by id
+pub async fn get_product_option(
+    State(product_service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+) -> Result<Json<GetProductOptionResponse>, Response> {
+    let option = product_service.get_option(&id).await.map_err(|_| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                r#type: "not_found".to_string(),
+                message: format!("Product option with id {} was not found", id),
+            }),
+        )
+            .into_response()
+    })?;
+
+    Ok(Json(GetProductOptionResponse {
+        product_option: option,
+    }))
+}

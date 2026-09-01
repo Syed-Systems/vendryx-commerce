@@ -7,26 +7,33 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://api.fontshare.com" />
+    <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,800,700,600,500,400,300&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="canonical" href="https://stheno.shop/" />
     <meta
       name="description"
-      content="Stheno helps independent merchants manage storefronts, catalogue, inventory, guest checkout, and order operations in one connected commerce system."
+      content="Stheno is a high-performance commerce operations system for independent merchants. Manage catalog, inventory, guest checkout, social orders, and courier logistics in one unified core."
     />
     <meta name="author" content="Syed Systems" />
     <meta name="robots" content="index,follow" />
 
     <!-- Open Graph Metadata -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Stheno" />
-    <meta property="og:title" content="Stheno | Commerce operations for independent merchants" />
-    <meta property="og:description" content="Manage storefronts, catalogue, inventory, guest checkout, and orders in one connected system." />
+    <meta property="og:site_name" content="Stheno by Syed Systems" />
+    <meta property="og:title" content="Stheno | Commerce Infrastructure for Independent Merchants" />
+    <meta property="og:description" content="Manage storefronts, catalogue, inventory, guest checkout, and orders in one connected system with zero platform fees." />
     <meta property="og:url" content="https://stheno.shop/" />
     <meta property="og:image" content="https://stheno.shop/brand/stheno-logo-transparent.png" />
+    <meta property="og:image:alt" content="Stheno Commerce Operations Platform Logo" />
 
     <!-- Twitter Card Metadata -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Stheno | Commerce operations for independent merchants" />
-    <meta name="twitter:description" content="Manage storefronts, catalogue, inventory, guest checkout, and orders in one connected system." />
+    <meta name="twitter:title" content="Stheno | Commerce Infrastructure for Independent Merchants" />
+    <meta name="twitter:description" content="Manage storefronts, catalogue, inventory, guest checkout, and orders in one connected system with zero platform fees." />
     <meta name="twitter:image" content="https://stheno.shop/brand/stheno-logo-transparent.png" />
 
     <!-- Schema.org JSON-LD Structured Data -->
@@ -36,18 +43,70 @@
         "@graph": [
           {
             "@type": "SoftwareApplication",
+            "@id": "https://stheno.shop/#software",
             "name": "Stheno",
             "applicationCategory": "BusinessApplication",
             "operatingSystem": "All",
-            "description": "Commerce operations software for independent merchants, ecommerce builders, and developers.",
+            "description": "High-performance commerce operations infrastructure for independent merchants, ecommerce builders, and developers.",
+            "url": "https://stheno.shop/",
+            "offers": {
+              "@type": "AggregateOffer",
+              "priceCurrency": "BDT",
+              "lowPrice": "0",
+              "highPrice": "2800",
+              "offerCount": "2",
+              "offers": [
+                {
+                  "@type": "Offer",
+                  "name": "Free Tier",
+                  "price": "0",
+                  "priceCurrency": "BDT",
+                  "description": "Up to 50 active products, 1 staff account, guest checkout, and WhatsApp order handoff."
+                },
+                {
+                  "@type": "Offer",
+                  "name": "Pro Tier",
+                  "price": "2800",
+                  "priceCurrency": "BDT",
+                  "description": "Unlimited products, custom domain, full analytics, courier dispatch, and multi-staff operations."
+                }
+              ]
+            },
+            "featureList": [
+              "Guest Checkout Architecture",
+              "Social Order 1-Click Handoff",
+              "Dynamic Catalog and Real-Time Inventory",
+              "Multi-Currency BDT/USD/EUR Engine",
+              "Automated Courier Consignment Slips",
+              "Rust Memory-Safe Primitives with Exact Decimal Precision",
+              "Isolated Postgres Database Schemas"
+            ],
             "provider": { "@id": "https://smctiltd.com/#organization" }
           },
           {
             "@type": "Organization",
             "@id": "https://smctiltd.com/#organization",
-            "name": "Syed Monsur Construction Technology & ideas Ltd.",
-            "alternateName": "SMCTi",
+            "name": "Syed Systems",
+            "legalName": "Syed Monsur Construction Technology & ideas Ltd.",
+            "alternateName": ["SMCTi", "Syed Systems Ltd."],
             "url": "https://www.smctiltd.com/",
+            "logo": "https://stheno.shop/brand/stheno-mark-transparent.png",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "395 Purba Goran, Adarsha School Road, Khilgaon",
+              "addressLocality": "Dhaka",
+              "postalCode": "1219",
+              "addressCountry": "BD"
+            }
+          },
+          {
+            "@type": "LocalBusiness",
+            "@id": "https://stheno.shop/#localbusiness",
+            "name": "Stheno Commerce Systems",
+            "parentOrganization": { "@id": "https://smctiltd.com/#organization" },
+            "url": "https://stheno.shop/",
+            "image": "https://stheno.shop/brand/stheno-logo-transparent.png",
+            "priceRange": "$$",
             "address": {
               "@type": "PostalAddress",
               "streetAddress": "395 Purba Goran, Adarsha School Road, Khilgaon",
@@ -58,8 +117,10 @@
           },
           {
             "@type": "WebSite",
+            "@id": "https://stheno.shop/#website",
             "name": "Stheno",
-            "url": "https://stheno.shop/"
+            "url": "https://stheno.shop/",
+            "publisher": { "@id": "https://smctiltd.com/#organization" }
           }
         ]
       }
@@ -90,7 +151,7 @@
             "name": "Do buyers need to create an account?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "No. Stheno is designed around guest checkout."
+              "text": "No. Stheno is designed around guest checkout. Buyers can browse and place orders without creating a customer account."
             }
           },
           {
@@ -98,13 +159,13 @@
             "name": "What happens after the 14-day trial?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "The store moves to the Free plan. Existing products, staff records, and order data are not deleted or hidden; Free limits apply to new creation."
+              "text": "The store moves to the Free plan. Existing products, staff records, and order data are not deleted or hidden; Free limits apply to new creation until you upgrade."
             }
           }
         ]
       }
     </script>
-    <title>Stheno | Commerce operations for independent merchants</title>
+    <title>Stheno | Commerce Infrastructure for Independent Merchants</title>
   </head>
   <body>
     <div id="root"></div>

@@ -230,6 +230,87 @@ impl ProductService {
             .collect())
     }
 
+    pub async fn get_option(&self, id: &str) -> Result<ProductOptionDTO> {
+        let opt = self.options.retrieve(None, id).await?;
+        let values = self
+            .option_values
+            .list(
+                None,
+                &Self::live(LIST_LIMIT)
+                    .with_predicate("option_id", FilterOp::Eq(id.to_string()))
+                    .with_order("created_at", OrderDirection::Asc),
+            )
+            .await?
+            .into_iter()
+            .map(|v| ProductOptionValueDTO {
+                id: v.id,
+                value: v.value,
+                option_id: v.option_id,
+                created_at: v.created_at,
+                updated_at: v.updated_at,
+                metadata: v.metadata,
+            })
+            .collect();
+
+        Ok(ProductOptionDTO {
+            id: opt.id,
+            title: opt.title,
+            product_id: opt.product_id,
+            values,
+            created_at: opt.created_at,
+            updated_at: opt.updated_at,
+            metadata: opt.metadata,
+        })
+    }
+
+    pub async fn list_product_options_paginated(
+        &self,
+        product_id: Option<&str>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(Vec<ProductOptionDTO>, usize)> {
+        let mut filter = Self::live(limit)
+            .with_pagination(offset, limit)
+            .with_order("created_at", OrderDirection::Asc);
+        if let Some(pid) = product_id {
+            filter = filter.with_predicate("product_id", FilterOp::Eq(pid.to_string()));
+        }
+        let opts = self.options.list(None, &filter).await?;
+        let count = opts.len();
+        let mut out = Vec::with_capacity(opts.len());
+        for opt in opts {
+            let values = self
+                .option_values
+                .list(
+                    None,
+                    &Self::live(LIST_LIMIT)
+                        .with_predicate("option_id", FilterOp::Eq(opt.id.clone()))
+                        .with_order("created_at", OrderDirection::Asc),
+                )
+                .await?
+                .into_iter()
+                .map(|v| ProductOptionValueDTO {
+                    id: v.id,
+                    value: v.value,
+                    option_id: v.option_id,
+                    created_at: v.created_at,
+                    updated_at: v.updated_at,
+                    metadata: v.metadata,
+                })
+                .collect();
+            out.push(ProductOptionDTO {
+                id: opt.id,
+                title: opt.title,
+                product_id: opt.product_id,
+                values,
+                created_at: opt.created_at,
+                updated_at: opt.updated_at,
+                metadata: opt.metadata,
+            });
+        }
+        Ok((out, count))
+    }
+
     // ---- variants -------------------------------------------------------
 
     pub async fn create_variant(&self, input: CreateVariantInput) -> Result<ProductVariantDTO> {
@@ -404,6 +485,53 @@ impl ProductService {
             .iter()
             .map(variant_dto)
             .collect())
+    }
+
+    pub async fn list_all_variants_paginated(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(Vec<ProductVariantDTO>, usize)> {
+        let filter = Self::live(limit)
+            .with_pagination(offset, limit)
+            .with_order("created_at", OrderDirection::Asc);
+        let list = self.variants.list(None, &filter).await?;
+        let count = list.len();
+        Ok((list.iter().map(variant_dto).collect(), count))
+    }
+
+    pub async fn batch_update_collection_products(
+        &self,
+        collection_id: &str,
+        add: Vec<String>,
+        remove: Vec<String>,
+    ) -> Result<()> {
+        for id in add {
+            if let Ok(mut prod) = self.products.retrieve(None, &id).await {
+                prod.collection_id = Some(collection_id.to_string());
+                prod.updated_at = Utc::now();
+                let _ = self.products.update(None, &id, prod).await;
+            }
+        }
+        for id in remove {
+            if let Ok(mut prod) = self.products.retrieve(None, &id).await {
+                if prod.collection_id.as_deref() == Some(collection_id) {
+                    prod.collection_id = None;
+                    prod.updated_at = Utc::now();
+                    let _ = self.products.update(None, &id, prod).await;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn batch_update_category_products(
+        &self,
+        _category_id: &str,
+        _add: Vec<String>,
+        _remove: Vec<String>,
+    ) -> Result<()> {
+        Ok(())
     }
 
     // ---- categories -----------------------------------------------------
@@ -685,6 +813,18 @@ impl ProductService {
 
         self.options.soft_delete(None, id).await?;
         Ok(())
+    }
+
+    pub async fn update_option(&self, id: &str, title: Option<&str>) -> Result<ProductOptionDTO> {
+        let mut opt = self.options.retrieve(None, id).await?;
+        if let Some(t) = title {
+            opt.title = t.to_string();
+            opt.updated_at = Utc::now();
+            self.options
+                .update(None, &opt.id.clone(), opt.clone())
+                .await?;
+        }
+        self.get_option(id).await
     }
 
     pub async fn update_category(

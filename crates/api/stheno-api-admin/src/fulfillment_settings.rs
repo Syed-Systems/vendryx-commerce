@@ -358,3 +358,66 @@ pub async fn create_shipping_option(
         Json(json!({ "shipping_option": option, "data": option })),
     ))
 }
+
+/// DELETE /admin/fulfillment-sets/{id}/service-zones/{zone_id}
+pub async fn delete_service_zone_for_set(
+    State(ctx): State<FulfillmentSettingsContext>,
+    Path((_fulfillment_set_id, zone_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    ctx.fulfillment_service
+        .delete_service_zone(&zone_id)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": zone_id, "object": "service_zone", "deleted": true })),
+    ))
+}
+
+#[derive(Debug, serde::Deserialize, Default)]
+pub struct BatchShippingOptionRulesPayload {
+    pub create: Option<Vec<stheno_fulfillment::CreateShippingOptionRuleInput>>,
+    pub delete: Option<Vec<String>>,
+}
+
+/// POST /admin/shipping-options/{id}/rules/batch
+pub async fn batch_shipping_option_rules(
+    State(ctx): State<FulfillmentSettingsContext>,
+    Path(id): Path<String>,
+    Json(body): Json<BatchShippingOptionRulesPayload>,
+) -> Result<impl IntoResponse, Response> {
+    ctx.fulfillment_service
+        .batch_shipping_option_rules(
+            &id,
+            body.create.unwrap_or_default(),
+            body.delete.unwrap_or_default(),
+        )
+        .await
+        .map_err(bad_request)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "success": true })),
+    ))
+}
+
+/// GET /admin/geo-zones
+pub async fn list_geo_zones(
+    State(ctx): State<FulfillmentSettingsContext>,
+) -> Result<impl IntoResponse, Response> {
+    let zones = ctx
+        .fulfillment_service
+        .list_geo_zones()
+        .await
+        .map_err(internal)?;
+    let count = zones.len();
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "geo_zones": zones,
+            "data": zones,
+            "count": count,
+            "offset": 0,
+            "limit": count,
+        })),
+    ))
+}

@@ -96,12 +96,15 @@ fn listing(field: &str, keys: &[ApiKeyDTO]) -> Value {
 /// `list_api_keys` returns both kinds because the table holds both; the split into two
 /// routes is Medusa's, not the domain's. Filtering here keeps that presentation detail out
 /// of the service.
-async fn list_of_type(ctx: &AdminApiKeyContext, key_type: &str) -> Result<Vec<ApiKeyDTO>, HttpError> {
-    let keys = ctx
-        .api_key_service
-        .list_api_keys()
-        .await?;
-    Ok(keys.into_iter().filter(|k| k.key_type == key_type).collect())
+async fn list_of_type(
+    ctx: &AdminApiKeyContext,
+    key_type: &str,
+) -> Result<Vec<ApiKeyDTO>, HttpError> {
+    let keys = ctx.api_key_service.list_api_keys().await?;
+    Ok(keys
+        .into_iter()
+        .filter(|k| k.key_type == key_type)
+        .collect())
 }
 
 async fn create_of_type(
@@ -158,10 +161,7 @@ pub async fn get_api_key(
     State(ctx): State<AdminApiKeyContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, HttpError> {
-    let key = ctx
-        .api_key_service
-        .get_api_key(&id)
-        .await?;
+    let key = ctx.api_key_service.get_api_key(&id).await?;
     Ok((StatusCode::OK, Json(envelope("api_key", &key))))
 }
 
@@ -191,9 +191,7 @@ pub async fn delete_api_key(
     State(ctx): State<AdminApiKeyContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, HttpError> {
-    ctx.api_key_service
-        .delete_key(&id)
-        .await?;
+    ctx.api_key_service.delete_key(&id).await?;
     Ok((
         StatusCode::OK,
         Json(json!({ "id": id, "object": "api_key", "deleted": true })),
@@ -208,10 +206,7 @@ pub async fn revoke_api_key(
     State(ctx): State<AdminApiKeyContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, HttpError> {
-    let key = ctx
-        .api_key_service
-        .revoke_key(&id, None)
-        .await?;
+    let key = ctx.api_key_service.revoke_key(&id, None).await?;
     Ok((StatusCode::OK, Json(envelope("api_key", &key))))
 }
 
@@ -220,10 +215,7 @@ pub async fn list_publishable_api_keys(
     State(ctx): State<AdminApiKeyContext>,
 ) -> Result<impl IntoResponse, HttpError> {
     let keys = list_of_type(&ctx, "publishable").await?;
-    Ok((
-        StatusCode::OK,
-        Json(listing("publishable_api_keys", &keys)),
-    ))
+    Ok((StatusCode::OK, Json(listing("publishable_api_keys", &keys))))
 }
 
 /// POST /admin/publishable-api-keys
@@ -239,14 +231,8 @@ pub async fn get_publishable_api_key(
     State(ctx): State<AdminApiKeyContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, HttpError> {
-    let key = ctx
-        .api_key_service
-        .get_api_key(&id)
-        .await?;
-    Ok((
-        StatusCode::OK,
-        Json(envelope("publishable_api_key", &key)),
-    ))
+    let key = ctx.api_key_service.get_api_key(&id).await?;
+    Ok((StatusCode::OK, Json(envelope("publishable_api_key", &key))))
 }
 
 /// POST /admin/publishable-api-keys/{id}
@@ -267,8 +253,5 @@ pub async fn update_publishable_api_key(
             },
         )
         .await?;
-    Ok((
-        StatusCode::OK,
-        Json(envelope("publishable_api_key", &key)),
-    ))
+    Ok((StatusCode::OK, Json(envelope("publishable_api_key", &key))))
 }

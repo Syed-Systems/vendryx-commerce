@@ -1734,6 +1734,10 @@ impl OrderService {
         Ok(out)
     }
 
+    pub async fn get_claim(&self, id: &str) -> Result<ClaimDTO> {
+        self.get_claim_dto(id).await
+    }
+
     /// Every exchange, newest first, optionally narrowed to one order.
     pub async fn list_exchanges(&self, order_id: Option<&str>) -> Result<Vec<ExchangeDTO>> {
         let mut filter = FilterSpec::new()
@@ -1750,6 +1754,46 @@ impl OrderService {
             out.push(self.get_exchange_dto(&row.id.to_string()).await?);
         }
         Ok(out)
+    }
+
+    pub async fn get_exchange(&self, id: &str) -> Result<ExchangeDTO> {
+        self.get_exchange_dto(id).await
+    }
+
+    pub async fn transfer_order(&self, order_id: &str, customer_id: &str) -> Result<OrderDTO> {
+        let mut order = self.orders.retrieve(None, order_id).await?;
+        order.customer_id = Some(customer_id.to_string());
+        order.updated_at = Utc::now();
+        self.orders.update(None, order_id, order).await?;
+        self.get_order(order_id).await
+    }
+
+    pub async fn preview_order(&self, id: &str) -> Result<OrderDTO> {
+        self.get_order(id).await
+    }
+
+    pub async fn list_draft_orders(&self) -> Result<Vec<OrderDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        let rows = self.orders.list(None, &filter).await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let order = self.get_order(&row.id.to_string()).await?;
+            if order.is_draft_order {
+                out.push(order);
+            }
+        }
+        Ok(out)
+    }
+
+    pub async fn create_draft_order(&self, mut input: CreateOrderInput) -> Result<OrderDTO> {
+        input.is_draft_order = Some(true);
+        self.create_order(input).await
+    }
+
+    pub async fn get_draft_order(&self, id: &str) -> Result<OrderDTO> {
+        self.get_order(id).await
     }
 
     pub async fn list_return_reasons(&self) -> Result<Vec<ReturnReasonDTO>> {

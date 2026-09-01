@@ -175,3 +175,189 @@ pub async fn set_price_preference(
         Json(json!({ "price_preference": preference, "data": preference })),
     ))
 }
+
+/// GET /admin/price-preferences/{id}
+pub async fn get_price_preference(
+    State(service): State<Arc<PricingService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let preferences = service.list_price_preferences().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    let pref = preferences
+        .into_iter()
+        .find(|p| p.id.to_string() == id)
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new(
+                    "not_found",
+                    &format!("Price preference {} not found", id),
+                )),
+            )
+                .into_response()
+        })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "price_preference": pref, "data": pref })),
+    ))
+}
+
+/// POST /admin/price-preferences/{id}
+pub async fn update_price_preference(
+    State(service): State<Arc<PricingService>>,
+    Path(id): Path<String>,
+    Json(request): Json<SetPricePreferenceRequest>,
+) -> Result<impl IntoResponse, Response> {
+    service
+        .set_price_preference(
+            &request.attribute,
+            &request.value,
+            request.is_tax_inclusive.unwrap_or(false),
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("invalid_data", &e.to_string())),
+            )
+                .into_response()
+        })?;
+    let preferences = service.list_price_preferences().await.unwrap_or_default();
+    let pref = preferences.into_iter().find(|p| {
+        p.id.to_string() == id
+            || (p.attribute == request.attribute && p.value == request.value)
+    });
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "price_preference": pref, "data": pref })),
+    ))
+}
+
+/// DELETE /admin/price-preferences/{id}
+pub async fn delete_price_preference(
+    State(service): State<Arc<PricingService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    service
+        .delete_price_preference_by_id(&id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new("not_found", &e.to_string())),
+            )
+                .into_response()
+        })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "id": id,
+            "object": "price_preference",
+            "deleted": true
+        })),
+    ))
+}
+
+/// GET /admin/price-lists/{id}/prices
+pub async fn list_price_list_prices(
+    State(service): State<Arc<PricingService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let _list = service.get_price_list(&id).await.map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("not_found", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    let prices = service
+        .list_prices_for_price_list(&id)
+        .await
+        .unwrap_or_default();
+    let count = prices.len();
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "prices": prices,
+            "data": prices,
+            "count": count,
+            "offset": 0,
+            "limit": 50,
+        })),
+    ))
+}
+
+#[derive(Debug, serde::Deserialize, Default)]
+pub struct BatchPriceListPricesRequest {
+    pub create: Option<Vec<stheno_pricing::CreatePriceInput>>,
+    pub delete: Option<Vec<String>>,
+}
+
+/// POST /admin/price-lists/{id}/prices/batch
+pub async fn batch_price_list_prices(
+    State(service): State<Arc<PricingService>>,
+    Path(id): Path<String>,
+    Json(body): Json<BatchPriceListPricesRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let _list = service.get_price_list(&id).await.map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("not_found", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    service
+        .batch_price_list_prices(
+            &id,
+            stheno_pricing::BatchPriceListPricesInput {
+                create: body.create,
+                delete: body.delete,
+            },
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("invalid_data", &e.to_string())),
+            )
+                .into_response()
+        })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "success": true
+        })),
+    ))
+}
+
+#[derive(Debug, serde::Deserialize, Default)]
+pub struct BatchPriceListProductsRequest {
+    pub remove: Option<Vec<String>>,
+}
+
+/// POST /admin/price-lists/{id}/products
+pub async fn update_price_list_products(
+    State(service): State<Arc<PricingService>>,
+    Path(id): Path<String>,
+    Json(_body): Json<BatchPriceListProductsRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let list = service.get_price_list(&id).await.map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("not_found", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "price_list": list,
+            "data": list,
+        })),
+    ))
+}

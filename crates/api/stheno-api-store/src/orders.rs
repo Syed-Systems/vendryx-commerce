@@ -360,3 +360,83 @@ fn map_error(e: Error) -> Response {
     )
         .into_response()
 }
+
+// ── Nested transfer routes ───────────────────────────────────────────────────
+//
+// `@medusajs/js-sdk` calls `/store/orders/{id}/transfer/{action}` — the order in the path.
+// The flat `/store/orders/transfer/{action}` routes above take it from the body, so the
+// storefront's transfer buttons hit a path nothing was mounted at and 404'd, while the
+// working routes sat one shape away and were never called by anything.
+//
+// Both shapes stay mounted: the flat form is referenced by existing tests and by the
+// server-to-server callers that predate the SDK.
+
+/// Body of the nested request route; the order id comes from the path.
+#[derive(Debug, Deserialize)]
+pub struct NestedRequestTransferRequest {
+    pub target_customer_id: String,
+}
+
+/// POST /store/orders/{id}/transfer/request
+pub async fn request_transfer_for_order(
+    State(ctx): State<StoreOrderContext>,
+    Path(order_id): Path<String>,
+    Json(body): Json<NestedRequestTransferRequest>,
+) -> Result<Json<TransferResponse>, Response> {
+    let req = ctx
+        .order_flows
+        .request_order_transfer(&order_id, &body.target_customer_id)
+        .await
+        .map_err(map_error)?;
+    Ok(Json(TransferResponse {
+        order_id: req.order_id,
+        status: req.status,
+    }))
+}
+
+/// POST /store/orders/{id}/transfer/accept
+pub async fn accept_transfer_for_order(
+    State(ctx): State<StoreOrderContext>,
+    Path(order_id): Path<String>,
+) -> Result<Json<OrderResponse>, Response> {
+    let order = ctx
+        .order_flows
+        .accept_order_transfer(&order_id)
+        .await
+        .map_err(map_error)?;
+    Ok(Json(OrderResponse {
+        order: store_order_expanded(&ctx, order).await,
+    }))
+}
+
+/// POST /store/orders/{id}/transfer/decline
+pub async fn decline_transfer_for_order(
+    State(ctx): State<StoreOrderContext>,
+    Path(order_id): Path<String>,
+) -> Result<Json<TransferResponse>, Response> {
+    let req = ctx
+        .order_flows
+        .decline_order_transfer(&order_id)
+        .await
+        .map_err(map_error)?;
+    Ok(Json(TransferResponse {
+        order_id: req.order_id,
+        status: req.status,
+    }))
+}
+
+/// POST /store/orders/{id}/transfer/cancel
+pub async fn cancel_transfer_for_order(
+    State(ctx): State<StoreOrderContext>,
+    Path(order_id): Path<String>,
+) -> Result<Json<TransferResponse>, Response> {
+    let req = ctx
+        .order_flows
+        .cancel_order_transfer(&order_id)
+        .await
+        .map_err(map_error)?;
+    Ok(Json(TransferResponse {
+        order_id: req.order_id,
+        status: req.status,
+    }))
+}

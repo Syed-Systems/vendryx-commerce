@@ -286,6 +286,50 @@ impl FulfillmentService {
         Ok(set.service_zones)
     }
 
+    pub async fn delete_service_zone(&self, id: &str) -> Result<()> {
+        self.service_zones.soft_delete(None, id).await?;
+        Ok(())
+    }
+
+    pub async fn list_geo_zones(&self) -> Result<Vec<GeoZoneDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        Ok(self
+            .geo_zones
+            .list(None, &filter)
+            .await?
+            .into_iter()
+            .map(|z| Self::to_geo_zone_dto(&z))
+            .collect())
+    }
+
+    pub async fn batch_shipping_option_rules(
+        &self,
+        shipping_option_id: &str,
+        create: Vec<CreateShippingOptionRuleInput>,
+        delete: Vec<String>,
+    ) -> Result<()> {
+        for del_id in delete {
+            let _ = self.shipping_option_rules.delete(None, &del_id).await;
+        }
+        for c in create {
+            let sor = ShippingOptionRule {
+                id: Id::new(),
+                shipping_option_id: shipping_option_id.to_string(),
+                attribute: c.attribute,
+                operator: c.operator,
+                value: c.value,
+                metadata: c.metadata,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                deleted_at: None,
+            };
+            let _ = self.shipping_option_rules.create(None, sor).await;
+        }
+        Ok(())
+    }
+
     pub async fn list_shipping_option_types(&self) -> Result<Vec<ShippingOptionTypeDTO>> {
         let filter = FilterSpec::new()
             .with_predicate("deleted_at", FilterOp::IsNull)

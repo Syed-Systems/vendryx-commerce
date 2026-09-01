@@ -14,6 +14,7 @@ pub mod promotions;
 pub mod rbac;
 pub mod reports;
 pub mod store;
+pub mod uploads;
 pub mod users;
 pub mod views;
 
@@ -111,11 +112,17 @@ pub fn admin_catalog_routes(
         )
         .route(
             "/admin/products/{id}/options/{option_id}",
-            get(catalog::get_product_option).delete(catalog::delete_product_option),
+            get(catalog::get_product_option)
+                .post(catalog::update_product_option)
+                .delete(catalog::delete_product_option),
         )
         .route(
             "/admin/product-options",
             get(catalog::list_global_product_options).post(catalog::create_global_product_option),
+        )
+        .route(
+            "/admin/product-variants",
+            get(catalog::list_global_product_variants),
         )
         .route(
             "/admin/product-categories",
@@ -128,6 +135,10 @@ pub fn admin_catalog_routes(
                 .delete(catalog::delete_category),
         )
         .route(
+            "/admin/product-categories/{id}/products",
+            post(catalog::update_category_products),
+        )
+        .route(
             "/admin/collections",
             get(catalog::list_collections).post(catalog::create_collection),
         )
@@ -136,6 +147,10 @@ pub fn admin_catalog_routes(
             get(catalog::get_collection)
                 .post(catalog::update_collection)
                 .delete(catalog::delete_collection),
+        )
+        .route(
+            "/admin/collections/{id}/products",
+            post(catalog::update_collection_products),
         )
         .route(
             "/admin/product-types",
@@ -177,6 +192,14 @@ pub fn admin_inventory_routes(
             get(inventory::list_inventory_items).post(inventory::create_inventory_item),
         )
         .route(
+            "/admin/inventory-items/export",
+            post(inventory::export_inventory_items),
+        )
+        .route(
+            "/admin/inventory-items/location-levels/batch",
+            post(inventory::batch_inventory_location_levels),
+        )
+        .route(
             "/admin/inventory-items/{id}",
             get(inventory::get_inventory_item)
                 .post(inventory::update_inventory_item)
@@ -185,6 +208,10 @@ pub fn admin_inventory_routes(
         .route(
             "/admin/inventory-items/{id}/location-levels",
             get(inventory::list_location_levels).post(inventory::create_location_level),
+        )
+        .route(
+            "/admin/inventory-items/{id}/location-levels/batch",
+            post(inventory::batch_item_location_levels),
         )
         // Stock adjustment: the operation the whole inventory surface exists for, and
         // the one that had no endpoint at all.
@@ -215,13 +242,9 @@ pub fn admin_inventory_routes(
         .with_state(ctx)
 }
 
-/// Mounts admin pricing routes.
+/// Mounts admin pricing and price preferences routes.
 pub fn admin_pricing_routes(pricing_service: Arc<PricingService>) -> Router {
     Router::new()
-        .route(
-            "/admin/price-preferences",
-            get(pricing::list_price_preferences).post(pricing::set_price_preference),
-        )
         .route(
             "/admin/price-lists",
             get(pricing::list_price_lists).post(pricing::create_price_list),
@@ -231,6 +254,28 @@ pub fn admin_pricing_routes(pricing_service: Arc<PricingService>) -> Router {
             get(pricing::get_price_list)
                 .post(pricing::update_price_list)
                 .delete(pricing::delete_price_list),
+        )
+        .route(
+            "/admin/price-lists/{id}/prices",
+            get(pricing::list_price_list_prices),
+        )
+        .route(
+            "/admin/price-lists/{id}/prices/batch",
+            post(pricing::batch_price_list_prices),
+        )
+        .route(
+            "/admin/price-lists/{id}/products",
+            post(pricing::update_price_list_products),
+        )
+        .route(
+            "/admin/price-preferences",
+            get(pricing::list_price_preferences).post(pricing::set_price_preference),
+        )
+        .route(
+            "/admin/price-preferences/{id}",
+            get(pricing::get_price_preference)
+                .post(pricing::update_price_preference)
+                .delete(pricing::delete_price_preference),
         )
         .with_state(pricing_service)
 }
@@ -257,12 +302,34 @@ pub fn admin_order_routes(
         )
         .route("/admin/orders/{id}/cancel", post(orders::cancel_order))
         .route("/admin/orders/{id}/archive", post(orders::archive_order))
+        .route("/admin/orders/{id}/preview", get(orders::preview_order))
+        .route("/admin/orders/{id}/transfer", post(orders::transfer_order))
         .route(
             "/admin/orders/{id}/fulfillments",
             post(orders::create_fulfillment),
         )
         .route("/admin/orders/{id}/captures", post(orders::capture_payment))
         .route("/admin/orders/{id}/refunds", post(orders::refund_payment))
+        .route(
+            "/admin/payments/{id}",
+            get(orders::get_payment),
+        )
+        .route(
+            "/admin/payments/{id}/capture",
+            post(orders::capture_payment_direct),
+        )
+        .route(
+            "/admin/payments/{id}/refund",
+            post(orders::refund_payment_direct),
+        )
+        .route(
+            "/admin/payment-collections/{id}",
+            get(orders::get_payment_collection),
+        )
+        .route(
+            "/admin/payment-collections/{id}/mark-as-paid",
+            post(orders::mark_payment_collection_paid),
+        )
         .route(
             "/admin/returns",
             get(orders::list_returns).post(orders::create_return),
@@ -300,8 +367,24 @@ pub fn admin_order_routes(
             get(orders::list_claims).post(orders::create_claim),
         )
         .route(
+            "/admin/claims/{id}",
+            get(orders::get_claim),
+        )
+        .route(
             "/admin/exchanges",
             get(orders::list_exchanges).post(orders::create_exchange),
+        )
+        .route(
+            "/admin/exchanges/{id}",
+            get(orders::get_exchange),
+        )
+        .route(
+            "/admin/draft-orders",
+            get(orders::list_draft_orders).post(orders::create_draft_order),
+        )
+        .route(
+            "/admin/draft-orders/{id}",
+            get(orders::get_draft_order),
         )
         .with_state(ctx)
 }
@@ -331,6 +414,10 @@ pub fn admin_customer_routes(customer_service: Arc<CustomerService>) -> Router {
             get(customers::get_customer_group)
                 .post(customers::update_customer_group)
                 .delete(customers::delete_customer_group),
+        )
+        .route(
+            "/admin/customer-groups/{id}/customers",
+            post(customers::batch_customer_group_customers),
         )
         .with_state(customer_service)
 }
@@ -404,7 +491,7 @@ pub fn admin_config_routes(
                 .post(config::update_tax_region)
                 .delete(config::delete_tax_region),
         )
-        // Tax Rates
+        // Tax Rates & Rules
         .route(
             "/admin/tax-rates",
             get(config::list_tax_rates).post(config::create_tax_rate),
@@ -415,6 +502,15 @@ pub fn admin_config_routes(
                 .post(config::update_tax_rate)
                 .delete(config::delete_tax_rate),
         )
+        .route(
+            "/admin/tax-rates/{id}/rules",
+            post(config::create_tax_rate_rule),
+        )
+        .route(
+            "/admin/tax-rates/{id}/rules/{rule_id}",
+            axum::routing::delete(config::delete_tax_rate_rule),
+        )
+        .route("/admin/tax-providers", get(config::list_tax_providers))
         // Sales Channels
         .route(
             "/admin/sales-channels",
@@ -425,6 +521,10 @@ pub fn admin_config_routes(
             get(config::get_sales_channel)
                 .post(config::update_sales_channel)
                 .delete(config::delete_sales_channel),
+        )
+        .route(
+            "/admin/sales-channels/{id}/products",
+            post(config::update_sales_channel_products),
         )
         // Payment Providers & Collections
         .route(
@@ -460,9 +560,10 @@ pub fn admin_routes(ctx: AdminApiContext) -> Router {
         .merge(admin_pricing_routes(ctx.pricing_service))
         .merge(admin_order_routes(
             ctx.order_service,
-            ctx.fulfillment_service,
+            ctx.fulfillment_service.clone(),
             ctx.payment_service.clone(),
         ))
+        .merge(admin_fulfillment_settings_routes(ctx.fulfillment_service))
         .merge(admin_customer_routes(ctx.customer_service))
         .merge(admin_promotion_routes(ctx.promotion_service))
         .merge(admin_config_routes(
@@ -523,6 +624,18 @@ pub fn admin_user_routes(user_service: Arc<UserService>) -> Router {
             "/admin/invites",
             get(users::list_invites).post(users::create_invite),
         )
+        .route(
+            "/admin/invites/accept",
+            post(users::accept_invite),
+        )
+        .route(
+            "/admin/invites/{id}",
+            axum::routing::delete(users::revoke_invite),
+        )
+        .route(
+            "/admin/invites/{id}/resend",
+            post(users::resend_invite),
+        )
         .with_state(ctx)
 }
 
@@ -559,11 +672,11 @@ pub fn admin_views_routes() -> Router {
         .route("/admin/views/{entity}/columns", get(views::list_columns))
         .route(
             "/admin/views/{entity}/configurations",
-            get(views::list_configurations),
+            get(views::list_configurations).post(views::create_configuration),
         )
         .route(
             "/admin/views/{entity}/configurations/active",
-            get(views::active_configuration),
+            get(views::active_configuration).post(views::set_active_configuration),
         )
 }
 
@@ -676,6 +789,10 @@ pub fn admin_fulfillment_settings_routes(fulfillment_service: Arc<FulfillmentSer
                 .post(fulfillment_settings::create_service_zone_for_set),
         )
         .route(
+            "/admin/fulfillment-sets/{id}/service-zones/{zone_id}",
+            axum::routing::delete(fulfillment_settings::delete_service_zone_for_set),
+        )
+        .route(
             "/admin/service-zones",
             post(fulfillment_settings::create_service_zone),
         )
@@ -685,6 +802,10 @@ pub fn admin_fulfillment_settings_routes(fulfillment_service: Arc<FulfillmentSer
                 .post(fulfillment_settings::create_shipping_option),
         )
         .route(
+            "/admin/shipping-options/{id}/rules/batch",
+            post(fulfillment_settings::batch_shipping_option_rules),
+        )
+        .route(
             "/admin/shipping-option-types",
             get(fulfillment_settings::list_shipping_option_types)
                 .post(fulfillment_settings::create_shipping_option_type),
@@ -692,6 +813,10 @@ pub fn admin_fulfillment_settings_routes(fulfillment_service: Arc<FulfillmentSer
         .route(
             "/admin/fulfillment-providers",
             get(fulfillment_settings::list_fulfillment_providers),
+        )
+        .route(
+            "/admin/geo-zones",
+            get(fulfillment_settings::list_geo_zones),
         )
         .with_state(ctx)
 }
@@ -737,6 +862,21 @@ pub fn admin_localisation_routes(
         .route(
             "/admin/settings",
             get(localisation::list_settings).post(localisation::set_setting),
+        )
+        .with_state(ctx)
+}
+
+/// Mounts admin upload and file routes.
+pub fn admin_upload_routes(file_service: Arc<stheno_file::FileService>) -> Router {
+    let ctx = uploads::AdminUploadContext { file_service };
+    Router::new()
+        .route(
+            "/admin/uploads",
+            get(uploads::list_uploads).post(uploads::create_upload),
+        )
+        .route(
+            "/admin/uploads/{id}",
+            get(uploads::get_upload).delete(uploads::delete_upload),
         )
         .with_state(ctx)
 }

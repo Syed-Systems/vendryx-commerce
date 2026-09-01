@@ -222,3 +222,38 @@ pub async fn delete_customer_group(
         Json(json!({ "id": id, "object": "customer_group", "deleted": true })),
     ))
 }
+
+#[derive(Debug, serde::Deserialize)]
+pub struct BatchCustomerGroupCustomersRequest {
+    pub add: Option<Vec<String>>,
+    pub remove: Option<Vec<String>>,
+}
+
+/// POST /admin/customer-groups/{id}/customers
+pub async fn batch_customer_group_customers(
+    State(service): State<Arc<CustomerService>>,
+    Path(id): Path<String>,
+    Json(body): Json<BatchCustomerGroupCustomersRequest>,
+) -> Result<impl IntoResponse, Response> {
+    if let Some(to_add) = body.add {
+        for cid in to_add {
+            let _ = service.add_customer_to_group(&cid, &id).await;
+        }
+    }
+    if let Some(to_remove) = body.remove {
+        for cid in to_remove {
+            let _ = service.remove_customer_from_group(&cid, &id).await;
+        }
+    }
+    let group = service.get_customer_group(&id).await.map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("not_found", &e.to_string())),
+        )
+            .into_response()
+    })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "customer_group": group, "data": group })),
+    ))
+}

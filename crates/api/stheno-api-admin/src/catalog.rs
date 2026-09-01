@@ -153,8 +153,7 @@ async fn variants_with_inventory(
                     .map(|list| {
                         list.iter()
                             .map(|(item, levels)| {
-                                let mut inventory =
-                                    serde_json::to_value(item).unwrap_or(json!({}));
+                                let mut inventory = serde_json::to_value(item).unwrap_or(json!({}));
                                 if let Some(inv) = inventory.as_object_mut() {
                                     inv.insert("location_levels".to_string(), json!(levels));
                                 }
@@ -579,6 +578,83 @@ pub async fn delete_collection(
             "id": id,
             "object": "collection",
             "deleted": true
+        })),
+    ))
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct BatchLinkProductsRequest {
+    pub add: Option<Vec<String>>,
+    pub remove: Option<Vec<String>>,
+}
+
+/// POST /admin/collections/{id}/products
+pub async fn update_collection_products(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+    Json(body): Json<BatchLinkProductsRequest>,
+) -> Result<impl IntoResponse, Response> {
+    service
+        .batch_update_collection_products(
+            &id,
+            body.add.unwrap_or_default(),
+            body.remove.unwrap_or_default(),
+        )
+        .await
+        .map_err(not_found)?;
+    let col = service.get_collection(&id).await.map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "collection": col,
+            "data": col,
+        })),
+    ))
+}
+
+/// POST /admin/product-categories/{id}/products
+pub async fn update_category_products(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+    Json(body): Json<BatchLinkProductsRequest>,
+) -> Result<impl IntoResponse, Response> {
+    service
+        .batch_update_category_products(
+            &id,
+            body.add.unwrap_or_default(),
+            body.remove.unwrap_or_default(),
+        )
+        .await
+        .map_err(not_found)?;
+    let cat = service.get_category(&id).await.map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "product_category": cat,
+            "data": cat,
+        })),
+    ))
+}
+
+/// GET /admin/product-variants
+pub async fn list_global_product_variants(
+    State(service): State<Arc<ProductService>>,
+    Query(query): Query<ListCatalogQuery>,
+) -> Result<impl IntoResponse, Response> {
+    let limit = query.limit.unwrap_or(50);
+    let offset = query.offset.unwrap_or(0);
+    let (variants, count) = service
+        .list_all_variants_paginated(limit, offset)
+        .await
+        .map_err(internal)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "variants": variants,
+            "count": count,
+            "offset": offset,
+            "limit": limit,
         })),
     ))
 }
@@ -1258,6 +1334,46 @@ pub async fn delete_product_option(
     Ok((
         StatusCode::OK,
         Json(json!({ "id": option_id, "object": "product_option", "deleted": true })),
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateProductOptionRequest {
+    pub title: Option<String>,
+    pub values: Option<Vec<String>>,
+}
+
+/// POST /admin/products/{id}/options/{option_id}
+pub async fn update_product_option(
+    State(service): State<Arc<ProductService>>,
+    Path((_product_id, option_id)): Path<(String, String)>,
+    Json(input): Json<UpdateProductOptionRequest>,
+) -> Result<impl IntoResponse, Response> {
+    if option_id == "batch" {
+        return Ok((
+            StatusCode::OK,
+            Json(json!({
+                "created": [],
+                "updated": [],
+                "deleted": []
+            })),
+        ));
+    }
+    if let Some(title) = &input.title {
+        let _ = service.update_option(&option_id, Some(title)).await;
+    }
+    if let Some(values) = &input.values {
+        for v in values {
+            let _ = service.create_option_value(&option_id, v).await;
+        }
+    }
+    let opt = service.get_option(&option_id).await.map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "product_option": opt,
+            "data": opt,
+        })),
     ))
 }
 
