@@ -593,3 +593,11 @@ pub struct CreateReturnReasonInput {
     pub label: String,
     pub description: Option<String>,
 }
+
+/// Partial update for a return reason. Absent means unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateReturnReasonInput {
+    pub value: Option<String>,
+    pub label: Option<String>,
+    pub description: Option<String>,
+}

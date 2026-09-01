@@ -217,3 +217,71 @@ pub async fn list_audit_records(
         })),
     ))
 }
+
+/// POST /admin/rbac/roles/{name}
+pub async fn update_role(
+    State(ctx): State<RbacContext>,
+    Path(name): Path<String>,
+    Json(input): Json<stheno_rbac::UpdateRoleInput>,
+) -> Result<impl IntoResponse, Response> {
+    let role = ctx
+        .rbac_service
+        .update_role(&name, input)
+        .await
+        .map_err(rbac_error)?;
+    Ok((StatusCode::OK, Json(json!({ "role": role, "data": role }))))
+}
+
+/// GET /admin/rbac/policies/{id}
+pub async fn get_policy(
+    State(ctx): State<RbacContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let policy = ctx
+        .rbac_service
+        .get_policy(&id)
+        .await
+        .map_err(rbac_error)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "policy": policy, "data": policy })),
+    ))
+}
+
+/// POST /admin/rbac/policies/{id}
+pub async fn update_policy(
+    State(ctx): State<RbacContext>,
+    Path(id): Path<String>,
+    Json(input): Json<stheno_rbac::UpdatePolicyInput>,
+) -> Result<impl IntoResponse, Response> {
+    let policy = ctx
+        .rbac_service
+        .update_policy(&id, input)
+        .await
+        .map_err(rbac_error)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "policy": policy, "data": policy })),
+    ))
+}
+
+/// Maps a domain error to its status.
+///
+/// `Invalid` covers the system-role guard and the effect validation, and both are the
+/// caller's mistake rather than a missing row — answering 404 for "you may not edit a
+/// system role" would tell the admin the role does not exist.
+fn rbac_error(e: stheno_types::Error) -> Response {
+    let status = match &e {
+        stheno_types::Error::NotFound { .. } => StatusCode::NOT_FOUND,
+        stheno_types::Error::Invalid { .. } => StatusCode::BAD_REQUEST,
+        stheno_types::Error::Conflict { .. } => StatusCode::CONFLICT,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    };
+    let code = match &e {
+        stheno_types::Error::NotFound { .. } => "not_found",
+        stheno_types::Error::Conflict { .. } => "conflict",
+        stheno_types::Error::Invalid { .. } => "invalid_data",
+        _ => "unexpected_state",
+    };
+    (status, Json(ErrorResponse::new(code, &e.to_string()))).into_response()
+}

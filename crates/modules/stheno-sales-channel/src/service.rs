@@ -74,6 +74,40 @@ impl SalesChannelService {
             .collect())
     }
 
+    /// Partial update: an absent field is "unchanged", not "set to null".
+    ///
+    /// `description` is nullable in the model, so the dashboard cannot clear it through
+    /// this shape. That is the correct trade for a partial update — a clear needs its own
+    /// signal, and nothing asks for one yet.
+    pub async fn update_channel(
+        &self,
+        id: &str,
+        input: UpdateSalesChannelInput,
+    ) -> Result<SalesChannelDTO> {
+        let mut sc = self.channels.retrieve(None, id).await?;
+
+        if let Some(name) = input.name {
+            sc.name = name;
+        }
+        if let Some(description) = input.description {
+            sc.description = Some(description);
+        }
+        if let Some(is_disabled) = input.is_disabled {
+            sc.is_disabled = is_disabled;
+        }
+        sc.updated_at = Utc::now();
+
+        let updated = self.channels.update(None, id, sc).await?;
+
+        Ok(SalesChannelDTO {
+            id: Id::from_string(updated.id.to_string()).unwrap_or_default(),
+            name: updated.name,
+            description: updated.description,
+            is_disabled: updated.is_disabled,
+            created_at: updated.created_at,
+        })
+    }
+
     pub async fn delete_channel(&self, id: &str) -> Result<()> {
         let sc = self.channels.retrieve(None, id).await?;
         self.channels.soft_delete(None, &sc.id.to_string()).await

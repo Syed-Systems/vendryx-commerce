@@ -489,6 +489,155 @@ impl InventoryService {
             .collect())
     }
 
+    /// Partial update for an inventory item.
+    pub async fn update_item(
+        &self,
+        id: &str,
+        input: UpdateInventoryItemInput,
+    ) -> Result<InventoryItemDTO> {
+        let mut item = self.items.retrieve(None, id).await?;
+        if let Some(sku) = input.sku {
+            item.sku = Some(sku);
+        }
+        if let Some(requires_shipping) = input.requires_shipping {
+            item.requires_shipping = requires_shipping;
+        }
+        item.updated_at = Utc::now();
+
+        let updated = self.items.update(None, id, item).await?;
+        Ok(InventoryItemDTO {
+            id: Id::from_string(updated.id.to_string()).unwrap_or_default(),
+            sku: updated.sku,
+            requires_shipping: updated.requires_shipping,
+            created_at: updated.created_at,
+        })
+    }
+
+    /// Soft-deletes an inventory item and every stock level under it.
+    ///
+    /// The levels go too, in the same transaction. A level whose item is gone is a row
+    /// that reports stock for something that no longer exists, and `list_levels` filters
+    /// on `deleted_at`, not on the parent.
+    pub async fn delete_item(&self, id: &str) -> Result<()> {
+        let id = id.to_string();
+        let items = self.items.clone();
+        let levels = self.levels.clone();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let filter = FilterSpec::new()
+                    .with_predicate("inventory_item_id", FilterOp::Eq(id.clone()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+                let existing = levels.list(None, &filter).await?;
+
+                with_transaction(conn, move |mut c| {
+                    Box::pin(async move {
+                        for level in existing {
+                            levels
+                                .soft_delete(Some(&mut c), &level.id.to_string())
+                                .await?;
+                        }
+                        items.soft_delete(Some(&mut c), &id).await?;
+                        Ok(())
+                    })
+                })
+                .await
+            })
+        })
+        .await
+    }
+
+    /// Soft-deletes one location's stock level for an item.
+    pub async fn delete_level(&self, item_id: &str, location_id: &str) -> Result<()> {
+        let filter = FilterSpec::new()
+            .with_predicate("inventory_item_id", FilterOp::Eq(item_id.to_string()))
+            .with_predicate("location_id", FilterOp::Eq(location_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let levels = self.levels.list(None, &filter).await?;
+        let level = levels.into_iter().next().ok_or(Error::NotFound {
+            entity: "inventory_level",
+            id: format!("{item_id}@{location_id}"),
+        })?;
+
+        self.levels.soft_delete(None, &level.id.to_string()).await?;
+        Ok(())
+    }
+
+    /// Partial update for a reservation.
+    ///
+    /// A quantity change moves `reserved_quantity` on the level by the delta, in the same
+    /// transaction as the row write. `reserved_quantity` is denormalised onto
+    /// `inventory_level` and is what `available_quantity` is computed from, so writing the
+    /// reservation row alone would leave the level reporting stock that is still held —
+    /// an oversell, and silent.
+    pub async fn update_reservation(
+        &self,
+        id: &str,
+        input: UpdateReservationInput,
+    ) -> Result<ReservationItemDTO> {
+        let id = id.to_string();
+        let reservations = self.reservations.clone();
+
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let mut reservation = reservations.retrieve(None, &id).await?;
+
+                let delta = match input.quantity {
+                    Some(q) if q < 0 => {
+                        return Err(Error::Invalid {
+                            code: "invalid_quantity",
+                            message: "quantity cannot be negative".to_string(),
+                            field: Some("quantity".to_string()),
+                        })
+                    }
+                    Some(q) => q - reservation.quantity,
+                    None => 0,
+                };
+
+                if let Some(q) = input.quantity {
+                    reservation.quantity = q;
+                }
+                if let Some(description) = input.description {
+                    reservation.description = Some(description);
+                }
+                reservation.updated_at = Utc::now();
+
+                let item_id = reservation.inventory_item_id.clone();
+                let loc_id = reservation.location_id.clone();
+
+                with_transaction(conn, move |mut c| {
+                    Box::pin(async move {
+                        if delta != 0 {
+                            sql_query(
+                                "UPDATE inventory.inventory_level                                  SET reserved_quantity = GREATEST(0, reserved_quantity + $1), updated_at = now()                                  WHERE inventory_item_id = $2 AND location_id = $3",
+                            )
+                            .bind::<diesel::sql_types::Integer, _>(delta)
+                            .bind::<diesel::sql_types::Text, _>(&item_id)
+                            .bind::<diesel::sql_types::Text, _>(&loc_id)
+                            .execute(&mut c)
+                            .await
+                            .map_err(|e| Error::Database(e.to_string()))?;
+                        }
+
+                        let updated =
+                            reservations.update(Some(&mut c), &id, reservation).await?;
+                        Ok(ReservationItemDTO {
+                            id: Id::from_string(updated.id.to_string()).unwrap_or_default(),
+                            line_item_id: updated.line_item_id,
+                            inventory_item_id: updated.inventory_item_id,
+                            location_id: updated.location_id,
+                            quantity: updated.quantity,
+                        })
+                    })
+                })
+                .await
+            })
+        })
+        .await
+    }
+
     pub async fn get_reservation(&self, id: &str) -> Result<ReservationItemDTO> {
         let r = self.reservations.retrieve(None, id).await?;
         Ok(ReservationItemDTO {

@@ -454,16 +454,16 @@ pub async fn create_category(
 }
 
 pub async fn delete_category(
-    State(_service): State<Arc<ProductService>>,
+    State(service): State<Arc<ProductService>>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, Response> {
+    service.delete_category(&id).await.map_err(|e| match e {
+        stheno_types::Error::Conflict { .. } => bad_request(e),
+        other => not_found(other),
+    })?;
     Ok((
         StatusCode::OK,
-        Json(json!({
-            "id": id,
-            "object": "product_category",
-            "deleted": true
-        })),
+        Json(json!({ "id": id, "object": "product_category", "deleted": true })),
     ))
 }
 
@@ -833,39 +833,45 @@ pub async fn list_global_product_options(
     ))
 }
 
+/// The product-less form of `create_product_option`: `POST /admin/product-options`.
+///
+/// An option belongs to a product, so the id the path does not carry has to be in the
+/// body. This previously minted an `opt_<ulid>` and its `optval_<ulid>` values in JSON and
+/// stored neither, so an option created from the global screen vanished on reload.
+#[derive(Debug, Deserialize)]
+pub struct CreateGlobalOptionRequest {
+    pub product_id: String,
+    pub title: String,
+    pub values: Option<Vec<String>>,
+}
+
 pub async fn create_global_product_option(
-    State(_service): State<Arc<ProductService>>,
-    Json(input): Json<CreateOptionRequest>,
+    State(service): State<Arc<ProductService>>,
+    Json(input): Json<CreateGlobalOptionRequest>,
 ) -> Result<impl IntoResponse, Response> {
-    let opt_id = format!("opt_{}", ulid::Ulid::new());
-    let formatted_vals: Vec<serde_json::Value> = input
-        .values
-        .unwrap_or_default()
-        .into_iter()
-        .enumerate()
-        .map(|(rank, v)| {
-            json!({
-                "id": format!("optval_{}", ulid::Ulid::new()),
-                "value": v,
-                "option_id": opt_id,
-                "rank": rank as i32
-            })
-        })
-        .collect();
+    let opt_id = service
+        .create_option(&input.product_id, &input.title)
+        .await
+        .map_err(bad_request)?;
 
-    let opt = json!({
-        "id": opt_id,
-        "title": input.title,
-        "product_id": null,
-        "values": formatted_vals
+    let mut values = Vec::new();
+    for (rank, value) in input.values.unwrap_or_default().into_iter().enumerate() {
+        let vid = service
+            .create_option_value(&opt_id, &value)
+            .await
+            .map_err(bad_request)?;
+        values.push(json!({
+            "id": vid, "value": value, "option_id": opt_id, "rank": rank as i32,
+        }));
+    }
+
+    let option = json!({
+        "id": opt_id, "title": input.title,
+        "product_id": input.product_id, "values": values,
     });
-
     Ok((
         StatusCode::CREATED,
-        Json(json!({
-            "product_option": opt,
-            "data": opt,
-        })),
+        Json(json!({ "product_option": option, "data": option })),
     ))
 }
 
@@ -1245,15 +1251,32 @@ pub async fn get_product_option(
 }
 
 pub async fn delete_product_option(
-    State(_service): State<Arc<ProductService>>,
+    State(service): State<Arc<ProductService>>,
     Path((_product_id, option_id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, Response> {
+    service.delete_option(&option_id).await.map_err(not_found)?;
     Ok((
         StatusCode::OK,
-        Json(json!({
-            "id": option_id,
-            "object": "product_option",
-            "deleted": true
-        })),
+        Json(json!({ "id": option_id, "object": "product_option", "deleted": true })),
+    ))
+}
+
+/// POST /admin/product-categories/{id}
+///
+/// The category route was mounted `get`/`delete` only, so the edit form's save was
+/// rejected by the method router. Re-parenting is not handled here — see
+/// `UpdateCategoryInput`.
+pub async fn update_category(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+    Json(input): Json<stheno_product::UpdateCategoryInput>,
+) -> Result<impl IntoResponse, Response> {
+    let category = service
+        .update_category(&id, input)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "product_category": category, "data": category })),
     ))
 }

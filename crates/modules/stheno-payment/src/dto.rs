@@ -952,3 +952,11 @@ pub struct ProviderRequestOversightDTO {
     pub first_sent_at: DateTime<Utc>,
     pub settled_at: Option<DateTime<Utc>>,
 }
+
+/// Partial update for a refund reason. Absent means unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateRefundReasonInput {
+    pub label: Option<String>,
+    pub description: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}

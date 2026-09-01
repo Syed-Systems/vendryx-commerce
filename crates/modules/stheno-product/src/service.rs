@@ -625,6 +625,98 @@ impl ProductService {
             .await
     }
 
+    /// Partial update for a category.
+    ///
+    /// Does not touch `mpath` or `parent_category_id` — see `UpdateCategoryInput`.
+    /// Soft-deletes a category.
+    ///
+    /// Refuses while it still has children. `mpath` encodes ancestry as a string, so
+    /// removing a parent silently orphans every descendant's path — they would keep a
+    /// prefix pointing at a category that no longer exists, and the tree would render with
+    /// a hole in it. Medusa's dashboard reparents before deleting; this makes the
+    /// requirement explicit instead of corrupting the tree.
+    pub async fn delete_category(&self, id: &str) -> Result<()> {
+        let children = self
+            .categories
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("parent_category_id", FilterOp::Eq(id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 1),
+            )
+            .await?;
+
+        if !children.is_empty() {
+            return Err(Error::Conflict {
+                code: "category_has_children",
+                message: format!(
+                    "Category {id} still has child categories; move or delete them first"
+                ),
+            });
+        }
+
+        self.categories.soft_delete(None, id).await?;
+        Ok(())
+    }
+
+    /// Soft-deletes a product option and the values under it.
+    ///
+    /// The values go in the same call: an option value whose option is gone is a row no
+    /// query filters out, and `list_option_values` keys on the option id rather than on
+    /// the parent's state.
+    pub async fn delete_option(&self, id: &str) -> Result<()> {
+        let values = self
+            .option_values
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("option_id", FilterOp::Eq(id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT),
+            )
+            .await?;
+
+        for value in values {
+            self.option_values
+                .soft_delete(None, &value.id.to_string())
+                .await?;
+        }
+
+        self.options.soft_delete(None, id).await?;
+        Ok(())
+    }
+
+    pub async fn update_category(
+        &self,
+        id: &str,
+        input: UpdateCategoryInput,
+    ) -> Result<ProductCategoryDTO> {
+        let mut cat = self.categories.retrieve(None, id).await?;
+
+        if let Some(name) = input.name {
+            cat.name = name;
+        }
+        if let Some(handle) = input.handle {
+            cat.handle = handle;
+        }
+        if let Some(rank) = input.rank {
+            cat.rank = rank;
+        }
+        if let Some(is_active) = input.is_active {
+            cat.is_active = is_active;
+        }
+        if let Some(is_internal) = input.is_internal {
+            cat.is_internal = is_internal;
+        }
+        cat.updated_at = Utc::now();
+
+        self.categories
+            .update(None, id, cat)
+            .await
+            .map(|c| category_dto(&c))
+    }
+
     pub async fn update_type(&self, id: &str, value: String) -> Result<ProductType> {
         let mut ty = self.types.retrieve(None, id).await?;
         ty.value = value;

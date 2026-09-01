@@ -225,6 +225,39 @@ impl FulfillmentService {
         ))
     }
 
+    /// Partial update for a shipping profile. Absent means unchanged.
+    pub async fn update_shipping_profile(
+        &self,
+        id: &str,
+        input: UpdateShippingProfileInput,
+    ) -> Result<ShippingProfileDTO> {
+        let mut sp = self.shipping_profiles.retrieve(None, id).await?;
+
+        if let Some(name) = input.name {
+            sp.name = name;
+        }
+        if let Some(kind) = input.r#type {
+            sp.r#type = kind;
+        }
+        if let Some(metadata) = input.metadata {
+            sp.metadata = Some(metadata);
+        }
+        sp.updated_at = Utc::now();
+
+        let updated = self.shipping_profiles.update(None, id, sp).await?;
+        Ok(Self::to_profile_dto(&updated))
+    }
+
+    /// Soft-deletes a fulfillment set.
+    ///
+    /// Service zones are left in place rather than cascaded: they are addressable in their
+    /// own right and a cascade here would delete rows no caller asked about. If orphaned
+    /// zones become a problem, that is a cleanup job, not a side effect of this call.
+    pub async fn delete_fulfillment_set(&self, id: &str) -> Result<()> {
+        self.fulfillment_sets.soft_delete(None, id).await?;
+        Ok(())
+    }
+
     pub async fn delete_shipping_profile(&self, id: &str) -> Result<()> {
         self.shipping_profiles.soft_delete(None, id).await?;
         Ok(())

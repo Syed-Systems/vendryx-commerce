@@ -20,6 +20,14 @@ pub struct CreateSalesChannelInput {
     pub is_disabled: Option<bool>,
 }
 
+/// Every field optional: the dashboard's channel form sends only what changed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateSalesChannelInput {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub is_disabled: Option<bool>,
+}
+
 // Medusa id prefixes for this module's entities (ADR-010).
 stheno_types::prefixed_id! {
     SalesChannelDTO => "sc",

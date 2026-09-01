@@ -149,20 +149,6 @@ pub async fn update_store(
     ))
 }
 
-/// GET /admin/price-preferences
-pub async fn list_price_preferences() -> Result<impl IntoResponse, HttpError> {
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "price_preferences": [],
-            "data": [],
-            "count": 0,
-            "offset": 0,
-            "limit": 50,
-        })),
-    ))
-}
-
 /// GET /admin/notifications
 pub async fn list_notifications() -> Result<impl IntoResponse, HttpError> {
     Ok((

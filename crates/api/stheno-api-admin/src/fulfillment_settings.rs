@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -247,5 +247,114 @@ pub async fn list_fulfillment_providers(
         Json(json!({
             "fulfillment_providers": providers, "data": providers, "count": count,
         })),
+    ))
+}
+
+/// POST /admin/fulfillment-sets/{id}/service-zones
+///
+/// The same handler as `create_service_zone`, reading the set from the path segment. The
+/// dashboard only ever calls the nested form; the flat `/admin/service-zones` route stays
+/// mounted because the storefront gate tests reference it.
+pub async fn create_service_zone_for_set(
+    State(ctx): State<FulfillmentSettingsContext>,
+    Path(fulfillment_set_id): Path<String>,
+    Json(payload): Json<CreateServiceZoneForSetRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let zone = ctx
+        .fulfillment_service
+        .create_service_zone(CreateServiceZoneInput {
+            fulfillment_set_id,
+            name: payload.name,
+            metadata: payload.metadata,
+        })
+        .await
+        .map_err(bad_request)?;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "service_zone": zone, "data": zone })),
+    ))
+}
+
+/// The nested body: everything `CreateServiceZoneInput` needs except the set, which the
+/// path already carries.
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateServiceZoneForSetRequest {
+    pub name: String,
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// POST /admin/shipping-profiles/{id}
+pub async fn update_shipping_profile(
+    State(ctx): State<FulfillmentSettingsContext>,
+    Path(id): Path<String>,
+    Json(input): Json<stheno_fulfillment::UpdateShippingProfileInput>,
+) -> Result<impl IntoResponse, Response> {
+    let profile = ctx
+        .fulfillment_service
+        .update_shipping_profile(&id, input)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "shipping_profile": profile, "data": profile })),
+    ))
+}
+
+/// DELETE /admin/fulfillment-sets/{id}
+pub async fn delete_fulfillment_set(
+    State(ctx): State<FulfillmentSettingsContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    ctx.fulfillment_service
+        .delete_fulfillment_set(&id)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": id, "object": "fulfillment_set", "deleted": true })),
+    ))
+}
+
+/// GET /admin/shipping-options
+///
+/// Moved here from `config.rs`, which returned one fabricated option and had no
+/// `FulfillmentService` to ask. `list_shipping_options` has existed since P5-08.
+pub async fn list_shipping_options(
+    State(ctx): State<FulfillmentSettingsContext>,
+    Query(filter): Query<stheno_fulfillment::ShippingOptionFilter>,
+) -> Result<impl IntoResponse, Response> {
+    let (options, count) = ctx
+        .fulfillment_service
+        .list_shipping_options(filter)
+        .await
+        .map_err(bad_request)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "shipping_options": options,
+            "data": options,
+            "count": count,
+            "offset": 0,
+            "limit": count,
+        })),
+    ))
+}
+
+/// POST /admin/shipping-options
+///
+/// The previous handler echoed the request back with an invented `so_<ulid>` and stored
+/// nothing, so a shipping option configured by a merchant never reached checkout.
+pub async fn create_shipping_option(
+    State(ctx): State<FulfillmentSettingsContext>,
+    Json(input): Json<stheno_fulfillment::CreateShippingOptionInput>,
+) -> Result<impl IntoResponse, Response> {
+    let option = ctx
+        .fulfillment_service
+        .create_shipping_option(input)
+        .await
+        .map_err(bad_request)?;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "shipping_option": option, "data": option })),
     ))
 }

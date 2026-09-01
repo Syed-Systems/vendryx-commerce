@@ -334,3 +334,35 @@ pub async fn set_setting(
         Json(json!({ "setting": setting, "data": setting })),
     ))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ListTranslationsQuery {
+    pub locale_code: Option<String>,
+    pub entity_type: Option<String>,
+}
+
+/// GET /admin/translations
+///
+/// The route was mounted `post`-only, so the translations screen could write a value and
+/// then had no way to read the table back.
+pub async fn list_translations(
+    State(ctx): State<LocalisationContext>,
+    Query(query): Query<ListTranslationsQuery>,
+) -> Result<impl IntoResponse, Response> {
+    let translations = ctx
+        .translation_service
+        .list_translations(query.locale_code.as_deref(), query.entity_type.as_deref())
+        .await
+        .map_err(|e| failed(StatusCode::INTERNAL_SERVER_ERROR, "unexpected_state", e))?;
+    let count = translations.len();
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "translations": translations,
+            "data": translations,
+            "count": count,
+            "offset": 0,
+            "limit": count,
+        })),
+    ))
+}

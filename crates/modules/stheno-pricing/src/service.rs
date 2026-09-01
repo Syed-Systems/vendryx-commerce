@@ -422,6 +422,30 @@ impl PricingService {
 
     // ---- price preferences ----------------------------------------------
 
+    /// Every price preference.
+    ///
+    /// `set_price_preference` has existed since P12; nothing ever read the table back, so
+    /// the admin's tax-inclusivity screen listed nothing however many preferences were set.
+    pub async fn list_price_preferences(&self) -> Result<Vec<PricePreferenceDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("attribute", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        Ok(self
+            .preferences
+            .list(None, &filter)
+            .await?
+            .into_iter()
+            .map(|p| PricePreferenceDTO {
+                id: Id::from_string(p.id.to_string()).unwrap_or_default(),
+                attribute: p.attribute,
+                value: p.value,
+                is_tax_inclusive: p.is_tax_inclusive,
+            })
+            .collect())
+    }
+
     pub async fn set_price_preference(
         &self,
         attribute: &str,

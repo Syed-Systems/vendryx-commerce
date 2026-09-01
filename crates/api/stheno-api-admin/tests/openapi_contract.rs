@@ -152,6 +152,7 @@ fn admin_router() -> Router {
     let translation = Arc::new(stheno_translation::TranslationService::new(pool.clone()));
     let settings = Arc::new(stheno_settings::SettingsService::new(pool.clone()));
     let rbac = Arc::new(stheno_rbac::RbacService::new(pool.clone()));
+    let api_keys = Arc::new(stheno_api_key::ApiKeyService::new(pool.clone()));
     let reporting = Arc::new(stheno_reporting::ReportingService::new(pool.clone()));
 
     Router::new()
@@ -179,7 +180,7 @@ fn admin_router() -> Router {
             payment,
             Arc::new(stheno_links::PgLinkStore::new(pool)),
         ))
-        .merge(admin_api_key_routes())
+        .merge(admin_api_key_routes(api_keys))
         .merge(admin_views_routes())
         .merge(admin_rbac_routes(rbac))
         .merge(admin_fulfillment_settings_routes(fulfillment))
@@ -208,28 +209,60 @@ fn probe_uri(path: &str) -> String {
     out
 }
 
-async fn method_is_mounted(router: Router, method: &str, uri: &str) -> bool {
+/// The set of verbs mounted at `uri`, or `None` if no route matches the path at all.
+///
+/// Probing with `TRACE` — a verb nothing mounts — makes every matched path answer 405, and
+/// axum puts the permitted verbs in the `Allow` header of that response. So one request per
+/// path reads the whole mounted method set *without ever polling a handler*.
+///
+/// This is what makes the test usable as an inner loop. Sending each operation's real verb
+/// works too, and was the first version, but it executes ~150 handlers that reach for a
+/// database this test deliberately does not have — three and a half minutes of connection
+/// failures to answer a question that is pure routing.
+async fn mounted_methods(router: Router, uri: &str) -> Option<BTreeSet<String>> {
     let response = router
         .oneshot(
             Request::builder()
-                .method(method)
+                .method("TRACE")
                 .uri(uri)
-                .header("content-type", "application/json")
-                .body(Body::from("{}"))
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
         .expect("router responds");
 
-    response.status() != StatusCode::METHOD_NOT_ALLOWED
+    if response.status() != StatusCode::METHOD_NOT_ALLOWED {
+        // No route matched the path. Every operation on it is 404-class, which is a
+        // deliberate state, not this test's concern.
+        return None;
+    }
+
+    let allow = response
+        .headers()
+        .get(axum::http::header::ALLOW)
+        .expect("axum sets Allow on a 405")
+        .to_str()
+        .expect("Allow is ascii")
+        .to_string();
+
+    Some(
+        allow
+            .split(',')
+            .map(|m| m.trim().to_uppercase())
+            .filter(|m| !m.is_empty())
+            .collect(),
+    )
 }
 
 #[tokio::test]
 async fn no_admin_operation_answers_method_not_allowed() {
     let skipped: BTreeSet<&str> = TAGS_WITHOUT_UI.iter().copied().collect();
 
+    // `/auth` and the MFA surface are mounted by `stheno-api-auth`, outside this router.
+    // Probing them here would assert nothing and report a pass for it.
     let mut expected: Vec<Operation> = load_operations()
         .into_iter()
+        .filter(|op| op.path.starts_with("/admin/"))
         .filter(|op| !skipped.contains(op.tag.as_str()))
         .collect();
 
@@ -241,11 +274,31 @@ async fn no_admin_operation_answers_method_not_allowed() {
         });
     }
 
-    let mut failures: Vec<String> = Vec::new();
+    // Built once and cloned per probe; `oneshot` consumes the router.
+    let router = admin_router();
+
+    // One probe per path rather than per operation — the Allow header answers for all of
+    // that path's verbs at once.
+    let mut by_path: BTreeMap<String, Vec<&Operation>> = BTreeMap::new();
     for op in &expected {
-        let uri = probe_uri(&op.path);
-        if !method_is_mounted(admin_router(), &op.method, &uri).await {
-            failures.push(format!("  405  {:6} {}   [{}]", op.method, op.path, op.tag));
+        by_path.entry(op.path.clone()).or_default().push(op);
+    }
+
+    let mut failures: Vec<String> = Vec::new();
+    for (path, ops) in &by_path {
+        let Some(allowed) = mounted_methods(router.clone(), &probe_uri(path)).await else {
+            continue; // path not mounted at all — 404-class
+        };
+        for op in ops {
+            if !allowed.contains(&op.method) {
+                failures.push(format!(
+                    "  405  {:6} {}   mounted: {}   [{}]",
+                    op.method,
+                    op.path,
+                    allowed.iter().cloned().collect::<Vec<_>>().join(","),
+                    op.tag
+                ));
+            }
         }
     }
 

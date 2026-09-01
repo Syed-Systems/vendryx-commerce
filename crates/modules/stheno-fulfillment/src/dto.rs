@@ -243,6 +243,14 @@ pub struct CreateShippingProfileInput {
     pub metadata: Option<serde_json::Value>,
 }
 
+/// Partial update for a shipping profile. Absent means unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateShippingProfileInput {
+    pub name: Option<String>,
+    pub r#type: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}
+
 // ── 4. Eligibility Context & Calculation (P5-10, P5-12) ─────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

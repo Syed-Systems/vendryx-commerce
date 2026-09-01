@@ -18,7 +18,7 @@ use stheno_db::diesel::{
     QueryableByName,
 };
 use stheno_db::diesel_async::RunQueryDsl;
-use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
+use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 use tokio::sync::Mutex as AsyncMutex;
 
@@ -501,6 +501,65 @@ impl PaymentService {
         })
     }
 
+    /// The read side of refund reasons.
+    ///
+    /// The repository has existed since the module was written and nothing ever read from
+    /// it: `/admin/refund-reasons` answered with two hardcoded rows, and the create route
+    /// echoed its input back with an invented id. So a merchant could add a reason, see it
+    /// "saved", and never find it again.
+    pub async fn list_refund_reasons(&self) -> Result<Vec<RefundReasonDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        let rows = self.refund_reasons.list(None, &filter).await?;
+        Ok(rows.iter().map(Self::to_refund_reason_dto).collect())
+    }
+
+    pub async fn get_refund_reason(&self, id: &str) -> Result<RefundReasonDTO> {
+        let reason = self.refund_reasons.retrieve(None, id).await?;
+        Ok(Self::to_refund_reason_dto(&reason))
+    }
+
+    /// Partial update for a refund reason.
+    pub async fn update_refund_reason(
+        &self,
+        id: &str,
+        input: UpdateRefundReasonInput,
+    ) -> Result<RefundReasonDTO> {
+        let mut reason = self.refund_reasons.retrieve(None, id).await?;
+        if let Some(label) = input.label {
+            reason.label = label;
+        }
+        if let Some(description) = input.description {
+            reason.description = Some(description);
+        }
+        if let Some(metadata) = input.metadata {
+            reason.metadata = Some(metadata);
+        }
+        reason.updated_at = Utc::now();
+
+        let updated = self.refund_reasons.update(None, id, reason).await?;
+        Ok(Self::to_refund_reason_dto(&updated))
+    }
+
+    pub async fn delete_refund_reason_by_id(&self, id: &str) -> Result<()> {
+        self.refund_reasons.soft_delete(None, id).await?;
+        Ok(())
+    }
+
+    fn to_refund_reason_dto(r: &RefundReason) -> RefundReasonDTO {
+        RefundReasonDTO {
+            id: r.id.to_string(),
+            label: r.label.clone(),
+            description: r.description.clone(),
+            metadata: r.metadata.clone(),
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        }
+    }
+
     pub async fn create_refund_reason(
         &self,
         label: &str,
@@ -544,6 +603,24 @@ impl PaymentService {
 
         let created = self.collections.create(None, col).await?;
         self.get_payment_collection(&created.id.to_string()).await
+    }
+
+    /// Every payment collection.
+    ///
+    /// `/admin/payment-collections` answered from an empty literal in `config.rs` while
+    /// the table was being written to by checkout.
+    pub async fn list_payment_collections(&self) -> Result<Vec<PaymentCollectionDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Desc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        let rows = self.collections.list(None, &filter).await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(self.get_payment_collection(&row.id.to_string()).await?);
+        }
+        Ok(out)
     }
 
     pub async fn get_payment_collection(&self, id: &str) -> Result<PaymentCollectionDTO> {

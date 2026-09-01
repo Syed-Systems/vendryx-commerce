@@ -123,7 +123,9 @@ pub fn admin_catalog_routes(
         )
         .route(
             "/admin/product-categories/{id}",
-            get(catalog::get_category).delete(catalog::delete_category),
+            get(catalog::get_category)
+                .post(catalog::update_category)
+                .delete(catalog::delete_category),
         )
         .route(
             "/admin/collections",
@@ -176,17 +178,19 @@ pub fn admin_inventory_routes(
         )
         .route(
             "/admin/inventory-items/{id}",
-            get(inventory::get_inventory_item),
+            get(inventory::get_inventory_item)
+                .post(inventory::update_inventory_item)
+                .delete(inventory::delete_inventory_item),
         )
         .route(
             "/admin/inventory-items/{id}/location-levels",
-            post(inventory::create_location_level),
+            get(inventory::list_location_levels).post(inventory::create_location_level),
         )
         // Stock adjustment: the operation the whole inventory surface exists for, and
         // the one that had no endpoint at all.
         .route(
             "/admin/inventory-items/{id}/location-levels/{location_id}",
-            post(inventory::set_stock_level),
+            post(inventory::set_stock_level).delete(inventory::delete_location_level),
         )
         .route(
             "/admin/reservations",
@@ -194,7 +198,9 @@ pub fn admin_inventory_routes(
         )
         .route(
             "/admin/reservations/{id}",
-            get(inventory::get_reservation).delete(inventory::delete_reservation),
+            get(inventory::get_reservation)
+                .post(inventory::update_reservation)
+                .delete(inventory::delete_reservation),
         )
         .route(
             "/admin/stock-locations",
@@ -212,6 +218,10 @@ pub fn admin_inventory_routes(
 /// Mounts admin pricing routes.
 pub fn admin_pricing_routes(pricing_service: Arc<PricingService>) -> Router {
     Router::new()
+        .route(
+            "/admin/price-preferences",
+            get(pricing::list_price_preferences).post(pricing::set_price_preference),
+        )
         .route(
             "/admin/price-lists",
             get(pricing::list_price_lists).post(pricing::create_price_list),
@@ -241,7 +251,10 @@ pub fn admin_order_routes(
             "/admin/orders",
             get(orders::list_orders).post(orders::create_order),
         )
-        .route("/admin/orders/{id}", get(orders::get_order))
+        .route(
+            "/admin/orders/{id}",
+            get(orders::get_order).post(orders::update_order),
+        )
         .route("/admin/orders/{id}/cancel", post(orders::cancel_order))
         .route("/admin/orders/{id}/archive", post(orders::archive_order))
         .route(
@@ -254,14 +267,19 @@ pub fn admin_order_routes(
             "/admin/returns",
             get(orders::list_returns).post(orders::create_return),
         )
-        .route("/admin/returns/{id}/receive", post(orders::receive_return))
+        .route(
+            "/admin/returns/{id}/receive",
+            post(orders::receive_return).delete(orders::cancel_return_receipt),
+        )
         .route(
             "/admin/return-reasons",
             get(orders::list_return_reasons).post(orders::create_return_reason),
         )
         .route(
             "/admin/return-reasons/{id}",
-            get(orders::get_return_reason).delete(orders::delete_return_reason),
+            get(orders::get_return_reason)
+                .post(orders::update_return_reason)
+                .delete(orders::delete_return_reason),
         )
         .route(
             "/admin/refund-reasons",
@@ -269,11 +287,22 @@ pub fn admin_order_routes(
         )
         .route(
             "/admin/refund-reasons/{id}",
-            get(orders::get_refund_reason).delete(orders::delete_refund_reason),
+            get(orders::get_refund_reason)
+                .post(orders::update_refund_reason)
+                .delete(orders::delete_refund_reason),
         )
-        .route("/admin/order-edits", get(orders::list_order_edits))
-        .route("/admin/claims", get(orders::list_claims))
-        .route("/admin/exchanges", get(orders::list_exchanges))
+        .route(
+            "/admin/order-edits",
+            get(orders::list_order_edits).post(orders::create_order_edit),
+        )
+        .route(
+            "/admin/claims",
+            get(orders::list_claims).post(orders::create_claim),
+        )
+        .route(
+            "/admin/exchanges",
+            get(orders::list_exchanges).post(orders::create_exchange),
+        )
         .with_state(ctx)
 }
 
@@ -393,12 +422,9 @@ pub fn admin_config_routes(
         )
         .route(
             "/admin/sales-channels/{id}",
-            get(config::get_sales_channel).delete(config::delete_sales_channel),
-        )
-        // Shipping Options & Types
-        .route(
-            "/admin/shipping-options",
-            get(config::list_shipping_options).post(config::create_shipping_option),
+            get(config::get_sales_channel)
+                .post(config::update_sales_channel)
+                .delete(config::delete_sales_channel),
         )
         // Payment Providers & Collections
         .route(
@@ -413,10 +439,6 @@ pub fn admin_config_routes(
             "/admin/regions/{region_id}/payment-providers/{provider_id}",
             post(config::enable_region_payment_provider)
                 .delete(config::disable_region_payment_provider),
-        )
-        .route(
-            "/admin/payment-collections",
-            get(config::list_payment_collections),
         )
         // RBAC Roles & Policies
         // Locales & Translations
@@ -520,10 +542,6 @@ pub fn admin_store_routes(
             "/admin/stores/{id}",
             get(store::get_store).post(store::update_store),
         )
-        .route(
-            "/admin/price-preferences",
-            get(store::list_price_preferences),
-        )
         .route("/admin/notifications", get(store::list_notifications))
         .with_state(ctx)
 }
@@ -549,8 +567,13 @@ pub fn admin_views_routes() -> Router {
         )
 }
 
-pub fn admin_api_key_routes() -> Router {
-    let ctx = api_keys::AdminApiKeyContext;
+/// Mounts admin API key routes.
+///
+/// Carries `ApiKeyService`: every handler in `api_keys.rs` used to answer from a literal
+/// while the service and its table sat unused, so a created key was never stored and a
+/// revoked key kept working.
+pub fn admin_api_key_routes(api_key_service: Arc<stheno_api_key::ApiKeyService>) -> Router {
+    let ctx = api_keys::AdminApiKeyContext { api_key_service };
     Router::new()
         .route(
             "/admin/api-keys",
@@ -558,7 +581,9 @@ pub fn admin_api_key_routes() -> Router {
         )
         .route(
             "/admin/api-keys/{id}",
-            axum::routing::delete(api_keys::delete_api_key),
+            get(api_keys::get_api_key)
+                .post(api_keys::update_api_key)
+                .delete(api_keys::delete_api_key),
         )
         .route(
             "/admin/api-keys/{id}/revoke",
@@ -570,7 +595,9 @@ pub fn admin_api_key_routes() -> Router {
         )
         .route(
             "/admin/publishable-api-keys/{id}",
-            axum::routing::delete(api_keys::delete_api_key),
+            get(api_keys::get_publishable_api_key)
+                .post(api_keys::update_publishable_api_key)
+                .delete(api_keys::delete_api_key),
         )
         .route(
             "/admin/publishable-api-keys/{id}/revoke",
@@ -593,7 +620,9 @@ pub fn admin_rbac_routes(rbac_service: Arc<stheno_rbac::RbacService>) -> Router 
         )
         .route(
             "/admin/rbac/roles/{name}",
-            get(rbac::get_role).delete(rbac::delete_role),
+            get(rbac::get_role)
+                .post(rbac::update_role)
+                .delete(rbac::delete_role),
         )
         .route(
             "/admin/rbac/policies",
@@ -601,7 +630,9 @@ pub fn admin_rbac_routes(rbac_service: Arc<stheno_rbac::RbacService>) -> Router 
         )
         .route(
             "/admin/rbac/policies/{id}",
-            axum::routing::delete(rbac::delete_policy),
+            get(rbac::get_policy)
+                .post(rbac::update_policy)
+                .delete(rbac::delete_policy),
         )
         .route("/admin/rbac/evaluate", post(rbac::evaluate))
         .route("/admin/rbac/audit", get(rbac::list_audit_records))
@@ -626,6 +657,7 @@ pub fn admin_fulfillment_settings_routes(fulfillment_service: Arc<FulfillmentSer
         .route(
             "/admin/shipping-profiles/{id}",
             get(fulfillment_settings::get_shipping_profile)
+                .post(fulfillment_settings::update_shipping_profile)
                 .delete(fulfillment_settings::delete_shipping_profile),
         )
         .route(
@@ -635,15 +667,22 @@ pub fn admin_fulfillment_settings_routes(fulfillment_service: Arc<FulfillmentSer
         )
         .route(
             "/admin/fulfillment-sets/{id}",
-            get(fulfillment_settings::get_fulfillment_set),
+            get(fulfillment_settings::get_fulfillment_set)
+                .delete(fulfillment_settings::delete_fulfillment_set),
         )
         .route(
             "/admin/fulfillment-sets/{id}/service-zones",
-            get(fulfillment_settings::list_service_zones),
+            get(fulfillment_settings::list_service_zones)
+                .post(fulfillment_settings::create_service_zone_for_set),
         )
         .route(
             "/admin/service-zones",
             post(fulfillment_settings::create_service_zone),
+        )
+        .route(
+            "/admin/shipping-options",
+            get(fulfillment_settings::list_shipping_options)
+                .post(fulfillment_settings::create_shipping_option),
         )
         .route(
             "/admin/shipping-option-types",
@@ -675,7 +714,10 @@ pub fn admin_localisation_routes(
             get(localisation::list_locales).post(localisation::create_locale),
         )
         .route("/admin/locales/{code}", get(localisation::get_locale))
-        .route("/admin/translations", post(localisation::set_translation))
+        .route(
+            "/admin/translations",
+            get(localisation::list_translations).post(localisation::set_translation),
+        )
         .route(
             "/admin/translations/settings",
             get(localisation::translation_settings),

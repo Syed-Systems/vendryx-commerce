@@ -404,3 +404,100 @@ pub async fn delete_stock_location(
         })),
     ))
 }
+
+/// GET /admin/inventory-items/{id}/location-levels
+///
+/// The write side of this path was mounted and the read side was not, so the inventory
+/// detail screen posted a stock level successfully and then had no way to display it.
+/// `list_levels` has existed since the service was written.
+pub async fn list_location_levels(
+    State(ctx): State<InventoryContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let levels = ctx
+        .inventory_service
+        .list_levels(&id)
+        .await
+        .map_err(|e| not_found(&e))?;
+    let count = levels.len();
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "location_levels": levels,
+            "inventory_levels": levels,
+            "data": levels,
+            "count": count,
+            "offset": 0,
+            "limit": count,
+        })),
+    ))
+}
+
+/// POST /admin/inventory-items/{id}
+pub async fn update_inventory_item(
+    State(ctx): State<InventoryContext>,
+    Path(id): Path<String>,
+    Json(input): Json<stheno_inventory::UpdateInventoryItemInput>,
+) -> Result<impl IntoResponse, Response> {
+    let item = ctx
+        .inventory_service
+        .update_item(&id, input)
+        .await
+        .map_err(|e| not_found(&e))?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "inventory_item": item, "data": item })),
+    ))
+}
+
+/// DELETE /admin/inventory-items/{id}
+pub async fn delete_inventory_item(
+    State(ctx): State<InventoryContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    ctx.inventory_service
+        .delete_item(&id)
+        .await
+        .map_err(|e| not_found(&e))?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": id, "object": "inventory_item", "deleted": true })),
+    ))
+}
+
+/// DELETE /admin/inventory-items/{id}/location-levels/{location_id}
+pub async fn delete_location_level(
+    State(ctx): State<InventoryContext>,
+    Path((id, location_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    ctx.inventory_service
+        .delete_level(&id, &location_id)
+        .await
+        .map_err(|e| not_found(&e))?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "id": location_id,
+            "object": "inventory_level",
+            "deleted": true,
+            "parent": { "id": id },
+        })),
+    ))
+}
+
+/// POST /admin/reservations/{id}
+pub async fn update_reservation(
+    State(ctx): State<InventoryContext>,
+    Path(id): Path<String>,
+    Json(input): Json<stheno_inventory::UpdateReservationInput>,
+) -> Result<impl IntoResponse, Response> {
+    let reservation = ctx
+        .inventory_service
+        .update_reservation(&id, input)
+        .await
+        .map_err(|e| bad_request(&e))?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "reservation": reservation, "data": reservation })),
+    ))
+}

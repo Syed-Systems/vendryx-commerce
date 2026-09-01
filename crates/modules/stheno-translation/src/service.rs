@@ -117,6 +117,45 @@ impl TranslationService {
     // 2. Translations & Scoped Overrides
     // ==========================================
 
+    /// Every translation, optionally narrowed by locale and entity type.
+    ///
+    /// `/admin/translations` was mounted `post`-only, so the translations screen could
+    /// write a value and had no way to read the table back.
+    pub async fn list_translations(
+        &self,
+        locale_code: Option<&str>,
+        entity_type: Option<&str>,
+    ) -> Result<Vec<TranslationDTO>> {
+        let mut filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("entity_type", OrderDirection::Asc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        if let Some(locale) = locale_code {
+            filter = filter.with_predicate("locale_code", FilterOp::Eq(locale.to_string()));
+        }
+        if let Some(entity) = entity_type {
+            filter = filter.with_predicate("entity_type", FilterOp::Eq(entity.to_string()));
+        }
+
+        Ok(self
+            .translations
+            .list(None, &filter)
+            .await?
+            .into_iter()
+            .map(|t| TranslationDTO {
+                id: t.id.to_string(),
+                locale_code: t.locale_code,
+                entity_type: t.entity_type,
+                entity_id: t.entity_id,
+                field_name: t.field_name,
+                value: t.value,
+                created_at: t.created_at,
+                updated_at: t.updated_at,
+            })
+            .collect())
+    }
+
     pub async fn set_translation(&self, input: SetTranslationInput) -> Result<TranslationDTO> {
         let filter = FilterSpec::new()
             .with_predicate("locale_code", FilterOp::Eq(input.locale_code.clone()))

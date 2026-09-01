@@ -7,6 +7,7 @@ use axum::Json;
 use serde_json::json;
 use std::sync::Arc;
 use stheno_api_core::ErrorResponse;
+use stheno_http::HttpError;
 use stheno_pricing::{CreatePriceListInput, PricingService, UpdatePriceListInput};
 
 // Price List Handlers
@@ -115,5 +116,62 @@ pub async fn delete_price_list(
             "object": "price_list",
             "deleted": true
         })),
+    ))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SetPricePreferenceRequest {
+    pub attribute: String,
+    pub value: String,
+    pub is_tax_inclusive: Option<bool>,
+}
+
+/// GET /admin/price-preferences
+///
+/// Moved here from `store.rs`, which answered from an empty literal because
+/// `AdminStoreContext` carries no `PricingService`. The preference table has been written
+/// to since P12 and never read.
+pub async fn list_price_preferences(
+    State(service): State<Arc<PricingService>>,
+) -> Result<impl IntoResponse, HttpError> {
+    let preferences = service.list_price_preferences().await?;
+    let count = preferences.len();
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "price_preferences": preferences,
+            "data": preferences,
+            "count": count,
+            "offset": 0,
+            "limit": count,
+        })),
+    ))
+}
+
+/// POST /admin/price-preferences
+///
+/// Upsert, matching the service: a preference is identified by `(attribute, value)`, and
+/// setting one that exists changes its tax inclusivity rather than adding a second row.
+pub async fn set_price_preference(
+    State(service): State<Arc<PricingService>>,
+    Json(request): Json<SetPricePreferenceRequest>,
+) -> Result<impl IntoResponse, HttpError> {
+    service
+        .set_price_preference(
+            &request.attribute,
+            &request.value,
+            request.is_tax_inclusive.unwrap_or(false),
+        )
+        .await?;
+
+    let preference = service
+        .list_price_preferences()
+        .await?
+        .into_iter()
+        .find(|p| p.attribute == request.attribute && p.value == request.value);
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "price_preference": preference, "data": preference })),
     ))
 }

@@ -59,3 +59,21 @@ stheno_types::prefixed_id! {
     InventoryLevelDTO => "ilev",
     ReservationItemDTO => "res",
 }
+
+/// Partial update for an inventory item. Absent means unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateInventoryItemInput {
+    pub sku: Option<String>,
+    pub requires_shipping: Option<bool>,
+}
+
+/// Partial update for a reservation.
+///
+/// Only `quantity` and `description` are editable. Moving a reservation to a different
+/// item or location is a release-and-reserve, not a field edit — it has to re-check
+/// availability at the destination, which this shape cannot express.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateReservationInput {
+    pub quantity: Option<i32>,
+    pub description: Option<String>,
+}

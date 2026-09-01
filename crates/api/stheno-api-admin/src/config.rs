@@ -4,7 +4,6 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use chrono::Utc;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -561,78 +560,7 @@ pub async fn delete_sales_channel(
 
 // ── Shipping Options & Fulfillment Sets ───────────────────────────────────────
 
-pub async fn list_shipping_options() -> Result<impl IntoResponse, Response> {
-    let standard = json!({
-        "id": "so_standard_shipping",
-        "name": "Standard Delivery (3-5 days)",
-        "price_type": "flat",
-        "service_zone_id": "sz_default",
-        "shipping_profile_id": "sp_default_shipping_profile",
-        "provider_id": "manual_fulfillment",
-        "data": {},
-        "rules": [],
-        "prices": [
-            {
-                "id": "sop_usd",
-                "currency_code": "usd",
-                "amount": "5.0000"
-            }
-        ],
-        "created_at": "2026-08-17T17:29:39.266111Z",
-        "updated_at": "2026-08-17T17:29:39.266111Z"
-    });
-    let express = json!({
-        "id": "so_express_shipping",
-        "name": "Express Delivery (Next Day)",
-        "price_type": "flat",
-        "service_zone_id": "sz_default",
-        "shipping_profile_id": "sp_default_shipping_profile",
-        "provider_id": "manual_fulfillment",
-        "data": {},
-        "rules": [],
-        "prices": [
-            {
-                "id": "sop_exp_usd",
-                "currency_code": "usd",
-                "amount": "15.0000"
-            }
-        ],
-        "created_at": "2026-08-17T17:29:39.266111Z",
-        "updated_at": "2026-08-17T17:29:39.266111Z"
-    });
 
-    let options = vec![standard, express];
-
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "shipping_options": options,
-            "data": options,
-            "count": 2,
-            "offset": 0,
-            "limit": 50,
-        })),
-    ))
-}
-
-pub async fn create_shipping_option(
-    Json(input): Json<serde_json::Value>,
-) -> Result<impl IntoResponse, Response> {
-    let opt_id = format!("so_{}", ulid::Ulid::new());
-    let mut opt = input;
-    if let Some(map) = opt.as_object_mut() {
-        map.insert("id".to_string(), json!(opt_id));
-        map.insert("created_at".to_string(), json!(Utc::now()));
-        map.insert("updated_at".to_string(), json!(Utc::now()));
-    }
-    Ok((
-        StatusCode::CREATED,
-        Json(json!({
-            "shipping_option": opt,
-            "data": opt,
-        })),
-    ))
-}
 
 const REGION_PAYMENT_PROVIDER_LINK: &str = "region_payment_provider";
 
@@ -831,20 +759,33 @@ fn map_error(e: stheno_types::Error) -> Response {
     (status, Json(ErrorResponse::new(r#type, &message))).into_response()
 }
 
-pub async fn list_payment_collections() -> Result<impl IntoResponse, Response> {
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "payment_collections": [],
-            "data": [],
-            "count": 0,
-            "offset": 0,
-            "limit": 50,
-        })),
-    ))
-}
 
 // RBAC roles and policies now live in `rbac.rs`, backed by `stheno-rbac`. The handlers
 // that used to sit here returned three hardcoded roles and an empty policy list.
 
 // ── Locales & Translations ──────────────────────────────────────────────────
+
+/// POST /admin/sales-channels/{id}
+///
+/// Mounted `get`/`delete` only, so the sales-channel edit form could never save.
+pub async fn update_sales_channel(
+    State(ctx): State<ConfigContext>,
+    Path(id): Path<String>,
+    Json(input): Json<stheno_sales_channel::UpdateSalesChannelInput>,
+) -> Result<impl IntoResponse, Response> {
+    let channel = ctx
+        .sales_channel_service
+        .update_channel(&id, input)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new("not_found", &e.to_string())),
+            )
+                .into_response()
+        })?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "sales_channel": channel, "data": channel })),
+    ))
+}

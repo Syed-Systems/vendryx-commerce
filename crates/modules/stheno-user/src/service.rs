@@ -114,6 +114,25 @@ impl UserService {
     // 2. Invite Management
     // ==========================================
 
+    /// Every outstanding invite.
+    ///
+    /// `/admin/invites` answered with a hardcoded empty array, so an invite created here
+    /// was never listed and could not be resent or revoked from the screen that owns it.
+    pub async fn list_invites(&self) -> Result<Vec<InviteDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Desc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        Ok(self
+            .invites
+            .list(None, &filter)
+            .await?
+            .iter()
+            .map(|invite| self.to_invite_dto(invite))
+            .collect())
+    }
+
     pub async fn create_invite(&self, input: CreateInviteInput) -> Result<InviteDTO> {
         let filter = FilterSpec::new()
             .with_predicate("email", FilterOp::Eq(input.email.clone()))

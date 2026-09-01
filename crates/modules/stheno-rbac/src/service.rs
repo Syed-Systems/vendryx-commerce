@@ -7,7 +7,7 @@ use stheno_types::{Error, Id, Result};
 
 use crate::dto::{
     AuditRecordDTO, CreatePolicyInput, CreateRoleInput, EvaluatePermissionInput,
-    PermissionDecision, PolicyDTO, RoleDTO,
+    PermissionDecision, PolicyDTO, RoleDTO, UpdatePolicyInput, UpdateRoleInput,
 };
 use crate::models::{AuditRecord, Policy, Role, RoleInheritance};
 
@@ -293,6 +293,91 @@ impl RbacService {
 
     /// Soft-deletes a role. System roles are refused: removing them would silently strip
     /// permissions from every user holding one.
+    /// Partial update for a role, addressed by name.
+    ///
+    /// System roles are immutable here for the same reason `delete_role` refuses them:
+    /// they are seeded by `seed_default_roles` and the authorisation model assumes they
+    /// exist with the shape it seeded. Editing one through the admin would let a merchant
+    /// quietly widen their own permissions.
+    pub async fn update_role(&self, name: &str, input: UpdateRoleInput) -> Result<RoleDTO> {
+        let existing = self.get_role(name).await?;
+        if existing.is_system_role {
+            return Err(Error::Invalid {
+                code: "system_role_immutable",
+                message: format!("{name} is a system role and cannot be edited"),
+                field: Some("name".to_string()),
+            });
+        }
+
+        let mut role = self.roles.retrieve(None, &existing.id).await?;
+        if let Some(description) = input.description {
+            role.description = Some(description);
+        }
+        if let Some(metadata) = input.metadata {
+            role.metadata = Some(metadata);
+        }
+        role.updated_at = Utc::now();
+        self.roles.update(None, &existing.id, role).await?;
+
+        self.get_role(name).await
+    }
+
+    pub async fn get_policy(&self, id: &str) -> Result<PolicyDTO> {
+        let p = self.policies.retrieve(None, id).await?;
+        Ok(PolicyDTO {
+            id: p.id.to_string(),
+            role: p.role,
+            resource: p.resource,
+            action: p.action,
+            effect: p.effect,
+            is_sensitive: p.is_sensitive,
+            metadata: p.metadata,
+            created_at: p.created_at,
+            updated_at: p.updated_at,
+        })
+    }
+
+    /// Partial update for a policy.
+    ///
+    /// `effect` is validated rather than trusted: the evaluator treats anything that is
+    /// not "deny" as an allow, so a typo here would silently widen access.
+    pub async fn update_policy(&self, id: &str, input: UpdatePolicyInput) -> Result<PolicyDTO> {
+        let mut policy = self.policies.retrieve(None, id).await?;
+
+        if let Some(effect) = &input.effect {
+            if effect != "allow" && effect != "deny" {
+                return Err(Error::Invalid {
+                    code: "invalid_effect",
+                    message: format!("effect must be 'allow' or 'deny', got '{effect}'"),
+                    field: Some("effect".to_string()),
+                });
+            }
+        }
+
+        if let Some(role) = input.role {
+            policy.role = role;
+        }
+        if let Some(resource) = input.resource {
+            policy.resource = resource;
+        }
+        if let Some(action) = input.action {
+            policy.action = action;
+        }
+        if let Some(effect) = input.effect {
+            policy.effect = effect;
+        }
+        if let Some(is_sensitive) = input.is_sensitive {
+            policy.is_sensitive = is_sensitive;
+        }
+        if let Some(metadata) = input.metadata {
+            policy.metadata = Some(metadata);
+        }
+        policy.updated_at = Utc::now();
+
+        self.policies.update(None, id, policy).await?;
+        self.get_policy(id).await
+    }
+
     pub async fn delete_role(&self, name: &str) -> Result<()> {
         let role = self.get_role(name).await?;
         if role.is_system_role {

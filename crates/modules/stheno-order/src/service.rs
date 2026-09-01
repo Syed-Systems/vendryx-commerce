@@ -8,7 +8,7 @@ use diesel_async::RunQueryDsl;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
-use stheno_db::{tenant, CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
+use stheno_db::{tenant, CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
@@ -1436,6 +1436,51 @@ impl OrderService {
         self.get_return_dto(return_id).await
     }
 
+    /// Reverses a receival, putting the return back to `requested`.
+    ///
+    /// The dashboard offers this as "cancel receive" while a return is received but not
+    /// yet confirmed — a warehouse miscount, most often. Received and damaged quantities
+    /// go back to zero along with the status, because leaving them behind would let a
+    /// second receive double-count against the same return.
+    ///
+    /// Refuses once the return is `completed` or `canceled`, matching every other
+    /// transition on this entity: after confirmation a refund may already have been
+    /// issued, and unwinding that is a credit note, not a status change.
+    pub async fn cancel_return_receipt(&self, return_id: &str) -> Result<ReturnDTO> {
+        let mut ret = self.returns.retrieve(None, return_id).await?;
+
+        if ret.status != "received" {
+            return Err(Error::Conflict {
+                code: "return_not_received",
+                message: format!(
+                    "Cannot cancel receival on return in status {} — only a received return can be reversed",
+                    ret.status
+                ),
+            });
+        }
+
+        let filter = FilterSpec::new()
+            .with_predicate("return_id", FilterOp::Eq(return_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+
+        for mut item in self.return_items.list(None, &filter).await? {
+            item.received_quantity = 0;
+            item.damaged_quantity = 0;
+            item.updated_at = Utc::now();
+            self.return_items
+                .update(None, &item.id.to_string(), item)
+                .await?;
+        }
+
+        ret.status = "requested".to_string();
+        ret.received_at = None;
+        ret.updated_at = Utc::now();
+
+        self.returns.update(None, return_id, ret).await?;
+        self.get_return_dto(return_id).await
+    }
+
     pub async fn confirm_return(
         &self,
         return_id: &str,
@@ -1580,6 +1625,37 @@ impl OrderService {
 
     // ── Return Reasons ──
 
+    /// Partial update for a return reason.
+    pub async fn update_return_reason(
+        &self,
+        id: &str,
+        input: UpdateReturnReasonInput,
+    ) -> Result<ReturnReasonDTO> {
+        let mut reason = self.return_reasons.retrieve(None, id).await?;
+        if let Some(value) = input.value {
+            reason.value = value;
+        }
+        if let Some(label) = input.label {
+            reason.label = label;
+        }
+        if let Some(description) = input.description {
+            reason.description = Some(description);
+        }
+        reason.updated_at = Utc::now();
+
+        let updated = self.return_reasons.update(None, id, reason).await?;
+        Ok(ReturnReasonDTO {
+            id: updated.id.to_string(),
+            value: updated.value,
+            label: updated.label,
+            description: updated.description,
+            parent_return_reason_id: updated.parent_return_reason_id,
+            metadata: updated.metadata,
+            created_at: updated.created_at,
+            updated_at: updated.updated_at,
+        })
+    }
+
     pub async fn create_return_reason(
         &self,
         input: CreateReturnReasonInput,
@@ -1608,6 +1684,72 @@ impl OrderService {
             created_at: created.created_at,
             updated_at: created.updated_at,
         })
+    }
+
+    /// Soft-deletes a return reason.
+    ///
+    /// The admin route reported `deleted: true` and did nothing, so a reason removed from
+    /// the settings screen came back on the next load.
+    pub async fn delete_return_reason(&self, id: &str) -> Result<()> {
+        self.return_reasons.soft_delete(None, id).await?;
+        Ok(())
+    }
+
+    /// Every order change, newest first, optionally narrowed to one order.
+    ///
+    /// `/admin/order-edits` answered with a hardcoded empty array, so an edit created
+    /// through `create_order_change` was never listed anywhere.
+    pub async fn list_order_changes(&self, order_id: Option<&str>) -> Result<Vec<OrderChangeDTO>> {
+        let mut filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Desc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        if let Some(order_id) = order_id {
+            filter = filter.with_predicate("order_id", FilterOp::Eq(order_id.to_string()));
+        }
+
+        let rows = self.order_changes.list(None, &filter).await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(Self::to_order_change_dto(&row, vec![]));
+        }
+        Ok(out)
+    }
+
+    /// Every claim, newest first, optionally narrowed to one order.
+    pub async fn list_claims(&self, order_id: Option<&str>) -> Result<Vec<ClaimDTO>> {
+        let mut filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Desc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        if let Some(order_id) = order_id {
+            filter = filter.with_predicate("order_id", FilterOp::Eq(order_id.to_string()));
+        }
+
+        let rows = self.claims.list(None, &filter).await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(self.get_claim_dto(&row.id.to_string()).await?);
+        }
+        Ok(out)
+    }
+
+    /// Every exchange, newest first, optionally narrowed to one order.
+    pub async fn list_exchanges(&self, order_id: Option<&str>) -> Result<Vec<ExchangeDTO>> {
+        let mut filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Desc)
+            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+        if let Some(order_id) = order_id {
+            filter = filter.with_predicate("order_id", FilterOp::Eq(order_id.to_string()));
+        }
+
+        let rows = self.exchanges.list(None, &filter).await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(self.get_exchange_dto(&row.id.to_string()).await?);
+        }
+        Ok(out)
     }
 
     pub async fn list_return_reasons(&self) -> Result<Vec<ReturnReasonDTO>> {

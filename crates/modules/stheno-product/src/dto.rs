@@ -79,6 +79,20 @@ pub struct CreateCategoryInput {
     pub rank: Option<i32>,
 }
 
+/// Partial update for a category. Absent means unchanged.
+///
+/// `parent_category_id` is deliberately absent: re-parenting rewrites `mpath` for the
+/// node and every descendant, which is a tree operation, not a field edit. The dashboard
+/// has a separate "organize" screen for it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateCategoryInput {
+    pub name: Option<String>,
+    pub handle: Option<String>,
+    pub rank: Option<i32>,
+    pub is_active: Option<bool>,
+    pub is_internal: Option<bool>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProductCollectionDTO {
     pub id: String,

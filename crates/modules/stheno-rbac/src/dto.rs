@@ -74,3 +74,24 @@ pub struct AuditRecordDTO {
     pub decision: String,
     pub timestamp: DateTime<Utc>,
 }
+
+/// Partial update for a role. Absent means unchanged.
+///
+/// `name` is not editable: it is the identifier every policy row and inheritance edge
+/// refers to, so a rename is a migration across three tables, not a field edit.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateRoleInput {
+    pub description: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// Partial update for a policy. Absent means unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdatePolicyInput {
+    pub role: Option<String>,
+    pub resource: Option<String>,
+    pub action: Option<String>,
+    pub effect: Option<String>,
+    pub is_sensitive: Option<bool>,
+    pub metadata: Option<serde_json::Value>,
+}

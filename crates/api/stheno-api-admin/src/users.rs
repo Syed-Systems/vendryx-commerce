@@ -152,15 +152,18 @@ pub async fn delete_user(
 
 /// GET /admin/invites
 pub async fn list_invites(
-    State(_ctx): State<AdminUserContext>,
+    State(ctx): State<AdminUserContext>,
 ) -> Result<impl IntoResponse, HttpError> {
+    let invites = ctx.user_service.list_invites().await?;
+    let count = invites.len();
     Ok((
         StatusCode::OK,
         Json(json!({
-            "invites": [],
-            "count": 0,
+            "invites": invites,
+            "data": invites,
+            "count": count,
             "offset": 0,
-            "limit": 50,
+            "limit": count,
         })),
     ))
 }
