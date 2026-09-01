@@ -8,6 +8,27 @@ Legend: **RSC** = React Server Component (server-rendered) · **CC** = Client Co
 
 ---
 
+## Part 0 — Official Stheno SaaS website (`apps/marketing`)
+
+The marketing site is the merchant-facing entry point. It is separate from the storefront and has
+no documentation navigation. Its public routes are:
+
+| Route | Purpose |
+|---|---|
+| `/` | Product story and spatial 3D launch experience |
+| `/features` | Focused merchant service capabilities |
+| `/pricing` | Free 14-day store-request trial and Pro commercial terms |
+| `/login` | Merchant Google or email/password authentication |
+| `/signup` | Merchant signup with resumable optional business draft |
+| `/forgot-password` | Password reset request |
+| `/welcome` | Account-level empty state, create-store request, and launch status |
+
+`/welcome` is intentionally not an admin tenant route. Email accounts verify before a store request
+may be submitted. Once submitted, the customer-visible status is `Submitted`, `In review`,
+`Provisioning`, `Online`, or `Needs changes`; the tenant dashboard appears only after `Online`.
+
+---
+
 ## Part 1 — Storefront (`apps/storefront`)
 
 Public commerce surface. Locale and country are path segments, matching Medusa's starter so the
@@ -110,7 +131,24 @@ Next.js, and not server-rendered.
 
 The route inventory below is therefore a description of what we inherit, not a design.
 
-### 2.1 Inherited route groups (38)
+### 2.1 Curated merchant workspace
+
+The Medusa fork remains the operational foundation, but Stheno mounts only the merchant workflows
+below. Any inherited page outside this set is not mounted for a merchant and resolves as 404. Plan
+access is also a mount-point decision: Trial and Free receive core operations and brand kit;
+Pro additionally mounts gateways, couriers, domains, and bespoke-theme status.
+
+| Workspace area | Route family |
+|---|---|
+| Home and onboarding | `/`, `/onboarding` |
+| Orders | `/orders`, `/orders/social` |
+| Catalog | `/products`, `/collections`, `/categories`, `/inventory` |
+| Analytics | `/analytics` |
+| Merchant settings | `/settings/store`, `/settings/users`, `/settings/notifications`, `/settings/billing`, `/profile` |
+| Brand kit | `/settings/brand-kit` |
+| Pro operations | `/settings/gateways`, `/settings/couriers`, `/settings/domains`, `/settings/bespoke-theme` |
+
+### 2.2 Inherited route inventory (not automatically exposed)
 
 Exactly Medusa's, verified against `packages/admin/dashboard/src/routes` at `b733400`:
 
@@ -157,7 +195,7 @@ Exactly Medusa's, verified against `packages/admin/dashboard/src/routes` at `b73
 
 `‡` = **Enterprise. Removed from the fork and rebuilt clean-room** ([ADR-008](DECISIONS.md#adr-008)).
 
-### 2.1b New product routes added by the fork
+### 2.3 New product routes added by the fork
 
 Medusa's screens cover products, orders, and inventory. These are our dedicated product workflows
 ([PRODUCT.md](PRODUCT.md)):
@@ -170,7 +208,7 @@ Medusa's screens cover products, orders, and inventory. These are our dedicated 
 | `/settings/billing` | Subscription tier, trial countdown, quota usage progress bars (seats, products, monthly orders), upgrade button | `GET /admin/platform/usage`, `POST /admin/platform/upgrade` |
 | `/settings/notifications` | Web push subscription management (VAPID public keys and event trigger subscriptions) | `GET/POST /admin/notifications/subscriptions` |
 
-### 2.2 What the fork changes
+### 2.4 What the fork changes
 
 Everything else is adopted as-is. This list plus §2.1b is the complete scope of admin UI work:
 
@@ -183,12 +221,12 @@ Everything else is adopted as-is. This list plus §2.1b is the complete scope of
 | 5 | **Deepen workflow-executions screen** | Step timeline with inputs, outputs, compensation history, and retry-from-step capability (FR-PLUS-1). |
 | 6 | **Fix WCAG gaps** | Enforce WCAG 2.2 Level AA compliance (ARIA landmarks, focus management, color contrast). |
 
-### 2.3 The admin extension system comes along
+### 2.5 The admin extension system comes along
 
 Because the dashboard is forked rather than rebuilt, Medusa's `admin-vite-plugin` extension system
 comes with it — build-time discovery of `src/admin/{widgets,routes,custom-fields,layouts,i18n}`.
 
-### 2.4 Non-functional gates
+### 2.6 Non-functional gates
 
 | Gate | Status | Details |
 |---|---|---|
@@ -197,7 +235,7 @@ comes with it — build-time discovery of `src/admin/{widgets,routes,custom-fiel
 | **URL State Encoding** | **Inherited** | Filter, sort, pagination, and active drawer states fully serialized to query parameters. |
 | **Command Palette** | **Inherited** | Global keyboard shortcut (`Cmd+K` / `Ctrl+K`) for rapid entity search and navigation. |
 
-### 2.5 Upstream policy
+### 2.7 Upstream policy
 
 - Fork point is a **pinned Medusa version**, recorded in `apps/admin/UPSTREAM.md`.
 - Upstream merges are **scheduled, deliberate tasks** — never automatic, never tracking `develop`.

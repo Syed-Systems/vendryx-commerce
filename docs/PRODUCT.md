@@ -65,7 +65,8 @@ Explicitly out of scope. Do not build, do not design for.
 
 - Buyer accounts, login, order history, wishlists
 - A marketplace — no cross-merchant browsing, no shared cart, no platform-wide search
-- **Per-merchant theming. One storefront design for everyone**
+- Merchant-uploaded storefront code or a recolored `frontend-default`. Free and Trial receive the
+  supported brand kit; Pro bespoke storefronts are developer-built independent frontend modules.
 - A mobile app, native or otherwise. Web push covers the notification need (§6)
 - Subscriptions, digital goods, bookings, services
 - Redesigning the forked dashboard's product/order/inventory screens ([ADR-002](DECISIONS.md#adr-002))
@@ -74,17 +75,18 @@ Explicitly out of scope. Do not build, do not design for.
 
 ## 4. Onboarding
 
-**Target: signup → first product live in under 20 minutes**, unassisted, with the merchant's own
-messy spreadsheet and no edits to their file.
+**Target: account → submitted store request in under 20 minutes**, unassisted. A tenant dashboard
+is not created until the request is reviewed and provisioned.
 
 ```
-1. Sign in with Google       no password, no email verification, no form
-2. Store name + WhatsApp     two fields. Subdomain auto-suggested, editable,
-                             uniqueness checked live
-3. Upload spreadsheet        .xlsx or .csv — or skip and add products manually
-4. Map your columns          their headers shown beside our fields; they match them up.
-                             Mapping is saved to the merchant
-5. Preview first 5 rows      as they will appear → confirm → import runs in background
+1. Create merchant account   Google or email/password. Email accounts verify before submission.
+2. Save optional business    Business name, owner contact, WhatsApp, category, and intended plan
+                             are resumable account-level draft fields.
+3. Create store request      Store name, unique subdomain, logo, accent color, and approved icon.
+4. Choose service            Free/Trial receive the brand kit. Pro confirms payment before a
+                             bespoke-theme brief and assets enter the developer queue.
+5. Track launch              Submitted → In review → Provisioning → Online, or Needs changes.
+                             Expected activation is within one hour.
 ```
 
 **Acceptance:** a seller with a real, messy spreadsheet completes this without assistance and
@@ -309,7 +311,7 @@ The gate before any Pro feature is built:
 
 1. **20 merchants** who have placed ≥ 1 real order through the platform
 2. **10 merchants** still active in week 4 after signup
-3. Median onboarding time (signup → first product live) **under 20 minutes**
+3. Median onboarding time (account → submitted store request) **under 20 minutes**
 4. **At least 5 merchants ask, unprompted, for a paid feature** — and the record of *which* feature
    decides what gets built first
 
