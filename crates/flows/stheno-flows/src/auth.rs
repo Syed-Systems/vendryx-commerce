@@ -26,6 +26,16 @@ impl AuthWorkflows {
         self.auth_service.create_identity(input).await
     }
 
+    /// The configured auth providers.
+    ///
+    /// `/auth/{actor_type}/providers` answered with a hardcoded `emailpass` while
+    /// `auth.auth_provider` was a real table nobody read, so a merchant who enabled Google
+    /// or GitHub saw a login screen that never offered it. The service already falls back
+    /// to emailpass when nothing is configured, which is the honest default.
+    pub async fn list_providers(&self) -> Result<Vec<AuthProviderDTO>> {
+        self.auth_service.list_providers().await
+    }
+
     // 3. get_identity_workflow
     pub async fn get_identity(&self, id: &str) -> Result<AuthIdentityDTO> {
         self.auth_service.get_identity(id).await

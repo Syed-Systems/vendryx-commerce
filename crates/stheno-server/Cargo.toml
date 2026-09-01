@@ -26,6 +26,7 @@ stheno-api-admin-platform = { workspace = true }
 stheno-api-router = { workspace = true }
 stheno-platform = { workspace = true }
 stheno-rbac = { workspace = true }
+stheno-api-key = { workspace = true }
 stheno-settings = { workspace = true }
 stheno-api-platform = { workspace = true }
 stheno-api-auth = { workspace = true }

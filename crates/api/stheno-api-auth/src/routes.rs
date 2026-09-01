@@ -186,21 +186,29 @@ pub async fn confirm_reset_password(
 }
 
 /// GET /auth/{actor_type}/providers
+/// GET /auth/{actor_type}/providers
+///
+/// Reads `auth.auth_provider` rather than naming emailpass in the source. The dashboard
+/// renders its login form from this list, so a hardcoded answer meant a merchant who
+/// enabled Google or GitHub was shown a screen that never offered it.
 pub async fn list_providers(
-    State(_ctx): State<AuthApiContext>,
+    State(ctx): State<AuthApiContext>,
     Path(actor_type): Path<String>,
 ) -> Result<impl IntoResponse, HttpError> {
-    Ok((
-        StatusCode::OK,
-        Json(json!({
-            "providers": [
-                {
-                    "id": "emailpass",
-                    "actor_type": actor_type,
-                }
-            ]
-        })),
-    ))
+    let providers = ctx.auth_flows.list_providers().await?;
+    let rendered: Vec<serde_json::Value> = providers
+        .into_iter()
+        .filter(|p| p.is_enabled)
+        .map(|p| {
+            json!({
+                "id": p.id,
+                "name": p.name,
+                "actor_type": actor_type,
+            })
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(json!({ "providers": rendered }))))
 }
 
 /// Mounts all Medusa v2 compatible Auth API routes.
