@@ -163,7 +163,7 @@ pub async fn assign_tenant_theme(
         )
         .await
     {
-        return bad_request(&format!("could not assign the theme: {e}"));
+        return bad_request(format!("could not assign the theme: {e}"));
     }
 
     record(
@@ -239,7 +239,7 @@ pub async fn list_feature_flags(
                 rollout_percentage: row.rollout_percentage.clamp(0, 100) as u8,
             })
             .collect(),
-        Err(e) => return bad_request(&format!("could not read the feature flags: {e}")),
+        Err(e) => return bad_request(format!("could not read the feature flags: {e}")),
     };
     let count = flags.len();
     Json(json!({ "feature_flags": flags, "count": count })).into_response()
@@ -267,7 +267,7 @@ pub async fn update_feature_flag(
         .await
     {
         Ok(row) => row,
-        Err(e) => return bad_request(&format!("could not update the flag: {e}")),
+        Err(e) => return bad_request(format!("could not update the flag: {e}")),
     };
 
     let flag = GlobalFeatureFlagDTO {
@@ -304,7 +304,7 @@ pub async fn get_platform_defaults(
 
     let config = match ctx.platform.get_deployment_config().await {
         Ok(row) => row,
-        Err(e) => return bad_request(&format!("could not read the defaults: {e}")),
+        Err(e) => return bad_request(format!("could not read the defaults: {e}")),
     };
 
     let defaults = PlatformDefaultsDTO {
@@ -327,7 +327,7 @@ pub async fn update_platform_defaults(
 
     let mut config = match ctx.platform.get_deployment_config().await {
         Ok(row) => row,
-        Err(e) => return bad_request(&format!("could not read the defaults: {e}")),
+        Err(e) => return bad_request(format!("could not read the defaults: {e}")),
     };
     config.default_region = body.default_region.clone();
     config.default_currency = body.default_currency.clone();
@@ -340,7 +340,7 @@ pub async fn update_platform_defaults(
     config.support_email = body.support_email.clone();
 
     if let Err(e) = ctx.platform.save_deployment_config(config, &actor.id).await {
-        return bad_request(&format!("could not save the defaults: {e}"));
+        return bad_request(format!("could not save the defaults: {e}"));
     }
 
     record(
@@ -368,7 +368,7 @@ pub async fn get_messaging_config(
 
     let stored = match ctx.platform.get_deployment_config().await {
         Ok(row) => row,
-        Err(e) => return bad_request(&format!("could not read the messaging config: {e}")),
+        Err(e) => return bad_request(format!("could not read the messaging config: {e}")),
     };
 
     let config = MessagingConfigDTO {
@@ -391,7 +391,7 @@ pub async fn update_messaging_config(
 
     let mut config = match ctx.platform.get_deployment_config().await {
         Ok(row) => row,
-        Err(e) => return bad_request(&format!("could not read the messaging config: {e}")),
+        Err(e) => return bad_request(format!("could not read the messaging config: {e}")),
     };
     config.email_provider = body.email_provider.clone();
     config.sms_provider = body.sms_provider.clone();
@@ -399,7 +399,7 @@ pub async fn update_messaging_config(
     config.order_confirmation_template = body.order_confirmation_template.clone();
 
     if let Err(e) = ctx.platform.save_deployment_config(config, &actor.id).await {
-        return bad_request(&format!("could not save the messaging config: {e}"));
+        return bad_request(format!("could not save the messaging config: {e}"));
     }
 
     record(
@@ -447,7 +447,7 @@ pub async fn list_announcements(
                 created_at: row.created_at,
             })
             .collect(),
-        Err(e) => return bad_request(&format!("could not read announcements: {e}")),
+        Err(e) => return bad_request(format!("could not read announcements: {e}")),
     };
     let count = items.len();
     Json(json!({ "announcements": items, "count": count })).into_response()
@@ -477,7 +477,7 @@ pub async fn create_announcement(
         .await
     {
         Ok(row) => row,
-        Err(e) => return bad_request(&format!("could not create the announcement: {e}")),
+        Err(e) => return bad_request(format!("could not create the announcement: {e}")),
     };
 
     let id = stored.id.to_string();

@@ -1,6 +1,6 @@
 [module]
 name = "stheno-platform"
 schema = "platform"
-owned_tables = []
+owned_tables = ["merchant_tenant_owner"]
 events = []
 links = []

@@ -169,6 +169,9 @@ fn stheno_api_router_flags(ent: &Entitlements) -> Vec<(&'static str, bool)> {
         CourierDispatch,
         FraudScore,
         CustomDomain,
+        CustomTheme,
+        Branding,
+        BuyerAccounts,
     ]
     .iter()
     .map(|f| (f.as_str(), ent.has(*f)))

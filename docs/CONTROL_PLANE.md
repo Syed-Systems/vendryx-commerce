@@ -61,6 +61,34 @@ the gateways already integrated for Flow A, and do not build a billing engine.
 
 ---
 
+## 1.3 Merchant launch workflow
+
+Merchant account setup is not manual tenant creation. A verified merchant saves a resumable
+account draft, submits a store request, and enters the operator Launch Requests queue. That queue
+is the source of truth before an isolated tenant exists.
+
+| Customer-visible state | Operator action | Durable result |
+|---|---|---|
+| `Submitted` | Assign or request changes | Request, identity, plan, assets, validation and timeline remain together |
+| `In review` | Begin provisioning | Idempotent deployment workflow starts only when the request is valid |
+| `Provisioning` | Retry failed automation or activate | Deployment, Postgres, owner binding and audit history are recovered safely |
+| `Online` | Operate in Merchants | Tenant registry becomes the post-provisioning view |
+| `Needs changes` | Reopen after merchant update | Original request remains auditable |
+
+Pro requests retain a `pending` payment state until a provider confirms payment. The developer
+bespoke-theme brief and assets cannot enter the launch queue for work, nor can provisioning begin,
+before that confirmation. Manual `POST /platform/tenants` remains an exceptional, audited recovery
+operation and must not be used as the normal onboarding path.
+
+The platform navigation follows this workflow:
+
+- **Launch:** Launch Requests, Merchants, and provisioning health.
+- **Commercial:** Plans, subscriptions, billing, and revenue analytics.
+- **Operations:** Gateways, courier oversight, support, and workflow triage.
+- **System:** Themes, global configuration, operators, and the audit log.
+
+---
+
 ## 2. The ten domains
 
 Everything the control plane must eventually do, grouped by the question it answers.

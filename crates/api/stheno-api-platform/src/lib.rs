@@ -39,6 +39,8 @@
 //! opening it; named operators, if any exist, keep working.
 
 pub mod analytics;
+pub mod launch_requests;
+pub mod merchant;
 mod operators;
 pub mod oversight;
 pub mod security;
@@ -64,6 +66,8 @@ use stheno_types::currency::CurrencyCode;
 use stheno_types::{Error, Money};
 
 pub use analytics::*;
+pub use launch_requests::{get_launch_request, list_launch_requests, transition_launch_request};
+pub use merchant::{merchant_routes, MerchantApiContext};
 pub use operators::{
     create_operator, get_audit, list_operators, revoke_operator, CreateOperatorRequest,
 };
@@ -1337,6 +1341,12 @@ pub async fn upsert_platform_payment_provider_credentials(
 pub fn platform_routes(ctx: PlatformApiContext) -> Router {
     Router::new()
         .route("/platform/tenants", get(list_tenants).post(create_tenant))
+        .route("/platform/launch-requests", get(list_launch_requests))
+        .route("/platform/launch-requests/{id}", get(get_launch_request))
+        .route(
+            "/platform/launch-requests/{id}/{action}",
+            post(transition_launch_request),
+        )
         .route("/platform/tenants/purge", post(purge_closed_tenants))
         .route("/platform/tenants/{id}/tier", post(set_tier))
         .route("/platform/tenants/{id}/suspend", post(suspend_tenant))

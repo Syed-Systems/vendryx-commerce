@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 use stheno_types::Money;
 
 use crate::models::{
-    BillingAttempt, Invoice, Operator, OperatorAudit, Subscription, Tenant, TierDefinitionRow,
+    BillingAttempt, Invoice, LaunchRequest, LaunchRequestEvent, MerchantAccount, Operator,
+    OperatorAudit, Subscription, Tenant, TierDefinitionRow,
 };
 
 /// One merchant.
@@ -24,6 +25,123 @@ pub struct TenantDTO {
     pub status_changed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Account information held before a merchant owns an online tenant.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MerchantAccountDTO {
+    pub id: String,
+    pub email: String,
+    pub email_verified_at: Option<DateTime<Utc>>,
+    pub signup_draft: serde_json::Value,
+    pub selected_tier: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<MerchantAccount> for MerchantAccountDTO {
+    fn from(row: MerchantAccount) -> Self {
+        Self {
+            id: row.id,
+            email: row.email,
+            email_verified_at: row.email_verified_at,
+            signup_draft: row.signup_draft,
+            selected_tier: row.selected_tier,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }
+    }
+}
+
+/// Input for the public, idempotent store-request submission endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitLaunchRequestInput {
+    pub merchant_id: String,
+    pub store_name: String,
+    pub subdomain: String,
+    pub tier: String,
+    pub logo_url: Option<String>,
+    pub accent_color: String,
+    pub icon_choice: String,
+    /// Whether buyers get accounts on this store. Defaults false: the archetype the
+    /// product has always described (PRODUCT.md 2). serde(default) so a client that omits
+    /// it keeps that behaviour rather than failing to submit.
+    #[serde(default)]
+    pub buyer_accounts: bool,
+    pub bespoke_brief: Option<String>,
+    pub bespoke_assets: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LaunchRequestDTO {
+    pub id: String,
+    pub merchant_id: String,
+    pub store_name: String,
+    pub subdomain: String,
+    pub tier: String,
+    pub payment_status: String,
+    pub launch_status: String,
+    pub logo_url: Option<String>,
+    pub accent_color: String,
+    pub icon_choice: String,
+    pub buyer_accounts: bool,
+    pub bespoke_brief: Option<String>,
+    pub bespoke_assets: serde_json::Value,
+    pub validation_findings: serde_json::Value,
+    pub assigned_developer: Option<String>,
+    pub tenant_id: Option<String>,
+    pub submitted_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<LaunchRequest> for LaunchRequestDTO {
+    fn from(row: LaunchRequest) -> Self {
+        Self {
+            id: row.id.to_string(),
+            merchant_id: row.merchant_id,
+            store_name: row.store_name,
+            subdomain: row.subdomain,
+            tier: row.tier,
+            payment_status: row.payment_status,
+            launch_status: row.launch_status,
+            logo_url: row.logo_url,
+            accent_color: row.accent_color,
+            icon_choice: row.icon_choice,
+            buyer_accounts: row.buyer_accounts,
+            bespoke_brief: row.bespoke_brief,
+            bespoke_assets: row.bespoke_assets,
+            validation_findings: row.validation_findings,
+            assigned_developer: row.assigned_developer,
+            tenant_id: row.tenant_id,
+            submitted_at: row.submitted_at,
+            updated_at: row.updated_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LaunchRequestEventDTO {
+    pub id: String,
+    pub launch_request_id: String,
+    pub actor_id: String,
+    pub actor_name: String,
+    pub action: String,
+    pub note: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<LaunchRequestEvent> for LaunchRequestEventDTO {
+    fn from(row: LaunchRequestEvent) -> Self {
+        Self {
+            id: row.id.to_string(),
+            launch_request_id: row.launch_request_id,
+            actor_id: row.actor_id,
+            actor_name: row.actor_name,
+            action: row.action,
+            note: row.note,
+            created_at: row.created_at,
+        }
+    }
 }
 
 /// What is needed to stand up a new merchant.

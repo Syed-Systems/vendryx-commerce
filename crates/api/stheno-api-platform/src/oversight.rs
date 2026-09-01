@@ -39,6 +39,22 @@ pub struct ProviderOversightDTO {
     pub active_merchants_count: usize,
 }
 
+/// Every registered payment provider, with how many merchants have actually configured it.
+///
+/// This was five hardcoded literals — including `pp_stripe` and two couriers that no part
+/// of this deployment registers — with `active_merchants_count` written in by hand. An
+/// oversight screen that invents its own inventory is worse than an empty one: it reports
+/// health for gateways that do not exist and cannot report a gateway that does.
+///
+/// The registry is the factory list the payment module actually booted with. The merchant
+/// count is a fan-out: credentials are tenant-scoped rows behind RLS, and
+/// `PLATFORM_SCOPE` deliberately matches nothing in a tenant-scoped table, so the only
+/// honest way to count them is to ask each tenant in its own scope.
+///
+/// ponytail: one credential lookup per (tenant x provider). Correct and RLS-honest, and
+/// fine at the scale this control plane serves; if the tenant count reaches thousands,
+/// project these counts into the `platform` schema on the write path instead of widening
+/// anyone's read access.
 pub async fn list_providers_oversight(
     State(ctx): State<PlatformApiContext>,
     headers: HeaderMap,
@@ -47,51 +63,108 @@ pub async fn list_providers_oversight(
         return deny();
     };
 
-    let providers = vec![
-        ProviderOversightDTO {
-            id: "pp_bkash".to_string(),
-            name: "bKash Direct".to_string(),
+    let Some(payment_service) = ctx.payment_service.clone() else {
+        // No payment module wired means no registry to report, not an invented one.
+        return Json(json!({ "providers": [], "count": 0 })).into_response();
+    };
+
+    let tenants = ctx.platform.list_tenants().await.unwrap_or_default();
+
+    let mut providers = Vec::new();
+    for factory in payment_service.list_factories() {
+        let provider_id = factory.provider_id().to_string();
+
+        let mut active_merchants_count = 0usize;
+        for tenant in &tenants {
+            if matches!(
+                payment_service
+                    .get_provider_credential(&tenant.id, &provider_id)
+                    .await,
+                Ok(Some(_))
+            ) {
+                active_merchants_count += 1;
+            }
+        }
+
+        providers.push(ProviderOversightDTO {
+            name: provider_display_name(&provider_id),
+            is_enabled_globally: !is_gateway_killed(&ctx, &provider_id).await,
             kind: "payment".to_string(),
-            supported_regions: vec!["BD".to_string()],
-            is_enabled_globally: !is_gateway_killed(&ctx, "pp_bkash").await,
-            active_merchants_count: 1,
-        },
-        ProviderOversightDTO {
-            id: "pp_sslcommerz".to_string(),
-            name: "SSLCommerz Hosted".to_string(),
-            kind: "payment".to_string(),
-            supported_regions: vec!["BD".to_string(), "GLOBAL".to_string()],
-            is_enabled_globally: !is_gateway_killed(&ctx, "pp_sslcommerz").await,
-            active_merchants_count: 1,
-        },
-        ProviderOversightDTO {
-            id: "pp_stripe".to_string(),
-            name: "Stripe Connect".to_string(),
-            kind: "payment".to_string(),
-            supported_regions: vec!["US".to_string(), "EU".to_string(), "GLOBAL".to_string()],
-            is_enabled_globally: !is_gateway_killed(&ctx, "pp_stripe").await,
-            active_merchants_count: 0,
-        },
-        ProviderOversightDTO {
-            id: "fp_redx".to_string(),
-            name: "RedX Logistics".to_string(),
-            kind: "fulfillment".to_string(),
-            supported_regions: vec!["BD".to_string()],
-            is_enabled_globally: true,
-            active_merchants_count: 1,
-        },
-        ProviderOversightDTO {
-            id: "fp_steadfast".to_string(),
-            name: "Steadfast Courier".to_string(),
-            kind: "fulfillment".to_string(),
-            supported_regions: vec!["BD".to_string()],
-            is_enabled_globally: true,
-            active_merchants_count: 1,
-        },
-    ];
+            // Regions are a per-tenant link (`region_payment_provider`), not a property of
+            // the provider, so the registry does not claim to know them. Left empty rather
+            // than guessed; the per-region view belongs on the tenant, where the link is.
+            supported_regions: Vec::new(),
+            id: provider_id,
+            active_merchants_count,
+        });
+    }
 
     let count = providers.len();
     Json(json!({ "providers": providers, "count": count })).into_response()
+}
+
+/// The outbound ledger across every tenant, newest first.
+///
+/// Assembled by fanning out over tenants and reading each one in its own scope. These rows
+/// are RLS-protected and `PLATFORM_SCOPE` matches nothing in a tenant-scoped table, so this
+/// is the only read shape that shows an operator every merchant's calls without granting
+/// anything the power to read them all at once.
+///
+/// ponytail: one query per tenant, capped per tenant. Project into the `platform` schema on
+/// the write path if the tenant count ever makes this the slow part of an incident.
+async fn collect_ledger(ctx: &PlatformApiContext) -> Vec<OutboundLedgerItemDTO> {
+    let Some(payment_service) = ctx.payment_service.clone() else {
+        return Vec::new();
+    };
+    let tenants = ctx.platform.list_tenants().await.unwrap_or_default();
+    let now = Utc::now();
+
+    let mut entries = Vec::new();
+    for tenant in &tenants {
+        let rows = payment_service
+            .list_provider_requests(&tenant.id, 200)
+            .await
+            .unwrap_or_default();
+        for row in rows {
+            // Age is measured to settlement when it settled, and to now when it did not —
+            // an unsettled call's age is the thing an operator is actually watching grow.
+            let reference = row.settled_at.unwrap_or(now);
+            let age_seconds = (reference - row.first_sent_at).num_seconds().max(0);
+            entries.push(OutboundLedgerItemDTO {
+                id: row.id,
+                tenant_id: row.tenant_id,
+                provider_id: row.provider_id,
+                action: row.operation,
+                state: row.state,
+                age_seconds,
+                // The ledger stores the request hash, not the money: amount lives on the
+                // payment the call refers to. Reported as absent rather than invented.
+                amount: None,
+                created_at: row.first_sent_at,
+            });
+        }
+    }
+
+    entries.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    entries
+}
+
+/// Turns `pp_system_default` into "System Default" — the same rendering the admin
+/// provider screen uses, so an operator and a merchant name a gateway identically.
+fn provider_display_name(provider_id: &str) -> String {
+    provider_id
+        .trim_start_matches("pp_")
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 // ── P32-02 & P32-03: Credential Health & Strict Opacity ────────────────────────
@@ -115,7 +188,38 @@ pub async fn get_provider_health(
         return deny();
     };
 
-    let verdict = if is_gateway_killed(&ctx, &id).await {
+    // `total_calls_24h: 124` and a `last_successful_call` of "now" were written in by hand,
+    // so this screen reported a healthy, busy gateway for a provider that had never been
+    // called. Counts now come from the outbound ledger; a provider with no traffic reports
+    // zero and no last call, which is the true answer and the one worth seeing.
+    let since = Utc::now() - chrono::Duration::hours(24);
+    let ledger = collect_ledger(&ctx).await;
+    let calls: Vec<_> = ledger
+        .iter()
+        .filter(|entry| entry.provider_id == id && entry.created_at >= since)
+        .collect();
+
+    let total_calls_24h = calls.len() as u64;
+    let failed_auth_count_24h = calls.iter().filter(|c| c.state == "failed").count() as u64;
+    let last_successful_call = calls
+        .iter()
+        .filter(|c| c.state == "succeeded")
+        .map(|c| c.created_at)
+        .max();
+    let last_auth_failure = calls
+        .iter()
+        .filter(|c| c.state == "failed")
+        .map(|c| c.created_at)
+        .max();
+
+    // A killed gateway is reported as killed whatever the ledger says; otherwise the
+    // verdict follows the traffic, and "unconfigured" is the honest answer for a provider
+    // nobody has called rather than "valid".
+    let health_verdict = if is_gateway_killed(&ctx, &id).await {
+        "failing_auth"
+    } else if total_calls_24h == 0 {
+        "unconfigured"
+    } else if failed_auth_count_24h > 0 && last_successful_call.is_none() {
         "failing_auth"
     } else {
         "valid"
@@ -123,11 +227,11 @@ pub async fn get_provider_health(
 
     let report = ProviderHealthReportDTO {
         provider_id: id,
-        health_verdict: verdict.to_string(),
-        total_calls_24h: 124,
-        failed_auth_count_24h: 0,
-        last_successful_call: Some(Utc::now()),
-        last_auth_failure: None,
+        health_verdict: health_verdict.to_string(),
+        total_calls_24h,
+        failed_auth_count_24h,
+        last_successful_call,
+        last_auth_failure,
     };
 
     Json(json!({ "health": report })).into_response()
@@ -155,17 +259,7 @@ pub async fn list_outbound_ledger(
         return deny();
     };
 
-    let entries = vec![OutboundLedgerItemDTO {
-        id: "req_01J6G70Z".to_string(),
-        tenant_id: "ten_test".to_string(),
-        provider_id: "pp_bkash".to_string(),
-        action: "payment_capture".to_string(),
-        state: "settled".to_string(),
-        age_seconds: 120,
-        amount: Some(json!({ "amount": "1500.00", "currency": "BDT" })),
-        created_at: Utc::now() - chrono::Duration::seconds(120),
-    }];
-
+    let entries = collect_ledger(&ctx).await;
     let count = entries.len();
     Json(json!({ "ledger_requests": entries, "count": count })).into_response()
 }
@@ -186,11 +280,34 @@ pub async fn get_sweep_status(
         return deny();
     };
 
+    // `is_scheduled` reported `true` unconditionally while CONTROL_PLANE.md D4 records the
+    // opposite — "the sweep is never scheduled". An oversight field that asserts its own
+    // health is worse than one that admits ignorance: it is the field an operator checks
+    // precisely when they suspect the sweep has stopped.
+    let ledger = collect_ledger(&ctx).await;
+    let now = Utc::now();
+
+    let rows_stranded = ledger
+        .iter()
+        .filter(|entry| entry.state == "in_flight")
+        .count();
+    let last_sweep_at = ledger
+        .iter()
+        .filter(|entry| entry.state != "in_flight")
+        .map(|entry| entry.created_at)
+        .max()
+        .unwrap_or(now);
+    let rows_converged_last_run = ledger
+        .iter()
+        .filter(|entry| entry.state != "in_flight" && entry.created_at >= last_sweep_at)
+        .count();
+
     let status = SweepStatusDTO {
-        last_sweep_at: Utc::now() - chrono::Duration::minutes(5),
-        rows_converged_last_run: 0,
-        rows_stranded: 0,
-        is_scheduled: true,
+        last_sweep_at,
+        rows_converged_last_run,
+        rows_stranded,
+        // No scheduler registers this sweep yet; saying so is the point of the field.
+        is_scheduled: false,
     };
 
     Json(json!({ "sweep_status": status })).into_response()
@@ -333,7 +450,7 @@ pub async fn toggle_gateway_kill_switch(
         )
         .await
     {
-        return bad_request(&format!("could not set the kill switch: {e}"));
+        return bad_request(format!("could not set the kill switch: {e}"));
     }
 
     record(

@@ -40,6 +40,14 @@ BIN="${STHENO_BIN:-$(cargo metadata --format-version 1 --no-deps 2>/dev/null \
 RUNTIME_DIR=".dev-tenants"
 PASSWORD="${STHENO_DEV_PASSWORD:-Sup3rSecret!}"
 
+# Payment provider credentials are encrypted with AES-256-GCM before storage, and the key
+# comes from this variable alone. Without it every credential write fails, which is not a
+# visible failure anywhere near payments: the seed cannot configure a provider, so checkout
+# reaches the payment step and offers no method. A fixed dev key keeps rows written by an
+# earlier run readable by the next one; never reuse it outside local development.
+STHENO_CREDENTIAL_KEY="${STHENO_CREDENTIAL_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
+export STHENO_CREDENTIAL_KEY
+
 # id:name:tier:domain
 TENANTS=(
   "ten_trial:Trial Merchant:trial:trial.localhost"

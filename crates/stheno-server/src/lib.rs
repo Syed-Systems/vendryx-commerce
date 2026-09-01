@@ -14,16 +14,19 @@ use stheno_api_admin::{
     admin_api_key_routes, admin_catalog_routes, admin_config_routes, admin_customer_routes,
     admin_fulfillment_settings_routes, admin_inventory_routes, admin_localisation_routes,
     admin_order_routes, admin_pricing_routes, admin_promotion_routes, admin_rbac_routes,
-    admin_reports_routes, admin_store_routes, admin_user_routes, auth_guard::require_admin,
+    admin_reports_routes, admin_store_routes, admin_user_routes, admin_views_routes,
+    auth_guard::require_admin,
 };
 use stheno_api_admin_platform::{admin_platform_routes, AdminPlatformContext, UsageSnapshot};
 use stheno_api_auth::{auth_routes, AuthApiContext};
 use stheno_api_core::{Entitlements, EntitlementsError, Feature, Tier, TierConfig};
-use stheno_api_platform::{platform_routes, PlatformApiContext};
-use stheno_api_router::{mount_gated, GatedGroup};
+use stheno_api_platform::{
+    merchant_routes, platform_routes, MerchantApiContext, PlatformApiContext,
+};
+use stheno_api_router::{gate_buyer_auth, mount_gated_for_request, GatedGroup};
 use stheno_api_store::{
     hooks::{hooks_routes, HooksContext},
-    store_routes, StoreApiContext,
+    store_customer_routes, store_routes, StoreApiContext,
 };
 use stheno_auth::AuthService;
 use stheno_cart::CartService;
@@ -133,6 +136,10 @@ fn cors_layer() -> CorsLayer {
 /// This used to run unconditionally inside `AppServer::new`, which meant every restart
 /// created another copy of everything and every failure was discarded. Seeding is an
 /// operator action, so it is a command with an exit code.
+/// Medusa's built-in manual/offline payment provider. The dashboard shows it as
+/// "System Default" and the storefront labels it "Manual Payment".
+const OFFLINE_PAYMENT_PROVIDER_ID: &str = "pp_system_default";
+
 pub async fn seed_demo(pool: stheno_db::DbPool) {
     use chrono::Datelike;
     let product_service = ProductService::new(pool.clone());
@@ -162,23 +169,39 @@ pub async fn seed_demo(pool: stheno_db::DbPool) {
         })
         .await;
 
-    let reg_na = region_service
-        .create_region(CreateRegionInput {
-            name: "North America".to_string(),
-            currency_code: "USD".to_string(),
-            automatic_taxes: Some(true),
-            countries: vec!["us".to_string(), "ca".to_string()],
-        })
-        .await;
+    // `let _ =` makes a failed create harmless, but it does not make a *successful* one
+    // idempotent: create_region has no uniqueness to collide with, so every re-run of the
+    // seed minted another "North America" and another "Europe". Three seeds in, the admin's
+    // region picker listed seven identical "North America / USD" entries with nothing in the
+    // markup to tell them apart, and only the first one ever held the countries — the global
+    // unique index on ISO code gave them to whoever seeded first. Reuse by name instead.
+    let existing_regions = region_service.list_regions().await.unwrap_or_default();
+    let existing_region = |name: &str| existing_regions.iter().find(|r| r.name == name).cloned();
 
-    let _ = region_service
-        .create_region(CreateRegionInput {
-            name: "Europe".to_string(),
-            currency_code: "EUR".to_string(),
-            automatic_taxes: Some(true),
-            countries: vec!["de".to_string(), "fr".to_string(), "gb".to_string()],
-        })
-        .await;
+    let reg_na = match existing_region("North America") {
+        Some(region) => Ok(region),
+        None => {
+            region_service
+                .create_region(CreateRegionInput {
+                    name: "North America".to_string(),
+                    currency_code: "USD".to_string(),
+                    automatic_taxes: Some(true),
+                    countries: vec!["us".to_string(), "ca".to_string()],
+                })
+                .await
+        }
+    };
+
+    if existing_region("Europe").is_none() {
+        let _ = region_service
+            .create_region(CreateRegionInput {
+                name: "Europe".to_string(),
+                currency_code: "EUR".to_string(),
+                automatic_taxes: Some(true),
+                countries: vec!["de".to_string(), "fr".to_string(), "gb".to_string()],
+            })
+            .await;
+    }
 
     // The seed is written `let _ =` throughout so re-running it is a no-op. That is
     // deliberate, but it hid a total outage once: a global unique index on country ISO
@@ -305,6 +328,46 @@ pub async fn seed_demo(pool: stheno_db::DbPool) {
         eprintln!("seed: no shipping option was created — checkout cannot reach payment.");
     }
 
+    // Payment. The seed built the whole delivery chain and stopped exactly where the line
+    // above says it stops, so checkout reached the payment step and found nothing to pick:
+    // `GET /store/payment-providers` lists a provider only when the tenant has a credential
+    // row for it *and* a region link, and the seed created neither. The offline provider
+    // needs no keys — its credential schema is empty — but it still needs the row.
+    let payment_service = stheno_payment::PaymentService::new(pool.clone());
+    payment_service.register_factory(std::sync::Arc::new(OfflinePaymentProviderFactory));
+
+    if let Ok(region) = &reg_na {
+        match stheno_db::tenant::current() {
+            Ok(tenant_id) => {
+                match payment_service
+                    .upsert_provider_credential(
+                        &tenant_id,
+                        OFFLINE_PAYMENT_PROVIDER_ID,
+                        &stheno_payment::CredentialMap::new(),
+                    )
+                    .await
+                {
+                    Ok(_) => {
+                        let _ = link_store
+                            .link(
+                                "region_payment_provider",
+                                &region.id.to_string(),
+                                OFFLINE_PAYMENT_PROVIDER_ID,
+                            )
+                            .await;
+                    }
+                    // Credentials are encrypted before storage, so this is where a missing
+                    // STHENO_CREDENTIAL_KEY surfaces. Say so: the symptom is otherwise a
+                    // checkout that reaches payment and offers no method.
+                    Err(e) => eprintln!(
+                        "seed: could not configure the offline payment provider ({e}) — checkout will reach payment with no method to select."
+                    ),
+                }
+            }
+            Err(e) => eprintln!("seed: no tenant in scope for payment provider setup ({e})."),
+        }
+    }
+
     let tr_res = tax_service
         .create_tax_region(CreateTaxRegionInput {
             country_code: "us".to_string(),
@@ -382,6 +445,24 @@ pub async fn seed_demo(pool: stheno_db::DbPool) {
         };
 
         let product_id = product.id.to_string();
+
+        // Products are created as drafts, and the store API serves published ones only.
+        // A demo catalog nobody can see is not a demo, so publish what we just seeded.
+        let _ = product_service
+            .update_product(
+                &product_id,
+                stheno_product::UpdateProductInput {
+                    title: None,
+                    handle: None,
+                    subtitle: None,
+                    description: None,
+                    status: Some("published".to_string()),
+                    thumbnail: None,
+                    discountable: None,
+                },
+            )
+            .await;
+
         let Ok(option_id) = product_service.create_option(&product_id, "Size").await else {
             continue;
         };
@@ -615,6 +696,7 @@ impl AppServer {
             .merge(admin_catalog_routes(
                 product_service.clone(),
                 pricing_service.clone(),
+                inventory_service.clone(),
             ))
             .merge(admin_order_routes(
                 order_service.clone(),
@@ -629,7 +711,10 @@ impl AppServer {
             .merge(admin_pricing_routes(pricing_service.clone()))
             .merge(admin_promotion_routes(promotion_service.clone()))
             .merge(admin_user_routes(user_service.clone()))
-            .merge(admin_store_routes(store_service.clone()))
+            .merge(admin_store_routes(
+                store_service.clone(),
+                translation_service.clone(),
+            ))
             .merge(admin_config_routes(
                 region_service.clone(),
                 currency_service.clone(),
@@ -639,6 +724,7 @@ impl AppServer {
                 Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
             ))
             .merge(admin_api_key_routes())
+            .merge(admin_views_routes())
             .merge(admin_rbac_routes(rbac_service.clone()))
             .merge(admin_fulfillment_settings_routes(
                 fulfillment_service.clone(),
@@ -666,9 +752,8 @@ impl AppServer {
         // day a tier drops the feature, this fails loudly instead of leaking it.
         // What actually separates Free from Pro on the reporting surface is the
         // window clamp inside `admin_reports_routes`, not the mount.
-        let admin_routes = mount_gated(
+        let admin_routes = mount_gated_for_request(
             admin_core,
-            &entitlements,
             vec![GatedGroup::new(
                 Feature::AnalyticsBasic,
                 admin_reports_routes(reporting_service.clone()),
@@ -718,6 +803,24 @@ impl AppServer {
                     "docs": "https://docs.stheno.store"
                 }))
             }))
+            // The one bit the storefront cannot infer. Buyer accounts are a per-tenant
+            // archetype, and a single build serves every tenant, so the shape of the
+            // account routes cannot be decided at build time (FRONTEND_MATRIX 3) or read
+            // from env. Defined here rather than in stheno-api-store because reporting an
+            // entitlement needs `Entitlements`, and that crate has no dependency on
+            // stheno-api-core — the same reason /health and / are defined here.
+            //
+            // Reports the archetype only, never the feature map: this route is public.
+            .route(
+                "/store/config",
+                get(|request: axum::extract::Request| async move {
+                    let buyer_accounts = request
+                        .extensions()
+                        .get::<Arc<Entitlements>>()
+                        .is_some_and(|entitlements| entitlements.has(Feature::BuyerAccounts));
+                    Json(json!({ "buyer_accounts": buyer_accounts }))
+                }),
+            )
             .merge(store_routes(StoreApiContext {
                 social_flows: social_flows.clone(),
                 store_service: store_service.clone(),
@@ -736,13 +839,24 @@ impl AppServer {
                 order_flows: order_flow.clone(),
                 return_flows: return_flow.clone(),
                 fulfillment_service: fulfillment_service.clone(),
-                customer_service: customer_service.clone(),
                 auth_service: auth_service.clone(),
                 translation_service: translation_service.clone(),
                 promotion_service: Some(promotion_service.clone()),
             }))
+            // Buyer accounts are an archetype the merchant chooses on the store request,
+            // not something a plan sells (PRODUCT.md 2, ENTITLEMENTS.md 4.2). No tier in
+            // config/tiers.toml grants `buyer_accounts`; it arrives as the per-merchant
+            // override provisioning writes. Gated per request, so one process can serve
+            // both archetypes, and unentitled means 404 — never 403.
+            .merge(mount_gated_for_request(
+                Router::new(),
+                vec![GatedGroup::new(
+                    Feature::BuyerAccounts,
+                    store_customer_routes(customer_service.clone(), auth_service.clone()),
+                )],
+            ))
             .merge(admin_routes)
-            .merge(auth_routes(AuthApiContext { auth_flows }))
+            .merge(gate_buyer_auth(auth_routes(AuthApiContext { auth_flows })))
             // Outermost after CORS: every route below this point runs inside a tenant
             // scope, so nothing downstream has to know tenancy exists (ADR-012).
             // `/health` and `/` opt out inside the layer — they report on the process,
@@ -776,6 +890,11 @@ impl AppServer {
                 tier_config: Arc::new(load_tier_config().expect("config/tiers.toml must parse")),
                 operator_token: std::env::var("STHENO_PLATFORM_TOKEN").ok(),
                 payment_service: Some(payment_service.clone()),
+            }))
+            .merge(merchant_routes(MerchantApiContext {
+                platform: platform_service.clone(),
+                auth_service: auth_service.clone(),
+                tier_config: Arc::new(load_tier_config().expect("config/tiers.toml must parse")),
             }))
             .layer(cors);
 

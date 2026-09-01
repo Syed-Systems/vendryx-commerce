@@ -109,7 +109,7 @@ pub async fn start_impersonation(
 
     let (session, token) = match issued {
         Ok(pair) => pair,
-        Err(e) => return bad_request(&format!("could not start the session: {e}")),
+        Err(e) => return bad_request(format!("could not start the session: {e}")),
     };
     let expires_at = session.expires_at;
 
@@ -157,7 +157,7 @@ pub async fn end_impersonation(
     // Revocation is a timestamp on the row, not a removal: the audit entries naming this
     // session have to keep resolving after it ends.
     if let Err(e) = ctx.platform.end_impersonation(&body.token).await {
-        return bad_request(&format!("could not end the session: {e}"));
+        return bad_request(format!("could not end the session: {e}"));
     }
 
     record(
@@ -297,7 +297,7 @@ pub async fn toggle_tenant_read_only(
         .set_tenant_read_only(&id, body.read_only, Some(body.reason.clone()))
         .await
     {
-        return bad_request(&format!("could not set read-only mode: {e}"));
+        return bad_request(format!("could not set read-only mode: {e}"));
     }
 
     record(

@@ -143,6 +143,13 @@ pub async fn resolve_tenant(
         }
     }
 
+    // A launch request owns a tenant before it is customer-visible. The domain exists so
+    // readiness can be checked, but neither the merchant admin nor storefront may leak
+    // until the operator completes the explicit activation handoff.
+    if tenant.status == "pending_launch" {
+        return not_found();
+    }
+
     if tenant.status == "closed" {
         return not_found();
     }

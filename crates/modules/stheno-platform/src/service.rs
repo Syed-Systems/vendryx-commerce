@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chrono::{Months, Utc};
+use chrono::{Duration, Months, Utc};
 use rand::Rng;
 use rust_decimal::Decimal;
 use sha2::{Digest, Sha256};
@@ -14,17 +14,18 @@ use crate::dto::{
     ApplyInvoiceCreditsInput, BillingAttemptDTO, BillingPlanPrice, BillingRunDTO, BillingRunInput,
     CalculateProrationInput, CalculateVatInput, ChurnCohortDTO, CrossTenantAggregateDTO, DomainDTO,
     DomainVerificationDTO, DunningInput, DunningNotificationDTO, FunnelMetricsDTO,
-    GenerateInvoiceInput, GmvMetricsDTO, InvoiceDTO, IssuedOperator, MerchantHealthDTO,
-    NewOperatorAudit, NewTenant, OnboardingFunnelDTO, OperatorAuditDTO, OperatorDTO,
-    PagedTenantsDTO, PlanDistributionItemDTO, ProrationDTO, ProrationLineDTO, QuotaHeadroomDTO,
-    RevenueMetricsDTO, RevenueMetricsInput, StartBillingAttemptInput, SubscriptionDTO,
-    SubscriptionPatch, TenantDTO, TenantExportBundleDTO, TenantListQuery, TenantPurgeResultDTO,
-    TierDefinitionDTO, TopMerchantGmvDTO, VatLineDTO,
+    GenerateInvoiceInput, GmvMetricsDTO, InvoiceDTO, IssuedOperator, LaunchRequestDTO,
+    LaunchRequestEventDTO, MerchantAccountDTO, MerchantHealthDTO, NewOperatorAudit, NewTenant,
+    OnboardingFunnelDTO, OperatorAuditDTO, OperatorDTO, PagedTenantsDTO, PlanDistributionItemDTO,
+    ProrationDTO, ProrationLineDTO, QuotaHeadroomDTO, RevenueMetricsDTO, RevenueMetricsInput,
+    StartBillingAttemptInput, SubmitLaunchRequestInput, SubscriptionDTO, SubscriptionPatch,
+    TenantDTO, TenantExportBundleDTO, TenantListQuery, TenantPurgeResultDTO, TierDefinitionDTO,
+    TopMerchantGmvDTO, VatLineDTO,
 };
 use crate::models::{
     Announcement, BillingAttempt, DeploymentConfig, GlobalFlag, ImpersonationSession, Invoice,
-    InvoiceLine, Operator, OperatorAudit, Subscription, Tenant, TenantDomain, TenantTheme,
-    TierDefinitionRow,
+    InvoiceLine, LaunchRequest, LaunchRequestEvent, MerchantAccount, MerchantTenantOwner, Operator,
+    OperatorAudit, Subscription, Tenant, TenantDomain, TenantTheme, TierDefinitionRow,
 };
 
 /// Every issued control-plane token starts with this, so one found in a log or a paste is
@@ -55,6 +56,10 @@ pub struct PlatformService {
     tenant_themes: PgCrudRepository<TenantTheme>,
     deployment_config: PgCrudRepository<DeploymentConfig>,
     announcements: PgCrudRepository<Announcement>,
+    merchant_accounts: PgCrudRepository<MerchantAccount>,
+    merchant_tenant_owners: PgCrudRepository<MerchantTenantOwner>,
+    launch_requests: PgCrudRepository<LaunchRequest>,
+    launch_request_events: PgCrudRepository<LaunchRequestEvent>,
 }
 
 impl PlatformService {
@@ -74,8 +79,509 @@ impl PlatformService {
             impersonation_sessions: PgCrudRepository::new(pool.clone()),
             tenant_themes: PgCrudRepository::new(pool.clone()),
             deployment_config: PgCrudRepository::new(pool.clone()),
-            announcements: PgCrudRepository::new(pool),
+            announcements: PgCrudRepository::new(pool.clone()),
+            merchant_accounts: PgCrudRepository::new(pool.clone()),
+            merchant_tenant_owners: PgCrudRepository::new(pool.clone()),
+            launch_requests: PgCrudRepository::new(pool.clone()),
+            launch_request_events: PgCrudRepository::new(pool),
         }
+    }
+
+    /// Creates or refreshes the account-level record which exists before a tenant deployment.
+    pub async fn upsert_merchant_account(
+        &self,
+        id: String,
+        email: String,
+        email_verified_at: Option<chrono::DateTime<Utc>>,
+        signup_draft: serde_json::Value,
+        selected_tier: String,
+    ) -> Result<MerchantAccountDTO> {
+        if !matches!(selected_tier.as_str(), "free" | "pro") {
+            return Err(Error::Invalid {
+                code: "unknown_launch_tier",
+                message: "tier must be free or pro".to_string(),
+                field: Some("tier".to_string()),
+            });
+        }
+        let now = Utc::now();
+        let row = MerchantAccount {
+            id,
+            email,
+            email_verified_at,
+            signup_draft,
+            selected_tier,
+            created_at: now,
+            updated_at: now,
+        };
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            self.merchant_accounts.upsert(None, row).await
+        })
+        .await
+        .map(MerchantAccountDTO::from)
+    }
+
+    pub async fn get_merchant_account(&self, id: &str) -> Result<MerchantAccountDTO> {
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            self.merchant_accounts.retrieve(None, id).await
+        })
+        .await
+        .map(MerchantAccountDTO::from)
+    }
+
+    /// Submits a store request exactly once per subdomain. The record is created before a tenant;
+    /// provisioning is a later, idempotent workflow that owns the tenant and owner binding.
+    pub async fn submit_launch_request(
+        &self,
+        input: SubmitLaunchRequestInput,
+    ) -> Result<LaunchRequestDTO> {
+        let subdomain = input.subdomain.trim().to_ascii_lowercase();
+        let valid_subdomain = !subdomain.is_empty()
+            && subdomain.len() <= 63
+            && subdomain
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+            && !subdomain.starts_with('-')
+            && !subdomain.ends_with('-');
+        if !valid_subdomain {
+            return Err(Error::Invalid {
+                code: "invalid_subdomain",
+                message: "subdomain must use lowercase letters, digits, and interior hyphens"
+                    .to_string(),
+                field: Some("subdomain".to_string()),
+            });
+        }
+        if input.store_name.trim().is_empty() || input.store_name.len() > 160 {
+            return Err(Error::Invalid {
+                code: "invalid_store_name",
+                message: "store name is required and must be at most 160 characters".to_string(),
+                field: Some("store_name".to_string()),
+            });
+        }
+        if !matches!(input.tier.as_str(), "free" | "pro") {
+            return Err(Error::Invalid {
+                code: "unknown_launch_tier",
+                message: "tier must be free or pro".to_string(),
+                field: Some("tier".to_string()),
+            });
+        }
+
+        let now = Utc::now();
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            let account = self
+                .merchant_accounts
+                .retrieve(None, &input.merchant_id)
+                .await?;
+            if account.email_verified_at.is_none() {
+                return Err(Error::Invalid {
+                    code: "email_verification_required",
+                    message: "verify the account email before submitting a store request"
+                        .to_string(),
+                    field: None,
+                });
+            }
+
+            let existing = self
+                .launch_requests
+                .list(
+                    None,
+                    &FilterSpec::new().with_predicate("subdomain", FilterOp::Eq(subdomain.clone())),
+                )
+                .await?;
+            if let Some(request) = existing.into_iter().next() {
+                if request.merchant_id == input.merchant_id {
+                    return Ok(LaunchRequestDTO::from(request));
+                }
+                return Err(Error::Invalid {
+                    code: "subdomain_taken",
+                    message: "that subdomain is already reserved".to_string(),
+                    field: Some("subdomain".to_string()),
+                });
+            }
+
+            let domain = format!("{subdomain}.stheno.shop");
+            if self.domains.retrieve(None, &domain).await.is_ok() {
+                return Err(Error::Invalid {
+                    code: "subdomain_taken",
+                    message: "that subdomain is already online".to_string(),
+                    field: Some("subdomain".to_string()),
+                });
+            }
+
+            let row = LaunchRequest {
+                id: Id::new(),
+                merchant_id: input.merchant_id.clone(),
+                store_name: input.store_name.trim().to_string(),
+                subdomain,
+                tier: input.tier.clone(),
+                payment_status: if input.tier == "pro" {
+                    "pending"
+                } else {
+                    "not_required"
+                }
+                .to_string(),
+                launch_status: "submitted".to_string(),
+                logo_url: input.logo_url,
+                accent_color: input.accent_color,
+                icon_choice: input.icon_choice,
+                buyer_accounts: input.buyer_accounts,
+                bespoke_brief: input.bespoke_brief,
+                bespoke_assets: serde_json::json!(input.bespoke_assets),
+                validation_findings: serde_json::json!([]),
+                assigned_developer: None,
+                tenant_id: None,
+                submitted_at: now,
+                updated_at: now,
+            };
+            let created = self.launch_requests.create(None, row).await?;
+            self.launch_request_events
+                .create(
+                    None,
+                    LaunchRequestEvent {
+                        id: Id::new(),
+                        launch_request_id: created.id.to_string(),
+                        actor_id: input.merchant_id,
+                        actor_name: "merchant".to_string(),
+                        action: "submitted".to_string(),
+                        note: None,
+                        created_at: now,
+                    },
+                )
+                .await?;
+            Ok(LaunchRequestDTO::from(created))
+        })
+        .await
+    }
+
+    pub async fn list_launch_requests(&self) -> Result<Vec<LaunchRequestDTO>> {
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            self.launch_requests
+                .list(
+                    None,
+                    &FilterSpec::new()
+                        .with_order("submitted_at", OrderDirection::Desc)
+                        .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT),
+                )
+                .await
+        })
+        .await
+        .map(|rows| rows.into_iter().map(LaunchRequestDTO::from).collect())
+    }
+
+    pub async fn get_launch_request(&self, id: &str) -> Result<LaunchRequestDTO> {
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            self.launch_requests.retrieve(None, id).await
+        })
+        .await
+        .map(LaunchRequestDTO::from)
+    }
+
+    pub async fn list_launch_request_events(
+        &self,
+        launch_request_id: &str,
+    ) -> Result<Vec<LaunchRequestEventDTO>> {
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            self.launch_request_events
+                .list(
+                    None,
+                    &FilterSpec::new()
+                        .with_predicate(
+                            "launch_request_id",
+                            FilterOp::Eq(launch_request_id.to_string()),
+                        )
+                        .with_order("created_at", OrderDirection::Desc),
+                )
+                .await
+        })
+        .await
+        .map(|rows| rows.into_iter().map(LaunchRequestEventDTO::from).collect())
+    }
+
+    /// Applies one audited launch state change. The workflow that provisions a tenant invokes the
+    /// same transition after each durable step, so retries cannot create a second tenant.
+    pub async fn transition_launch_request(
+        &self,
+        id: &str,
+        action: &str,
+        actor_id: String,
+        actor_name: String,
+        assigned_developer: Option<String>,
+        note: Option<String>,
+    ) -> Result<LaunchRequestDTO> {
+        let now = Utc::now();
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            let mut row = self.launch_requests.retrieve(None, id).await?;
+            let next = match action {
+                "assign" => row.launch_status.clone(),
+                "request_changes" if row.launch_status != "online" => "needs_changes".to_string(),
+                "begin_provisioning"
+                    if matches!(
+                        row.launch_status.as_str(),
+                        "submitted" | "in_review" | "needs_changes"
+                    ) =>
+                {
+                    if row.tier == "pro" && row.payment_status != "confirmed" {
+                        return Err(Error::Invalid {
+                            code: "pro_payment_required",
+                            message: "Pro payment must be confirmed before provisioning"
+                                .to_string(),
+                            field: None,
+                        });
+                    }
+                    "provisioning".to_string()
+                }
+                "retry" if row.launch_status == "provisioning" => "provisioning".to_string(),
+                "activate" if row.launch_status == "provisioning" => "online".to_string(),
+                "reject" if row.launch_status != "online" => "rejected".to_string(),
+                "reopen" if matches!(row.launch_status.as_str(), "needs_changes" | "rejected") => {
+                    "in_review".to_string()
+                }
+                _ => {
+                    return Err(Error::Invalid {
+                        code: "invalid_launch_transition",
+                        message: format!("cannot {action} a request in {}", row.launch_status),
+                        field: Some("action".to_string()),
+                    })
+                }
+            };
+            if action == "assign" {
+                row.assigned_developer = assigned_developer.filter(|name| name != "unassigned");
+            }
+            row.launch_status = next;
+            row.updated_at = now;
+            let updated = self.launch_requests.update(None, id, row).await?;
+            self.launch_request_events
+                .create(
+                    None,
+                    LaunchRequestEvent {
+                        id: Id::new(),
+                        launch_request_id: updated.id.to_string(),
+                        actor_id,
+                        actor_name,
+                        action: action.to_string(),
+                        note,
+                        created_at: now,
+                    },
+                )
+                .await?;
+            Ok(LaunchRequestDTO::from(updated))
+        })
+        .await
+    }
+
+    /// Creates the database-backed deployment record and owner handoff for one launch request.
+    ///
+    /// The tenant id is derived from the immutable request id. A crash after any durable write
+    /// therefore resumes the same tenant rather than allocating another one on retry.
+    pub async fn provision_launch_request(
+        &self,
+        id: &str,
+        actor_id: &str,
+        actor_name: &str,
+    ) -> Result<LaunchRequestDTO> {
+        let request = self.get_launch_request(id).await?;
+        if request.launch_status != "provisioning" {
+            return Err(Error::Invalid {
+                code: "launch_not_provisioning",
+                message: "a launch request must be provisioning before it can be provisioned"
+                    .to_string(),
+                field: Some("launch_status".to_string()),
+            });
+        }
+
+        let tenant_id = request
+            .tenant_id
+            .clone()
+            .unwrap_or_else(|| format!("ten_{}", request.id.trim_start_matches("lr_")));
+        let created = match self.get_tenant(&tenant_id).await {
+            Ok(_) => false,
+            Err(Error::NotFound { .. }) => {
+                match self.create_launch_tenant(&request, tenant_id.clone()).await {
+                    Ok(_) => true,
+                    // Another worker won the deterministic tenant-id race. Reading it
+                    // back is the idempotent retry path, not a second provisioning job.
+                    Err(Error::Conflict { .. }) => {
+                        self.get_tenant(&tenant_id).await?;
+                        false
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+            Err(error) => return Err(error),
+        };
+
+        self.bind_merchant_owner(&request.merchant_id, &tenant_id)
+            .await?;
+
+        let now = Utc::now();
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            let mut current = self.launch_requests.retrieve(None, id).await?;
+            let first_handoff = current.tenant_id.is_none();
+            if first_handoff {
+                current.tenant_id = Some(tenant_id.clone());
+                current.updated_at = now;
+                self.launch_requests.update(None, id, current).await?;
+            }
+            if created || first_handoff {
+                self.launch_request_events
+                    .create(
+                        None,
+                        LaunchRequestEvent {
+                            id: Id::new(),
+                            launch_request_id: id.to_string(),
+                            actor_id: actor_id.to_string(),
+                            actor_name: actor_name.to_string(),
+                            action: "provisioned".to_string(),
+                            note: Some(format!("tenant {tenant_id} is ready for activation")),
+                            created_at: now,
+                        },
+                    )
+                    .await?;
+            }
+            self.launch_requests
+                .retrieve(None, id)
+                .await
+                .map(LaunchRequestDTO::from)
+        })
+        .await
+    }
+
+    /// Finishes the customer-visible handoff after the durable provisioning steps succeed.
+    /// Replaying this after a response loss returns the already-online request.
+    pub async fn activate_launch_request(
+        &self,
+        id: &str,
+        actor_id: &str,
+        actor_name: &str,
+    ) -> Result<LaunchRequestDTO> {
+        let request = self.get_launch_request(id).await?;
+        if request.launch_status == "online" {
+            return Ok(request);
+        }
+        if request.launch_status != "provisioning" {
+            return Err(Error::Invalid {
+                code: "launch_not_provisioning",
+                message: "a launch request must be provisioning before activation".to_string(),
+                field: Some("launch_status".to_string()),
+            });
+        }
+        let tenant_id = request.tenant_id.clone().ok_or_else(|| Error::Invalid {
+            code: "launch_handoff_missing",
+            message: "a tenant must be provisioned before activation".to_string(),
+            field: None,
+        })?;
+        if !self
+            .merchant_owns_tenant(&request.merchant_id, &tenant_id)
+            .await?
+        {
+            return Err(Error::Conflict {
+                code: "launch_owner_handoff_missing",
+                message: "the tenant owner handoff is incomplete".to_string(),
+            });
+        }
+        self.set_tenant_status(&tenant_id, "active", "launch activated")
+            .await?;
+        self.transition_launch_request(
+            id,
+            "activate",
+            actor_id.to_string(),
+            actor_name.to_string(),
+            None,
+            Some("tenant activated and owner handoff completed".to_string()),
+        )
+        .await
+    }
+
+    /// Checks the durable owner binding used by launch status and admin authorization.
+    pub async fn merchant_owns_tenant(&self, merchant_id: &str, tenant_id: &str) -> Result<bool> {
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            match self.merchant_tenant_owners.retrieve(None, tenant_id).await {
+                Ok(binding) => Ok(binding.merchant_id == merchant_id),
+                Err(Error::NotFound { .. }) => Ok(false),
+                Err(error) => Err(error),
+            }
+        })
+        .await
+    }
+
+    async fn bind_merchant_owner(&self, merchant_id: &str, tenant_id: &str) -> Result<()> {
+        let merchant_id = merchant_id.to_string();
+        let tenant_id = tenant_id.to_string();
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            match self.merchant_tenant_owners.retrieve(None, &tenant_id).await {
+                Ok(binding) if binding.merchant_id == merchant_id => Ok(()),
+                Ok(_) => Err(Error::Conflict {
+                    code: "tenant_owner_already_bound",
+                    message: "the tenant is already bound to another merchant".to_string(),
+                }),
+                Err(Error::NotFound { .. }) => {
+                    self.merchant_tenant_owners
+                        .create(
+                            None,
+                            MerchantTenantOwner {
+                                merchant_id,
+                                tenant_id,
+                                bound_at: Utc::now(),
+                                deleted_at: None,
+                            },
+                        )
+                        .await?;
+                    Ok(())
+                }
+                Err(error) => Err(error),
+            }
+        })
+        .await
+    }
+
+    async fn create_launch_tenant(
+        &self,
+        request: &LaunchRequestDTO,
+        tenant_id: String,
+    ) -> Result<TenantDTO> {
+        let tier = if request.tier == "free" {
+            "trial"
+        } else {
+            "pro"
+        };
+        let tenant = self
+            .create_tenant_with_status(
+                NewTenant {
+                    id: tenant_id.clone(),
+                    name: request.store_name.clone(),
+                    tier: tier.to_string(),
+                    domain: Some(format!("{}.stheno.shop", request.subdomain)),
+                },
+                "pending_launch",
+            )
+            .await?;
+        if tier == "trial" {
+            let started = Utc::now();
+            self.update_subscription(
+                &tenant_id,
+                SubscriptionPatch {
+                    trial_started_at: Some(Some(started)),
+                    trial_ends_at: Some(Some(started + Duration::days(14))),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        }
+        // The archetype the merchant chose becomes a per-merchant entitlement override
+        // here, at the one moment the subscription is known to hold none: it was created
+        // with `{}` a few lines up, so this full replace cannot clobber an operator's
+        // work. Written only when true — absent is what every tier already resolves to,
+        // so "off" needs no row and cannot drift from the tier default.
+        if request.buyer_accounts {
+            self.update_subscription(
+                &tenant_id,
+                SubscriptionPatch {
+                    feature_overrides: Some(serde_json::json!({ "buyer_accounts": true })),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        }
+        Ok(tenant)
     }
 
     /// Resolves a Host header to a tenant id.
@@ -234,13 +740,24 @@ impl PlatformService {
 
     /// Registers a tenant, its subscription, and optionally its domain.
     pub async fn create_tenant(&self, input: NewTenant) -> Result<TenantDTO> {
+        self.create_tenant_with_status(input, "active").await
+    }
+
+    async fn create_tenant_with_status(&self, input: NewTenant, status: &str) -> Result<TenantDTO> {
         tenant::validate(&input.id)?;
+        if !matches!(status, "pending_launch" | "active") {
+            return Err(Error::Invalid {
+                code: "unknown_tenant_status",
+                message: format!("unknown initial tenant status {status}"),
+                field: Some("status".to_string()),
+            });
+        }
         let now = Utc::now();
 
         let tenant_row = Tenant {
             id: input.id.clone(),
             name: input.name,
-            status: "active".to_string(),
+            status: status.to_string(),
             status_reason: None,
             status_changed_at: None,
             is_read_only: false,
@@ -306,7 +823,7 @@ impl PlatformService {
         status: &str,
         reason: &str,
     ) -> Result<TenantDTO> {
-        if !matches!(status, "active" | "suspended" | "closed") {
+        if !matches!(status, "pending_launch" | "active" | "suspended" | "closed") {
             return Err(Error::Invalid {
                 code: "unknown_tenant_status",
                 message: format!("unknown tenant status {status}"),

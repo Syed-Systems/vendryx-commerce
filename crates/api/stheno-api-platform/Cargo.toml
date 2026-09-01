@@ -10,6 +10,7 @@ authors.workspace = true
 stheno-types = { workspace = true }
 stheno-platform = { workspace = true }
 stheno-payment = { workspace = true }
+stheno-auth = { workspace = true }
 stheno-fulfillment = { workspace = true }
 stheno-api-core = { workspace = true }
 stheno-db = { workspace = true }

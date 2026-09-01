@@ -69,8 +69,7 @@ impl CrudEntity for TenantDomain {
 ///
 /// `tier` names a block in `config/tiers.toml`, which stays the source of truth for what
 /// a tier *means*. This row records only the assignment plus negotiated per-tenant
-/// exceptions — the persisted equivalent of the additive env overrides in
-/// ENTITLEMENTS.md 5b.
+/// exceptions — the persisted equivalent of the additive env overrides in the tier doc §5b.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Subscription {
     pub tenant_id: String,
@@ -505,6 +504,124 @@ impl CrudEntity for Announcement {
     }
 }
 
+/// Merchant identity and resumable setup information before a tenant exists.
+///
+/// The id is the authenticated merchant subject. It is deliberately not a tenant id: a merchant
+/// can save a draft without creating a deployment, and an owner binding happens only at launch.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MerchantAccount {
+    pub id: String,
+    pub email: String,
+    pub email_verified_at: Option<DateTime<Utc>>,
+    pub signup_draft: serde_json::Value,
+    pub selected_tier: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// The durable handoff from a pre-tenant merchant account to the tenant it owns.
+///
+/// `tenant_id` is the primary key because one deployed tenant has exactly one accountable
+/// merchant owner. A merchant may own more than one store, so it cannot be the key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MerchantTenantOwner {
+    pub merchant_id: String,
+    pub tenant_id: String,
+    pub bound_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+impl CrudEntity for MerchantTenantOwner {
+    const TABLE: &'static str = "platform.merchant_tenant_owner";
+    const ENTITY: &'static str = "merchant_tenant_owner";
+    const ID_COLUMN: &'static str = "tenant_id";
+
+    fn id(&self) -> String {
+        self.tenant_id.clone()
+    }
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+impl CrudEntity for MerchantAccount {
+    const TABLE: &'static str = "platform.merchant_account";
+    const ENTITY: &'static str = "merchant_account";
+    const ID_COLUMN: &'static str = "id";
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+    fn is_deleted(&self) -> bool {
+        false
+    }
+    fn set_deleted(&mut self, _deleted: bool) {}
+}
+
+/// One merchant request to create an isolated Stheno store.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LaunchRequest {
+    pub id: Id<LaunchRequest>,
+    pub merchant_id: String,
+    pub store_name: String,
+    pub subdomain: String,
+    pub tier: String,
+    pub payment_status: String,
+    pub launch_status: String,
+    pub logo_url: Option<String>,
+    pub accent_color: String,
+    pub icon_choice: String,
+    pub buyer_accounts: bool,
+    pub bespoke_brief: Option<String>,
+    pub bespoke_assets: serde_json::Value,
+    pub validation_findings: serde_json::Value,
+    pub assigned_developer: Option<String>,
+    pub tenant_id: Option<String>,
+    pub submitted_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl CrudEntity for LaunchRequest {
+    const TABLE: &'static str = "platform.launch_request";
+    const ENTITY: &'static str = "launch_request";
+
+    fn id(&self) -> String {
+        self.id.to_string()
+    }
+    fn is_deleted(&self) -> bool {
+        false
+    }
+    fn set_deleted(&mut self, _deleted: bool) {}
+}
+
+/// Append-only customer and operator timeline for a launch request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LaunchRequestEvent {
+    pub id: Id<LaunchRequestEvent>,
+    pub launch_request_id: String,
+    pub actor_id: String,
+    pub actor_name: String,
+    pub action: String,
+    pub note: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl CrudEntity for LaunchRequestEvent {
+    const TABLE: &'static str = "platform.launch_request_event";
+    const ENTITY: &'static str = "launch_request_event";
+
+    fn id(&self) -> String {
+        self.id.to_string()
+    }
+    fn is_deleted(&self) -> bool {
+        false
+    }
+    fn set_deleted(&mut self, _deleted: bool) {}
+}
+
 // Medusa id prefixes for this module's entities (ADR-010).
 stheno_types::prefixed_id! {
     Operator => "op",
@@ -514,4 +631,6 @@ stheno_types::prefixed_id! {
     BillingAttempt => "billatt",
     ImpersonationSession => "imp",
     Announcement => "ann",
+    LaunchRequest => "lr",
+    LaunchRequestEvent => "lre",
 }
