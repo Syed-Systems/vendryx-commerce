@@ -11,6 +11,28 @@
  * than asserted by reading source.
  */
 
+/**
+ * Normalises a Host header into a partition key.
+ *
+ * Lowercased and stripped of its port, matching `tenant_layer.rs`: `shop.example.com` and
+ * `shop.example.com:8443` are one merchant. Lives here, and is used by both `middleware.ts`
+ * and `lib/util/cache-scope.ts`, so the two halves of tenant partitioning cannot disagree
+ * about what counts as the same host — a mismatch would silently give one merchant two
+ * cache partitions, or two merchants one.
+ *
+ * `null`/`undefined` yields `fallback`, because a request with no Host cannot be
+ * distinguished from any other and must not be pooled with a real one by accident.
+ */
+export function normalizeHost(
+  host: string | null | undefined,
+  fallback: string
+): string {
+  if (!host) {
+    return fallback
+  }
+  return host.split(":")[0].toLowerCase()
+}
+
 export type HostEntry<T> = {
   value: T
   /** Epoch ms of the last refresh. 0 means "never populated". */

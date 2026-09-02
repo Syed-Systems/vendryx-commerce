@@ -1,7 +1,10 @@
 import { HttpTypes } from "@medusajs/types"
 import { NextRequest, NextResponse } from "next/server"
 
-import { createHostKeyedCache } from "./lib/util/host-keyed-cache"
+import {
+  createHostKeyedCache,
+  normalizeHost,
+} from "./lib/util/host-keyed-cache"
 
 const BACKEND_URL = process.env.STHENO_BACKEND_URL
 const PUBLISHABLE_API_KEY = process.env.NEXT_PUBLIC_STHENO_PUBLISHABLE_KEY
@@ -136,9 +139,7 @@ export async function middleware(request: NextRequest) {
   // same reason tenant_layer.rs strips it: shop.example.com and shop.example.com:8443 are
   // one merchant. Falls back to a constant only so a request with no Host still resolves —
   // that path is single-tenant by definition, since there is nothing to tell tenants apart.
-  const host = (request.headers.get("host") ?? "no-host")
-    .split(":")[0]
-    .toLowerCase()
+  const host = normalizeHost(request.headers.get("host"), "__no_host")
 
   const regionMap = await getRegionMap(cacheId, host)
 

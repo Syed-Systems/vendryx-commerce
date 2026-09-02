@@ -1,3 +1,4 @@
+import { getCacheScopeHeader } from "@lib/util/cache-scope"
 import { getLocaleHeader } from "@lib/util/get-locale-header"
 import Medusa, { FetchArgs, FetchInput } from "@medusajs/js-sdk"
 
@@ -27,9 +28,18 @@ sdk.client.fetch = async <T>(
     headers["x-medusa-locale"] ??= localeHeader["x-medusa-locale"]
   } catch {}
 
+  // Varies the Next Data Cache key by tenant. Every cached fetch below requests a URL
+  // identical for every merchant, and the cache matches on URL, method, headers and body —
+  // so without this, one merchant's catalogue is served to another the moment one process
+  // serves more than one store. A cache discriminator only; the engine still resolves
+  // tenancy from Host. See lib/util/cache-scope.ts.
+  const cacheScope = await getCacheScopeHeader()
+
+  // Spread last: a caller must not be able to widen its own cache scope.
   const newHeaders = {
     ...localeHeader,
     ...headers,
+    ...cacheScope,
   }
   init = {
     ...init,

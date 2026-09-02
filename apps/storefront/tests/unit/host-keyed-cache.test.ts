@@ -1,6 +1,9 @@
 import { expect, test } from "vitest"
 
-import { createHostKeyedCache } from "../../packages/storefront-core/src/lib/util/host-keyed-cache"
+import {
+  createHostKeyedCache,
+  normalizeHost,
+} from "../../packages/storefront-core/src/lib/util/host-keyed-cache"
 
 // The storefront caches tenant-owned data (regions, and their tenant-owned region ids) in
 // module scope, which is shared by every request a process serves. Unkeyed, that hands one
@@ -65,4 +68,25 @@ test("hosts that differ only by case or port are the caller's problem, not silen
 
   expect(cache.entryFor("A.stheno.shop").value.size).toBe(0)
   expect(cache.entryFor("a.stheno.shop:8443").value.size).toBe(0)
+})
+
+// normalizeHost is shared by middleware.ts and lib/util/cache-scope.ts. If the two halves
+// of tenant partitioning ever disagree about what counts as the same host, one merchant
+// gets two cache partitions or two merchants get one.
+
+test("host normalisation strips the port and lowercases", () => {
+  expect(normalizeHost("Shop.Example.com:8443", "x")).toBe("shop.example.com")
+  expect(normalizeHost("shop.example.com", "x")).toBe("shop.example.com")
+})
+
+test("a missing host falls back rather than pooling with a real one", () => {
+  expect(normalizeHost(null, "__no_host")).toBe("__no_host")
+  expect(normalizeHost(undefined, "__no_host")).toBe("__no_host")
+  expect(normalizeHost("", "__no_host")).toBe("__no_host")
+})
+
+test("different merchants never normalise to the same key", () => {
+  const a = normalizeHost("Merchant-A.stheno.shop:443", "x")
+  const b = normalizeHost("merchant-b.stheno.shop", "x")
+  expect(a).not.toBe(b)
 })
