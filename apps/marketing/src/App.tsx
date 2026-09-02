@@ -41,6 +41,7 @@ import {
 import { gsap } from "gsap"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -92,6 +93,7 @@ import { PrivacyPage, TermsPage } from "./content-pages"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 type StaticPage = "/" | "/demo" | "/privacy" | "/terms" | "/login" | "/signup" | "/forgot-password" | "/welcome" | "/404"
 type DemoPage = { kind: "demo"; sessionId: string }
@@ -105,7 +107,7 @@ const launchDraftKey = "stheno-marketing-store-draft"
 const pageMetadata: Record<StaticPage, { title: string; description: string; indexable?: boolean }> = {
   "/": {
     title: "Stheno | Commerce Infrastructure for Independent Merchants",
-    description: "Stheno is a high-performance commerce operations system for independent merchants. Manage catalog, inventory, guest checkout, social orders, and courier dispatch in one unified core.",
+    description: "Stheno is a commerce operations system for independent merchants. Manage catalogue, inventory, guest checkout, social-order handoff, and staff operations in one connected core.",
     indexable: true,
   },
   "/demo": {
@@ -115,7 +117,7 @@ const pageMetadata: Record<StaticPage, { title: string; description: string; ind
   },
   "/signup": {
     title: "Create Merchant Account | 14-Day Free Trial | Stheno",
-    description: "Start your 14-day full access free trial with Stheno. Provision your store workspace, launch your catalog, and accept guest orders with zero platform fees.",
+    description: "Start a 14-day Stheno trial, then manage your catalogue, guest checkout, orders, and staff operations from one workspace.",
     indexable: true,
   },
   "/login": {
@@ -307,14 +309,7 @@ function Mark() {
 
 function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
   const { navigate } = useMarketing()
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20)
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => window.removeEventListener("scroll", onScroll)
-  }, [])
 
   const startDemo = () => {
     const session = createDemoSession()
@@ -322,7 +317,7 @@ function Header() {
   }
 
   return (
-    <header className={`site-header ${scrolled ? "is-scrolled" : ""}`}>
+    <header className="site-header">
       <Link className="brand" to="/" onClick={() => setMenuOpen(false)} aria-label="Stheno home">
         <Mark />
         <span className="sr-only">Stheno</span>
@@ -424,6 +419,38 @@ function StartDemoButton({ className = "button button-outline" }: { className?: 
 }
 
 function Hero() {
+  return (
+    <section className="hero collective-hero section-shell">
+      <div className="hero-split-grid">
+        <div className="hero-left-column">
+          <p className="eyebrow">Commerce operations by Syed Systems</p>
+          <h1>One commerce workspace for the store you run.</h1>
+          <p className="hero-lede">
+            Stheno brings catalogue, inventory, guest checkout, social-order handoff, and day-to-day order work into one connected system.
+          </p>
+          <div className="hero-actions">
+            <Link className="button button-primary" to="/signup">
+              <span>Start your 14-day trial</span>
+              <ArrowRight size={16} />
+            </Link>
+            <StartDemoButton />
+          </div>
+          <ul className="hero-foundation-list" aria-label="Core Stheno capabilities">
+            <li>Catalogue and inventory management</li>
+            <li>Guest checkout and cash on delivery</li>
+            <li>Staff-reviewed social-order handoff</li>
+          </ul>
+        </div>
+        <figure className="hero-image-panel">
+          <img src="/art/merchant-workflow-v2.png" alt="A merchant preparing products alongside a commerce workflow." />
+          <figcaption>A practical operating system for the work behind an online store.</figcaption>
+        </figure>
+      </div>
+    </section>
+  )
+}
+
+function LegacyHeroPreview() {
   const heroRef = useRef<HTMLDivElement>(null)
   const [heroProductAdded, setHeroProductAdded] = useState(false)
   const [heroSocialConverted, setHeroSocialConverted] = useState(false)
@@ -573,6 +600,49 @@ function Hero() {
    ========================================================================== */
 
 function MerchantValuePillars() {
+  const capabilities = [
+    {
+      icon: MessageSquareQuote,
+      title: "Social order handoff",
+      body: "WhatsApp opens with a pre-filled order message. Messenger and Instagram use a copy-then-open handoff, and staff review each resulting draft order.",
+    },
+    {
+      icon: ShoppingBag,
+      title: "Guest checkout and COD",
+      body: "Buyers can browse, add to cart, and place orders without creating an account. Cash on delivery is available in every plan.",
+    },
+    {
+      icon: Code,
+      title: "A commerce core that can grow",
+      body: "Trial and Free use a supported brand kit and subdomain. Pro can add a custom domain and a developer-built storefront after payment.",
+    },
+  ]
+
+  return (
+    <section className="value-pillars-section section-shell" id="features" aria-labelledby="features-heading">
+      <div className="section-header-block feature-brief-header">
+        <h2 id="features-heading">Commerce operations that stay connected as your store changes.</h2>
+        <p className="section-lede">Use one operational foundation for your storefront, catalogue, orders, and the work your staff performs each day.</p>
+      </div>
+      <div className="feature-brief-grid">
+        {capabilities.map((capability) => {
+          const Icon = capability.icon
+          return (
+            <Card className="feature-brief-card" key={capability.title}>
+              <CardHeader>
+                <span className="feature-brief-icon"><Icon size={20} /></span>
+                <CardTitle>{capability.title}</CardTitle>
+              </CardHeader>
+              <CardContent><p>{capability.body}</p></CardContent>
+            </Card>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function LegacyMerchantValuePillars() {
   const sectionRef = useRef<HTMLElement>(null)
   const [bentoConverted, setBentoConverted] = useState(false)
 
@@ -770,26 +840,9 @@ function DemoTeaserCallout() {
             </button>
           </div>
         </div>
-        <div className="teaser-visual" aria-hidden="true">
-          <div className="teaser-preview-window">
-            <div className="window-dots">
-              <span className="dot red" />
-              <span className="dot yellow" />
-              <span className="dot green" />
-            </div>
-            <div className="window-content-simulation">
-              <div className="sim-row">
-                <MessageSquareQuote size={18} className="wa-icon" />
-                <span>Customer: &quot;Can you help me place this order?&quot;</span>
-                <span className="sim-btn">Create draft</span>
-              </div>
-              <div className="sim-order-box">
-                <strong>Draft order ready for review</strong>
-                <span>Confirm details before fulfilment</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <figure className="teaser-image-panel">
+          <img src="/art/stheno-merchant-launch-v3.png" alt="A merchant preparing products and orders at a workbench." />
+        </figure>
       </div>
     </section>
   )
@@ -800,54 +853,49 @@ function DemoTeaserCallout() {
    ========================================================================== */
 
 function MerchantJourney() {
-  const reduceMotion = useReducedMotion()
   const steps = [
     {
       icon: Key,
       step: "01",
-      tag: "15s Provisioning",
+      tag: "Get started",
       title: "Submit a store request",
-      body: "Verify your merchant email, specify your brand domain and currency, and submit your store setup in seconds.",
-      artifact: "Instant Merchant Workspace",
+      body: "Verify your email, add the basic store details, and submit the request when you are ready to launch.",
+      artifact: "A 14-day trial begins after verification",
     },
     {
       icon: Paintbrush,
       step: "02",
-      tag: "CSV Auto-Mapper",
+      tag: "Set up your store",
       title: "Configure catalog & brand identity",
-      body: "Choose your store palette and typography, upload products directly or import existing inventory spreadsheets with automatic header mapping.",
-      artifact: "Live Catalog & Variant Matrix",
+      body: "Choose a store name and supported brand details, then add products or map them from a CSV import.",
+      artifact: "Supported brand kit and subdomain",
     },
     {
       icon: Store,
       step: "03",
-      tag: "Full Automation",
-      title: "Accept orders & dispatch courier",
-      body: "Receive orders via frictionless guest checkout and 1-click social handoffs. Review and auto-dispatch consignments to courier partners.",
-      artifact: "Fulfillment & Real-Time Tracking",
+      tag: "Run day-to-day work",
+      title: "Take and manage orders",
+      body: "Use guest checkout, cash on delivery, and social-order handoff. Staff review draft orders before they become live work.",
+      artifact: "Provider-dependent paid services are confirmed in the service order",
     },
   ]
 
   return (
     <section className="merchant-journey section-shell" id="how-it-works">
       <div className="journey-heading">
-        <p className="eyebrow">Operational Onboarding</p>
+        <p className="eyebrow">How Stheno works</p>
         <h2>From initial setup to active order fulfillment in 3 steps.</h2>
         <p className="section-lede">
-          No complex multi-day deployments. Launch with clean primitives and scale seamlessly.
+          Start with the core workflow, then choose the plan and integrations that fit the operation you run.
         </p>
       </div>
       <div className="journey-grid-cards">
-        {steps.map((item, index) => {
+        {steps.map((item) => {
           const Icon = item.icon
           return (
-            <motion.article
+            <article
               className="journey-step-card"
               key={item.title}
-              initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ delay: index * 0.1, duration: 0.45 }}
             >
               <div className="journey-card-topbar">
                 <div className="journey-num-badge">{item.step}</div>
@@ -862,7 +910,7 @@ function MerchantJourney() {
                 <CheckCircle2 size={13} className="text-accent" />
                 <span>{item.artifact}</span>
               </div>
-            </motion.article>
+            </article>
           )
         })}
       </div>
@@ -1033,6 +1081,47 @@ function CustomerReviews() {
    ========================================================================== */
 
 function AudienceStakeholderSection() {
+  const audiences = [
+    {
+      title: "Store owners",
+      body: "Manage products, stock, guest checkout, cash-on-delivery orders, and staff work from one operational workspace.",
+      action: "Start a trial",
+      to: "/signup",
+    },
+    {
+      title: "Ecommerce builders",
+      body: "Use Stheno as the commerce core behind a supported storefront today, then move to a custom domain and bespoke frontend through Pro.",
+      action: "See plan details",
+      to: "#pricing",
+    },
+    {
+      title: "Developers",
+      body: "Build around explicit commerce workflows while the platform keeps catalogue, checkout, and operations connected.",
+      action: "Explore the demo",
+      to: "/demo",
+    },
+  ]
+
+  return (
+    <section className="audience-section section-shell" id="who-its-for" aria-labelledby="audience-heading">
+      <div className="section-header-block audience-header">
+        <h2 id="audience-heading">Built for the people who run, build, and extend a store.</h2>
+        <p className="section-lede">Stheno is a commerce system, not a marketplace or a generic page builder.</p>
+      </div>
+      <div className="audience-grid">
+        {audiences.map((audience) => (
+          <Card className="audience-card" key={audience.title}>
+            <CardHeader><CardTitle>{audience.title}</CardTitle></CardHeader>
+            <CardContent><p className="audience-reality">{audience.body}</p></CardContent>
+            <CardFooter><Link className="button button-outline button-full" to={audience.to}>{audience.action}<ArrowRight size={14} /></Link></CardFooter>
+          </Card>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function LegacyAudienceStakeholderSection() {
   const reduceMotion = useReducedMotion()
   const { navigate } = useMarketing()
 
@@ -1153,6 +1242,111 @@ function AudienceStakeholderSection() {
 }
 
 function PricingSection() {
+  const plans = [
+    {
+      name: "Trial",
+      term: "14 days",
+      bestFor: "Evaluate the complete core workflow before choosing a long-term plan.",
+      highlights: ["Unlimited products during the trial", "Up to 10 staff seats", "Supported brand kit and subdomain"],
+      action: "Start a trial",
+    },
+    {
+      name: "Free",
+      term: "Indefinite after trial",
+      bestFor: "Run essential commerce operations with clear operating limits.",
+      highlights: ["100 new products", "Owner plus two staff seats", "COD, CSV import, web push, and 30-day analytics"],
+      action: "Choose Free",
+    },
+    {
+      name: "Pro",
+      term: "6 or 12 months",
+      bestFor: "Operate a custom store with paid integrations and full analytics.",
+      highlights: ["Unlimited products and up to 10 staff seats", "Custom domain and bespoke storefront service", "Gateway, courier, and risk tooling where supported"],
+      action: "Discuss Pro",
+      featured: true,
+    },
+  ]
+
+  const sections = [
+    {
+      title: "Store operations",
+      rows: [
+        ["Catalogue and inventory", "Create products, organise the catalogue, and manage inventory in one workspace.", "Included for evaluation", "Included", "Included"],
+        ["Product capacity", "The number of new products your store can add.", "Unlimited for 14 days", "100 new products", "Unlimited"],
+        ["Team access", "People who can work on products, orders, and fulfilment.", "Up to 10 seats", "Owner plus 2 staff seats", "Up to 10 seats"],
+        ["Orders and guest checkout", "Let buyers browse, add to cart, and place orders without creating an account.", "Included for evaluation", "Included", "Included"],
+        ["Cash on delivery", "Manage cash-on-delivery orders in the standard order workflow.", "Included for evaluation", "Included", "Included"],
+        ["CSV catalogue import", "Bring a product catalogue into Stheno with a CSV import.", "Included for evaluation", "Included", "Included"],
+        ["Social order handoff", "Create staff-reviewable draft orders from supported social conversations.", "Included for evaluation", "Included", "Included"],
+      ],
+    },
+    {
+      title: "Storefront and reporting",
+      rows: [
+        ["Brand kit and Stheno subdomain", "Launch with supported brand details on a Stheno-hosted subdomain.", "Included", "Included", "Included"],
+        ["Analytics", "Review store activity and reporting available to your plan.", "Basic", "Basic, 30-day window", "Full history"],
+        ["Web push", "Send supported browser notifications to opted-in buyers.", "Included", "Included", "Included"],
+        ["Custom domain", "Use your own domain name for your customer-facing storefront.", "Not included", "Not included", "Included"],
+        ["Bespoke storefront service", "A developer-built storefront supplied after the agreed Pro payment.", "Not included", "Not included", "Included after payment"],
+      ],
+    },
+    {
+      title: "Paid operational services",
+      rows: [
+        ["Payment gateway connection", "Connect payment services when they are supported for your merchant and region.", "Not included", "Not included", "Available where supported"],
+        ["Courier connection", "Connect supported delivery providers to the store workflow.", "Not included", "Not included", "Available where supported"],
+        ["Buyer fraud and risk score", "Use supported risk tools where they are available to the merchant.", "Not included", "Not included", "Available where supported"],
+        ["Plan term and renewal", "The period before the merchant renews or changes plan.", "14 days", "Indefinite", "6 or 12 months, as agreed"],
+      ],
+    },
+  ] as const
+
+  return (
+    <section className="pricing-section section-shell pricing-section-v2" id="pricing" aria-labelledby="pricing-heading">
+      <div className="section-header-block pricing-header">
+        <h2 id="pricing-heading">Start with a clear path. Move to Pro when your operation needs more.</h2>
+        <p className="section-lede">Every merchant starts with the same commerce foundation. The difference is the capacity, customisation, and integration support the store needs.</p>
+      </div>
+      <div className="pricing-tier-grid">
+        {plans.map((plan) => (
+          <Card className={`pricing-tier-card ${plan.featured ? "is-featured" : ""}`} key={plan.name}>
+            <CardHeader>
+              <div className="pricing-tier-topline"><CardTitle>{plan.name}</CardTitle>{plan.featured && <Badge>For growing operations</Badge>}</div>
+              <p className="pricing-tier-term">{plan.term}</p>
+            </CardHeader>
+            <CardContent>
+              <p className="pricing-tier-fit"><strong>Choose {plan.name}</strong> if you need to {plan.bestFor.charAt(0).toLowerCase() + plan.bestFor.slice(1)}</p>
+              <ul className="pricing-tier-highlights">{plan.highlights.map((highlight) => <li key={highlight}><Check size={16} />{highlight}</li>)}</ul>
+            </CardContent>
+            <CardFooter><Link className={`button button-full ${plan.featured ? "button-primary" : "button-outline"}`} to="/signup">{plan.action}<ArrowRight size={15} /></Link></CardFooter>
+          </Card>
+        ))}
+      </div>
+      <section className="service-comparison" aria-labelledby="service-comparison-heading">
+        <div className="service-comparison-heading">
+          <h3 id="service-comparison-heading">Compare every service before you choose a plan.</h3>
+          <p>Each row explains what the service does and how it is available in Trial, Free, and Pro.</p>
+        </div>
+        <div className="service-comparison-table-wrap" role="region" aria-label="Stheno plan service comparison" tabIndex={0}>
+          <Table className="service-comparison-table">
+            <TableHeader><TableRow><TableHead>Service</TableHead><TableHead>Trial</TableHead><TableHead>Free</TableHead><TableHead>Pro</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {sections.map((section) => <Fragment key={section.title}>
+                <TableRow className="service-comparison-group"><TableCell colSpan={4}>{section.title}</TableCell></TableRow>
+                {section.rows.map(([name, description, trial, free, pro]) => <TableRow key={name}>
+                  <TableCell><strong>{name}</strong><span>{description}</span></TableCell><TableCell>{trial}</TableCell><TableCell>{free}</TableCell><TableCell>{pro}</TableCell>
+                </TableRow>)}
+              </Fragment>)}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+      <p className="pricing-disclosure">Paid-plan price, tax, regional availability, and provider-dependent features are confirmed in the service order before a merchant accepts Pro.</p>
+    </section>
+  )
+}
+
+function LegacyPricingSection() {
   const [commitment, setCommitment] = useState<6 | 12>(12)
   const [currency, setCurrency] = useState<Currency>("BDT")
   const [monthlyOrders, setMonthlyOrders] = useState(600)
@@ -1491,11 +1685,10 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
         <div className="footer-cta-strip">
           <div className="footer-cta-info">
             <span className="footer-cta-badge">
-              <span className="pulsing-dot" />
-              Production Ready Commerce
+              Stheno by Syed Systems
             </span>
             <h3>Ready to take full ownership of your store operations?</h3>
-            <p>Launch your merchant workspace in seconds. Free 14-day trial with zero platform fees.</p>
+            <p>Start with a 14-day trial, then choose the operating capacity and paid services your store needs.</p>
           </div>
           <div className="footer-cta-actions">
             <Link className="button button-primary" to="/signup">
@@ -1518,14 +1711,10 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
               <span className="sr-only">Stheno</span>
             </Link>
             <p className="footer-brand-tagline">
-              Commerce infrastructure engineered for independent merchants and modern digital brands. High-performance catalog, guest checkout, and staff operations.
+              Commerce operations for independent merchants, ecommerce builders, and developers.
             </p>
-            <div className="footer-status-pill">
-              <span className="status-indicator-dot online" />
-              <span>Global Edge Status: <strong>Operational (32ms)</strong></span>
-            </div>
             <div className="footer-syed-stamp">
-              <span>Engineered & backed by <strong>Syed Systems</strong></span>
+              <span>A product of <strong>Syed Systems</strong>, the software and IT division of SMCTi.</span>
             </div>
           </div>
 
@@ -1536,7 +1725,7 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
               <li><Link to="#features">Guest Checkout</Link></li>
               <li><Link to="#features">Social Order Handoff</Link></li>
               <li><Link to="#features">Inventory & Catalog</Link></li>
-              <li><Link to="#features">Courier & Logistics</Link></li>
+              <li><Link to="#features">Order operations</Link></li>
               <li><button type="button" className="footer-text-btn" onClick={startDemo}>Interactive Demo Sandbox</button></li>
               <li><Link to="#pricing">Plans & Pricing</Link></li>
             </ul>
@@ -1564,8 +1753,8 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
             <ul>
               <li><Link to="/signup">Start Free Trial</Link></li>
               <li><Link to="/login">Merchant Workspace Login</Link></li>
-              <li><Link to="#pricing">ROI & Cost Calculator</Link></li>
-              <li><Link to="#reviews">Verified Stories</Link></li>
+              <li><Link to="#pricing">Plan comparison</Link></li>
+              <li><Link to="#reviews">Customer reviews</Link></li>
               <li><Link to="#how-it-works">How Stheno Works</Link></li>
               <li><Link to="#faq">Merchant FAQ</Link></li>
             </ul>
@@ -1587,7 +1776,7 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
         <div className="footer-bottom-bar">
           <div className="footer-bottom-left">
             <p>© 2026 Stheno by Syed Systems. All rights reserved.</p>
-            <span className="footer-tax-badge">Zero platform tax on merchant GMV</span>
+            <span className="footer-tax-badge">Plan, tax, and provider terms are confirmed before a paid term begins.</span>
           </div>
           <div className="footer-bottom-right">
             <Link to="/privacy">Privacy</Link>
@@ -3630,7 +3819,7 @@ function Signup() {
               onChange={(e) => setDetails({ ...details, plan: e.target.value })}
             >
               <option value="free">Free Tier (14-day trial)</option>
-              <option value="pro">Pro Tier (BDT 1,500/mo)</option>
+              <option value="pro">Pro Tier (price confirmed in service order)</option>
             </select>
           </label>
         </fieldset>
@@ -3925,7 +4114,7 @@ function Welcome() {
             onChange={(e) => setRequest({ ...request, plan: e.target.value as Plan })}
           >
             <option value="free">Free Tier (with 14-day trial)</option>
-            <option value="pro">Pro Tier (BDT 1,500/month)</option>
+            <option value="pro">Pro Tier (price confirmed in service order)</option>
           </select>
         </label>
         {request.plan === "pro" && (
@@ -3952,7 +4141,6 @@ function OnePageMarketingSite({ onOpenEngineersTalk }: { onOpenEngineersTalk: ()
       <DemoTeaserCallout />
       <AudienceStakeholderSection />
       <PricingSection />
-      <MerchantReviews />
       <CustomerReviews />
       <MarketingFaq />
       <LaunchChapter />
@@ -3961,6 +4149,8 @@ function OnePageMarketingSite({ onOpenEngineersTalk }: { onOpenEngineersTalk: ()
     </>
   )
 }
+
+void [LegacyHeroPreview, LegacyMerchantValuePillars, MerchantReviews, LegacyAudienceStakeholderSection, LegacyPricingSection]
 
 export default function App() {
   const { page, navigate } = usePage()
