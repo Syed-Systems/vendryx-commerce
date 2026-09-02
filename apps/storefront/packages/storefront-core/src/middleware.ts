@@ -1,17 +1,37 @@
 import { HttpTypes } from "@medusajs/types"
 import { NextRequest, NextResponse } from "next/server"
 
+import { createHostKeyedCache } from "./lib/util/host-keyed-cache"
+
 const BACKEND_URL = process.env.STHENO_BACKEND_URL
 const PUBLISHABLE_API_KEY = process.env.NEXT_PUBLIC_STHENO_PUBLISHABLE_KEY
 const DEFAULT_REGION = process.env.NEXT_PUBLIC_DEFAULT_REGION || "us"
 
-const regionMapCache = {
-  regionMap: new Map<string, HttpTypes.StoreRegion>(),
-  regionMapUpdated: Date.now(),
-}
+/**
+ * Region maps, **keyed by host**.
+ *
+ * This was a single module-level Map shared by everything the process served. That is
+ * safe only while one process serves one merchant. Under ADR-022 one process serves many,
+ * and regions are tenant-owned — migration 20260819000006 made `region.country`
+ * tenant-scoped after the same class of mistake returned empty regions and 500'd every
+ * page for every tenant but one. Unkeyed, this cache hands one merchant's regions, and
+ * their tenant-owned region ids, to the next merchant whose request lands on this process.
+ *
+ * The host is the tenant (ADR-022), so it is the correct key both before and after that
+ * change lands.
+ *
+ * The partitioning itself lives in `lib/util/host-keyed-cache`, which imports nothing from
+ * Next so the isolation guarantee can be tested directly — see
+ * `tests/unit/host-keyed-cache.test.ts`.
+ */
+const regionCaches = createHostKeyedCache(
+  () => new Map<string, HttpTypes.StoreRegion>()
+)
 
-async function getRegionMap(cacheId: string) {
-  const { regionMap, regionMapUpdated } = regionMapCache
+async function getRegionMap(cacheId: string, host: string) {
+  const entry = regionCaches.entryFor(host)
+  const regionMap = entry.value
+  const regionMapUpdated = entry.updatedAt
 
   if (!BACKEND_URL) {
     throw new Error(
@@ -52,14 +72,14 @@ async function getRegionMap(cacheId: string) {
     // Create a map of country codes to regions.
     regions.forEach((region: HttpTypes.StoreRegion) => {
       region.countries?.forEach((c) => {
-        regionMapCache.regionMap.set(c.iso_2 ?? "", region)
+        entry.value.set(c.iso_2 ?? "", region)
       })
     })
 
-    regionMapCache.regionMapUpdated = Date.now()
+    entry.updatedAt = Date.now()
   }
 
-  return regionMapCache.regionMap
+  return entry.value
 }
 
 /**
@@ -112,7 +132,15 @@ export async function middleware(request: NextRequest) {
 
   let cacheId = cacheIdCookie?.value || crypto.randomUUID()
 
-  const regionMap = await getRegionMap(cacheId)
+  // The tenant, as far as the storefront can see it (ADR-022). Port is stripped for the
+  // same reason tenant_layer.rs strips it: shop.example.com and shop.example.com:8443 are
+  // one merchant. Falls back to a constant only so a request with no Host still resolves —
+  // that path is single-tenant by definition, since there is nothing to tell tenants apart.
+  const host = (request.headers.get("host") ?? "no-host")
+    .split(":")[0]
+    .toLowerCase()
+
+  const regionMap = await getRegionMap(cacheId, host)
 
   const countryCode = regionMap && (await getCountryCode(request, regionMap))
 
