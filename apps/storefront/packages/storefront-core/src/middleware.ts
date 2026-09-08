@@ -31,7 +31,7 @@ const regionCaches = createHostKeyedCache(
   () => new Map<string, HttpTypes.StoreRegion>()
 )
 
-async function getRegionMap(cacheId: string, host: string) {
+async function getRegionMap(host: string) {
   const entry = regionCaches.entryFor(host)
   const regionMap = entry.value
   const regionMapUpdated = entry.updatedAt
@@ -53,7 +53,7 @@ async function getRegionMap(cacheId: string, host: string) {
       },
       next: {
         revalidate: 3600,
-        tags: [`regions-${cacheId}`],
+        tags: [`regions-${host}`],
       },
       cache: "force-cache",
     }).then(async (response) => {
@@ -127,13 +127,10 @@ async function getCountryCode(
  * Middleware to handle region selection and onboarding status.
  */
 export async function middleware(request: NextRequest) {
-  let redirectUrl = request.nextUrl.href
-
-  let response = NextResponse.redirect(redirectUrl, 307)
-
-  let cacheIdCookie = request.cookies.get("_stheno_cache_id")
-
-  let cacheId = cacheIdCookie?.value || crypto.randomUUID()
+  // check if the url is a static asset
+  if (request.nextUrl.pathname.includes(".")) {
+    return NextResponse.next()
+  }
 
   // The tenant, as far as the storefront can see it (ADR-022). Port is stripped for the
   // same reason tenant_layer.rs strips it: shop.example.com and shop.example.com:8443 are
@@ -141,29 +138,15 @@ export async function middleware(request: NextRequest) {
   // that path is single-tenant by definition, since there is nothing to tell tenants apart.
   const host = normalizeHost(request.headers.get("host"), "__no_host")
 
-  const regionMap = await getRegionMap(cacheId, host)
+  const regionMap = await getRegionMap(host)
 
   const countryCode = regionMap && (await getCountryCode(request, regionMap))
 
   const urlHasCountryCode =
     countryCode && request.nextUrl.pathname.split("/")[1].includes(countryCode)
 
-  // if one of the country codes is in the url and the cache id is set, return next
-  if (urlHasCountryCode && cacheIdCookie) {
-    return NextResponse.next()
-  }
-
-  // if one of the country codes is in the url and the cache id is not set, set the cache id and redirect
-  if (urlHasCountryCode && !cacheIdCookie) {
-    response.cookies.set("_stheno_cache_id", cacheId, {
-      maxAge: 60 * 60 * 24,
-    })
-
-    return response
-  }
-
-  // check if the url is a static asset
-  if (request.nextUrl.pathname.includes(".")) {
+  // If one of the country codes is already in the url, pass through immediately with zero cookie writes (ADR-024)
+  if (urlHasCountryCode) {
     return NextResponse.next()
   }
 
@@ -174,8 +157,8 @@ export async function middleware(request: NextRequest) {
 
   // If no country code is set, we redirect to the relevant region.
   if (!urlHasCountryCode && countryCode) {
-    redirectUrl = `${request.nextUrl.origin}/${countryCode}${redirectPath}${queryString}`
-    response = NextResponse.redirect(`${redirectUrl}`, 307)
+    const redirectUrl = `${request.nextUrl.origin}/${countryCode}${redirectPath}${queryString}`
+    return NextResponse.redirect(redirectUrl, 307)
   } else if (!urlHasCountryCode && !countryCode) {
     // Handle case where no valid country code exists (empty regions)
     return new NextResponse(
@@ -184,7 +167,7 @@ export async function middleware(request: NextRequest) {
     )
   }
 
-  return response
+  return NextResponse.next()
 }
 
 export const config = {

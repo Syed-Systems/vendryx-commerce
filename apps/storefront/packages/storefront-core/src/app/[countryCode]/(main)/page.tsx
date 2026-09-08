@@ -9,9 +9,9 @@ import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
 
 export const metadata: Metadata = {
-  title: "STHENO Atelier | Contemporary Luxury & Timeless Apparel",
+  title: "VENDRYX | Flagship Pro Hardware & Tech Store",
   description:
-    "Explore curated collections of conscious luxury apparel, tailored outerwear, and organic essentials crafted with enduring minimalism.",
+    "Explore cutting-edge smartphones, high-performance ultrabooks, spatial audio, and precision workspace accessories engineered for pro performance.",
 }
 
 export default async function Home(props: {

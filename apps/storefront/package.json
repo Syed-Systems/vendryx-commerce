@@ -8,9 +8,9 @@
     "stheno-storefront"
   ],
   "scripts": {
-    "dev": "next dev --turbopack -p 8000",
-    "build": "next build",
-    "start": "next start -p 8000",
+    "dev": "node scripts/frontend.js default dev -p 8000",
+    "build": "node scripts/frontend.js default build",
+    "start": "node scripts/frontend.js default start -p 8000",
     "lint": "next lint",
     "analyze": "ANALYZE=true next build",
     "test:e2e": "playwright test",
@@ -18,10 +18,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "dev:matrix": "node scripts/frontend.js matrix dev -p 8001",
-    "dev:parallel": "node scripts/frontend.js --parallel default:8000 matrix:8001",
+    "dev:parallel": "node scripts/frontend.js --parallel mahal:8000 matrix:8001",
     "build:matrix": "node scripts/frontend.js matrix build",
     "start:matrix": "node scripts/frontend.js matrix start -p 8001",
-    "typecheck:matrix": "tsc --noEmit -p tsconfig.matrix.json"
+    "typecheck:matrix": "tsc --noEmit -p tsconfig.matrix.json",
+    "dev:mahal": "node scripts/frontend.js mahal dev -p 8003",
+    "build:mahal": "node scripts/frontend.js mahal build",
+    "start:mahal": "node scripts/frontend.js mahal start -p 8003",
+    "typecheck:mahal": "tsc --noEmit -p tsconfig.mahal.json"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

@@ -53,7 +53,10 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-matrix/types/**/*.ts"
+    ".next-matrix/types/**/*.ts",
+    ".next/types/**/*.ts",
+    "next-env.d.ts",
+    ".next-lustre/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
@@ -63,6 +66,10 @@
     "coverage",
     "jest-coverage",
     "packages/frontend-matrix",
-    ".next-matrix"
+    ".next-matrix",
+    "packages/frontend-mahal",
+    ".next-mahal",
+    "packages/frontend-lustre",
+    ".next-lustre"
   ]
 }

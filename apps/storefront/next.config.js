@@ -16,7 +16,7 @@ const FRONTEND_MODULES = path.resolve(__dirname, `packages/frontend-${FRONTEND}/
 const CORE = path.resolve(__dirname, "packages/storefront-core/src")
 
 // Turbopack does not read the `webpack` hook below, so it would silently serve
-// frontend-default under a matrix build. Refuse rather than lie about the frontend.
+// a different frontend under a themed build. Refuse rather than lie about the frontend.
 if (FRONTEND !== "default" && process.env.TURBOPACK) {
   throw new Error(
     `STHENO_FRONTEND=${FRONTEND} is bound through the webpack resolver; run without --turbopack.`

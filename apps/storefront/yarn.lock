@@ -585,6 +585,11 @@
   resolved "https://registry.npmjs.org/@nolyfill/is-core-module/-/is-core-module-1.0.39.tgz"
   integrity sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==
 
+"@phosphor-icons/react@^2.1.7":
+  version "2.1.7"
+  resolved "https://registry.npmjs.org/@phosphor-icons/react/-/react-2.1.7.tgz"
+  integrity sha512-g2e2eVAn1XG2a+LI09QU3IORLhnFNAFkNbo2iwbX6NOKSLOwvEMmTa7CgOzEbgNWR47z8i8kwjdvYZ5fkGx1mQ==
+
 "@playwright/test@^1.41.2", "@playwright/test@^1.62.1":
   version "1.62.1"
   resolved "https://registry.npmjs.org/@playwright/test/-/test-1.62.1.tgz"
@@ -1397,6 +1402,10 @@
 "@stheno/frontend-fixture-violating@file:D:\\Syed Systems\\Store\\apps\\storefront\\packages\\frontend-fixture-violating":
   version "0.1.0"
   resolved "file:packages/frontend-fixture-violating"
+
+"@stheno/frontend-lustre@file:D:\\Syed Systems\\Store\\apps\\storefront\\packages\\frontend-lustre":
+  version "0.1.0"
+  resolved "file:packages/frontend-lustre"
 
 "@stheno/frontend-matrix@file:D:\\Syed Systems\\Store\\apps\\storefront\\packages\\frontend-matrix":
   version "0.1.0"
@@ -2507,6 +2516,24 @@ electron-to-chromium@^1.5.402:
   version "1.5.407"
   resolved "https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.407.tgz"
   integrity sha512-4R8XgQOdfxexCd/u63lRm6wCHjECwI45MV9wxAs2ggtfWe2hwlo1ql97jKsju2IcJ+jFSTwBssyYoiWhh7mauQ==
+
+embla-carousel-react@^8.5.1:
+  version "8.5.1"
+  resolved "https://registry.npmjs.org/embla-carousel-react/-/embla-carousel-react-8.5.1.tgz"
+  integrity sha512-z9Y0K84BJvhChXgqn2CFYbfEi6AwEr+FFVVKm/MqbTQ2zIzO1VQri6w67LcfpVF0AjbhwVMywDZqY4alYkjW5w==
+  dependencies:
+    embla-carousel "8.5.1"
+    embla-carousel-reactive-utils "8.5.1"
+
+embla-carousel-reactive-utils@8.5.1:
+  version "8.5.1"
+  resolved "https://registry.npmjs.org/embla-carousel-reactive-utils/-/embla-carousel-reactive-utils-8.5.1.tgz"
+  integrity sha512-n7VSoGIiiDIc4MfXF3ZRTO59KDp820QDuyBDGlt5/65+lumPHxX2JLz0EZ23hZ4eg4vZGUXwMkYv02fw2JVo/A==
+
+embla-carousel@8.5.1:
+  version "8.5.1"
+  resolved "https://registry.npmjs.org/embla-carousel/-/embla-carousel-8.5.1.tgz"
+  integrity sha512-JUb5+FOHobSiWQ2EJNaueCNT/cQU9L6XWBbWmorWPQT9bkbk+fhsuLr8wWrzXKagO3oWszBO7MSx+GfaRk4E6A==
 
 emoji-regex@^9.2.2:
   version "9.2.2"

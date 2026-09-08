@@ -16,8 +16,10 @@
     "node_modules",
     "packages/frontend-fixture-violating",
     "packages/frontend-default",
+    "packages/frontend-mahal",
     ".next",
     ".next-matrix",
+    ".next-mahal",
     ".nyc_output",
     "coverage",
     "jest-coverage"

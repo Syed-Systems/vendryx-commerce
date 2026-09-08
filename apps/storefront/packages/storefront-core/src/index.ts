@@ -26,6 +26,16 @@ export { REF_PARAM_KEY } from "./lib/attribution"
 export type { Locale } from "./lib/data/locales"
 export { isStripeLike, paymentInfoMap } from "./lib/constants"
 
+// Branding & runtime tokens (P26-05)
+export {
+  resolveBrandingTokens,
+  resolveBrandingCssVars,
+  emitBrandingCss,
+  DEFAULT_BRANDING,
+  FONT_STACKS,
+} from "./lib/branding"
+export type { TenantBranding, ResolvedBranding } from "./lib/branding"
+
 // UI state. No data access.
 export { default as useToggleState } from "./lib/hooks/use-toggle-state"
 export type { StateType } from "./lib/hooks/use-toggle-state"

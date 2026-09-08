@@ -23,19 +23,20 @@ export default function CollectionTemplate({
 
   return (
     <div className="w-full">
-      {/* Header Banner */}
-      <div className="bg-zinc-900 text-white py-12 sm:py-16 mb-8">
+      {/* Header Banner - Apple HIG */}
+      <div className="bg-zinc-950 text-white py-12 sm:py-16 mb-8 border-b border-zinc-850">
         <div className="content-container">
-          <span className="text-xs uppercase tracking-[0.25em] text-zinc-400 font-semibold block mb-2">
-            Curated Capsule
-          </span>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] font-medium tracking-wide text-zinc-400 mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+            Hardware Ecosystem
+          </div>
           <h1
-            className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold tracking-tight text-white"
+            className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-white"
           >
             {collection.title}
           </h1>
-          <p className="text-sm text-zinc-300 font-light max-w-xl mt-3 leading-relaxed">
-            Meticulously edited silhouettes designed to pair harmoniously across seasons.
+          <p className="text-sm text-zinc-400 font-normal max-w-xl mt-3 leading-relaxed">
+            Meticulously engineered devices and precision peripherals designed to operate together in complete harmony.
           </p>
         </div>
       </div>

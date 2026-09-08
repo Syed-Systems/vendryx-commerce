@@ -8,9 +8,11 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 export default async function Footer({
   collections,
   productCategories,
+  enableCustomerAccounts = false,
 }: {
   collections: HttpTypes.StoreCollection[]
   productCategories: HttpTypes.StoreProductCategory[]
+  enableCustomerAccounts?: boolean
 }) {
 
   return (
@@ -23,24 +25,24 @@ export default async function Footer({
               href="/"
               className="inline-block"
             >
-              <span className="text-2xl font-serif tracking-[0.25em] uppercase font-bold text-white">
-                STHENO
+              <span className="text-2xl font-semibold tracking-[0.15em] uppercase text-white">
+                VENDRYX
               </span>
-              <span className="block text-[10px] tracking-[0.35em] text-zinc-400 uppercase font-sans">
-                Atelier • Modern Apparel
+              <span className="block text-[10px] tracking-[0.25em] text-zinc-400 uppercase font-sans font-medium">
+                Flagship Store • Pro Hardware
               </span>
             </LocalizedClientLink>
-            <p className="text-sm text-zinc-400 max-w-md leading-relaxed font-light">
-              Crafting conscious, enduring wardrobe essentials through refined silhouettes, exceptional fabrications, and ethical craftsmanship.
+            <p className="text-sm text-zinc-400 max-w-md leading-relaxed font-normal">
+              Engineering cutting-edge personal computing, flagship mobile devices, spatial audio, and high-performance workstation accessories.
             </p>
           </div>
 
           <div className="lg:col-span-6 space-y-3">
             <h4 className="text-xs uppercase tracking-widest text-zinc-200 font-semibold">
-              Join the Atelier Circle
+              Hardware Launch Briefings
             </h4>
-            <p className="text-xs text-zinc-400 leading-relaxed font-light">
-              Subscribe to receive preview access to private sales, seasonal lookbooks, and 10% off your first acquisition.
+            <p className="text-xs text-zinc-400 leading-relaxed font-normal">
+              Subscribe to receive early notifications on flagship hardware releases, firmware updates, and limited engineering drops.
             </p>
             <form className="flex flex-col sm:flex-row gap-2 max-w-md pt-1" action="#" method="POST">
               <input
@@ -112,22 +114,22 @@ export default async function Footer({
                 <>
                   <li>
                     <LocalizedClientLink href="/store" className="hover:text-white transition-colors">
-                      Outerwear & Coats
+                      Smartphones & Foldables
                     </LocalizedClientLink>
                   </li>
                   <li>
                     <LocalizedClientLink href="/store" className="hover:text-white transition-colors">
-                      Tops & Knitwear
+                      Laptops & Ultrabooks
                     </LocalizedClientLink>
                   </li>
                   <li>
                     <LocalizedClientLink href="/store" className="hover:text-white transition-colors">
-                      Tailored Pants
+                      Spatial Audio & Studio
                     </LocalizedClientLink>
                   </li>
                   <li>
                     <LocalizedClientLink href="/store" className="hover:text-white transition-colors">
-                      Accessories
+                      Precision Accessories
                     </LocalizedClientLink>
                   </li>
                 </>
@@ -138,14 +140,16 @@ export default async function Footer({
           {/* Client Concierge & Care */}
           <div className="flex flex-col space-y-3">
             <span className="text-xs uppercase tracking-widest text-zinc-100 font-semibold">
-              Client Concierge
+              Hardware Support & Care
             </span>
             <ul className="space-y-2 text-zinc-400">
-              <li>
-                <LocalizedClientLink href="/account" className="hover:text-white transition-colors">
-                  My Account & Orders
-                </LocalizedClientLink>
-              </li>
+              {enableCustomerAccounts && (
+                <li>
+                  <LocalizedClientLink href="/account" className="hover:text-white transition-colors">
+                    My Account & Orders
+                  </LocalizedClientLink>
+                </li>
+              )}
               <li>
                 <LocalizedClientLink href="/cart" className="hover:text-white transition-colors">
                   Shopping Bag
@@ -153,17 +157,17 @@ export default async function Footer({
               </li>
               <li>
                 <span className="hover:text-white transition-colors cursor-pointer">
-                  Complimentary Shipping & Returns
+                  Express Tracked Shipping
                 </span>
               </li>
               <li>
                 <span className="hover:text-white transition-colors cursor-pointer">
-                  Garment Care & Sizing Guide
+                  2-Year Hardware Warranty
                 </span>
               </li>
               <li>
                 <span className="hover:text-white transition-colors cursor-pointer">
-                  Sustainability & Sourcing
+                  Technical Specifications & Care
                 </span>
               </li>
             </ul>
@@ -172,15 +176,15 @@ export default async function Footer({
           {/* Contact & Social */}
           <div className="flex flex-col space-y-3">
             <span className="text-xs uppercase tracking-widest text-zinc-100 font-semibold">
-              Direct Assistance
+              Support Engineering
             </span>
             <ul className="space-y-2 text-zinc-400">
               <li>
-                <span className="text-zinc-500 block text-[11px]">Concierge Desk</span>
-                <span className="text-zinc-200">concierge@sthenostore.com</span>
+                <span className="text-zinc-500 block text-[11px]">Hardware Helpdesk</span>
+                <span className="text-zinc-200">support@vendryxstore.com</span>
               </li>
               <li>
-                <span className="text-zinc-500 block text-[11px]">Hours</span>
+                <span className="text-zinc-500 block text-[11px]">Availability</span>
                 <span className="text-zinc-300">Mon – Fri: 09:00 – 18:00 EST</span>
               </li>
               {/* Wraps. Three social names plus separators are wider than this column at
@@ -188,11 +192,11 @@ export default async function Footer({
                   the viewport — which made every page on the site scroll sideways, since
                   the footer is global. */}
               <li className="pt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-400">
-                <span className="hover:text-white transition-colors cursor-pointer">Instagram</span>
+                <span className="hover:text-white transition-colors cursor-pointer">GitHub</span>
                 <span>•</span>
-                <span className="hover:text-white transition-colors cursor-pointer">Pinterest</span>
+                <span className="hover:text-white transition-colors cursor-pointer">X / Twitter</span>
                 <span>•</span>
-                <span className="hover:text-white transition-colors cursor-pointer">WhatsApp</span>
+                <span className="hover:text-white transition-colors cursor-pointer">YouTube</span>
               </li>
             </ul>
           </div>
@@ -201,7 +205,7 @@ export default async function Footer({
         {/* Bottom Bar: Copyright & Payment badging */}
         <div className="flex flex-col sm:flex-row items-center justify-between pt-8 gap-4 text-[11px] text-zinc-500">
           <div>
-            © {new Date().getFullYear()} STHENO Storefront Atelier. All rights reserved.
+            © {new Date().getFullYear()} VENDRYX Pro Tech Store. All rights reserved.
           </div>
           {/* Wraps: five badges on one unwrapped row are 33px wider than a 390px viewport,
               which made every page on the site scroll sideways — the footer is global. */}

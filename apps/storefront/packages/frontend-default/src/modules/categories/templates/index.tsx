@@ -60,14 +60,14 @@ export default function CategoryTemplate({
           </div>
 
           <h1
-            className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold tracking-tight text-white"
+            className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-white"
             data-testid="category-page-title"
           >
             {category.name}
           </h1>
 
           {category.description && (
-            <p className="text-sm text-zinc-300 font-light max-w-xl mt-3 leading-relaxed">
+            <p className="text-sm text-zinc-400 font-normal max-w-xl mt-3 leading-relaxed">
               {category.description}
             </p>
           )}

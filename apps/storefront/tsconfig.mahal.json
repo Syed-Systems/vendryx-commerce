@@ -1,0 +1,31 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "paths": {
+      "@core/*": ["../packages/storefront-core/src/*"],
+      "@frontend/*": ["../packages/frontend-mahal/src/modules/*"],
+      "@lib/*": ["../packages/storefront-core/src/lib/*"],
+      "@modules/checkout/*": ["../packages/storefront-core/src/modules/checkout/*"],
+      "@modules/common/components/localized-client-link": ["../packages/storefront-core/src/modules/common/components/localized-client-link"],
+      "@modules/*": ["../packages/frontend-mahal/src/modules/*"],
+      "@pages/*": ["pages/*"]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "packages/frontend-fixture-violating",
+    "packages/frontend-default",
+    "packages/frontend-matrix",
+    "packages/frontend-lustre",
+    "packages/frontend-mahal/src/demo",
+    "packages/frontend-mahal/vite.config.ts",
+    ".next",
+    ".next-matrix",
+    ".next-lustre",
+    ".next-mahal",
+    ".nyc_output",
+    "coverage",
+    "jest-coverage"
+  ]
+}

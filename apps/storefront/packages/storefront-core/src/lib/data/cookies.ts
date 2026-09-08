@@ -19,17 +19,34 @@ export const getAuthHeaders = async (): Promise<
 }
 
 export const getCacheTag = async (tag: string): Promise<string> => {
+  // Public catalog and navigation tags must NOT invoke nextCookies().
+  // Doing so forces Next.js Server Components to dynamic SSR per request,
+  // bypassing the Full Route Cache and breaking CDN edge caching (ADR-024).
+  const isPublicCatalogTag = [
+    "products",
+    "categories",
+    "collections",
+    "regions",
+    "locales",
+    "variants",
+    "shippingOptions",
+  ].some((t) => tag.startsWith(t))
+
+  if (isPublicCatalogTag) {
+    return tag
+  }
+
   try {
     const cookies = await nextCookies()
     const cacheId = cookies.get("_stheno_cache_id")?.value
 
     if (!cacheId) {
-      return ""
+      return tag
     }
 
     return `${tag}-${cacheId}`
   } catch (error) {
-    return ""
+    return tag
   }
 }
 
