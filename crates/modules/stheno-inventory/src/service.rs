@@ -8,6 +8,8 @@ use stheno_db::{
     with_transaction, CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection,
     PgCrudRepository,
 };
+use stheno_db::filter::MAX_PAGE_LIMIT;
+
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
@@ -647,6 +649,49 @@ impl InventoryService {
             location_id: r.location_id,
             quantity: r.quantity,
         })
+    }
+
+    /// Inventory levels where `stocked_quantity <= threshold`.
+    ///
+    /// Returns up to `limit` levels ordered by ascending `stocked_quantity` so the most
+    /// critical items surface first. Zero is a valid and common threshold — it means "out
+    /// of stock". The caller is responsible for choosing a business-appropriate threshold.
+    ///
+    /// # Edge cases
+    /// - Empty catalogue: returns an empty `Vec`, not an error.
+    /// - `threshold < 0`: clamped to 0 — negative stock cannot exist.
+    /// - `limit = 0`: treated as `MAX_PAGE_LIMIT` to avoid silent empty pages.
+    pub async fn list_low_stock_levels(
+        &self,
+        threshold: i32,
+        limit: usize,
+    ) -> Result<Vec<InventoryLevelDTO>> {
+        let effective_threshold = threshold.max(0);
+        let effective_limit = if limit == 0 { MAX_PAGE_LIMIT } else { limit.min(MAX_PAGE_LIMIT) };
+
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_predicate(
+                "stocked_quantity",
+                FilterOp::Lte(effective_threshold.to_string()),
+            )
+            .with_order("stocked_quantity", OrderDirection::Asc)
+            .with_pagination(0, effective_limit);
+
+        Ok(self
+            .levels
+            .list(None, &filter)
+            .await?
+            .into_iter()
+            .map(|l| InventoryLevelDTO {
+                available_quantity: l.stocked_quantity - l.reserved_quantity,
+                id: Id::from_string(l.id.to_string()).unwrap_or_default(),
+                inventory_item_id: l.inventory_item_id,
+                location_id: l.location_id,
+                stocked_quantity: l.stocked_quantity,
+                reserved_quantity: l.reserved_quantity,
+            })
+            .collect())
     }
 
     pub async fn list_items(&self) -> Result<Vec<InventoryItemDTO>> {

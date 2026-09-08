@@ -13,6 +13,7 @@ stheno-registry = { workspace = true }
 stheno-flows = { workspace = true }
 stheno-api-core = { workspace = true }
 stheno-workflow = { workspace = true }
+stheno-platform = { workspace = true }
 stheno-db = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }

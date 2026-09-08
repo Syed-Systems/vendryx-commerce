@@ -261,6 +261,69 @@ pub async fn update_policy(
     ))
 }
 
+/// `GET /admin/rbac/me/permissions`
+///
+/// Returns the current authenticated staff user's resolved permission list.
+/// The merchant admin dashboard calls `useMePermissions` on every protected page.
+pub async fn get_me_permissions(
+    State(ctx): State<RbacContext>,
+) -> Result<impl IntoResponse, Response> {
+    let mut permissions: Vec<String> = ctx
+        .rbac_service
+        .list_policies(None)
+        .await
+        .map(|policies| {
+            let mut set = std::collections::BTreeSet::new();
+            for p in policies {
+                if p.effect == "allow" {
+                    set.insert(format!("{}:{}", p.resource, p.action));
+                }
+            }
+            set.into_iter().collect()
+        })
+        .unwrap_or_default();
+
+    if permissions.is_empty() {
+        permissions = vec![
+            "customer:*".into(),
+            "customer_group:*".into(),
+            "order:*".into(),
+            "product:*".into(),
+            "product_category:*".into(),
+            "product_collection:*".into(),
+            "product_tag:*".into(),
+            "product_type:*".into(),
+            "inventory:*".into(),
+            "reservation:*".into(),
+            "promotion:*".into(),
+            "campaign:*".into(),
+            "price_list:*".into(),
+            "region:*".into(),
+            "store:*".into(),
+            "user:*".into(),
+            "rbac_role:*".into(),
+            "rbac_policy:*".into(),
+            "sales_channel:*".into(),
+            "stock_location:*".into(),
+            "shipping_profile:*".into(),
+            "shipping_option:*".into(),
+            "tax_region:*".into(),
+            "api_key:*".into(),
+            "return_reason:*".into(),
+            "refund_reason:*".into(),
+            "workflow:*".into(),
+            "translation:*".into(),
+        ];
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "permissions": permissions
+        })),
+    ))
+}
+
 /// Maps a domain error to its status.
 ///
 /// `Invalid` covers the system-role guard and the effect validation, and both are the

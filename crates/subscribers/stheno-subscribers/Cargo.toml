@@ -18,6 +18,7 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 stheno-notification-webpush = { workspace = true }
+stheno-notification-resend = { workspace = true }
 stheno-db = { workspace = true, features = ["testing"] }
 
 

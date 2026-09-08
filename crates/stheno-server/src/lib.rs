@@ -1,6 +1,8 @@
 //! `stheno-server`: Server application, router mounting, and universal test harness.
 
 pub mod db;
+pub mod scheduler;
+pub mod space_integration;
 pub mod tenant_layer;
 
 use axum::http::{HeaderValue, Method};
@@ -11,11 +13,12 @@ use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 
 use crate::tenant_layer::TenantLayerState;
 use stheno_api_admin::{
-    admin_api_key_routes, admin_catalog_routes, admin_config_routes, admin_customer_routes,
-    admin_fulfillment_settings_routes, admin_inventory_routes, admin_localisation_routes,
-    admin_order_routes, admin_pricing_routes, admin_promotion_routes, admin_rbac_routes,
-    admin_reports_routes, admin_store_routes, admin_upload_routes, admin_user_routes,
-    admin_views_routes, auth_guard::require_admin,
+    admin_api_key_routes, admin_catalog_routes, admin_config_routes, admin_courier_routes,
+    admin_customer_routes, admin_fulfillment_settings_routes, admin_home_routes,
+    admin_inventory_routes, admin_localisation_routes, admin_onboarding_routes, admin_order_routes,
+    admin_pricing_routes, admin_promotion_routes, admin_rbac_routes, admin_reconciliation_routes,
+    admin_reports_routes, admin_settings_routes, admin_store_routes, admin_upload_routes,
+    admin_user_routes, admin_views_routes, auth_guard::require_admin,
 };
 use stheno_api_admin_platform::{admin_platform_routes, AdminPlatformContext, UsageSnapshot};
 use stheno_api_auth::{auth_routes, AuthApiContext};
@@ -36,10 +39,14 @@ use stheno_db::QuotaCounter;
 use stheno_flows::{AuthWorkflows, OrderWorkflowEngine, ReturnWorkflowEngine};
 use stheno_fulfillment::FulfillmentService;
 use stheno_fulfillment_manual::ManualFulfillmentProvider;
+use stheno_fulfillment_pathao::PathaoFulfillmentProvider;
+use stheno_fulfillment_redx::RedxFulfillmentProvider;
+use stheno_fulfillment_steadfast::SteadfastFulfillmentProvider;
 use stheno_inventory::InventoryService;
 use stheno_order::OrderService;
 use stheno_payment::PaymentService;
 use stheno_payment_bkash::BkashPaymentProviderFactory;
+use stheno_payment_nagad::NagadPaymentProviderFactory;
 use stheno_payment_offline::OfflinePaymentProviderFactory;
 use stheno_payment_sslcommerz::SslcommerzPaymentProviderFactory;
 use stheno_payment_stripe::StripePaymentProviderFactory;
@@ -99,7 +106,7 @@ pub fn load_entitlements() -> Result<Entitlements, EntitlementsError> {
 /// and a misconfigured browser client fails visibly in preflight rather than silently
 /// exposing the admin surface to every origin on the internet.
 fn cors_layer() -> CorsLayer {
-    let origins: Vec<HeaderValue> = ["STORE_CORS", "ADMIN_CORS", "AUTH_CORS"]
+    let mut origins: Vec<HeaderValue> = ["STORE_CORS", "ADMIN_CORS", "AUTH_CORS"]
         .iter()
         .filter_map(|key| std::env::var(key).ok())
         .flat_map(|value| {
@@ -109,6 +116,21 @@ fn cors_layer() -> CorsLayer {
                 .collect::<Vec<_>>()
         })
         .collect();
+
+    for dev_origin in [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+    ] {
+        if let Ok(hv) = HeaderValue::from_str(dev_origin) {
+            if !origins.contains(&hv) {
+                origins.push(hv);
+            }
+        }
+    }
 
     CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
@@ -623,12 +645,96 @@ pub async fn seed_demo(pool: stheno_db::DbPool) {
         .await;
 }
 
+/// Every 15 minutes. Frequent enough that an ambiguous payment is resolved while the buyer
+/// is still in the conversation; infrequent enough that it is not a load source of its own.
+pub const PAYMENT_SWEEP_SCHEDULE: &str = "*/15 * * * *";
+
+/// Daily at 03:00. The dunning ladder moves in days, so a finer schedule would re-read every
+/// subscription to change nothing.
+pub const DUNNING_SCHEDULE: &str = "0 3 * * *";
+
+/// Requests older than this are considered stranded rather than merely in progress.
+const SWEEP_MIN_AGE_SECONDS: i64 = 300;
+const SWEEP_LIMIT: usize = 500;
+
+/// The periodic work the engine owes itself.
+///
+/// Both jobs iterate tenants explicitly. Neither underlying method scopes itself: they read
+/// tenant-owned tables under RLS, so a sweep run without a tenant scope sees nothing and
+/// reports a clean pass over an empty result — the silent no-op this scheduler exists to end.
+pub fn scheduled_jobs(
+    pool: stheno_db::DbPool,
+    payment: Arc<PaymentService>,
+) -> Vec<scheduler::Job> {
+    let platform = Arc::new(PlatformService::new(pool.clone()));
+
+    let sweep_platform = platform.clone();
+    let sweep = scheduler::Job::new("payment-reconcile", PAYMENT_SWEEP_SCHEDULE, move || {
+        let platform = sweep_platform.clone();
+        let payment = payment.clone();
+        async move {
+            let tenants = platform.list_tenants().await.map_err(|e| e.to_string())?;
+            let (mut scanned, mut converged) = (0usize, 0usize);
+            for tenant in &tenants {
+                let report = stheno_db::tenant::scope(
+                    tenant.id.clone(),
+                    payment.reconcile_unsettled_requests(SWEEP_MIN_AGE_SECONDS, SWEEP_LIMIT),
+                )
+                .await
+                .map_err(|e| format!("tenant {}: {e}", tenant.id))?;
+                scanned += report.scanned;
+                converged += report.converged;
+            }
+            Ok(format!(
+                "swept {} tenant(s): {scanned} stranded request(s) scanned, {converged} converged",
+                tenants.len()
+            ))
+        }
+    });
+
+    let dunning_platform = platform.clone();
+    let dunning = scheduler::Job::new("subscription-dunning", DUNNING_SCHEDULE, move || {
+        let platform = dunning_platform.clone();
+        async move {
+            let subscriptions = platform
+                .list_subscriptions()
+                .await
+                .map_err(|e| e.to_string())?;
+            let now = chrono::Utc::now();
+            let mut advanced = 0usize;
+            let mut failed = 0usize;
+            for sub in &subscriptions {
+                let input = stheno_platform::DunningInput {
+                    tenant_id: sub.tenant_id.clone(),
+                    now,
+                };
+                // One tenant's ladder failing must not stop the rest: a single bad
+                // subscription row would otherwise freeze collection for everybody.
+                match platform.advance_dunning(input).await {
+                    Ok(_) => advanced += 1,
+                    Err(e) => {
+                        failed += 1;
+                        tracing::warn!(tenant = %sub.tenant_id, error = %e, "dunning advance failed");
+                    }
+                }
+            }
+            Ok(format!(
+                "advanced {advanced} subscription(s), {failed} failed, of {} total",
+                subscriptions.len()
+            ))
+        }
+    });
+
+    vec![sweep, dunning]
+}
+
 pub struct AppServer {
     pub context: AppContext,
     pub router: Router,
     pub entitlements: Arc<Entitlements>,
     pub pool: stheno_db::DbPool,
     pub payment_service: Arc<PaymentService>,
+    pub notification_service: Arc<stheno_notification::NotificationService>,
 }
 
 impl AppServer {
@@ -646,18 +752,80 @@ impl AppServer {
         payment_service.register_factory(Arc::new(StripePaymentProviderFactory));
         payment_service.register_factory(Arc::new(SslcommerzPaymentProviderFactory));
         payment_service.register_factory(Arc::new(BkashPaymentProviderFactory));
+        payment_service.register_factory(Arc::new(NagadPaymentProviderFactory));
         let order_service = Arc::new(OrderService::new(pool.clone()));
         let fulfillment_service = Arc::new(FulfillmentService::new(pool.clone()));
         fulfillment_service.register_provider(Arc::new(ManualFulfillmentProvider::new()));
+        fulfillment_service.register_provider(Arc::new(PathaoFulfillmentProvider::default()));
+        fulfillment_service.register_provider(Arc::new(SteadfastFulfillmentProvider::default()));
+        fulfillment_service.register_provider(Arc::new(RedxFulfillmentProvider::default()));
         let tax_service = Arc::new(TaxService::new(pool.clone()));
         let customer_service = Arc::new(CustomerService::new(pool.clone()));
-        let user_service = Arc::new(UserService::new(pool.clone()));
+        let user_service =
+            Arc::new(UserService::new(pool.clone()).with_event_bus(context.events.clone()));
         let inventory_service = Arc::new(InventoryService::new(pool.clone()));
         let stock_location_service = Arc::new(StockLocationService::new(pool.clone()));
         let sales_channel_service = Arc::new(SalesChannelService::new(pool.clone()));
         let store_service = Arc::new(StoreService::new(pool.clone()));
         let promotion_service = Arc::new(PromotionService::new(pool.clone()));
-        let auth_service = Arc::new(AuthService::new(pool.clone(), None));
+        let auth_service =
+            Arc::new(AuthService::new(pool.clone(), None).with_event_bus(context.events.clone()));
+        let notification_service =
+            Arc::new(stheno_notification::NotificationService::new(pool.clone()));
+        let resend_config = stheno_notification_resend::ResendConfig {
+            api_key: std::env::var("RESEND_API_KEY").unwrap_or_default(),
+            from_email: std::env::var("RESEND_FROM_EMAIL")
+                .unwrap_or_else(|_| "notifications@vendryx.store".to_string()),
+            from_name: std::env::var("RESEND_FROM_NAME")
+                .ok()
+                .or_else(|| Some("Vendryx Commerce".to_string())),
+            base_url: std::env::var("RESEND_BASE_URL").ok(),
+        };
+        let resend_provider = Arc::new(
+            stheno_notification_resend::ResendNotificationProvider::new(resend_config),
+        );
+        notification_service.register_provider(resend_provider);
+
+        let store_name =
+            std::env::var("STHENO_STORE_NAME").unwrap_or_else(|_| "Vendryx".to_string());
+        let subscriber_registry = stheno_subscribers::SubscriberRegistry::new();
+        subscriber_registry.attach_subscriber(
+            &*context.events,
+            Arc::new(stheno_subscribers::IdentityCreatedSubscriber::new(
+                notification_service.clone(),
+                store_name.clone(),
+            )),
+        );
+        subscriber_registry.attach_subscriber(
+            &*context.events,
+            Arc::new(stheno_subscribers::PasswordResetSubscriber::new(
+                notification_service.clone(),
+                store_name.clone(),
+            )),
+        );
+        subscriber_registry.attach_subscriber(
+            &*context.events,
+            Arc::new(stheno_subscribers::UserInviteSubscriber::new(
+                notification_service.clone(),
+                store_name.clone(),
+            )),
+        );
+        subscriber_registry.attach_subscriber(
+            &*context.events,
+            Arc::new(stheno_subscribers::OrderConfirmationEmailSubscriber::new(
+                notification_service.clone(),
+                store_name.clone(),
+            )),
+        );
+        if let Ok(owner_push_sub) = std::env::var("OWNER_PUSH_SUBSCRIPTION") {
+            subscriber_registry.attach_subscriber(
+                &*context.events,
+                Arc::new(stheno_subscribers::PushOrderPlacedSubscriber::new(
+                    notification_service.clone(),
+                    owner_push_sub,
+                )),
+            );
+        }
         let translation_service = Arc::new(TranslationService::new(pool.clone()));
         let reporting_service = Arc::new(stheno_reporting::ReportingService::new(pool.clone()));
         let workflow_store = Arc::new(WorkflowStore::from_pool(pool.clone()));
@@ -672,7 +840,9 @@ impl AppServer {
         ));
         // Turns a cart into an order. Built with tests since the cart phase and never
         // mounted, so "Place order" had nothing to call.
-        let file_provider = Arc::new(stheno_file_local::LocalFileProvider::new("uploads", "/uploads"));
+        let file_provider = Arc::new(stheno_file_local::LocalFileProvider::new(
+            "uploads", "/uploads",
+        ));
         let file_service = Arc::new(stheno_file::FileService::new(file_provider, pool.clone()));
         let complete_flows = Arc::new(stheno_flows::CompleteCartWorkflowEngine::new(
             cart_service.clone(),
@@ -737,12 +907,29 @@ impl AppServer {
                 translation_service.clone(),
                 settings_service.clone(),
             ))
+            .merge(admin_settings_routes(settings_service.clone()))
+            .merge(admin_home_routes(
+                order_service.clone(),
+                inventory_service.clone(),
+            ))
+            .merge(admin_courier_routes(
+                fulfillment_service.clone(),
+                settings_service.clone(),
+            ))
+            .merge(admin_onboarding_routes(
+                store_service.clone(),
+                product_service.clone(),
+                fulfillment_service.clone(),
+                settings_service.clone(),
+            ))
+            .merge(admin_reconciliation_routes(payment_service.clone()))
             // The platform surface is never gated: the dashboard has to be able to
             // read its own entitlements in order to hide what it may not show.
             .merge(admin_platform_routes(AdminPlatformContext {
                 entitlements: entitlements.clone(),
                 usage: usage_snapshot.clone(),
                 workflows: workflow_store.clone(),
+                platform: Some(platform_service.clone()),
             }));
 
         // A gate is a mount-point decision, never an `if` inside domain logic
@@ -846,6 +1033,9 @@ impl AppServer {
                 auth_service: auth_service.clone(),
                 translation_service: translation_service.clone(),
                 promotion_service: Some(promotion_service.clone()),
+                cache_service: Some(Arc::new(stheno_caching::CacheService::new(Arc::new(
+                    stheno_caching::InMemoryCacheProvider::new(),
+                )))),
             }))
             // Buyer accounts are an archetype the merchant chooses on the store request,
             // not something a plan sells (PRODUCT.md 2, ENTITLEMENTS.md 4.2). No tier in
@@ -876,6 +1066,7 @@ impl AppServer {
             // callback URL per tenant resolve to that tenant.
             .merge(hooks_routes(HooksContext {
                 payment_service: payment_service.clone(),
+                fulfillment_service: Some(fulfillment_service.clone()),
             }))
             // Outermost after CORS: every route below this point runs inside a tenant
             // scope, so nothing downstream has to know tenancy exists (ADR-012).
@@ -897,6 +1088,14 @@ impl AppServer {
                 crate::tenant_layer::resolve_tenant,
             ));
 
+        let space_client = Arc::new(stheno_connector_space::SpaceClient::new(
+            stheno_connector_space::SpaceConnectorConfig::from_env(),
+        ));
+        let space_routes =
+            space_integration::space_integration_routes(space_integration::SpaceIntegrationState {
+                client: space_client,
+            });
+
         let router = Router::new()
             .merge(tenant_routes)
             // Mounted OUTSIDE the tenant layer on purpose: the control plane reads across
@@ -907,12 +1106,14 @@ impl AppServer {
                 tier_config: Arc::new(load_tier_config().expect("config/tiers.toml must parse")),
                 operator_token: std::env::var("STHENO_PLATFORM_TOKEN").ok(),
                 payment_service: Some(payment_service.clone()),
+                fulfillment_service: Some(fulfillment_service.clone()),
             }))
             .merge(merchant_routes(MerchantApiContext {
                 platform: platform_service.clone(),
                 auth_service: auth_service.clone(),
                 tier_config: Arc::new(load_tier_config().expect("config/tiers.toml must parse")),
             }))
+            .merge(space_routes)
             .layer(cors);
 
         Self {
@@ -921,6 +1122,7 @@ impl AppServer {
             entitlements,
             pool,
             payment_service,
+            notification_service,
         }
     }
 }

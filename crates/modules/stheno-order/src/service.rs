@@ -306,6 +306,29 @@ impl OrderService {
         .await
     }
 
+    /// Updates the three distinct COD accounting amounts on an order (P24-02, BP8):
+    /// order_total, collected_amount, remitted_amount (net of courier_fee).
+    pub async fn update_cod_amounts(
+        &self,
+        order_id: &str,
+        order_total: Decimal,
+        collected: Decimal,
+        remitted: Decimal,
+        courier_fee: Decimal,
+    ) -> Result<CodAmounts> {
+        let cod = CodAmounts::new(order_total, collected, remitted, courier_fee)?;
+        let mut order = self.orders.retrieve(None, order_id).await?;
+        order.set_cod_amounts(cod.clone());
+        self.orders.update(None, order_id, order).await?;
+        Ok(cod)
+    }
+
+    /// Fetches the distinct COD accounting amounts for an order.
+    pub async fn get_cod_amounts(&self, order_id: &str) -> Result<Option<CodAmounts>> {
+        let order = self.orders.retrieve(None, order_id).await?;
+        Ok(order.get_cod_amounts())
+    }
+
     // ── Versioned Snapshot Loading (P5-03) ──────────────────────────────────
 
     async fn assemble_order_dto(&self, order: &Order, version: i32) -> Result<OrderDTO> {
@@ -509,6 +532,7 @@ impl OrderService {
             items,
             shipping_methods,
             summary,
+            cod_amounts: order.get_cod_amounts(),
             transactions,
             credit_lines,
             status: order.status.clone(),

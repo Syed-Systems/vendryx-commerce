@@ -1,0 +1,12 @@
+{
+  "type": "success",
+  "code": 200,
+  "message": "Cities retrieved successfully",
+  "data": {
+    "data": [
+      { "city_id": 1, "city_name": "Dhaka" },
+      { "city_id": 2, "city_name": "Chittagong" },
+      { "city_id": 3, "city_name": "Sylhet" }
+    ]
+  }
+}

@@ -88,11 +88,7 @@ async fn pending_launch_is_hidden_and_activation_makes_the_store_available() {
 }
 
 /// Provisions and activates one store, returning the host it answers on.
-async fn launch_store(
-    service: &PlatformService,
-    slug: &str,
-    buyer_accounts: bool,
-) -> String {
+async fn launch_store(service: &PlatformService, slug: &str, buyer_accounts: bool) -> String {
     let merchant_id = format!("auth_{slug}");
     service
         .upsert_merchant_account(
@@ -172,7 +168,9 @@ async fn the_store_request_archetype_decides_which_routes_exist() {
     // The buyer surface follows the archetype. 404, not 403: a store without accounts
     // is indistinguishable from one where the route never existed.
     assert_eq!(
-        get(guest_host.clone(), "/store/customers/me").await.status(),
+        get(guest_host.clone(), "/store/customers/me")
+            .await
+            .status(),
         StatusCode::NOT_FOUND
     );
     assert_ne!(
@@ -198,7 +196,9 @@ async fn the_store_request_archetype_decides_which_routes_exist() {
     // Staff auth is not a buyer surface. Getting this wrong locks merchants out of
     // their own dashboard, so it is asserted on the store that has the gate closed.
     assert_eq!(
-        get(guest_host.clone(), "/auth/user/providers").await.status(),
+        get(guest_host.clone(), "/auth/user/providers")
+            .await
+            .status(),
         StatusCode::OK
     );
 

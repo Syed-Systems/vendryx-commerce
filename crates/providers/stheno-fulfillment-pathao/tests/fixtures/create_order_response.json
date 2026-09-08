@@ -1,0 +1,11 @@
+{
+  "type": "success",
+  "code": 200,
+  "message": "Order created successfully",
+  "data": {
+    "consignment_id": "PT-CNS-789012",
+    "merchant_order_id": "ORD-BD-101",
+    "order_status": "Order Created",
+    "delivery_fee": 60
+  }
+}

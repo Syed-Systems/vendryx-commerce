@@ -20,6 +20,7 @@ pub struct OrderDTO {
     pub items: Vec<LineItemDTO>,
     pub shipping_methods: Vec<ShippingMethodDTO>,
     pub summary: Option<OrderSummaryDTO>,
+    pub cod_amounts: Option<CodAmounts>,
     pub transactions: Vec<TransactionDTO>,
     pub credit_lines: Vec<CreditLineDTO>,
     pub status: String,
@@ -31,6 +32,73 @@ pub struct OrderDTO {
     pub canceled_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Three distinct COD amounts carried on an order (P24-02, BP8):
+/// - order_total: gross order charge invoiced to customer
+/// - collected_amount: cash collected by courier rider
+/// - remitted_amount: net payout transferred by courier to merchant
+///
+/// Never conflated.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CodAmounts {
+    pub order_total: Decimal,
+    pub collected_amount: Decimal,
+    pub remitted_amount: Decimal,
+    pub courier_fee: Decimal,
+}
+
+impl CodAmounts {
+    pub fn new(
+        order_total: Decimal,
+        collected: Decimal,
+        remitted: Decimal,
+        courier_fee: Decimal,
+    ) -> Result<Self, stheno_types::Error> {
+        if remitted + courier_fee != collected {
+            return Err(stheno_types::Error::Invalid {
+                code: "cod_amounts_mismatch",
+                message: format!(
+                    "courier remittance ({remitted}) + courier fee ({courier_fee}) does not balance collected amount ({collected})"
+                ),
+                field: Some("cod_amounts".to_string()),
+            });
+        }
+        Ok(Self {
+            order_total,
+            collected_amount: collected,
+            remitted_amount: remitted,
+            courier_fee,
+        })
+    }
+
+    pub fn order_total(&self) -> Decimal {
+        self.order_total
+    }
+
+    pub fn collected_amount(&self) -> Decimal {
+        self.collected_amount
+    }
+
+    pub fn remitted_amount(&self) -> Decimal {
+        self.remitted_amount
+    }
+
+    pub fn courier_fee(&self) -> Decimal {
+        self.courier_fee
+    }
+
+    /// Asserts that order total, collected amount, and remitted amount are distinct and never conflated.
+    pub fn assert_never_conflated(&self) -> Result<(), stheno_types::Error> {
+        if self.courier_fee > Decimal::ZERO && self.collected_amount == self.remitted_amount {
+            return Err(stheno_types::Error::Invalid {
+                code: "cod_amounts_conflated",
+                message: "remitted amount conflated with collected amount despite courier fee deduction".to_string(),
+                field: Some("remitted_amount".to_string()),
+            });
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

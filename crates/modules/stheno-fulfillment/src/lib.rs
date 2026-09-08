@@ -5,7 +5,9 @@ pub mod dto;
 pub(crate) mod models;
 pub mod provider;
 pub mod service;
+pub mod status;
 
 pub use dto::*;
 pub use provider::*;
 pub use service::*;
+pub use status::*;

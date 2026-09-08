@@ -166,10 +166,48 @@ pub(crate) struct PaymentReconciliationRun {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct CourierSettlementCycle {
+    pub id: Id<CourierSettlementCycle>,
+    pub provider_id: String,
+    pub courier_cycle_id: String,
+    pub cycle_start: Option<DateTime<Utc>>,
+    pub cycle_end: Option<DateTime<Utc>>,
+    pub total_collected: Decimal,
+    pub total_fees: Decimal,
+    pub total_remitted: Decimal,
+    pub currency: String,
+    pub status: String, // "open", "reconciled", "discrepant", "closed"
+    pub raw_report: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct CourierSettlementLine {
+    pub id: Id<CourierSettlementLine>,
+    pub cycle_id: String,
+    pub consignment_id: String,
+    pub tracking_code: Option<String>,
+    pub order_id: Option<String>,
+    pub collected_amount: Decimal,
+    pub courier_fee: Decimal,
+    pub cod_fee: Decimal,
+    pub remitted_amount: Decimal,
+    pub reconciliation_status: String, // "matched", "discrepant", "unmatched"
+    pub discrepancy_reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
 // Medusa id prefixes for this module's entities (ADR-010).
 stheno_types::prefixed_id! {
     AccountHolder => "acch",
     Capture => "capt",
+    CourierSettlementCycle => "cset_cyc",
+    CourierSettlementLine => "cset_ln",
     Payment => "pay",
     PaymentCollection => "pay_col",
     PaymentProviderRequest => "ppreq",
@@ -224,6 +262,16 @@ impl_crud_entity!(
     PaymentReconciliationRun,
     "payment.payment_reconciliation_run",
     "payment_reconciliation_run"
+);
+impl_crud_entity!(
+    CourierSettlementCycle,
+    "payment.courier_settlement_cycle",
+    "courier_settlement_cycle"
+);
+impl_crud_entity!(
+    CourierSettlementLine,
+    "payment.courier_settlement_line",
+    "courier_settlement_line"
 );
 
 impl CrudEntity for PaymentProvider {

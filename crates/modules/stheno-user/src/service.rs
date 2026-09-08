@@ -13,6 +13,7 @@ use crate::models::{Invite, User};
 pub struct UserService {
     users: PgCrudRepository<User>,
     invites: PgCrudRepository<Invite>,
+    event_bus: Option<std::sync::Arc<dyn stheno_events::EventBus>>,
 }
 
 impl UserService {
@@ -20,7 +21,13 @@ impl UserService {
         Self {
             users: PgCrudRepository::new(pool.clone()),
             invites: PgCrudRepository::new(pool),
+            event_bus: None,
         }
+    }
+
+    pub fn with_event_bus(mut self, bus: std::sync::Arc<dyn stheno_events::EventBus>) -> Self {
+        self.event_bus = Some(bus);
+        self
     }
 
     // ==========================================
@@ -166,6 +173,21 @@ impl UserService {
         };
 
         let created = self.invites.create(None, invite).await?;
+
+        if let Some(bus) = &self.event_bus {
+            let event = stheno_events::Event::new(
+                "user.invite_created",
+                serde_json::json!({
+                    "invite_id": created.id.to_string(),
+                    "email": created.email,
+                    "role": created.role,
+                    "token": created.token,
+                    "expires_at": created.expires_at,
+                }),
+            );
+            let _ = bus.emit(vec![event]).await;
+        }
+
         Ok(self.to_invite_dto(&created))
     }
 
@@ -181,6 +203,21 @@ impl UserService {
             .invites
             .update(None, &invite.id.to_string(), invite)
             .await?;
+
+        if let Some(bus) = &self.event_bus {
+            let event = stheno_events::Event::new(
+                "user.invite_created",
+                serde_json::json!({
+                    "invite_id": updated.id.to_string(),
+                    "email": updated.email,
+                    "role": updated.role,
+                    "token": updated.token,
+                    "expires_at": updated.expires_at,
+                }),
+            );
+            let _ = bus.emit(vec![event]).await;
+        }
+
         Ok(self.to_invite_dto(&updated))
     }
 

@@ -162,7 +162,11 @@ impl PromotionService {
             promo.is_automatic = is_auto;
         }
         if let Some(camp_id) = input.campaign_id {
-            promo.campaign_id = Some(camp_id);
+            promo.campaign_id = if camp_id.is_empty() {
+                None
+            } else {
+                Some(camp_id)
+            };
         }
         if let Some(status) = input.status {
             promo.status = status;
@@ -1065,20 +1069,22 @@ impl PromotionService {
 
     // ── Internal Helpers ─────────────────────────────────────────────────────
 
-    async fn get_rules_for_target(
+    pub async fn get_rules_for_target(
         &self,
         target_id: &str,
         rule_type: &str,
     ) -> Result<Vec<PromotionRuleDTO>> {
+        let normalized_rule_type = rule_type.replace('-', "_");
+
         let promo_spec = FilterSpec::new()
             .with_predicate("promotion_id", FilterOp::Eq(target_id.to_string()))
-            .with_predicate("rule_type", FilterOp::Eq(rule_type.to_string()))
+            .with_predicate("rule_type", FilterOp::Eq(normalized_rule_type.clone()))
             .with_predicate("deleted_at", FilterOp::IsNull)
             .with_pagination(0, 100);
 
         let app_spec = FilterSpec::new()
             .with_predicate("application_method_id", FilterOp::Eq(target_id.to_string()))
-            .with_predicate("rule_type", FilterOp::Eq(rule_type.to_string()))
+            .with_predicate("rule_type", FilterOp::Eq(normalized_rule_type))
             .with_predicate("deleted_at", FilterOp::IsNull)
             .with_pagination(0, 100);
 

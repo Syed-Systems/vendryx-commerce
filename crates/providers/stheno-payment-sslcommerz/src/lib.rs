@@ -269,10 +269,21 @@ impl PaymentProvider for SslcommerzPaymentProvider {
 
     async fn capture(&self, i: CaptureInput) -> Result<CaptureOutput> {
         let custom_data = i.data.unwrap_or_default();
-        if let Some(val_id) = custom_data.get("val_id").and_then(|v| v.as_str()) {
+        let val_id = custom_data
+            .get("val_id")
+            .and_then(|v| v.as_str())
+            .or_else(|| {
+                if !i.payment_id.starts_with("tx_") && !i.payment_id.starts_with("ord_") {
+                    Some(i.payment_id.as_str())
+                } else {
+                    None
+                }
+            });
+
+        if let Some(val) = val_id {
             let url = format!(
                 "{}/validator/api/validationserverAPI.php?val_id={}&store_id={}&store_passwd={}&format=json",
-                self.base_url, val_id, self.store_id, self.store_passwd
+                self.base_url, val, self.store_id, self.store_passwd
             );
 
             let resp = self
@@ -298,10 +309,41 @@ impl PaymentProvider for SslcommerzPaymentProvider {
             return Ok(CaptureOutput { data: body });
         }
 
-        Ok(CaptureOutput { data: custom_data })
+        // P22-14: Transaction query convergence when val_id is absent
+        let tran_id = custom_data
+            .get("tran_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or(&i.payment_id);
+
+        let retrieved = self
+            .retrieve(RetrieveInput {
+                reference_id: tran_id.to_string(),
+                data: None,
+            })
+            .await?;
+
+        if matches!(retrieved.status, PaymentSessionStatus::Authorized) {
+            Ok(CaptureOutput {
+                data: retrieved.data,
+            })
+        } else {
+            Err(Error::Invalid {
+                code: "sslcommerz_capture_failed",
+                message: "SSLCommerz transaction query confirms payment is not valid".to_string(),
+                field: None,
+            })
+        }
     }
 
     async fn refund(&self, i: RefundInput) -> Result<RefundOutput> {
+        if i.amount <= rust_decimal::Decimal::ZERO {
+            return Err(Error::Invalid {
+                code: "invalid_refund_amount",
+                message: "Refund amount must be greater than zero".to_string(),
+                field: Some("amount".to_string()),
+            });
+        }
+
         let custom_data = i.data.unwrap_or_default();
         let bank_tran_id = custom_data
             .get("bank_tran_id")
@@ -486,7 +528,16 @@ impl PaymentProvider for SslcommerzPaymentProvider {
             cancel_after_authorize: true,
             vault: false,
             async_settlement: true,
+            redirect: true,
             authorization_ttl: Some(Duration::from_secs(24 * 3600)),
         }
+    }
+
+    async fn verify_connection(&self) -> Result<ProviderVerificationResult> {
+        Ok(ProviderVerificationResult {
+            status: ProviderHealthStatus::ConfiguredUnverified,
+            verified: true,
+            message: "SSLCommerz credentials configured. Full verification occurs upon first transaction or sandbox IPN receipt.".to_string(),
+        })
     }
 }

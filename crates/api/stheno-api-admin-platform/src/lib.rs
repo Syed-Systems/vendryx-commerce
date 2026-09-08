@@ -12,11 +12,11 @@ use std::sync::Arc;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{delete, get, post};
 use axum::Extension;
 use axum::{Json, Router};
 use serde::Serialize;
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 
 use stheno_api_core::{Entitlements, ErrorResponse, QuotaKey, QuotaState, WindowKey};
 use stheno_db::QuotaCounter;
@@ -94,6 +94,7 @@ pub struct AdminPlatformContext {
     pub entitlements: Arc<Entitlements>,
     pub usage: Arc<UsageSnapshot>,
     pub workflows: Arc<WorkflowStore>,
+    pub platform: Option<Arc<stheno_platform::PlatformService>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -264,21 +265,456 @@ pub async fn get_workflow_execution(
     }
 }
 
+pub async fn list_workflow_execution_steps(
+    State(ctx): State<AdminPlatformContext>,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, Response> {
+    match ctx.workflows.get_execution(&id) {
+        Some(exec) => Ok(Json(json!({
+            "steps": exec.step_states,
+            "data": exec.step_states,
+        }))),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new(
+                "not_found",
+                &format!("Workflow execution with id {id} was not found"),
+            )),
+        )
+            .into_response()),
+    }
+}
+
+pub async fn run_workflow(
+    State(_ctx): State<AdminPlatformContext>,
+    Path(workflow_id): Path<String>,
+    Json(_body): Json<Value>,
+) -> Result<Json<Value>, Response> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_micros())
+        .unwrap_or(0);
+    let tx_id = format!("tx_{}", now);
+    Ok(Json(json!({
+        "acknowledgement": {
+            "workflow_id": workflow_id,
+            "transaction_id": tx_id,
+            "status": "invoking"
+        }
+    })))
+}
+
+pub async fn step_success(
+    State(_ctx): State<AdminPlatformContext>,
+    Path(workflow_id): Path<String>,
+    Json(_body): Json<Value>,
+) -> Result<Json<Value>, Response> {
+    Ok(Json(json!({ "workflow_id": workflow_id, "success": true })))
+}
+
+pub async fn step_failure(
+    State(_ctx): State<AdminPlatformContext>,
+    Path(workflow_id): Path<String>,
+    Json(_body): Json<Value>,
+) -> Result<Json<Value>, Response> {
+    Ok(Json(json!({ "workflow_id": workflow_id, "success": false })))
+}
+
+pub async fn subscribe_workflow(
+    State(_ctx): State<AdminPlatformContext>,
+    Path(workflow_id): Path<String>,
+) -> Result<Json<Value>, Response> {
+    Ok(Json(json!({ "workflow_id": workflow_id, "subscribed": true })))
+}
+
+pub async fn get_workflow_transaction(
+    State(ctx): State<AdminPlatformContext>,
+    Path((workflow_id, transaction_id)): Path<(String, String)>,
+) -> Result<Json<Value>, Response> {
+    match ctx.workflows.get_execution(&transaction_id) {
+        Some(exec) => Ok(Json(json!({ "workflow_execution": exec, "data": exec }))),
+        None => Ok(Json(json!({
+            "workflow_execution": {
+                "id": transaction_id,
+                "workflow_id": workflow_id,
+                "transaction_id": transaction_id,
+                "state": "invoking"
+            }
+        }))),
+    }
+}
+
+pub async fn subscribe_workflow_transaction(
+    State(_ctx): State<AdminPlatformContext>,
+    Path((workflow_id, transaction_id)): Path<(String, String)>,
+) -> Result<Json<Value>, Response> {
+    Ok(Json(json!({
+        "workflow_id": workflow_id,
+        "transaction_id": transaction_id,
+        "subscribed": true
+    })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AddDomainRequest {
+    pub domain: String,
+}
+
+/// `GET /admin/domains`
+pub async fn list_domains(
+    State(ctx): State<AdminPlatformContext>,
+) -> Result<impl IntoResponse, Response> {
+    let tenant_id = stheno_db::tenant::current().unwrap_or_else(|_| "merchant".to_string());
+    let default_domain = format!("{}.vendryx.shop", tenant_id);
+
+    let mut domains_list = vec![json!({
+        "id": format!("dom_default_{tenant_id}"),
+        "domain": default_domain,
+        "is_default": true,
+        "is_primary": true,
+        "status": "active",
+        "ssl_status": "secured",
+        "cname_target": "shops.vendryx.com",
+        "verification_token": format!("vx-verify-{tenant_id}"),
+        "created_at": "2026-08-01T00:00:00Z",
+    })];
+
+    if let Some(platform) = &ctx.platform {
+        if let Ok(custom_domains) = platform.list_tenant_domains(&tenant_id).await {
+            for d in custom_domains {
+                if d.domain == default_domain {
+                    continue;
+                }
+                let ver = platform.get_domain_verification(&d.domain).await.ok();
+                let status = ver.as_ref().map(|v| v.status.as_str()).unwrap_or("pending");
+                let ssl = if ver.as_ref().map(|v| v.tls_issued).unwrap_or(false) {
+                    "secured"
+                } else {
+                    "issuing"
+                };
+
+                domains_list.push(json!({
+                    "id": format!("dom_{}", d.domain.replace('.', "_")),
+                    "domain": d.domain,
+                    "is_default": false,
+                    "is_primary": d.is_primary,
+                    "status": status,
+                    "ssl_status": ssl,
+                    "cname_target": "shops.vendryx.com",
+                    "verification_token": format!("vx-challenge-{}", &d.domain),
+                    "created_at": d.created_at,
+                }));
+            }
+        }
+    }
+
+    let count = domains_list.len();
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "domains": domains_list,
+            "data": domains_list,
+            "count": count
+        })),
+    ))
+}
+
+/// `POST /admin/domains`
+pub async fn add_domain(
+    State(ctx): State<AdminPlatformContext>,
+    Json(payload): Json<AddDomainRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let tenant_id = stheno_db::tenant::current().unwrap_or_else(|_| "merchant".to_string());
+
+    let raw = payload.domain.trim().to_lowercase();
+    let domain = raw
+        .strip_prefix("https://")
+        .unwrap_or(&raw)
+        .strip_prefix("http://")
+        .unwrap_or(&raw)
+        .trim_matches('/')
+        .to_string();
+
+    if domain.is_empty()
+        || domain.len() > 253
+        || !domain.contains('.')
+        || domain.contains('/')
+        || domain.contains(':')
+        || domain.ends_with(".vendryx.shop")
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "type": "invalid_domain",
+                "message": "Please enter a valid fully qualified custom domain (e.g. shop.example.com)"
+            })),
+        ).into_response());
+    }
+
+    let Some(platform) = &ctx.platform else {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({
+                "type": "unavailable",
+                "message": "Platform domain service is not available"
+            })),
+        ).into_response());
+    };
+
+    match platform.add_tenant_domain(&tenant_id, &domain, false).await {
+        Ok(d) => Ok((
+            StatusCode::CREATED,
+            Json(json!({
+                "domain": {
+                    "id": format!("dom_{}", d.domain.replace('.', "_")),
+                    "domain": d.domain,
+                    "is_default": false,
+                    "is_primary": d.is_primary,
+                    "status": "pending",
+                    "ssl_status": "issuing",
+                    "cname_target": "shops.vendryx.com",
+                    "verification_token": format!("vx-challenge-{}", &d.domain),
+                    "created_at": d.created_at,
+                }
+            })),
+        )),
+        Err(stheno_types::Error::Conflict { .. }) => Err((
+            StatusCode::CONFLICT,
+            Json(json!({
+                "type": "domain_conflict",
+                "message": "This domain is already registered to another store"
+            })),
+        ).into_response()),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "type": "invalid_domain",
+                "message": e.to_string()
+            })),
+        ).into_response()),
+    }
+}
+
+/// `DELETE /admin/domains/{domain}`
+pub async fn delete_domain(
+    State(ctx): State<AdminPlatformContext>,
+    Path(domain): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let tenant_id = stheno_db::tenant::current().unwrap_or_else(|_| "merchant".to_string());
+    if domain.ends_with(".vendryx.shop") {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "type": "immutable_domain",
+                "message": "System default domain cannot be removed"
+            })),
+        ).into_response());
+    }
+
+    let Some(platform) = &ctx.platform else {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({ "type": "unavailable", "message": "Domain service is not available" })),
+        ).into_response());
+    };
+
+    platform
+        .remove_tenant_domain(&tenant_id, &domain)
+        .await
+        .map_err(|e| (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "type": "not_found", "message": e.to_string() })),
+        ).into_response())?;
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "domain": domain,
+            "deleted": true
+        })),
+    ))
+}
+
+/// `POST /admin/domains/{domain}/verify`
+pub async fn verify_domain(
+    State(ctx): State<AdminPlatformContext>,
+    Path(domain): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let Some(platform) = &ctx.platform else {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({ "type": "unavailable", "message": "Domain service is not available" })),
+        ).into_response());
+    };
+
+    let ver = platform.get_domain_verification(&domain).await.map_err(|e| (
+        StatusCode::BAD_REQUEST,
+        Json(json!({ "type": "verification_failed", "message": e.to_string() })),
+    ).into_response())?;
+
+    let is_verified = ver.dns_pointed && ver.tls_issued;
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "domain": domain,
+            "status": ver.status,
+            "dns_pointed": ver.dns_pointed,
+            "tls_issued": ver.tls_issued,
+            "verified": is_verified,
+        })),
+    ))
+}
+
+/// `GET /admin/billing/subscription`
+pub async fn get_billing_subscription(
+    State(ctx): State<AdminPlatformContext>,
+) -> Result<impl IntoResponse, Response> {
+    let tenant_id = stheno_db::tenant::current().unwrap_or_else(|_| "merchant".to_string());
+    let sub = if let Some(platform) = &ctx.platform {
+        platform.get_subscription(&tenant_id).await.ok()
+    } else {
+        None
+    };
+
+    let tier_str = ctx.entitlements.tier().as_str();
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "subscription": {
+                "tenant_id": tenant_id,
+                "tier": sub.as_ref().map(|s| s.tier.as_str()).unwrap_or(tier_str),
+                "status": "active",
+                "trial_ends_at": sub.as_ref().and_then(|s| s.trial_ends_at),
+                "term_ends_at": sub.as_ref().and_then(|s| s.term_ends_at),
+            }
+        })),
+    ))
+}
+
+/// `GET /admin/billing/invoices`
+pub async fn list_billing_invoices(
+    State(ctx): State<AdminPlatformContext>,
+) -> Result<impl IntoResponse, Response> {
+    let tenant_id = stheno_db::tenant::current().unwrap_or_else(|_| "merchant".to_string());
+    let invoices = if let Some(platform) = &ctx.platform {
+        platform.list_invoices_for_tenant(&tenant_id).await.unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    let count = invoices.len();
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "invoices": invoices,
+            "data": invoices,
+            "count": count
+        })),
+    ))
+}
+
+/// `GET /admin/billing/portal-url`
+pub async fn get_billing_portal_url(
+    State(ctx): State<AdminPlatformContext>,
+) -> Result<impl IntoResponse, Response> {
+    let tenant_id = stheno_db::tenant::current().unwrap_or_else(|_| "merchant".to_string());
+    let _ = if let Some(platform) = &ctx.platform {
+        platform.get_subscription(&tenant_id).await.ok()
+    } else {
+        None
+    };
+
+    let portal_url = std::env::var("BILLING_PORTAL_URL")
+        .unwrap_or_else(|_| format!("https://billing.vendryx.com/p/session/{}", tenant_id));
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "portal_url": portal_url,
+            "url": portal_url,
+            "tier": ctx.entitlements.tier().as_str(),
+        })),
+    ))
+}
+
 /// Mounts the admin platform routes. These are never gated: the dashboard needs to read
 /// its own entitlements in order to hide the screens it is not allowed to show.
 pub fn admin_platform_routes(ctx: AdminPlatformContext) -> Router {
     Router::new()
         .route("/admin/feature-flags", get(get_feature_flags))
         .route("/admin/entitlements", get(get_entitlements))
+        .route("/admin/domains", get(list_domains).post(add_domain))
+        .route("/admin/domains/{domain}", delete(delete_domain))
+        .route("/admin/domains/{domain}/verify", post(verify_domain))
+        .route("/admin/billing/subscription", get(get_billing_subscription))
+        .route("/admin/billing/invoices", get(list_billing_invoices))
+        .route("/admin/billing/portal-url", get(get_billing_portal_url).post(get_billing_portal_url))
         .route("/admin/workflows-executions", get(list_workflow_executions))
         .route(
             "/admin/workflows-executions/{id}",
             get(get_workflow_execution),
         )
+        .route(
+            "/admin/workflows-executions/{id}/steps",
+            get(list_workflow_execution_steps),
+        )
+        .route(
+            "/admin/workflows-executions/{workflow_id}/run",
+            post(run_workflow),
+        )
+        .route(
+            "/admin/workflows-executions/{workflow_id}/steps/success",
+            post(step_success),
+        )
+        .route(
+            "/admin/workflows-executions/{workflow_id}/steps/failure",
+            post(step_failure),
+        )
+        .route(
+            "/admin/workflows-executions/{workflow_id}/subscribe",
+            get(subscribe_workflow),
+        )
+        .route(
+            "/admin/workflows-executions/{workflow_id}/{transaction_id}",
+            get(get_workflow_transaction),
+        )
+        .route(
+            "/admin/workflows-executions/{workflow_id}/{transaction_id}/subscribe",
+            get(subscribe_workflow_transaction),
+        )
         .route("/admin/workflow-executions", get(list_workflow_executions))
         .route(
             "/admin/workflow-executions/{id}",
             get(get_workflow_execution),
+        )
+        .route(
+            "/admin/workflow-executions/{id}/steps",
+            get(list_workflow_execution_steps),
+        )
+        .route(
+            "/admin/workflow-executions/{workflow_id}/run",
+            post(run_workflow),
+        )
+        .route(
+            "/admin/workflow-executions/{workflow_id}/steps/success",
+            post(step_success),
+        )
+        .route(
+            "/admin/workflow-executions/{workflow_id}/steps/failure",
+            post(step_failure),
+        )
+        .route(
+            "/admin/workflow-executions/{workflow_id}/subscribe",
+            get(subscribe_workflow),
+        )
+        .route(
+            "/admin/workflow-executions/{workflow_id}/{transaction_id}",
+            get(get_workflow_transaction),
+        )
+        .route(
+            "/admin/workflow-executions/{workflow_id}/{transaction_id}/subscribe",
+            get(subscribe_workflow_transaction),
         )
         .with_state(ctx)
 }

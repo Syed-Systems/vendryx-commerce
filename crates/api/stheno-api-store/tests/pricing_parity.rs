@@ -105,6 +105,7 @@ async fn test_store_pricing_endpoints_parity() {
         auth_service,
         translation_service,
         promotion_service: None,
+        cache_service: None,
     };
 
     let app = store_pricing_routes(ctx);

@@ -13,7 +13,9 @@ owned_tables = [
     "payment_provider_request",
     "payment_provider_credential",
     "payment_webhook_event",
-    "payment_reconciliation_run"
+    "payment_reconciliation_run",
+    "courier_settlement_cycle",
+    "courier_settlement_line"
 ]
 events = [
     "payment_collection.created",

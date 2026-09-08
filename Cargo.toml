@@ -47,12 +47,17 @@ members = [
     "crates/providers/stheno-payment-stripe",
     "crates/providers/stheno-payment-sslcommerz",
     "crates/providers/stheno-payment-bkash",
+    "crates/providers/stheno-payment-nagad",
     "crates/providers/stheno-payment-offline",
     "crates/providers/stheno-fulfillment-manual",
+    "crates/providers/stheno-fulfillment-pathao",
+    "crates/providers/stheno-fulfillment-steadfast",
+    "crates/providers/stheno-fulfillment-redx",
     "crates/providers/stheno-file-local",
     "crates/providers/stheno-file-s3",
     "crates/providers/stheno-notification-local",
     "crates/providers/stheno-notification-sendgrid",
+    "crates/providers/stheno-notification-resend",
     "crates/providers/stheno-notification-webpush",
     "crates/providers/stheno-auth-emailpass",
     "crates/providers/stheno-auth-google",
@@ -70,6 +75,7 @@ members = [
     "crates/api/stheno-api-platform",
     "crates/api/stheno-api-router",
     "crates/api/stheno-api-auth",
+    "crates/connectors/stheno-connector-space",
 ]
 
 [workspace.package]
@@ -130,8 +136,13 @@ stheno-payment-offline = { path = "crates/providers/stheno-payment-offline", ver
 stheno-payment-stripe = { path = "crates/providers/stheno-payment-stripe", version = "0.1.0" }
 stheno-payment-sslcommerz = { path = "crates/providers/stheno-payment-sslcommerz", version = "0.1.0" }
 stheno-payment-bkash = { path = "crates/providers/stheno-payment-bkash", version = "0.1.0" }
+stheno-payment-nagad = { path = "crates/providers/stheno-payment-nagad", version = "0.1.0" }
 stheno-fulfillment-manual = { path = "crates/providers/stheno-fulfillment-manual", version = "0.1.0" }
+stheno-fulfillment-pathao = { path = "crates/providers/stheno-fulfillment-pathao", version = "0.1.0" }
+stheno-fulfillment-steadfast = { path = "crates/providers/stheno-fulfillment-steadfast", version = "0.1.0" }
+stheno-fulfillment-redx = { path = "crates/providers/stheno-fulfillment-redx", version = "0.1.0" }
 stheno-file-local = { path = "crates/providers/stheno-file-local", version = "0.1.0" }
+stheno-notification-resend = { path = "crates/providers/stheno-notification-resend", version = "0.1.0" }
 stheno-notification-webpush = { path = "crates/providers/stheno-notification-webpush", version = "0.1.0" }
 
 # Flows & API
@@ -144,6 +155,7 @@ stheno-api-admin-platform = { path = "crates/api/stheno-api-admin-platform", ver
 stheno-api-platform = { path = "crates/api/stheno-api-platform", version = "0.1.0" }
 stheno-api-router = { path = "crates/api/stheno-api-router", version = "0.1.0" }
 stheno-api-auth = { path = "crates/api/stheno-api-auth", version = "0.1.0" }
+stheno-connector-space = { path = "crates/connectors/stheno-connector-space", version = "0.1.0" }
 
 # Async runtime & HTTP
 tokio = { version = "1.39", features = ["full"] }

@@ -154,6 +154,24 @@ async fn payment_provider_config_lists_registry_credentials_and_region_enablemen
         .as_array()
         .expect("enabled regions")
         .is_empty());
+    assert_eq!(
+        provider(&body, STRIPE)["callback_url"],
+        format!("https://api.vendryx.com/hooks/payment/{STRIPE}")
+    );
+
+    // Verify offline provider endpoint returns healthy
+    let (status, verify_body) = call(
+        &app,
+        Request::builder()
+            .method("POST")
+            .uri("/admin/payment-providers/pp_system_default/verify")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(verify_body["status"], "healthy");
+    assert_eq!(verify_body["verified"], true);
 
     db.drop().await;
 }

@@ -15,7 +15,7 @@ use stheno_types::{Error, Id, Result};
 
 use crate::dto::{
     AuthIdentityDTO, AuthProviderDTO, AuthTokensDTO, AuthenticateInput,
-    BreachedPasswordCheckResult, CreateIdentityInput, JwtClaims, MfaEnrollmentDTO,
+    BreachedPasswordCheckResult, CreateIdentityInput, JwtClaims, MfaEnrollmentDTO, MfaFactorDTO,
     PasswordResetConfirmInput, PasswordResetRequestInput, UpdatePasswordInput,
 };
 use crate::models::{
@@ -40,6 +40,7 @@ pub struct AuthService {
     token_families: PgCrudRepository<TokenFamily>,
     mfa_factors: PgCrudRepository<MfaFactor>,
     reset_tokens: PgCrudRepository<PasswordResetToken>,
+    event_bus: Option<std::sync::Arc<dyn stheno_events::EventBus>>,
 }
 
 impl AuthService {
@@ -60,7 +61,13 @@ impl AuthService {
             token_families: PgCrudRepository::new(pool.clone()),
             mfa_factors: PgCrudRepository::new(pool.clone()),
             reset_tokens: PgCrudRepository::new(pool),
+            event_bus: None,
         }
+    }
+
+    pub fn with_event_bus(mut self, bus: std::sync::Arc<dyn stheno_events::EventBus>) -> Self {
+        self.event_bus = Some(bus);
+        self
     }
 
     // ==========================================
@@ -201,6 +208,22 @@ impl AuthService {
         };
 
         let created = self.identities.create(None, identity).await?;
+
+        if let Some(bus) = &self.event_bus {
+            let event = stheno_events::Event::new(
+                "auth.identity_created",
+                serde_json::json!({
+                    "identity_id": created.id.to_string(),
+                    "provider_id": created.provider_id,
+                    "entity_id": created.entity_id,
+                    "actor_id": created.actor_id,
+                    "actor_type": created.actor_type,
+                    "occurred_at": created.created_at,
+                }),
+            );
+            let _ = bus.emit(vec![event]).await;
+        }
+
         Ok(self.to_identity_dto(&created))
     }
 
@@ -562,6 +585,91 @@ impl AuthService {
         })
     }
 
+    /// The factors enrolled by one identity.
+    ///
+    /// `MfaFactorDTO` carries no secret and no recovery-code hashes: this answers a screen
+    /// that lists "you have TOTP enabled", and the material behind a factor must never
+    /// leave the service.
+    pub async fn list_mfa_factors(&self, identity_id: &str) -> Result<Vec<MfaFactorDTO>> {
+        let filter = FilterSpec::new()
+            .with_predicate("identity_id", FilterOp::Eq(identity_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 50);
+
+        Ok(self
+            .mfa_factors
+            .list(None, &filter)
+            .await?
+            .into_iter()
+            .map(|f| MfaFactorDTO {
+                id: f.id.to_string(),
+                identity_id: f.identity_id,
+                factor_type: f.factor_type,
+                is_verified: f.is_verified,
+                created_at: f.created_at,
+                updated_at: f.updated_at,
+            })
+            .collect())
+    }
+
+    /// Loads a factor and refuses it unless it belongs to `identity_id`.
+    ///
+    /// Every factor-scoped operation goes through this. A factor id is a bearer of nothing
+    /// on its own, but disabling somebody else's second factor is a privilege escalation
+    /// against them, so ownership is checked rather than assumed from the path.
+    async fn owned_factor(&self, identity_id: &str, factor_id: &str) -> Result<MfaFactor> {
+        let factor = self.mfa_factors.retrieve(None, factor_id).await?;
+        if factor.identity_id != identity_id || factor.deleted_at.is_some() {
+            // Not "forbidden": confirming the id exists would let one account enumerate
+            // another's factors.
+            return Err(Error::NotFound {
+                entity: "mfa_factor",
+                id: factor_id.to_string(),
+            });
+        }
+        Ok(factor)
+    }
+
+    /// Removes a factor, disabling that second step for the identity that owns it.
+    pub async fn delete_mfa_factor(&self, identity_id: &str, factor_id: &str) -> Result<()> {
+        let factor = self.owned_factor(identity_id, factor_id).await?;
+        self.mfa_factors
+            .soft_delete(None, &factor.id.to_string())
+            .await?;
+        Ok(())
+    }
+
+    /// Issues a fresh set of recovery codes, invalidating every previous one.
+    ///
+    /// Returned in clear exactly once, like enrolment: only hashes are stored, so a caller
+    /// that does not keep these has to regenerate again. Replacing the whole set rather
+    /// than appending is the point — regeneration exists because the old codes may have
+    /// leaked, and leaving them valid would defeat it.
+    pub async fn regenerate_recovery_codes(
+        &self,
+        identity_id: &str,
+        factor_id: &str,
+    ) -> Result<Vec<String>> {
+        let mut factor = self.owned_factor(identity_id, factor_id).await?;
+
+        let mut codes = Vec::new();
+        let mut hashes = Vec::new();
+        for _ in 0..8 {
+            let code_bytes: [u8; 5] = rand::thread_rng().gen();
+            let code = hex::encode(code_bytes).to_uppercase();
+            hashes.push(self.hash_token(&code));
+            codes.push(code);
+        }
+
+        factor.recovery_codes_hash = hashes;
+        factor.updated_at = Utc::now();
+        self.mfa_factors
+            .update(None, &factor.id.to_string(), factor)
+            .await?;
+
+        Ok(codes)
+    }
+
     pub async fn verify_mfa(&self, factor_id: &str, code_or_recovery: &str) -> Result<bool> {
         let mut factor = self.mfa_factors.retrieve(None, factor_id).await?;
 
@@ -648,6 +756,21 @@ impl AuthService {
         };
 
         self.reset_tokens.create(None, reset_token).await?;
+
+        if let Some(bus) = &self.event_bus {
+            let event = stheno_events::Event::new(
+                "auth.password_reset_requested",
+                serde_json::json!({
+                    "identity_id": identity.id.to_string(),
+                    "entity_id": identity.entity_id,
+                    "reset_token": plain_token,
+                    "actor_type": identity.actor_type,
+                    "occurred_at": Utc::now(),
+                }),
+            );
+            let _ = bus.emit(vec![event]).await;
+        }
+
         Ok(Some(plain_token))
     }
 
@@ -692,6 +815,18 @@ impl AuthService {
         self.reset_tokens
             .update(None, &reset_token.id.to_string(), reset_token)
             .await?;
+
+        if let Some(bus) = &self.event_bus {
+            let event = stheno_events::Event::new(
+                "auth.password_changed",
+                serde_json::json!({
+                    "identity_id": updated.id.to_string(),
+                    "entity_id": updated.entity_id,
+                    "occurred_at": updated.updated_at,
+                }),
+            );
+            let _ = bus.emit(vec![event]).await;
+        }
 
         Ok(self.to_identity_dto(&updated))
     }

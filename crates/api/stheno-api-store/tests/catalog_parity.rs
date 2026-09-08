@@ -103,12 +103,12 @@ fn catalog_context(
     pool: &stheno_db::DbPool,
     product_service: Arc<ProductService>,
 ) -> stheno_api_store::products::CatalogContext {
-    stheno_api_store::products::CatalogContext {
+    stheno_api_store::products::CatalogContext::new(
         product_service,
-        pricing_service: Arc::new(stheno_pricing::PricingService::new(pool.clone())),
-        region_service: Arc::new(stheno_region::RegionService::new(pool.clone())),
-        inventory_service: Arc::new(stheno_inventory::InventoryService::new(pool.clone())),
-    }
+        Arc::new(stheno_pricing::PricingService::new(pool.clone())),
+        Arc::new(stheno_region::RegionService::new(pool.clone())),
+        Arc::new(stheno_inventory::InventoryService::new(pool.clone())),
+    )
 }
 
 /// The store serves published products only.

@@ -4,6 +4,8 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+pub use crate::status::CourierStatus;
+
 // ── 1. Fulfillment DTOs ──────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -320,3 +322,36 @@ pub struct CreateAddressInput {
     pub phone: Option<String>,
     pub metadata: Option<serde_json::Value>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FulfillmentProviderRequestDTO {
+    pub id: String,
+    pub idempotency_key: String,
+    pub provider_id: String,
+    pub operation: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub state: String,
+    pub response: Option<serde_json::Value>,
+    pub error: Option<serde_json::Value>,
+    pub attempts: i32,
+    pub first_sent_at: DateTime<Utc>,
+    pub settled_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FulfillmentWebhookEventDTO {
+    pub id: String,
+    pub provider_id: String,
+    pub provider_event_id: String,
+    pub event_type: String,
+    pub payload: serde_json::Value,
+    pub signature_verified: bool,
+    pub provider_created_at: DateTime<Utc>,
+    pub state: String,
+    pub processed_at: Option<DateTime<Utc>>,
+    pub error: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+

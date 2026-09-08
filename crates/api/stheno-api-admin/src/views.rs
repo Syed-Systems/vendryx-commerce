@@ -190,6 +190,42 @@ fn columns_for(entity: &str) -> Option<Vec<Column>> {
             Column::new("is_disabled", "Disabled", "boolean", true, true),
             Column::new("created_at", "Created", "date", true, false),
         ],
+        "return-reasons" => vec![
+            Column::new("value", "Value", "string", true, true),
+            Column::new("label", "Label", "string", true, true),
+            Column::new("description", "Description", "string", false, true),
+            Column::new("created_at", "Created", "date", true, false),
+        ],
+        "refund-reasons" => vec![
+            Column::new("label", "Label", "string", true, true),
+            Column::new("description", "Description", "string", false, true),
+            Column::new("created_at", "Created", "date", true, false),
+        ],
+        "product-types" => vec![
+            Column::new("value", "Value", "string", true, true),
+            Column::new("created_at", "Created", "date", true, false),
+        ],
+        "product-tags" => vec![
+            Column::new("value", "Value", "string", true, true),
+            Column::new("created_at", "Created", "date", true, false),
+        ],
+        "stock-locations" | "locations" => vec![
+            Column::new("name", "Name", "string", true, true),
+            Column::new("address", "Address", "string", false, true),
+            Column::new("created_at", "Created", "date", true, false),
+        ],
+        "publishable-api-keys" => vec![
+            Column::new("title", "Title", "string", true, true),
+            Column::new("redacted", "Key", "string", false, true),
+            Column::new("created_at", "Created", "date", true, false),
+            Column::new("revoked_at", "Revoked", "date", true, false),
+        ],
+        "secret-api-keys" => vec![
+            Column::new("title", "Title", "string", true, true),
+            Column::new("redacted", "Key", "string", false, true),
+            Column::new("created_at", "Created", "date", true, false),
+            Column::new("revoked_at", "Revoked", "date", true, false),
+        ],
         _ => return None,
     };
     Some(columns)
@@ -210,6 +246,14 @@ const ENTITIES: &[(&str, &str)] = &[
     ("reservation-items", "Reservations"),
     ("api-keys", "API keys"),
     ("sales-channels", "Sales channels"),
+    ("return-reasons", "Return reasons"),
+    ("refund-reasons", "Refund reasons"),
+    ("product-types", "Product types"),
+    ("product-tags", "Product tags"),
+    ("stock-locations", "Locations"),
+    ("locations", "Locations"),
+    ("publishable-api-keys", "Publishable API keys"),
+    ("secret-api-keys", "Secret API keys"),
 ];
 
 fn unknown_entity(entity: &str) -> Response {
@@ -344,6 +388,105 @@ pub async fn set_active_configuration(
                 "is_active": true,
             }
         })),
+    ))
+}
+
+pub async fn get_configuration(
+    Path((entity, id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    if columns_for(&entity).is_none() {
+        return Err(unknown_entity(&entity));
+    }
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "view_configuration": {
+                "id": id,
+                "entity": entity,
+                "name": "Custom View",
+                "columns": [],
+                "filters": {},
+                "is_active": true,
+            }
+        })),
+    ))
+}
+
+pub async fn update_configuration(
+    Path((entity, id)): Path<(String, String)>,
+    Json(body): Json<CreateViewConfigurationRequest>,
+) -> Result<impl IntoResponse, Response> {
+    if columns_for(&entity).is_none() {
+        return Err(unknown_entity(&entity));
+    }
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "view_configuration": {
+                "id": id,
+                "entity": entity,
+                "name": body.name.unwrap_or_else(|| "Custom View".to_string()),
+                "columns": body.columns.unwrap_or_default(),
+                "filters": body.filters.unwrap_or_else(|| json!({})),
+                "is_active": true,
+            }
+        })),
+    ))
+}
+
+pub async fn delete_configuration(
+    Path((_entity, id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": id, "object": "view_configuration", "deleted": true })),
+    ))
+}
+
+// ── Layouts Handlers ──────────────────────────────────────────────────────────
+
+pub async fn list_layout_configurations() -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "layout_configurations": [], "data": [] })),
+    ))
+}
+
+pub async fn get_layout_configuration(
+    Path(zone): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "layout_configuration": {
+                "zone": zone,
+                "widgets": []
+            }
+        })),
+    ))
+}
+
+pub async fn set_layout_configuration(
+    Path(zone): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "layout_configuration": {
+                "zone": zone,
+                "widgets": body.get("widgets").unwrap_or(&json!([]))
+            }
+        })),
+    ))
+}
+
+pub async fn delete_layout_configuration(
+    Path(zone): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "zone": zone, "object": "layout_configuration", "deleted": true })),
     ))
 }
 

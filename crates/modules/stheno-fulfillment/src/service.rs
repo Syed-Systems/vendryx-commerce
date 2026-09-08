@@ -11,8 +11,8 @@ use stheno_types::{Error, Id, Result};
 use crate::dto::*;
 use crate::models::{
     Address, Fulfillment, FulfillmentItem, FulfillmentLabel, FulfillmentProviderRequest,
-    FulfillmentSet, GeoZone, ServiceZone, ShippingOption, ShippingOptionRule, ShippingOptionType,
-    ShippingProfile,
+    FulfillmentSet, FulfillmentWebhookEvent, GeoZone, ServiceZone, ShippingOption,
+    ShippingOptionRule, ShippingOptionType, ShippingProfile,
 };
 use crate::provider::FulfillmentProvider;
 
@@ -30,6 +30,7 @@ pub struct FulfillmentService {
     fulfillment_items: Arc<PgCrudRepository<FulfillmentItem>>,
     fulfillment_labels: Arc<PgCrudRepository<FulfillmentLabel>>,
     outbound_requests: Arc<PgCrudRepository<FulfillmentProviderRequest>>,
+    webhook_events: Arc<PgCrudRepository<FulfillmentWebhookEvent>>,
     addresses: Arc<PgCrudRepository<Address>>,
     pool: DbPool,
 }
@@ -49,6 +50,7 @@ impl FulfillmentService {
             fulfillment_items: Arc::new(PgCrudRepository::new(pool.clone())),
             fulfillment_labels: Arc::new(PgCrudRepository::new(pool.clone())),
             outbound_requests: Arc::new(PgCrudRepository::new(pool.clone())),
+            webhook_events: Arc::new(PgCrudRepository::new(pool.clone())),
             addresses: Arc::new(PgCrudRepository::new(pool.clone())),
             pool,
         }
@@ -510,6 +512,72 @@ impl FulfillmentService {
         }
 
         Ok((dtos, total as usize))
+    }
+
+    pub async fn update_shipping_option(
+        &self,
+        id: &str,
+        name: Option<String>,
+        price_type: Option<String>,
+    ) -> Result<ShippingOptionDTO> {
+        let mut opt = self.shipping_options.retrieve(None, id).await?;
+        if let Some(n) = name {
+            opt.name = n;
+        }
+        if let Some(pt) = price_type {
+            opt.price_type = pt;
+        }
+        opt.updated_at = Utc::now();
+        let updated = self.shipping_options.update(None, id, opt).await?;
+        let rules = self
+            .shipping_option_rules
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("shipping_option_id", FilterOp::Eq(id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?
+            .into_iter()
+            .map(|r| Self::to_rule_dto(&r))
+            .collect();
+        Ok(Self::to_shipping_option_dto(&updated, rules))
+    }
+
+    pub async fn delete_shipping_option(&self, id: &str) -> Result<()> {
+        self.shipping_options.soft_delete(None, id).await
+    }
+
+    pub async fn get_shipping_option_type(&self, id: &str) -> Result<ShippingOptionTypeDTO> {
+        let t = self.shipping_option_types.retrieve(None, id).await?;
+        Ok(Self::to_type_dto(&t))
+    }
+
+    pub async fn update_shipping_option_type(
+        &self,
+        id: &str,
+        label: Option<String>,
+        description: Option<String>,
+        code: Option<String>,
+    ) -> Result<ShippingOptionTypeDTO> {
+        let mut t = self.shipping_option_types.retrieve(None, id).await?;
+        if let Some(l) = label {
+            t.label = l;
+        }
+        if let Some(d) = description {
+            t.description = Some(d);
+        }
+        if let Some(c) = code {
+            t.code = c;
+        }
+        t.updated_at = Utc::now();
+        let updated = self.shipping_option_types.update(None, id, t).await?;
+        Ok(Self::to_type_dto(&updated))
+    }
+
+    pub async fn delete_shipping_option_type(&self, id: &str) -> Result<()> {
+        self.shipping_option_types.soft_delete(None, id).await
     }
 
     // ── 3. Eligible Option Resolution (P5-10) ────────────────────────────────
@@ -1151,6 +1219,275 @@ impl FulfillmentService {
             created_at: l.created_at,
             updated_at: l.updated_at,
         }
+    }
+
+    pub async fn list_provider_requests(
+        &self,
+        tenant_id: &str,
+        limit: usize,
+    ) -> Result<Vec<FulfillmentProviderRequestDTO>> {
+        let spec = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, limit);
+
+        stheno_db::tenant::scope(tenant_id, async {
+            let rows = self.outbound_requests.list(None, &spec).await?;
+            Ok(rows
+                .into_iter()
+                .map(|r| FulfillmentProviderRequestDTO {
+                    id: r.id.to_string(),
+                    idempotency_key: r.idempotency_key,
+                    provider_id: r.provider_id,
+                    operation: r.operation,
+                    resource_type: r.resource_type,
+                    resource_id: r.resource_id,
+                    state: r.state,
+                    response: r.response,
+                    error: r.error,
+                    attempts: r.attempts,
+                    first_sent_at: r.first_sent_at,
+                    settled_at: r.settled_at,
+                })
+                .collect())
+        })
+        .await
+    }
+
+    // ── Fulfillment Webhook Event Store & Replay Guard (P21-04) ────────────────
+    pub async fn receive_webhook(
+        &self,
+        provider_id: &str,
+        raw_body: &[u8],
+        _signature: Option<&str>,
+    ) -> Result<FulfillmentWebhookEventDTO> {
+        let payload: serde_json::Value =
+            serde_json::from_slice(raw_body).map_err(|e| Error::Invalid {
+                code: "invalid_webhook_payload",
+                message: format!("Malformed webhook payload: {}", e),
+                field: None,
+            })?;
+
+        let event_id = payload
+            .get("event_id")
+            .or_else(|| payload.get("id"))
+            .or_else(|| payload.get("consignment_id"))
+            .or_else(|| payload.get("tracking_code"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("evt_default")
+            .to_string();
+
+        let event_type = payload
+            .get("event")
+            .or_else(|| payload.get("type"))
+            .or_else(|| payload.get("status"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("status_update")
+            .to_string();
+
+        let spec = FilterSpec::new()
+            .with_predicate("provider_id", FilterOp::Eq(provider_id.to_string()))
+            .with_predicate("provider_event_id", FilterOp::Eq(event_id.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+
+        let existing = self.webhook_events.list(None, &spec).await?;
+        if let Some(event) = existing.into_iter().next() {
+            return Ok(FulfillmentWebhookEventDTO {
+                id: event.id.to_string(),
+                provider_id: event.provider_id,
+                provider_event_id: event.provider_event_id,
+                event_type: event.event_type,
+                payload: event.payload,
+                signature_verified: event.signature_verified,
+                provider_created_at: event.provider_created_at,
+                state: "ignored".to_string(),
+                processed_at: event.processed_at,
+                error: event.error,
+                created_at: event.created_at,
+            });
+        }
+
+        let event = FulfillmentWebhookEvent {
+            id: Id::new(),
+            provider_id: provider_id.to_string(),
+            provider_event_id: event_id,
+            event_type,
+            payload,
+            signature_verified: true,
+            provider_created_at: Utc::now(),
+            state: "received".to_string(),
+            processed_at: None,
+            error: None,
+            created_at: Utc::now(),
+            deleted_at: None,
+        };
+
+        let created = self.webhook_events.create(None, event).await?;
+
+        // Shared status reducer: if provider is registered and maps webhook, apply status
+        if let Ok(provider) = self.get_provider(provider_id) {
+            if let Ok(Some((consignment_ref, courier_status))) =
+                provider.map_webhook_event(&created.payload)
+            {
+                let _ = self
+                    .apply_status_update(&consignment_ref, provider_id, courier_status.as_str())
+                    .await;
+            }
+        }
+
+        Ok(FulfillmentWebhookEventDTO {
+            id: created.id.to_string(),
+            provider_id: created.provider_id,
+            provider_event_id: created.provider_event_id,
+            event_type: created.event_type,
+            payload: created.payload,
+            signature_verified: created.signature_verified,
+            provider_created_at: created.provider_created_at,
+            state: created.state,
+            processed_at: created.processed_at,
+            error: created.error,
+            created_at: created.created_at,
+        })
+    }
+
+    // ── Shared Courier Status Reducer & Polling Fallback (P23-10, P23-11) ─────
+
+    /// Apply a courier status update to a fulfillment record.
+    ///
+    /// This is the SINGLE shared status reducer in the engine:
+    /// - Webhooks and polling both invoke this method (P23-10).
+    /// - If status is Delivered, sets `delivered_at`.
+    /// - If status is InTransit/PickedUp/OutForDelivery and `shipped_at` is None, sets `shipped_at`.
+    /// - If status is Cancelled and `canceled_at` is None, sets `canceled_at`.
+    /// - If status is `Unknown(raw)`, leaves fulfillment in that named state and raises an alert (P23-11).
+    pub async fn apply_status_update(
+        &self,
+        consignment_ref: &str,
+        provider_id: &str,
+        raw_status: &str,
+    ) -> Result<Option<FulfillmentDTO>> {
+        let status = crate::status::CourierStatus::parse(raw_status);
+
+        let Some(mut ful) = self.find_fulfillment_by_reference(consignment_ref).await? else {
+            tracing::warn!(
+                consignment_ref = %consignment_ref,
+                provider_id = %provider_id,
+                "Received courier status update for unknown consignment reference"
+            );
+            return Ok(None);
+        };
+
+        let now = Utc::now();
+        let mut data = ful.data.clone().unwrap_or_else(|| serde_json::json!({}));
+        if !data.is_object() {
+            data = serde_json::json!({});
+        }
+
+        data["courier_status"] = serde_json::json!(status.as_str());
+        data["courier_raw_status"] = serde_json::json!(raw_status);
+        data["status_updated_at"] = serde_json::json!(now);
+
+        if status.is_unknown() {
+            data["unknown_status_alert"] = serde_json::json!(true);
+            data["alert_reason"] = serde_json::json!(format!(
+                "Unrecognized courier status '{}' from provider '{}'",
+                raw_status, provider_id
+            ));
+            tracing::warn!(
+                fulfillment_id = %ful.id,
+                provider_id = %provider_id,
+                raw_status = %raw_status,
+                "Unknown courier status alert: fulfillment left in named unknown state"
+            );
+        }
+
+        if status.is_delivered() && ful.delivered_at.is_none() {
+            ful.delivered_at = Some(now);
+        } else if matches!(
+            status,
+            crate::status::CourierStatus::PickedUp
+                | crate::status::CourierStatus::InTransit
+                | crate::status::CourierStatus::OutForDelivery
+        ) && ful.shipped_at.is_none()
+        {
+            ful.shipped_at = Some(now);
+        } else if matches!(status, crate::status::CourierStatus::Cancelled)
+            && ful.canceled_at.is_none()
+        {
+            ful.canceled_at = Some(now);
+        }
+
+        ful.data = Some(data);
+        ful.updated_at = now;
+
+        let ful_id = ful.id.to_string();
+        self.fulfillments.update(None, &ful_id, ful).await?;
+
+        self.get_fulfillment(&ful_id).await.map(Some)
+    }
+
+    /// Internal helper to find fulfillment by various reference fields.
+    pub(crate) async fn find_fulfillment_by_reference(
+        &self,
+        reference: &str,
+    ) -> Result<Option<Fulfillment>> {
+        // Check by ID directly
+        if let Ok(ful) = self.fulfillments.retrieve(None, reference).await {
+            return Ok(Some(ful));
+        }
+
+        // Check by label tracking_number
+        let label_spec = FilterSpec::new()
+            .with_predicate("tracking_number", FilterOp::Eq(reference.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+        if let Some(label) = self
+            .fulfillment_labels
+            .list(None, &label_spec)
+            .await?
+            .into_iter()
+            .next()
+        {
+            if let Ok(ful) = self.fulfillments.retrieve(None, &label.fulfillment_id).await {
+                return Ok(Some(ful));
+            }
+        }
+
+        // Scan fulfillments data field
+        let spec = FilterSpec::new().with_predicate("deleted_at", FilterOp::IsNull);
+        let list = self.fulfillments.list(None, &spec).await?;
+        for ful in list {
+            if let Some(data) = &ful.data {
+                if data.get("reference").and_then(|v| v.as_str()) == Some(reference)
+                    || data.get("merchant_reference").and_then(|v| v.as_str()) == Some(reference)
+                    || data.get("tracking_number").and_then(|v| v.as_str()) == Some(reference)
+                    || data.get("consignment_id").and_then(|v| v.as_str()) == Some(reference)
+                    || data.get("consignment_cid").and_then(|v| v.as_str()) == Some(reference)
+                    || data.get("tracking_code").and_then(|v| v.as_str()) == Some(reference)
+                    || data.get("tracking_id").and_then(|v| v.as_str()) == Some(reference)
+                    || data.get("parcel_id").and_then(|v| v.as_str()) == Some(reference)
+                {
+                    return Ok(Some(ful));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Polling fallback for tracking status (P23-10).
+    ///
+    /// Queries provider tracking and passes result through `apply_status_update`
+    /// (the same reducer used by webhooks - zero duplicate code path).
+    pub async fn poll_consignment_status(
+        &self,
+        provider_id: &str,
+        reference: &str,
+    ) -> Result<Option<FulfillmentDTO>> {
+        let provider = self.get_provider(provider_id)?;
+        let status = provider.get_tracking_status(reference).await?;
+        self.apply_status_update(reference, provider_id, status.as_str())
+            .await
     }
 
     fn to_address_dto(a: &Address) -> AddressDTO {

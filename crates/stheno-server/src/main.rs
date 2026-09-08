@@ -141,6 +141,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = AppContext::create_test_context();
     let server = AppServer::new(ctx, entitlements, pool);
 
+    // The periodic work. Started before the listener so a scheduling typo aborts the boot
+    // instead of leaving a process that serves traffic and quietly collects no money.
+    let jobs = stheno_server::scheduled_jobs(server.pool.clone(), server.payment_service.clone());
+    match stheno_server::scheduler::spawn(server.pool.clone(), jobs) {
+        Ok(n) => println!("Scheduler started: {n} job(s)."),
+        Err(e) => {
+            eprintln!("Scheduler refused to start: {e}");
+            std::process::exit(1);
+        }
+    }
+
     let listener = tokio::net::TcpListener::bind(&args.bind).await?;
     axum::serve(listener, server.router).await?;
 

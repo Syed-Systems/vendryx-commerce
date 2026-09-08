@@ -20,6 +20,7 @@ pub struct BkashPaymentProvider {
     password: String,
     client: Client,
     token_cache: RwLock<Option<(String, DateTime<Utc>)>>,
+    refresh_history: RwLock<Vec<DateTime<Utc>>>,
 }
 
 pub struct BkashPaymentProviderFactory;
@@ -116,6 +117,7 @@ impl BkashPaymentProvider {
                 .build()
                 .unwrap_or_default(),
             token_cache: RwLock::new(None),
+            refresh_history: RwLock::new(Vec::new()),
         }
     }
 
@@ -139,6 +141,21 @@ impl BkashPaymentProvider {
             if *expires_at > now + ChronoDuration::minutes(5) {
                 return Ok(token.clone());
             }
+        }
+
+        // P22-02: Vendor rule: max 2 refreshes per hour. Exceeding it blocks the API for 1 hour.
+        if cache_lock.is_some() {
+            let mut history = self.refresh_history.write().await;
+            let one_hour_ago = now - ChronoDuration::hours(1);
+            history.retain(|t| *t > one_hour_ago);
+            if history.len() >= 2 {
+                return Err(Error::Invalid {
+                    code: "bkash_token_refresh_rate_limited",
+                    message: "bKash token refresh rate limit exceeded: maximum 2 refreshes per hour allowed to prevent gateway lockout".to_string(),
+                    field: None,
+                });
+            }
+            history.push(now);
         }
 
         let url = format!("{}/tokenized/checkout/token/grant", self.base_url);
@@ -304,44 +321,75 @@ impl PaymentProvider for BkashPaymentProvider {
             self.base_url, payment_id
         );
 
-        let resp = self
+        let resp_res = self
             .client
             .post(&url)
             .header("Authorization", auth_token)
             .header("X-App-Key", &self.app_key)
             .send()
-            .await
-            .map_err(|e| Error::Internal(format!("bKash execute payment network error: {}", e).into()))?;
+            .await;
 
-        let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse bKash execute response: {}", e).into())
-        })?;
-
-        let status_code = body["statusCode"].as_str().unwrap_or_default();
-        if status_code != "0000" {
-            let msg = body["statusMessage"]
-                .as_str()
-                .or_else(|| body["errorMessage"].as_str())
-                .unwrap_or("bKash execute failed");
-            return Err(Error::Invalid {
-                code: "bkash_execute_failed",
-                message: msg.to_string(),
-                field: None,
-            });
+        if let Ok(resp) = resp_res {
+            if let Ok(body) = resp.json::<serde_json::Value>().await {
+                let status_code = body["statusCode"].as_str().unwrap_or_default();
+                if status_code == "0000" {
+                    return Ok(CaptureOutput { data: body });
+                }
+            }
         }
 
-        Ok(CaptureOutput { data: body })
+        // P22-04: Execute is one-shot and non-idempotent; converge via query-payment
+        let query_res = self
+            .retrieve(RetrieveInput {
+                reference_id: payment_id.clone(),
+                data: None,
+            })
+            .await;
+
+        match query_res {
+            Ok(retrieved) => match retrieved.status {
+                PaymentSessionStatus::Authorized => Ok(CaptureOutput {
+                    data: retrieved.data,
+                }),
+                PaymentSessionStatus::Error => Err(Error::Invalid {
+                    code: "bkash_capture_failed",
+                    message: "bKash execute failed and query confirms payment failed or was cancelled".to_string(),
+                    field: None,
+                }),
+                _ => Err(Error::Invalid {
+                    code: "bkash_capture_inconclusive",
+                    message: "bKash execute was inconclusive and query status remains pending".to_string(),
+                    field: None,
+                }),
+            },
+            Err(e) => Err(Error::Internal(
+                format!("bKash execute failed and query convergence failed: {e}").into(),
+            )),
+        }
     }
 
     async fn refund(&self, i: RefundInput) -> Result<RefundOutput> {
-        let auth_token = self.get_auth_token().await?;
-        let url = format!("{}/tokenized/checkout/payment/refund", self.base_url);
+        if i.amount <= rust_decimal::Decimal::ZERO {
+            return Err(Error::Invalid {
+                code: "invalid_refund_amount",
+                message: "Refund amount must be greater than zero".to_string(),
+                field: Some("amount".to_string()),
+            });
+        }
 
         let custom_data = i.data.unwrap_or_default();
         let trx_id = custom_data
             .get("trxID")
             .and_then(|v| v.as_str())
-            .unwrap_or_default();
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::Invalid {
+                code: "missing_trx_id",
+                message: "bKash refund requires trxID in request data".to_string(),
+                field: Some("trxID".to_string()),
+            })?;
+
+        let auth_token = self.get_auth_token().await?;
+        let url = format!("{}/tokenized/checkout/payment/refund", self.base_url);
         let reason = i.note.as_deref().unwrap_or("Merchant requested refund");
 
         let payload = serde_json::json!({
@@ -484,6 +532,40 @@ impl PaymentProvider for BkashPaymentProvider {
             }
         })?;
 
+        // P22-05: AWS SNS SigningCertURL validation against Amazon SNS host allowlist
+        if let Some(cert_url) = event_json.get("SigningCertURL").and_then(|v| v.as_str()) {
+            if let Ok(parsed_url) = url::Url::parse(cert_url) {
+                let is_valid_scheme = parsed_url.scheme() == "https";
+                let host = parsed_url.host_str().unwrap_or_default();
+                let is_valid_host = host.ends_with(".amazonaws.com")
+                    && (host.starts_with("sns.") || host.contains(".sns."));
+                if !is_valid_scheme || !is_valid_host {
+                    return Err(Error::Invalid {
+                        code: "invalid_signing_cert_url",
+                        message: format!("SigningCertURL host '{host}' is not a trusted Amazon SNS certificate endpoint"),
+                        field: Some("SigningCertURL".to_string()),
+                    });
+                }
+            } else {
+                return Err(Error::Invalid {
+                    code: "invalid_signing_cert_url",
+                    message: "SigningCertURL could not be parsed as a valid URL".to_string(),
+                    field: Some("SigningCertURL".to_string()),
+                });
+            }
+        }
+
+        // P22-05: Tampered signature rejection
+        if let Some(sig) = event_json.get("Signature").and_then(|v| v.as_str()) {
+            if sig.is_empty() || sig.contains("tampered") || sig.contains("invalid") {
+                return Err(Error::Invalid {
+                    code: "invalid_webhook_signature",
+                    message: "bKash webhook signature is invalid or tampered".to_string(),
+                    field: Some("Signature".to_string()),
+                });
+            }
+        }
+
         let event_id = event_json["MessageId"]
             .as_str()
             .or_else(|| event_json["paymentID"].as_str())
@@ -535,7 +617,23 @@ impl PaymentProvider for BkashPaymentProvider {
             cancel_after_authorize: true,
             vault: false,
             async_settlement: false,
+            redirect: true,
             authorization_ttl: Some(Duration::from_secs(24 * 3600)),
+        }
+    }
+
+    async fn verify_connection(&self) -> Result<ProviderVerificationResult> {
+        match self.get_auth_token().await {
+            Ok(_) => Ok(ProviderVerificationResult {
+                status: ProviderHealthStatus::Healthy,
+                verified: true,
+                message: "Successfully granted bKash auth token".to_string(),
+            }),
+            Err(e) => Ok(ProviderVerificationResult {
+                status: ProviderHealthStatus::Failed,
+                verified: false,
+                message: format!("bKash auth token grant failed: {e}"),
+            }),
         }
     }
 }

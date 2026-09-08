@@ -148,3 +148,35 @@ pub async fn delete_upload(
         Json(json!({ "id": id, "object": "file", "deleted": true })),
     ))
 }
+
+/// POST /admin/uploads/presigned-urls
+pub async fn create_presigned_url(
+    State(ctx): State<AdminUploadContext>,
+    Json(payload): Json<CreateUploadRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let presigned = ctx
+        .file_service
+        .create_presigned_upload(CreatePresignedUploadInput {
+            filename: payload.filename,
+            content_type: payload
+                .content_type
+                .unwrap_or_else(|| "application/octet-stream".to_string()),
+            expires_in_seconds: Some(3600),
+        })
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("presigned_failed", &e.to_string())),
+            )
+                .into_response()
+        })?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "presigned": presigned,
+            "data": presigned,
+        })),
+    ))
+}

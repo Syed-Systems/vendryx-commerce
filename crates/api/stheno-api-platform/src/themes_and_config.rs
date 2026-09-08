@@ -83,10 +83,12 @@ pub async fn list_theme_catalog(
         return deny();
     };
 
+    let _active_assignments = ctx.platform.list_tenant_themes().await.unwrap_or_default();
+
     let themes = vec![
         ThemeCatalogItemDTO {
             id: "theme_default".to_string(),
-            name: "Stheno Default Storefront".to_string(),
+            name: "Vendryx Default Storefront".to_string(),
             description: "Modern, high-conversion default theme".to_string(),
             latest_version: "1.4.0".to_string(),
             available_versions: vec![
@@ -196,6 +198,19 @@ pub async fn rollout_theme_version(
     let Some(actor) = actor(&ctx, &headers).await else {
         return deny();
     };
+
+    let flag_key = format!("theme.rollout.{}", id);
+    let reason = format!(
+        "target_version: {}, percentage: {}",
+        body.target_version, body.percentage
+    );
+    if let Err(e) = ctx
+        .platform
+        .set_global_flag(&flag_key, "feature", true, Some(reason), &actor.id)
+        .await
+    {
+        return bad_request(format!("could not record theme rollout: {e}"));
+    }
 
     record(
         &ctx,

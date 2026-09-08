@@ -255,3 +255,29 @@ pub async fn update_publishable_api_key(
         .await?;
     Ok((StatusCode::OK, Json(envelope("publishable_api_key", &key))))
 }
+
+/// POST /admin/api-keys/{id}/sales-channels
+pub async fn manage_api_key_sales_channels(
+    State(ctx): State<AdminApiKeyContext>,
+    Path(id): Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, HttpError> {
+    let add_ids = payload.get("add").and_then(|v| v.as_array()).map(|arr| {
+        arr.iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect::<Vec<_>>()
+    });
+    let key = ctx
+        .api_key_service
+        .update_key(
+            &id,
+            UpdateApiKeyInput {
+                title: None,
+                sales_channel_ids: add_ids,
+                permissions: None,
+                metadata: None,
+            },
+        )
+        .await?;
+    Ok((StatusCode::OK, Json(envelope("api_key", &key))))
+}

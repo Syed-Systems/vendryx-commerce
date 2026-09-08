@@ -92,6 +92,7 @@ pub struct PlatformApiContext {
     /// open, and an unset secret disables the surface entirely rather than opening it.
     pub operator_token: Option<String>,
     pub payment_service: Option<Arc<stheno_payment::PaymentService>>,
+    pub fulfillment_service: Option<Arc<stheno_fulfillment::FulfillmentService>>,
 }
 
 /// 404, not 401: the control plane should not confirm it exists to a caller who cannot

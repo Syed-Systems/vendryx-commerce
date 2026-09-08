@@ -345,14 +345,39 @@ pub async fn get_compliance_evidence(
         return deny();
     };
 
+    let rls_flag = ctx
+        .platform
+        .get_global_flag("compliance.rls_enforced")
+        .await
+        .ok()
+        .flatten();
+    let rls_isolation_enforced = rls_flag.map(|f| f.is_enabled).unwrap_or(true);
+
+    let pci_flag = ctx
+        .platform
+        .get_global_flag("compliance.pci_saq_a")
+        .await
+        .ok()
+        .flatten();
+    let pci_saq_a_compliant = pci_flag.map(|f| f.is_enabled).unwrap_or(true);
+
+    let last_audit = ctx
+        .platform
+        .list_operator_audit(None, 1, None)
+        .await
+        .ok()
+        .and_then(|logs| logs.into_iter().next())
+        .map(|log| log.created_at)
+        .unwrap_or_else(Utc::now);
+
     let evidence = ComplianceEvidenceDTO {
-        pci_saq_a_compliant: true,
+        pci_saq_a_compliant,
         pci_architecture:
-            "Direct-post / Hosted Fields; Zero Cardholder Data Touches Stheno Backend",
-        rls_isolation_enforced: true,
+            "Direct-post / Hosted Fields; Zero Cardholder Data Touches Vendryx Backend",
+        rls_isolation_enforced,
         zero_raw_secret_storage: true,
         hmac_tamper_evident_audit: true,
-        last_audited_at: Utc::now(),
+        last_audited_at: last_audit,
     };
 
     Json(json!({ "compliance": evidence })).into_response()

@@ -1,0 +1,7 @@
+{
+  "consignment_id": "PT-CNS-789012",
+  "merchant_order_id": "ORD-BD-101",
+  "order_status": "Delivered",
+  "order_status_slug": "delivered",
+  "updated_at": "2026-08-21T16:30:00Z"
+}

@@ -40,6 +40,7 @@ async fn app() -> (TestDb, axum::Router) {
         tier_config: Arc::new(TierConfig::from_toml(TIERS_TOML).expect("tiers.toml parses")),
         operator_token: Some(BOOTSTRAP.to_string()),
         payment_service: Some(payment_service),
+        fulfillment_service: None,
     });
 
     (db, router)

@@ -33,7 +33,7 @@ pub struct GetCollectionResponse {
 pub async fn list_collections(
     State(service): State<Arc<ProductService>>,
     Query(query): Query<ListCollectionsQuery>,
-) -> Result<Json<ListCollectionsResponse>, Response> {
+) -> Result<(axum::http::HeaderMap, Json<ListCollectionsResponse>), Response> {
     let all = service.list_collections().await.unwrap_or_default();
 
     let filtered: Vec<ProductCollectionDTO> = all
@@ -44,21 +44,29 @@ pub async fn list_collections(
     let count = filtered.len();
     let offset = query.offset.unwrap_or(0);
     let limit = query.limit.unwrap_or(20);
+    let headers = crate::cache::public_cache_headers(&["collections", "catalog"]);
 
-    Ok(Json(ListCollectionsResponse {
-        collections: filtered.into_iter().skip(offset).take(limit).collect(),
-        count,
-        offset,
-        limit,
-    }))
+    Ok((
+        headers,
+        Json(ListCollectionsResponse {
+            collections: filtered.into_iter().skip(offset).take(limit).collect(),
+            count,
+            offset,
+            limit,
+        }),
+    ))
 }
 
 pub async fn get_collection(
     State(service): State<Arc<ProductService>>,
     Path(id): Path<String>,
-) -> Result<Json<GetCollectionResponse>, Response> {
+) -> Result<(axum::http::HeaderMap, Json<GetCollectionResponse>), Response> {
     match service.get_collection(&id).await {
-        Ok(collection) => Ok(Json(GetCollectionResponse { collection })),
+        Ok(collection) => {
+            let headers =
+                crate::cache::public_cache_headers(&["collections", &format!("collection-{}", id)]);
+            Ok((headers, Json(GetCollectionResponse { collection })))
+        }
         Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {

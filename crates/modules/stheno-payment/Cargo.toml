@@ -32,6 +32,10 @@ hmac = { workspace = true }
 stheno-db = { workspace = true, features = ["testing"] }
 stheno-payment-offline = { workspace = true }
 stheno-payment-stripe = { workspace = true }
+stheno-payment-bkash = { workspace = true }
+stheno-payment-sslcommerz = { workspace = true }
+stheno-payment-nagad = { workspace = true }
+wiremock = { workspace = true }
 
 
 

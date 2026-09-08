@@ -27,6 +27,7 @@ stheno-fulfillment = { workspace = true }
 stheno-promotion = { workspace = true }
 stheno-payment = { workspace = true }
 stheno-links = { workspace = true }
+stheno-caching = { workspace = true }
 # Already in the graph via `url`. `Query` uses serde_urlencoded, which cannot express
 # the `id[]=x` form the Medusa JS SDK sends, so list filters are read from the raw query.
 form_urlencoded = "1"
@@ -49,3 +50,6 @@ stheno-payment-offline = { workspace = true }
 stheno-payment-stripe = { workspace = true }
 rust_decimal_macros = { workspace = true }
 hex = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+chrono = { workspace = true }

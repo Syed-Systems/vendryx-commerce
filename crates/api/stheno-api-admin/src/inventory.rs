@@ -292,7 +292,11 @@ pub async fn batch_item_location_levels(
 pub async fn export_inventory_items(
     State(ctx): State<InventoryContext>,
 ) -> Result<impl IntoResponse, Response> {
-    let items = ctx.inventory_service.list_items().await.map_err(|e| internal(&e))?;
+    let items = ctx
+        .inventory_service
+        .list_items()
+        .await
+        .map_err(|e| internal(&e))?;
     Ok((
         StatusCode::OK,
         Json(json!({

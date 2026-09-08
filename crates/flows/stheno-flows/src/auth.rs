@@ -36,6 +36,56 @@ impl AuthWorkflows {
         self.auth_service.list_providers().await
     }
 
+    // Multi-factor authentication.
+    //
+    // Every route behind these used to answer from a literal: enrolment handed out the
+    // RFC test-vector secret `JBSWY3DPEHPK3PXP` to every caller, recovery codes were three
+    // hardcoded strings, and all three verify endpoints returned `verified: true` while
+    // discarding the submitted code. A user who turned MFA on had no second factor and
+    // was told they did.
+    pub async fn enroll_totp(
+        &self,
+        identity_id: &str,
+        issuer: &str,
+        account_name: &str,
+    ) -> Result<MfaEnrollmentDTO> {
+        self.auth_service
+            .enroll_totp(identity_id, issuer, account_name)
+            .await
+    }
+
+    pub async fn list_mfa_factors(&self, identity_id: &str) -> Result<Vec<MfaFactorDTO>> {
+        self.auth_service.list_mfa_factors(identity_id).await
+    }
+
+    pub async fn delete_mfa_factor(&self, identity_id: &str, factor_id: &str) -> Result<()> {
+        self.auth_service
+            .delete_mfa_factor(identity_id, factor_id)
+            .await
+    }
+
+    pub async fn regenerate_recovery_codes(
+        &self,
+        identity_id: &str,
+        factor_id: &str,
+    ) -> Result<Vec<String>> {
+        self.auth_service
+            .regenerate_recovery_codes(identity_id, factor_id)
+            .await
+    }
+
+    /// Signs every outstanding token for an identity out.
+    ///
+    /// Bumps `token_version`, which `verify_jwt` compares against — so this is a real
+    /// logout across every device, not a client-side token drop.
+    pub async fn invalidate_tokens(&self, identity_id: &str) -> Result<()> {
+        self.auth_service.invalidate_tokens(identity_id).await
+    }
+
+    pub async fn verify_jwt(&self, token: &str) -> Result<JwtClaims> {
+        self.auth_service.verify_jwt(token).await
+    }
+
     // 3. get_identity_workflow
     pub async fn get_identity(&self, id: &str) -> Result<AuthIdentityDTO> {
         self.auth_service.get_identity(id).await

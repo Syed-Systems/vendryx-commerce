@@ -9,6 +9,12 @@ authors.workspace = true
 [dependencies]
 stheno-types = { workspace = true }
 stheno-db = { workspace = true }
+stheno-payment = { workspace = true }
+stheno-payment-offline = { workspace = true }
+stheno-payment-stripe = { workspace = true }
+stheno-payment-sslcommerz = { workspace = true }
+stheno-payment-bkash = { workspace = true }
+stheno-payment-nagad = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
 tracing = { workspace = true }

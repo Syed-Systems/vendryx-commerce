@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "message": "Order created successfully",
+  "consignment": {
+    "consignment_id": 554433,
+    "invoice": "INV-STDF-99",
+    "tracking_code": "STDF-TRK-554433",
+    "recipient_name": "Karimullah",
+    "recipient_phone": "01811111111",
+    "recipient_address": "Chittagong Port",
+    "cod_amount": 1500,
+    "status": "in_review"
+  }
+}

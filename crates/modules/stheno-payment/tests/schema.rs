@@ -19,6 +19,8 @@ async fn every_payment_table_exists() {
         "payment_provider_credential",
         "payment_webhook_event",
         "payment_reconciliation_run",
+        "courier_settlement_cycle",
+        "courier_settlement_line",
     ] {
         let exists = db
             .count(&format!(
@@ -49,6 +51,8 @@ async fn every_table_carries_deleted_at() {
         "payment_provider_credential",
         "payment_webhook_event",
         "payment_reconciliation_run",
+        "courier_settlement_cycle",
+        "courier_settlement_line",
     ] {
         let exists = db
             .count(&format!(

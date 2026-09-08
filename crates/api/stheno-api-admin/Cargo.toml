@@ -41,6 +41,7 @@ stheno-analytics = { workspace = true }
 stheno-order-change = { workspace = true }
 stheno-reporting = { workspace = true }
 axum = { workspace = true }
+reqwest = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }
 chrono = { workspace = true }

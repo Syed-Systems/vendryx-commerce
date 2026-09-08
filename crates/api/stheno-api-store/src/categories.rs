@@ -25,25 +25,36 @@ pub struct GetCategoryResponse {
 
 pub async fn list_categories(
     State(service): State<Arc<ProductService>>,
-) -> Result<Json<ListCategoriesResponse>, Response> {
+) -> Result<(axum::http::HeaderMap, Json<ListCategoriesResponse>), Response> {
     let cats = service.list_categories().await.unwrap_or_default();
     let count = cats.len();
-    Ok(Json(ListCategoriesResponse {
-        product_categories: cats,
-        count,
-        offset: 0,
-        limit: 20,
-    }))
+    let headers = crate::cache::public_cache_headers(&["categories", "catalog"]);
+    Ok((
+        headers,
+        Json(ListCategoriesResponse {
+            product_categories: cats,
+            count,
+            offset: 0,
+            limit: 20,
+        }),
+    ))
 }
 
 pub async fn get_category(
     State(service): State<Arc<ProductService>>,
     Path(id): Path<String>,
-) -> Result<Json<GetCategoryResponse>, Response> {
+) -> Result<(axum::http::HeaderMap, Json<GetCategoryResponse>), Response> {
     match service.get_category(&id).await {
-        Ok(cat) => Ok(Json(GetCategoryResponse {
-            product_category: cat,
-        })),
+        Ok(cat) => {
+            let headers =
+                crate::cache::public_cache_headers(&["categories", &format!("category-{}", id)]);
+            Ok((
+                headers,
+                Json(GetCategoryResponse {
+                    product_category: cat,
+                }),
+            ))
+        }
         Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {

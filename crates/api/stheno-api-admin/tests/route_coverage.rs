@@ -15,7 +15,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use stheno_api_admin::{
     admin_catalog_routes, admin_customer_routes, admin_fulfillment_settings_routes,
-    admin_localisation_routes, admin_rbac_routes,
+    admin_home_routes, admin_localisation_routes, admin_rbac_routes,
 };
 use stheno_customer::CustomerService;
 use stheno_db::create_pool;
@@ -108,6 +108,7 @@ async fn rbac_routes_are_mounted() {
         ("DELETE", "/admin/rbac/policies/pol_x"),
         ("POST", "/admin/rbac/evaluate"),
         ("GET", "/admin/rbac/audit"),
+        ("GET", "/admin/rbac/me/permissions"),
     ] {
         assert_mounted(admin_rbac_routes(service.clone()), method, uri).await;
     }
@@ -194,6 +195,23 @@ async fn customer_group_mutations_are_not_bound_to_get() {
     ] {
         assert_mounted(admin_customer_routes(service.clone()), method, uri).await;
     }
+
+    db.drop().await;
+}
+
+#[tokio::test]
+async fn home_routes_are_mounted() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let order = Arc::new(stheno_order::OrderService::new(pool.clone()));
+    let inventory = Arc::new(stheno_inventory::InventoryService::new(pool));
+
+    assert_mounted(
+        admin_home_routes(order, inventory),
+        "GET",
+        "/admin/home/summary",
+    )
+    .await;
 
     db.drop().await;
 }

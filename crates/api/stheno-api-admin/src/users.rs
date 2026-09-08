@@ -191,7 +191,10 @@ pub async fn resend_invite(
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, HttpError> {
     let invite = ctx.user_service.resend_invite(&id).await?;
-    Ok((StatusCode::OK, Json(json!({ "invite": invite, "data": invite }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "invite": invite, "data": invite })),
+    ))
 }
 
 /// DELETE /admin/invites/{id}
@@ -227,4 +230,24 @@ pub async fn accept_invite(
         })
         .await?;
     Ok((StatusCode::OK, Json(json!({ "user": user, "data": user }))))
+}
+
+/// GET /admin/invites/{id}
+pub async fn get_invite(
+    State(ctx): State<AdminUserContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, HttpError> {
+    let invites = ctx.user_service.list_invites().await?;
+    let found = invites.into_iter().find(|i| i.id == id);
+    match found {
+        Some(invite) => Ok((
+            StatusCode::OK,
+            Json(json!({ "invite": invite, "data": invite })),
+        )),
+        None => Err(stheno_types::Error::NotFound {
+            entity: "invite",
+            id,
+        }
+        .into()),
+    }
 }

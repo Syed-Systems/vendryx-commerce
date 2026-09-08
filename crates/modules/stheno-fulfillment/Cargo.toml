@@ -26,3 +26,6 @@ async-trait = { workspace = true }
 stheno-db = { workspace = true, features = ["testing"] }
 tokio = { workspace = true }
 rust_decimal_macros = { workspace = true }
+stheno-fulfillment-pathao = { workspace = true }
+stheno-fulfillment-steadfast = { workspace = true }
+stheno-fulfillment-redx = { workspace = true }

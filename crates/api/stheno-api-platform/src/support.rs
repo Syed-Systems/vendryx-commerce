@@ -194,11 +194,27 @@ pub async fn get_tenant_errors(
         return deny();
     };
 
-    let errors: Vec<TenantErrorDTO> = Vec::new();
+    let mut errors: Vec<TenantErrorDTO> = Vec::new();
+    if let Ok(audit_records) = ctx.platform.list_operator_audit(Some(&id), 50, None).await {
+        for record in audit_records {
+            if record.action.contains("error") || record.action.contains("lock") || record.action.contains("fail") {
+                errors.push(TenantErrorDTO {
+                    id: record.id,
+                    tenant_id: id.clone(),
+                    message: format!("{}: {}", record.action, record.entity_type),
+                    endpoint: format!("/platform/tenants/{}", id),
+                    status_code: 500,
+                    timestamp: record.created_at,
+                });
+            }
+        }
+    }
+
+    let count = errors.len();
     Json(json!({
         "tenant_id": id,
         "errors": errors,
-        "count": 0,
+        "count": count,
     }))
     .into_response()
 }
@@ -219,6 +235,12 @@ pub async fn trigger_manual_job(
     let Some(actor) = actor(&ctx, &headers).await else {
         return deny();
     };
+
+    if body.job_name == "reconciliation_sweep" {
+        if let Some(payment_service) = &ctx.payment_service {
+            let _ = payment_service.reconcile_unsettled_requests(60, 100).await;
+        }
+    }
 
     record(
         &ctx,
@@ -262,10 +284,26 @@ pub async fn list_platform_workflows(
         return deny();
     };
 
-    let workflows: Vec<WorkflowExecutionDTO> = Vec::new();
+    let mut workflows: Vec<WorkflowExecutionDTO> = Vec::new();
+    if let Ok(audit_records) = ctx.platform.list_operator_audit(None, 50, None).await {
+        for record in audit_records {
+            if record.action.starts_with("workflow.") || record.action.starts_with("job.") {
+                workflows.push(WorkflowExecutionDTO {
+                    id: record.id,
+                    tenant_id: if record.entity_id.is_empty() { "platform".to_string() } else { record.entity_id },
+                    workflow_name: record.action,
+                    status: "completed".to_string(),
+                    current_step: "done".to_string(),
+                    created_at: record.created_at,
+                });
+            }
+        }
+    }
+
+    let count = workflows.len();
     Json(json!({
         "workflows": workflows,
-        "count": 0,
+        "count": count,
     }))
     .into_response()
 }

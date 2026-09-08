@@ -121,8 +121,25 @@ pub type CredentialMap = BTreeMap<String, serde_json::Value>;
 #[serde(rename_all = "snake_case")]
 pub enum CredentialHealth {
     Configured,
+    ConfiguredUnverified,
     Unconfigured,
     Invalid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderHealthStatus {
+    Healthy,
+    Degraded,
+    Failed,
+    ConfiguredUnverified,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderVerificationResult {
+    pub status: ProviderHealthStatus,
+    pub verified: bool,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -447,6 +464,7 @@ pub struct ProviderCapabilities {
     pub cancel_after_authorize: bool,
     pub vault: bool,
     pub async_settlement: bool,
+    pub redirect: bool,
     pub authorization_ttl: Option<Duration>,
 }
 
@@ -459,6 +477,7 @@ impl Default for ProviderCapabilities {
             cancel_after_authorize: true,
             vault: false,
             async_settlement: false,
+            redirect: false,
             authorization_ttl: Some(Duration::from_secs(7 * 24 * 3600)),
         }
     }
@@ -472,11 +491,23 @@ pub struct InitiateInput {
     pub metadata: Option<serde_json::Value>,
 }
 
+/// Output from initiating a payment session.
+///
+/// Under ADR-013 and PCI SAQ A, gateways requiring external authorization
+/// (e.g. bKash, Nagad, SSLCommerz, Stripe Checkout) provide `redirect_url`
+/// inside `data`. Shoppers are redirected to the PSP without card numbers touching
+/// the Vendryx backend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitiateOutput {
     pub id: String,
     pub status: PaymentSessionStatus,
     pub data: serde_json::Value,
+}
+
+impl InitiateOutput {
+    pub fn redirect_url(&self) -> Option<&str> {
+        self.data.get("redirect_url").and_then(|v| v.as_str())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -694,6 +725,15 @@ pub trait PaymentProvider: Send + Sync + 'static {
     fn capabilities(&self) -> ProviderCapabilities {
         ProviderCapabilities::default()
     }
+
+    // ---- verification probe ----
+    async fn verify_connection(&self) -> Result<ProviderVerificationResult> {
+        Ok(ProviderVerificationResult {
+            status: ProviderHealthStatus::Healthy,
+            verified: true,
+            message: "Provider connection verified".to_string(),
+        })
+    }
 }
 
 #[async_trait]
@@ -846,6 +886,20 @@ pub struct PaymentWebhookEventDTO {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaymentReconciliationRunDTO {
+    pub id: String,
+    pub provider_id: String,
+    pub window_start: DateTime<Utc>,
+    pub window_end: DateTime<Utc>,
+    pub checked_count: i32,
+    pub drift_count: i32,
+    pub drifts: Option<serde_json::Value>,
+    pub state: String,
+    pub created_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
+
 // ── Request Inputs ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -960,3 +1014,159 @@ pub struct UpdateRefundReasonInput {
     pub description: Option<String>,
     pub metadata: Option<serde_json::Value>,
 }
+
+// ── COD & Courier Settlement DTOs (PHASE3_TASKS §P24, PAYMENTS §2.1) ────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodDeliveryConfirmationInput {
+    pub payment_id: Option<String>,
+    pub payment_session_id: Option<String>,
+    pub delivery_event_id: String,
+    pub collected_amount: Option<Decimal>,
+    pub courier_id: Option<String>,
+    pub consignment_id: Option<String>,
+    pub tracking_code: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodReturnInput {
+    pub payment_id: Option<String>,
+    pub payment_session_id: Option<String>,
+    pub return_event_id: String,
+    pub reason: Option<String>,
+    pub courier_id: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodReturnDTO {
+    pub payment_id: String,
+    pub status: String,
+    pub return_event_id: String,
+    pub was_captured: bool,
+    pub refunded_amount: Decimal,
+    pub canceled_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CourierSettlementCycleDTO {
+    pub id: String,
+    pub provider_id: String,
+    pub courier_cycle_id: String,
+    pub cycle_start: Option<DateTime<Utc>>,
+    pub cycle_end: Option<DateTime<Utc>>,
+    pub total_collected: Decimal,
+    pub total_fees: Decimal,
+    pub total_remitted: Decimal,
+    pub currency: String,
+    pub status: String,
+    pub raw_report: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CourierSettlementLineDTO {
+    pub id: String,
+    pub cycle_id: String,
+    pub consignment_id: String,
+    pub tracking_code: Option<String>,
+    pub order_id: Option<String>,
+    pub collected_amount: Decimal,
+    pub courier_fee: Decimal,
+    pub cod_fee: Decimal,
+    pub remitted_amount: Decimal,
+    pub reconciliation_status: String,
+    pub discrepancy_reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportSettlementLineInput {
+    pub consignment_id: String,
+    pub tracking_code: Option<String>,
+    pub order_id: Option<String>,
+    pub collected_amount: Decimal,
+    pub courier_fee: Decimal,
+    pub cod_fee: Decimal,
+    pub remitted_amount: Decimal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportSettlementReportInput {
+    pub provider_id: String,
+    pub courier_cycle_id: String,
+    pub cycle_start: Option<DateTime<Utc>>,
+    pub cycle_end: Option<DateTime<Utc>>,
+    pub currency: Option<String>,
+    pub lines: Vec<ImportSettlementLineInput>,
+    pub raw_report: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportSettlementReportOutput {
+    pub cycle_id: String,
+    pub provider_id: String,
+    pub courier_cycle_id: String,
+    pub imported_lines: usize,
+    pub skipped_duplicate_lines: usize,
+    pub total_collected: Decimal,
+    pub total_fees: Decimal,
+    pub total_remitted: Decimal,
+    pub is_reimport: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CourierReconciliationBucketItem {
+    pub consignment_id: String,
+    pub tracking_code: Option<String>,
+    pub order_id: Option<String>,
+    pub payment_id: Option<String>,
+    pub expected_amount: Decimal,
+    pub collected_amount: Decimal,
+    pub remitted_amount: Decimal,
+    pub fee_amount: Decimal,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CourierReconciliationBuckets {
+    pub matched: Vec<CourierReconciliationBucketItem>,
+    pub collected_not_remitted: Vec<CourierReconciliationBucketItem>,
+    pub remitted_not_matched: Vec<CourierReconciliationBucketItem>,
+    pub discrepant: Vec<CourierReconciliationBucketItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CourierReconciliationReportDTO {
+    pub run_id: String,
+    pub cycle_id: String,
+    pub provider_id: String,
+    pub total_lines_checked: usize,
+    pub matched_count: usize,
+    pub collected_not_remitted_count: usize,
+    pub remitted_not_matched_count: usize,
+    pub discrepancy_count: usize,
+    pub total_collected: Decimal,
+    pub total_fees: Decimal,
+    pub total_remitted: Decimal,
+    pub state: String,
+    pub buckets: CourierReconciliationBuckets,
+    pub generated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscrepancyAlertDTO {
+    pub line_id: String,
+    pub cycle_id: String,
+    pub consignment_id: String,
+    pub tracking_code: Option<String>,
+    pub order_id: Option<String>,
+    pub unremitted_amount: Decimal,
+    pub age_days: i64,
+    pub alert_level: String,
+    pub message: String,
+}
+

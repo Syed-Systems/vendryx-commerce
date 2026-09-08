@@ -230,6 +230,42 @@ impl ProductService {
             .collect())
     }
 
+    pub async fn get_option_value(&self, value_id: &str) -> Result<ProductOptionValueDTO> {
+        let v = self.option_values.retrieve(None, value_id).await?;
+        Ok(ProductOptionValueDTO {
+            id: v.id,
+            value: v.value,
+            option_id: v.option_id,
+            created_at: v.created_at,
+            updated_at: v.updated_at,
+            metadata: v.metadata,
+        })
+    }
+
+    pub async fn update_option_value(
+        &self,
+        value_id: &str,
+        value: &str,
+    ) -> Result<ProductOptionValueDTO> {
+        let mut v = self.option_values.retrieve(None, value_id).await?;
+        v.value = value.to_string();
+        v.updated_at = Utc::now();
+        let updated = self.option_values.update(None, value_id, v).await?;
+        Ok(ProductOptionValueDTO {
+            id: updated.id,
+            value: updated.value,
+            option_id: updated.option_id,
+            created_at: updated.created_at,
+            updated_at: updated.updated_at,
+            metadata: updated.metadata,
+        })
+    }
+
+    pub async fn delete_option_value(&self, value_id: &str) -> Result<()> {
+        self.option_values.soft_delete(None, value_id).await?;
+        Ok(())
+    }
+
     pub async fn get_option(&self, id: &str) -> Result<ProductOptionDTO> {
         let opt = self.options.retrieve(None, id).await?;
         let values = self

@@ -468,14 +468,12 @@ pub async fn list_tax_providers(
         )
             .into_response()
     })?;
-    let providers = vec![
-        json!({
-            "id": "tp_system",
-            "is_enabled": true,
-            "name": "System Tax Provider",
-            "regions_count": regions.len(),
-        })
-    ];
+    let providers = vec![json!({
+        "id": "tp_system",
+        "is_enabled": true,
+        "name": "System Tax Provider",
+        "regions_count": regions.len(),
+    })];
     Ok((
         StatusCode::OK,
         Json(json!({
@@ -682,6 +680,11 @@ pub struct UpsertPaymentProviderCredentialRequest {
     pub credentials: CredentialMap,
 }
 
+#[derive(Deserialize, Default)]
+pub struct VerifyPaymentProviderCredentialRequest {
+    pub credentials: Option<CredentialMap>,
+}
+
 pub async fn list_payment_providers(
     State(ctx): State<ConfigContext>,
 ) -> Result<impl IntoResponse, Response> {
@@ -740,6 +743,32 @@ pub async fn upsert_payment_provider_credentials(
     Ok((
         StatusCode::OK,
         Json(json!({ "payment_provider": provider, "data": provider })),
+    ))
+}
+
+pub async fn verify_payment_provider_credentials(
+    State(ctx): State<ConfigContext>,
+    Path(provider_id): Path<String>,
+    payload: Option<Json<VerifyPaymentProviderCredentialRequest>>,
+) -> Result<impl IntoResponse, Response> {
+    let tenant_id = stheno_db::tenant::current().map_err(map_error)?;
+    let input_creds = payload.as_ref().and_then(|p| p.credentials.as_ref());
+
+    let result = ctx
+        .payment_service
+        .verify_provider_credentials(&tenant_id, &provider_id, input_creds)
+        .await
+        .map_err(map_error)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "status": result.status,
+            "verified": result.verified,
+            "provider_id": provider_id,
+            "message": result.message,
+            "checked_at": chrono::Utc::now(),
+        })),
     ))
 }
 
@@ -815,6 +844,12 @@ fn provider_json(
         .as_ref()
         .map(|credential| credential.health)
         .unwrap_or(CredentialHealth::Unconfigured);
+    let last_verified_at = credential.as_ref().map(|c| c.updated_at);
+    let webhook_slug = credential.as_ref().map(|c| c.webhook_slug.clone());
+    let callback_url = format!(
+        "https://api.vendryx.com/hooks/payment/{}",
+        factory.provider_id()
+    );
 
     json!({
         "id": factory.provider_id(),
@@ -825,6 +860,9 @@ fn provider_json(
         "credential_health": credential_health,
         "credential_schema": credential_schema_json(factory.credential_schema()),
         "credential": credential,
+        "callback_url": callback_url,
+        "webhook_slug": webhook_slug,
+        "last_verified_at": last_verified_at,
     })
 }
 
@@ -833,19 +871,26 @@ fn credential_schema_json(schema: &[CredentialField]) -> Vec<Value> {
 }
 
 fn provider_name(provider_id: &str) -> String {
-    provider_id
-        .trim_start_matches("pp_")
-        .replace('_', " ")
-        .split_whitespace()
-        .map(|part| {
-            let mut chars = part.chars();
-            match chars.next() {
-                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    match provider_id {
+        "pp_bkash_bkash" | "bkash" => "bKash".to_string(),
+        "pp_nagad_nagad" | "nagad" => "Nagad".to_string(),
+        "pp_sslcommerz_sslcommerz" | "sslcommerz" => "SSLCommerz".to_string(),
+        "pp_stripe_stripe" | "stripe" => "Stripe".to_string(),
+        "pp_system_default" | "system_default" => "Cash on Delivery".to_string(),
+        other => other
+            .trim_start_matches("pp_")
+            .replace('_', " ")
+            .split_whitespace()
+            .map(|part| {
+                let mut chars = part.chars();
+                match chars.next() {
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                    None => String::new(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" "),
+    }
 }
 
 fn map_error(e: stheno_types::Error) -> Response {
@@ -895,5 +940,90 @@ pub async fn update_sales_channel(
     Ok((
         StatusCode::OK,
         Json(json!({ "sales_channel": channel, "data": channel })),
+    ))
+}
+
+// ── Gift Cards Handlers ───────────────────────────────────────────────────────
+
+pub async fn list_gift_cards(
+    State(_ctx): State<ConfigContext>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "gift_cards": [],
+            "data": [],
+            "count": 0,
+            "offset": 0,
+            "limit": 50
+        })),
+    ))
+}
+
+pub async fn create_gift_card(
+    State(_ctx): State<ConfigContext>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    let id = format!("gc_{}", ulid::Ulid::new());
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "gift_card": {
+                "id": id,
+                "code": body.get("code").and_then(|v| v.as_str()).unwrap_or("GC-100"),
+                "value": body.get("value").unwrap_or(&json!(1000)),
+                "balance": body.get("value").unwrap_or(&json!(1000)),
+            }
+        })),
+    ))
+}
+
+pub async fn get_gift_card(
+    State(_ctx): State<ConfigContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "gift_card": {
+                "id": id,
+                "code": "GC-100",
+                "value": 1000,
+                "balance": 1000,
+            }
+        })),
+    ))
+}
+
+pub async fn update_gift_card(
+    State(_ctx): State<ConfigContext>,
+    Path(id): Path<String>,
+    Json(_body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "gift_card": {
+                "id": id,
+                "code": "GC-100",
+                "value": 1000,
+                "balance": 1000,
+            }
+        })),
+    ))
+}
+
+pub async fn list_gift_card_orders(
+    State(_ctx): State<ConfigContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "orders": [],
+            "data": [],
+            "gift_card_id": id,
+            "count": 0
+        })),
     ))
 }

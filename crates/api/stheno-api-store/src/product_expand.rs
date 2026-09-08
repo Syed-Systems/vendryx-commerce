@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use rust_decimal::Decimal;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use stheno_inventory::InventoryService;
 use stheno_pricing::{CalculatedPriceDTO, PricingContext, PricingService};
 use stheno_product::{ProductDTO, ProductService};
@@ -29,7 +29,7 @@ use stheno_types::Result;
 /// The nesting is Medusa's, not a choice: `get-product-price.ts` reads
 /// `calculated_price.calculated_price.price_list_type` to decide whether to render a sale
 /// badge, so the inner object has to be there even when nothing is on sale.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StoreCalculatedPrice {
     pub id: String,
     pub calculated_amount: Decimal,
@@ -39,18 +39,18 @@ pub struct StoreCalculatedPrice {
     pub calculated_price: StoreCalculatedPriceDetail,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StoreCalculatedPriceDetail {
     pub price_list_type: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StoreVariantOption {
     pub option_id: String,
     pub value: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StoreVariant {
     pub id: String,
     pub product_id: String,
@@ -69,13 +69,13 @@ pub struct StoreVariant {
     pub calculated_price: Option<StoreCalculatedPrice>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StoreProductOptionValue {
     pub id: String,
     pub value: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StoreProductOption {
     pub id: String,
     pub title: String,
@@ -84,7 +84,7 @@ pub struct StoreProductOption {
 }
 
 /// `ProductDTO` plus everything a storefront needs, flattened so the JSON is one object.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StoreProduct {
     #[serde(flatten)]
     pub product: ProductDTO,

@@ -32,6 +32,7 @@ async fn app() -> (TestDb, axum::Router, Arc<PaymentService>) {
 
     let router = hooks_routes(HooksContext {
         payment_service: payment_service.clone(),
+        fulfillment_service: None,
     });
 
     (db, router, payment_service)

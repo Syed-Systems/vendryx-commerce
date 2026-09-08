@@ -163,6 +163,7 @@ impl PaymentProvider for OfflinePaymentProvider {
             cancel_after_authorize: true,
             vault: false,
             async_settlement: true, // Offline payment settles when collected
+            redirect: false,
             authorization_ttl: None,
         }
     }

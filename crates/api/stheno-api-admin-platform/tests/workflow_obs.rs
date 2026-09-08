@@ -23,6 +23,7 @@ fn app(store: Arc<WorkflowStore>) -> axum::Router {
         entitlements: Arc::new(entitlements),
         usage: Arc::new(UsageSnapshot::new()),
         workflows: store,
+        platform: None,
     })
 }
 

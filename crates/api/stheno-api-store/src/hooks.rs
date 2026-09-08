@@ -22,12 +22,14 @@ use axum::routing::post;
 use axum::{Json, Router};
 use serde::Serialize;
 use std::sync::Arc;
+use stheno_fulfillment::FulfillmentService;
 use stheno_payment::PaymentService;
 use stheno_types::Error;
 
 #[derive(Clone)]
 pub struct HooksContext {
     pub payment_service: Arc<PaymentService>,
+    pub fulfillment_service: Option<Arc<FulfillmentService>>,
 }
 
 pub fn hooks_routes(ctx: HooksContext) -> Router {
@@ -35,6 +37,10 @@ pub fn hooks_routes(ctx: HooksContext) -> Router {
         .route(
             "/hooks/payment/{provider_id}",
             post(receive_payment_webhook),
+        )
+        .route(
+            "/hooks/fulfillment/{provider_id}",
+            post(receive_fulfillment_webhook),
         )
         .with_state(ctx)
 }
@@ -80,6 +86,45 @@ async fn receive_payment_webhook(
 
     match ctx
         .payment_service
+        .receive_webhook(&provider_id, &body, signature)
+        .await
+    {
+        Ok(event) => (
+            StatusCode::OK,
+            Json(WebhookAccepted {
+                id: event.id,
+                provider_id: event.provider_id,
+                state: event.state,
+            }),
+        )
+            .into_response(),
+        Err(e) => map_error(e),
+    }
+}
+
+async fn receive_fulfillment_webhook(
+    State(ctx): State<HooksContext>,
+    Path(provider_id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let Some(fulfillment_service) = &ctx.fulfillment_service else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                r#type: "not_found".to_string(),
+                message: "Fulfillment service not mounted".to_string(),
+            }),
+        )
+            .into_response();
+    };
+
+    let signature = headers
+        .get("x-signature")
+        .or_else(|| headers.get("authorization"))
+        .and_then(|v| v.to_str().ok());
+
+    match fulfillment_service
         .receive_webhook(&provider_id, &body, signature)
         .await
     {

@@ -3,6 +3,12 @@
 use clap::{Parser, Subcommand};
 use std::fs;
 use std::path::Path;
+use stheno_payment::PaymentProviderFactory;
+use stheno_payment_bkash::BkashPaymentProviderFactory;
+use stheno_payment_nagad::NagadPaymentProviderFactory;
+use stheno_payment_offline::OfflinePaymentProviderFactory;
+use stheno_payment_sslcommerz::SslcommerzPaymentProviderFactory;
+use stheno_payment_stripe::StripePaymentProviderFactory;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -36,6 +42,13 @@ enum Commands {
         /// Perform a dry-run without writing any changes
         #[arg(long)]
         dry_run: bool,
+    },
+    /// Check or generate documentation for compiled providers from code-owned schemas
+    ProviderDocs {
+        #[arg(long)]
+        check: bool,
+        #[arg(long)]
+        write: bool,
     },
 }
 
@@ -288,6 +301,116 @@ async fn test_{clean_name}_service_lifecycle() {{
             let report = stheno_cli::import::run_import(source.as_deref(), dry_run);
             print!("{}", report.format_report());
         }
+        Commands::ProviderDocs { check, write } => {
+            handle_provider_docs(check, write)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn handle_provider_docs(check: bool, write: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let factories: Vec<(&str, &str, &'static [stheno_payment::CredentialField], &str, &str)> = vec![
+        (
+            OfflinePaymentProviderFactory.provider_id(),
+            "Offline / Cash on Delivery",
+            OfflinePaymentProviderFactory.credential_schema(),
+            "Built-in",
+            "Immediate / Available",
+        ),
+        (
+            StripePaymentProviderFactory.provider_id(),
+            "Stripe",
+            StripePaymentProviderFactory.credential_schema(),
+            "Live, Sandbox",
+            "Remote account retrieve",
+        ),
+        (
+            SslcommerzPaymentProviderFactory.provider_id(),
+            "SSLCommerz",
+            SslcommerzPaymentProviderFactory.credential_schema(),
+            "Live, Sandbox",
+            "Configured, awaiting first transaction",
+        ),
+        (
+            BkashPaymentProviderFactory.provider_id(),
+            "bKash",
+            BkashPaymentProviderFactory.credential_schema(),
+            "Live, Sandbox",
+            "Remote grant token probe",
+        ),
+        (
+            NagadPaymentProviderFactory.provider_id(),
+            "Nagad",
+            NagadPaymentProviderFactory.credential_schema(),
+            "Live, Sandbox",
+            "RSA keypair validation probe",
+        ),
+    ];
+
+    let mut table = String::new();
+    table.push_str("<!-- BEGIN GENERATED PROVIDER CATALOG -->\n");
+    table.push_str("| Provider ID | Provider Name | Credential Fields | Environments | Verification Strategy |\n");
+    table.push_str("|---|---|---|---|---|\n");
+    for (id, name, schema, envs, verif) in factories {
+        let fields_str = if schema.is_empty() {
+            "*(none)*".to_string()
+        } else {
+            schema
+                .iter()
+                .map(|f| {
+                    let req = if f.required { "required" } else { "optional" };
+                    let kind = format!("{:?}", f.kind).to_lowercase();
+                    format!("`{}` ({}, {})", f.key, kind, req)
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        table.push_str(&format!(
+            "| `{}` | {} | {} | {} | {} |\n",
+            id, name, fields_str, envs, verif
+        ));
+    }
+    table.push_str("<!-- END GENERATED PROVIDER CATALOG -->");
+
+    let doc_path = Path::new("docs/providers/PAYMENT_GATEWAYS.md");
+    if !doc_path.exists() {
+        return Err(format!("Documentation file not found: {}", doc_path.display()).into());
+    }
+
+    let content = fs::read_to_string(doc_path)?;
+    let start_marker = "<!-- BEGIN GENERATED PROVIDER CATALOG -->";
+    let end_marker = "<!-- END GENERATED PROVIDER CATALOG -->";
+
+    let updated_content = if let (Some(start), Some(end)) = (content.find(start_marker), content.find(end_marker)) {
+        let mut new_c = content[..start].to_string();
+        new_c.push_str(&table);
+        new_c.push_str(&content[end + end_marker.len()..]);
+        new_c
+    } else if let Some(pos) = content.find("## 2. bKash") {
+        let mut new_c = content[..pos].to_string();
+        new_c.push_str("### Compiled Provider Catalog (Generated)\n\n");
+        new_c.push_str(&table);
+        new_c.push_str("\n\n---\n\n");
+        new_c.push_str(&content[pos..]);
+        new_c
+    } else {
+        format!("{}\n\n{}", content, table)
+    };
+
+    if check {
+        if content.contains(start_marker) && content.contains(&table) {
+            println!("Provider documentation check PASSED (0 drift).");
+        } else {
+            eprintln!("FAIL: Provider catalog in {} is out of sync with compiled registries.", doc_path.display());
+            eprintln!("Run: cargo run -p stheno-cli -- provider-docs --write");
+            std::process::exit(1);
+        }
+    } else if write {
+        fs::write(doc_path, updated_content)?;
+        println!("==> Successfully wrote compiled provider catalog to {}", doc_path.display());
+    } else {
+        println!("{}", table);
     }
 
     Ok(())

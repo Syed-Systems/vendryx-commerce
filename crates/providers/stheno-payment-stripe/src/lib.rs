@@ -476,7 +476,40 @@ impl PaymentProvider for StripePaymentProvider {
             cancel_after_authorize: true,
             vault: true,
             async_settlement: false,
+            redirect: false,
             authorization_ttl: Some(Duration::from_secs(7 * 24 * 3600)),
+        }
+    }
+
+    async fn verify_connection(&self) -> Result<ProviderVerificationResult> {
+        let url = format!("{}/v1/balance", self.base_url);
+        let resp = self
+            .client
+            .get(&url)
+            .header("Authorization", self.auth_header())
+            .send()
+            .await;
+
+        match resp {
+            Ok(res) if res.status().is_success() => Ok(ProviderVerificationResult {
+                status: ProviderHealthStatus::Healthy,
+                verified: true,
+                message: "Successfully authenticated with Stripe API".to_string(),
+            }),
+            Ok(res) => {
+                let status = res.status();
+                let msg = res.text().await.unwrap_or_default();
+                Ok(ProviderVerificationResult {
+                    status: ProviderHealthStatus::Failed,
+                    verified: false,
+                    message: format!("Stripe API returned status {status}: {msg}"),
+                })
+            }
+            Err(e) => Ok(ProviderVerificationResult {
+                status: ProviderHealthStatus::Failed,
+                verified: false,
+                message: format!("Stripe connection failed: {e}"),
+            }),
         }
     }
 }

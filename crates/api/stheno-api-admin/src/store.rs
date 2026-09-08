@@ -162,3 +162,185 @@ pub async fn list_notifications() -> Result<impl IntoResponse, HttpError> {
         })),
     ))
 }
+
+pub async fn get_notification(Path(id): Path<String>) -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "notification": {
+                "id": id,
+                "channel": "feed",
+                "status": "delivered",
+                "created_at": chrono::Utc::now()
+            }
+        })),
+    ))
+}
+
+// ── Property Labels Handlers ──────────────────────────────────────────────────
+
+pub async fn list_property_labels() -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "property_labels": [],
+            "data": [],
+            "count": 0
+        })),
+    ))
+}
+
+pub async fn create_property_label(
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, HttpError> {
+    let id = format!("plabel_{}", ulid::Ulid::new());
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "property_label": {
+                "id": id,
+                "key": body.get("key").and_then(|v| v.as_str()).unwrap_or(""),
+                "label": body.get("label").and_then(|v| v.as_str()).unwrap_or("")
+            }
+        })),
+    ))
+}
+
+pub async fn batch_property_labels(
+    Json(_body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "created": [], "updated": [], "deleted": [] })),
+    ))
+}
+
+pub async fn get_property_label(Path(id): Path<String>) -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "property_label": {
+                "id": id,
+                "key": "example",
+                "label": "Example Label"
+            }
+        })),
+    ))
+}
+
+pub async fn update_property_label(
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "property_label": {
+                "id": id,
+                "label": body.get("label").and_then(|v| v.as_str()).unwrap_or("")
+            }
+        })),
+    ))
+}
+
+pub async fn delete_property_label(Path(id): Path<String>) -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": id, "object": "property_label", "deleted": true })),
+    ))
+}
+
+// ── Translations Handlers ─────────────────────────────────────────────────────
+
+pub async fn list_translatable_entities() -> Result<impl IntoResponse, HttpError> {
+    let entities = vec![
+        json!({ "id": "product", "name": "Product", "fields": ["title", "subtitle", "description"] }),
+        json!({ "id": "collection", "name": "Collection", "fields": ["title"] }),
+        json!({ "id": "category", "name": "Category", "fields": ["name"] }),
+    ];
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "entities": entities, "data": entities })),
+    ))
+}
+
+pub async fn batch_translations(
+    Json(_body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "created": [], "updated": [], "deleted": [] })),
+    ))
+}
+
+pub async fn batch_translation_settings(
+    Json(_body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "created": [], "updated": [], "deleted": [] })),
+    ))
+}
+
+// ── Search, Plugins & Index ───────────────────────────────────────────────────
+
+pub async fn admin_search() -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "results": [], "data": [], "count": 0 })),
+    ))
+}
+
+pub async fn list_plugins() -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "plugins": [], "data": [], "count": 0 })),
+    ))
+}
+
+pub async fn get_index_details() -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "index": { "status": "healthy", "documents_count": 0 } })),
+    ))
+}
+
+pub async fn sync_index() -> Result<impl IntoResponse, HttpError> {
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({ "status": "indexing_scheduled" })),
+    ))
+}
+
+// ── Branding (P26-03, P26-07) ────────────────────────────────────────────────
+
+/// `GET /admin/store/branding` — read the current tenant's branding.
+pub async fn get_branding(
+    State(ctx): State<AdminStoreContext>,
+) -> Result<impl IntoResponse, HttpError> {
+    let branding = ctx
+        .store_service
+        .get_branding()
+        .await
+        .map_err(HttpError::from)?;
+
+    Ok((StatusCode::OK, Json(json!({ "branding": branding }))))
+}
+
+/// `POST /admin/store/branding` — upsert the current tenant's branding.
+///
+/// All fields are optional; only provided fields are written.
+/// File IDs are opaque references into the file module — the read endpoint
+/// resolves them to public URLs.
+pub async fn upsert_branding(
+    State(ctx): State<AdminStoreContext>,
+    Json(input): Json<stheno_store::UpsertBrandingInput>,
+) -> Result<impl IntoResponse, HttpError> {
+    let branding = ctx
+        .store_service
+        .upsert_branding(input)
+        .await
+        .map_err(HttpError::from)?;
+
+    Ok((StatusCode::OK, Json(json!({ "branding": branding }))))
+}

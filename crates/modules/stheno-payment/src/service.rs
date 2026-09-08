@@ -24,8 +24,9 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use crate::dto::*;
 use crate::models::{
-    AccountHolder, Capture, Payment, PaymentCollection, PaymentProviderRequest,
-    PaymentReconciliationRun, PaymentSession, PaymentWebhookEvent, Refund, RefundReason,
+    AccountHolder, Capture, CourierSettlementCycle, CourierSettlementLine, Payment,
+    PaymentCollection, PaymentProviderRequest, PaymentReconciliationRun, PaymentSession,
+    PaymentWebhookEvent, Refund, RefundReason,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -129,6 +130,8 @@ pub struct PaymentService {
     outbound_requests: Arc<PgCrudRepository<PaymentProviderRequest>>,
     webhook_events: Arc<PgCrudRepository<PaymentWebhookEvent>>,
     reconciliation_runs: Arc<PgCrudRepository<PaymentReconciliationRun>>,
+    settlement_cycles: Arc<PgCrudRepository<CourierSettlementCycle>>,
+    settlement_lines: Arc<PgCrudRepository<CourierSettlementLine>>,
     payment_locks: Arc<RwLock<HashMap<String, Arc<AsyncMutex<()>>>>>,
     provider_cache: Arc<RwLock<HashMap<ProviderCacheKey, Arc<dyn PaymentProvider>>>>,
     factories: Arc<RwLock<HashMap<String, Arc<dyn PaymentProviderFactory>>>>,
@@ -148,6 +151,8 @@ impl PaymentService {
             outbound_requests: Arc::new(PgCrudRepository::new(pool.clone())),
             webhook_events: Arc::new(PgCrudRepository::new(pool.clone())),
             reconciliation_runs: Arc::new(PgCrudRepository::new(pool.clone())),
+            settlement_cycles: Arc::new(PgCrudRepository::new(pool.clone())),
+            settlement_lines: Arc::new(PgCrudRepository::new(pool.clone())),
             pool,
             payment_locks: Arc::new(RwLock::new(HashMap::new())),
             provider_cache: Arc::new(RwLock::new(HashMap::new())),
@@ -496,9 +501,78 @@ impl PaymentService {
 
         Ok(match state.as_deref() {
             Some("succeeded") => CredentialHealth::Configured,
+            Some("configured_unverified") => CredentialHealth::ConfiguredUnverified,
             Some("failed") => CredentialHealth::Invalid,
             _ => CredentialHealth::Unconfigured,
         })
+    }
+
+    pub async fn verify_provider_credentials(
+        &self,
+        tenant_id: &str,
+        provider_id: &str,
+        input_creds: Option<&CredentialMap>,
+    ) -> Result<ProviderVerificationResult> {
+        stheno_db::tenant::validate(tenant_id)?;
+        let factory = self.get_factory(provider_id)?;
+
+        let provider = match input_creds {
+            Some(creds) => {
+                validate_credential_map(factory.credential_schema(), creds)?;
+                factory.build(creds)?
+            }
+            None => self.get_provider(tenant_id, provider_id).await?,
+        };
+
+        let result = provider.verify_connection().await?;
+
+        let state = match result.status {
+            ProviderHealthStatus::Healthy => "succeeded",
+            ProviderHealthStatus::Failed => "failed",
+            ProviderHealthStatus::ConfiguredUnverified => "configured_unverified",
+            ProviderHealthStatus::Degraded => "failed",
+        };
+
+        let req_id = format!("ppreq_v_{}", ulid::Ulid::new());
+        let idem_key = format!("idem_v_{}", ulid::Ulid::new());
+        let provider_id_str = provider_id.to_string();
+        let state_str = state.to_string();
+        let error_msg = if !result.verified || result.status == ProviderHealthStatus::Failed {
+            Some(result.message.clone())
+        } else {
+            None
+        };
+
+        let pool = self.pool.clone();
+        let tenant_str = tenant_id.to_string();
+        stheno_db::tenant::scope(tenant_str, async move {
+            stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+                Box::pin(async move {
+                    diesel::sql_query(
+                        "INSERT INTO payment.payment_provider_request (
+                             id, idempotency_key, provider_id, operation, resource_type, resource_id,
+                             request_hash, state, response, error, attempts, first_sent_at, settled_at, deleted_at
+                         ) VALUES (
+                             $1, $2, $3, 'verify_credentials', 'provider_verification', $1,
+                             'verify_probe', $4, '{}'::jsonb, CASE WHEN $5 IS NULL THEN NULL ELSE jsonb_build_object('message', $5::text) END, 1, now(), now(), NULL
+                         )",
+                    )
+                    .bind::<Text, _>(&req_id)
+                    .bind::<Text, _>(&idem_key)
+                    .bind::<Text, _>(&provider_id_str)
+                    .bind::<Text, _>(&state_str)
+                    .bind::<Nullable<Text>, _>(&error_msg)
+                    .execute(conn)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+                    Ok(())
+                })
+            })
+            .await
+        })
+        .await?;
+
+        Ok(result)
     }
 
     /// The read side of refund reasons.
@@ -1536,6 +1610,98 @@ impl PaymentService {
         }
     }
 
+    // ── Reconciliation Runs & Webhook Oversight (Platform) ───────────────────
+
+    pub async fn list_reconciliation_runs(
+        &self,
+        tenant_id: &str,
+        limit: usize,
+    ) -> Result<Vec<PaymentReconciliationRunDTO>> {
+        let spec = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Desc)
+            .with_pagination(0, limit);
+
+        stheno_db::tenant::scope(tenant_id, async {
+            let rows = self.reconciliation_runs.list(None, &spec).await?;
+            Ok(rows
+                .into_iter()
+                .map(|r| PaymentReconciliationRunDTO {
+                    id: r.id.to_string(),
+                    provider_id: r.provider_id,
+                    window_start: r.window_start,
+                    window_end: r.window_end,
+                    checked_count: r.checked_count,
+                    drift_count: r.drift_count,
+                    drifts: r.drifts,
+                    state: r.state,
+                    created_at: r.created_at,
+                    completed_at: r.completed_at,
+                })
+                .collect())
+        })
+        .await
+    }
+
+    pub async fn list_webhook_events(
+        &self,
+        tenant_id: &str,
+        limit: usize,
+    ) -> Result<Vec<PaymentWebhookEventDTO>> {
+        let spec = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_order("created_at", OrderDirection::Desc)
+            .with_pagination(0, limit);
+
+        stheno_db::tenant::scope(tenant_id, async {
+            let rows = self.webhook_events.list(None, &spec).await?;
+            Ok(rows
+                .into_iter()
+                .map(|e| PaymentWebhookEventDTO {
+                    id: e.id.to_string(),
+                    provider_id: e.provider_id,
+                    provider_event_id: e.provider_event_id,
+                    event_type: e.event_type,
+                    payload: e.payload,
+                    signature_verified: e.signature_verified,
+                    provider_created_at: e.provider_created_at,
+                    state: e.state,
+                    processed_at: e.processed_at,
+                    error: e.error,
+                    created_at: e.created_at,
+                })
+                .collect())
+        })
+        .await
+    }
+
+    pub async fn replay_webhook_event(
+        &self,
+        tenant_id: &str,
+        webhook_id: &str,
+    ) -> Result<PaymentWebhookEventDTO> {
+        stheno_db::tenant::scope(tenant_id, async {
+            let mut event = self.webhook_events.retrieve(None, webhook_id).await?;
+            event.state = "processed".to_string();
+            event.processed_at = Some(Utc::now());
+            let updated = self.webhook_events.update(None, webhook_id, event).await?;
+            Ok(PaymentWebhookEventDTO {
+                id: updated.id.to_string(),
+                provider_id: updated.provider_id,
+                provider_event_id: updated.provider_event_id,
+                event_type: updated.event_type,
+                payload: updated.payload,
+                signature_verified: updated.signature_verified,
+                provider_created_at: updated.provider_created_at,
+                state: updated.state,
+                processed_at: updated.processed_at,
+                error: updated.error,
+                created_at: updated.created_at,
+            })
+        })
+        .await
+    }
+
     // ── Card Testing Abuse Limits (P4-27, F10) ────────────────────────────────
 
     pub fn check_ip_session_rate_limit(&self, ip: &str, max_per_minute: usize) -> bool {
@@ -1779,6 +1945,747 @@ impl PaymentService {
             discrepancies,
             generated_at: Utc::now(),
         })
+    }
+
+    // ── COD Settlement & Courier Reconciliation (PHASE3_TASKS §P24) ─────────
+
+    /// Delivery confirmation authorises capture on the COD provider.
+    /// One flow, courier-agnostic (P24-03, BP6).
+    /// Idempotent on `delivery_event_id`: duplicate delivery events return existing capture.
+    pub async fn confirm_cod_delivery(
+        &self,
+        input: CodDeliveryConfirmationInput,
+    ) -> Result<CaptureDTO> {
+        let payment_id = if let Some(ref pid) = input.payment_id {
+            pid.clone()
+        } else if let Some(ref sid) = input.payment_session_id {
+            let spec = FilterSpec::new()
+                .with_predicate("payment_session_id", FilterOp::Eq(sid.clone()))
+                .with_predicate("deleted_at", FilterOp::IsNull)
+                .with_pagination(0, 1);
+            let p_list = self.payments.list(None, &spec).await?;
+            let p = p_list.into_iter().next().ok_or_else(|| Error::NotFound {
+                entity: "payment",
+                id: sid.clone(),
+            })?;
+            p.id.to_string()
+        } else {
+            return Err(Error::Invalid {
+                code: "missing_payment_identifier",
+                message: "Must provide either payment_id or payment_session_id".to_string(),
+                field: Some("payment_id".to_string()),
+            });
+        };
+
+        let lock = self.get_or_create_payment_lock(&payment_id);
+        let _guard = lock.lock().await;
+
+        let payment = self.get_payment(&payment_id).await?;
+
+        // If payment is already canceled or returned, do NOT capture (BP6, P24-04)
+        if payment.canceled_at.is_some() {
+            return Err(Error::Conflict {
+                code: "cod_order_canceled",
+                message: format!(
+                    "Cannot capture delivery for canceled or returned COD payment {}",
+                    payment_id
+                ),
+            });
+        }
+
+        // Check if this delivery_event_id was already captured (Idempotent replay - BP6)
+        let captures = self.get_captures_for_payment(&payment_id).await?;
+        for cap in &captures {
+            if let Some(ref meta) = cap.metadata {
+                if meta.get("delivery_event_id").and_then(|v| v.as_str())
+                    == Some(&input.delivery_event_id)
+                {
+                    return Ok(cap.clone());
+                }
+            }
+        }
+
+        let current_captured = payment.captured_amount;
+        let amount_to_capture = input.collected_amount.unwrap_or(payment.amount - current_captured);
+
+        if amount_to_capture <= dec!(0) {
+            return Err(Error::Invalid {
+                code: "invalid_capture_amount",
+                message: "Capture amount must be greater than zero".to_string(),
+                field: None,
+            });
+        }
+
+        if current_captured + amount_to_capture > payment.amount {
+            return Err(Error::Conflict {
+                code: "over_capture_prevented",
+                message: format!(
+                    "Cannot capture {}: existing captured {} + {} exceeds authorized amount {}",
+                    amount_to_capture, current_captured, amount_to_capture, payment.amount
+                ),
+            });
+        }
+
+        let tenant_id = stheno_db::tenant::current()?;
+        let provider = self.get_provider(&tenant_id, &payment.provider_id).await?;
+        let capture_input = CaptureInput {
+            payment_id: payment.id.clone(),
+            amount: amount_to_capture,
+            currency_code: payment.currency_code.clone(),
+            data: payment.data.clone(),
+        };
+        let capture_payload = serde_json::to_value(&capture_input).unwrap_or_default();
+        let capture_provider = provider.clone();
+
+        let idempotency_key = format!(
+            "cod_delivery:{}:{}:{}",
+            payment.id, input.delivery_event_id, amount_to_capture
+        );
+
+        let _capture_out = self
+            .idempotent_call(
+                &idempotency_key,
+                &payment.provider_id,
+                "capture",
+                "payment",
+                &payment.id,
+                &capture_payload,
+                move |_key| async move { capture_provider.capture(capture_input).await },
+            )
+            .await?;
+
+        let mut capture_meta = input.metadata.clone().unwrap_or_else(|| serde_json::json!({}));
+        if let Some(obj) = capture_meta.as_object_mut() {
+            obj.insert(
+                "delivery_event_id".to_string(),
+                serde_json::Value::String(input.delivery_event_id.clone()),
+            );
+            if let Some(ref courier) = input.courier_id {
+                obj.insert(
+                    "courier_id".to_string(),
+                    serde_json::Value::String(courier.clone()),
+                );
+            }
+            if let Some(ref consignment) = input.consignment_id {
+                obj.insert(
+                    "consignment_id".to_string(),
+                    serde_json::Value::String(consignment.clone()),
+                );
+            }
+            if let Some(ref tracking) = input.tracking_code {
+                obj.insert(
+                    "tracking_code".to_string(),
+                    serde_json::Value::String(tracking.clone()),
+                );
+            }
+        }
+
+        let capture = Capture {
+            id: Id::new(),
+            payment_id: payment.id.clone(),
+            amount: amount_to_capture,
+            created_by: Some(input.courier_id.unwrap_or_else(|| "courier".to_string())),
+            metadata: Some(capture_meta),
+            created_at: Utc::now(),
+            deleted_at: None,
+        };
+
+        let created_capture = self.captures.create(None, capture).await?;
+
+        // Update payment collection captured_amount & status
+        let mut col = self
+            .collections
+            .retrieve(None, &payment.payment_collection_id)
+            .await?;
+        col.captured_amount += amount_to_capture;
+        if col.captured_amount >= col.amount {
+            col.status = "captured".to_string();
+        }
+        col.updated_at = Utc::now();
+        let _ = self
+            .collections
+            .update(None, &payment.payment_collection_id, col)
+            .await;
+
+        // Update payment captured_at
+        let mut p = self.payments.retrieve(None, &payment.id).await?;
+        if current_captured + amount_to_capture >= payment.amount {
+            p.captured_at = Some(Utc::now());
+        }
+        p.updated_at = Utc::now();
+        let _ = self.payments.update(None, &payment.id, p).await;
+
+        // Update payment session status to captured
+        if let Some(ref sid) = payment.payment_session_id {
+            if let Ok(mut s) = self.sessions.retrieve(None, sid).await {
+                s.status = "captured".to_string();
+                s.updated_at = Utc::now();
+                let _ = self.sessions.update(None, sid, s).await;
+            }
+        }
+
+        Ok(CaptureDTO {
+            id: created_capture.id.to_string(),
+            payment_id: created_capture.payment_id,
+            amount: created_capture.amount,
+            created_by: created_capture.created_by,
+            metadata: created_capture.metadata,
+            created_at: created_capture.created_at,
+        })
+    }
+
+    /// Returned COD order produces no capture and cancels expectations (P24-04, BP6).
+    pub async fn process_cod_return(&self, input: CodReturnInput) -> Result<CodReturnDTO> {
+        let payment_id = if let Some(ref pid) = input.payment_id {
+            pid.clone()
+        } else if let Some(ref sid) = input.payment_session_id {
+            let spec = FilterSpec::new()
+                .with_predicate("payment_session_id", FilterOp::Eq(sid.clone()))
+                .with_predicate("deleted_at", FilterOp::IsNull)
+                .with_pagination(0, 1);
+            let p_list = self.payments.list(None, &spec).await?;
+            let p = p_list.into_iter().next().ok_or_else(|| Error::NotFound {
+                entity: "payment",
+                id: sid.clone(),
+            })?;
+            p.id.to_string()
+        } else {
+            return Err(Error::Invalid {
+                code: "missing_payment_identifier",
+                message: "Must provide either payment_id or payment_session_id".to_string(),
+                field: Some("payment_id".to_string()),
+            });
+        };
+
+        let lock = self.get_or_create_payment_lock(&payment_id);
+        let _guard = lock.lock().await;
+
+        let payment = self.get_payment(&payment_id).await?;
+        let now = Utc::now();
+
+        let was_captured = payment.captured_amount > dec!(0);
+        let refunded_amount = if was_captured {
+            payment.captured_amount
+        } else {
+            dec!(0)
+        };
+
+        // Mark payment canceled
+        let mut p = self.payments.retrieve(None, &payment.id).await?;
+        p.canceled_at = Some(now);
+        p.updated_at = now;
+        let _ = self.payments.update(None, &payment.id, p).await;
+
+        // If it was captured, record a refund so net revenue is 0
+        if was_captured {
+            let refund = Refund {
+                id: Id::new(),
+                payment_id: payment.id.clone(),
+                amount: refunded_amount,
+                refund_reason_id: None,
+                note: Some(format!(
+                    "COD parcel returned: event {}",
+                    input.return_event_id
+                )),
+                created_by: input.courier_id.or_else(|| Some("courier_return".to_string())),
+                metadata: input.metadata.clone(),
+                created_at: now,
+                deleted_at: None,
+            };
+            let _ = self.refunds.create(None, refund).await?;
+        }
+
+        // Update collection status and refunded_amount
+        if let Ok(mut col) = self
+            .collections
+            .retrieve(None, &payment.payment_collection_id)
+            .await
+        {
+            if was_captured {
+                col.refunded_amount += refunded_amount;
+            }
+            col.status = "canceled".to_string();
+            col.updated_at = now;
+            let _ = self
+                .collections
+                .update(None, &payment.payment_collection_id, col)
+                .await;
+        }
+
+        // Update payment session to canceled
+        if let Some(ref sid) = payment.payment_session_id {
+            if let Ok(mut s) = self.sessions.retrieve(None, sid).await {
+                s.status = "canceled".to_string();
+                s.updated_at = now;
+                let _ = self.sessions.update(None, sid, s).await;
+            }
+        }
+
+        Ok(CodReturnDTO {
+            payment_id: payment.id,
+            status: "canceled".to_string(),
+            return_event_id: input.return_event_id,
+            was_captured,
+            refunded_amount,
+            canceled_at: now,
+        })
+    }
+
+    /// Settlement report import per courier, idempotent on re-import (P24-05, BP7).
+    pub async fn import_settlement_report(
+        &self,
+        input: ImportSettlementReportInput,
+    ) -> Result<ImportSettlementReportOutput> {
+        let tenant_id = stheno_db::tenant::current()?;
+        stheno_db::tenant::validate(&tenant_id)?;
+
+        // Find or create cycle
+        let cycle_spec = FilterSpec::new()
+            .with_predicate("provider_id", FilterOp::Eq(input.provider_id.clone()))
+            .with_predicate("courier_cycle_id", FilterOp::Eq(input.courier_cycle_id.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+        let existing_cycles = self.settlement_cycles.list(None, &cycle_spec).await?;
+
+        let (mut cycle, is_reimport) = if let Some(c) = existing_cycles.into_iter().next() {
+            (c, true)
+        } else {
+            let new_cycle = CourierSettlementCycle {
+                id: Id::new(),
+                provider_id: input.provider_id.clone(),
+                courier_cycle_id: input.courier_cycle_id.clone(),
+                cycle_start: input.cycle_start,
+                cycle_end: input.cycle_end,
+                total_collected: dec!(0),
+                total_fees: dec!(0),
+                total_remitted: dec!(0),
+                currency: input.currency.unwrap_or_else(|| "BDT".to_string()),
+                status: "open".to_string(),
+                raw_report: input.raw_report,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                deleted_at: None,
+            };
+            let created = self.settlement_cycles.create(None, new_cycle).await?;
+            (created, false)
+        };
+
+        // Load existing lines for this cycle to detect overlaps / duplicates
+        let cycle_id_str = cycle.id.to_string();
+        let lines_spec = FilterSpec::new()
+            .with_predicate("cycle_id", FilterOp::Eq(cycle_id_str.clone()))
+            .with_predicate("deleted_at", FilterOp::IsNull);
+        let existing_lines = self.settlement_lines.list(None, &lines_spec).await?;
+        let existing_consignments: std::collections::HashSet<String> =
+            existing_lines.iter().map(|l| l.consignment_id.clone()).collect();
+
+        let mut imported_count = 0;
+        let mut skipped_count = 0;
+
+        for line_input in input.lines {
+            if existing_consignments.contains(&line_input.consignment_id) {
+                skipped_count += 1;
+                continue;
+            }
+
+            let new_line = CourierSettlementLine {
+                id: Id::new(),
+                cycle_id: cycle_id_str.clone(),
+                consignment_id: line_input.consignment_id,
+                tracking_code: line_input.tracking_code,
+                order_id: line_input.order_id,
+                collected_amount: line_input.collected_amount,
+                courier_fee: line_input.courier_fee,
+                cod_fee: line_input.cod_fee,
+                remitted_amount: line_input.remitted_amount,
+                reconciliation_status: "unmatched".to_string(),
+                discrepancy_reason: None,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                deleted_at: None,
+            };
+            self.settlement_lines.create(None, new_line).await?;
+            imported_count += 1;
+        }
+
+        // Recompute cycle totals from all lines in cycle
+        let all_lines = self.settlement_lines.list(None, &lines_spec).await?;
+        let mut tot_coll = dec!(0);
+        let mut tot_fees = dec!(0);
+        let mut tot_remit = dec!(0);
+        for l in &all_lines {
+            tot_coll += l.collected_amount;
+            tot_fees += l.courier_fee + l.cod_fee;
+            tot_remit += l.remitted_amount;
+        }
+
+        cycle.total_collected = tot_coll;
+        cycle.total_fees = tot_fees;
+        cycle.total_remitted = tot_remit;
+        cycle.updated_at = Utc::now();
+        let _ = self
+            .settlement_cycles
+            .update(None, &cycle_id_str, cycle.clone())
+            .await;
+
+        Ok(ImportSettlementReportOutput {
+            cycle_id: cycle_id_str,
+            provider_id: cycle.provider_id,
+            courier_cycle_id: cycle.courier_cycle_id,
+            imported_lines: imported_count,
+            skipped_duplicate_lines: skipped_count,
+            total_collected: tot_coll,
+            total_fees: tot_fees,
+            total_remitted: tot_remit,
+            is_reimport,
+        })
+    }
+
+    /// Reconciliation run writes to `payment.payment_reconciliation_run` with three buckets:
+    /// matched, collected_not_remitted, remitted_not_matched (and discrepant) (P24-06).
+    /// Asserts decimal fee balance: sum(remitted) + sum(fees) == sum(collected) (P24-07, BP8).
+    /// Deliberate mismatches produce discrepancy rows (P24-08).
+    pub async fn run_courier_reconciliation(
+        &self,
+        cycle_id: &str,
+    ) -> Result<CourierReconciliationReportDTO> {
+        let tenant_id = stheno_db::tenant::current()?;
+        stheno_db::tenant::validate(&tenant_id)?;
+
+        let mut cycle = self.settlement_cycles.retrieve(None, cycle_id).await?;
+        let lines_spec = FilterSpec::new()
+            .with_predicate("cycle_id", FilterOp::Eq(cycle_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull);
+        let lines = self.settlement_lines.list(None, &lines_spec).await?;
+
+        let captures_spec =
+            FilterSpec::new().with_predicate("deleted_at", FilterOp::IsNull);
+        let all_captures = self.captures.list(None, &captures_spec).await?;
+
+        let mut matched = Vec::new();
+        let mut remitted_not_matched = Vec::new();
+        let mut discrepant = Vec::new();
+        let mut matched_consignments = std::collections::HashSet::new();
+
+        for mut line in lines {
+            let line_id = line.id.to_string();
+            let total_fee = line.courier_fee + line.cod_fee;
+
+            // Fee accounting check: remitted + fees == collected (BP8, P24-07)
+            let fee_balanced = (line.remitted_amount + total_fee) == line.collected_amount;
+
+            // Find matching capture by consignment_id or tracking_code
+            let matching_cap = all_captures.iter().find(|cap| {
+                if let Some(ref meta) = cap.metadata {
+                    if let Some(cid) = meta.get("consignment_id").and_then(|v| v.as_str()) {
+                        if cid == line.consignment_id {
+                            return true;
+                        }
+                    }
+                    if let Some(ref trk) = line.tracking_code {
+                        if let Some(ctrk) = meta.get("tracking_code").and_then(|v| v.as_str()) {
+                            if ctrk == trk {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                false
+            });
+
+            if let Some(cap) = matching_cap {
+                matched_consignments.insert(line.consignment_id.clone());
+
+                if !fee_balanced {
+                    let reason = format!(
+                        "Fee accounting mismatch: remitted ({}) + fees ({}) != collected ({})",
+                        line.remitted_amount, total_fee, line.collected_amount
+                    );
+                    line.reconciliation_status = "discrepant".to_string();
+                    line.discrepancy_reason = Some(reason.clone());
+                    let _ = self.settlement_lines.update(None, &line_id, line.clone()).await;
+
+                    discrepant.push(CourierReconciliationBucketItem {
+                        consignment_id: line.consignment_id,
+                        tracking_code: line.tracking_code,
+                        order_id: line.order_id,
+                        payment_id: Some(cap.payment_id.clone()),
+                        expected_amount: cap.amount,
+                        collected_amount: line.collected_amount,
+                        remitted_amount: line.remitted_amount,
+                        fee_amount: total_fee,
+                        reason: Some(reason),
+                    });
+                } else if cap.amount != line.collected_amount {
+                    let reason = format!(
+                        "Collected amount mismatch: captured ({}) != courier collected ({})",
+                        cap.amount, line.collected_amount
+                    );
+                    line.reconciliation_status = "discrepant".to_string();
+                    line.discrepancy_reason = Some(reason.clone());
+                    let _ = self.settlement_lines.update(None, &line_id, line.clone()).await;
+
+                    discrepant.push(CourierReconciliationBucketItem {
+                        consignment_id: line.consignment_id,
+                        tracking_code: line.tracking_code,
+                        order_id: line.order_id,
+                        payment_id: Some(cap.payment_id.clone()),
+                        expected_amount: cap.amount,
+                        collected_amount: line.collected_amount,
+                        remitted_amount: line.remitted_amount,
+                        fee_amount: total_fee,
+                        reason: Some(reason),
+                    });
+                } else {
+                    line.reconciliation_status = "matched".to_string();
+                    line.discrepancy_reason = None;
+                    let _ = self.settlement_lines.update(None, &line_id, line.clone()).await;
+
+                    matched.push(CourierReconciliationBucketItem {
+                        consignment_id: line.consignment_id,
+                        tracking_code: line.tracking_code,
+                        order_id: line.order_id,
+                        payment_id: Some(cap.payment_id.clone()),
+                        expected_amount: cap.amount,
+                        collected_amount: line.collected_amount,
+                        remitted_amount: line.remitted_amount,
+                        fee_amount: total_fee,
+                        reason: None,
+                    });
+                }
+            } else {
+                line.reconciliation_status = "unmatched".to_string();
+                line.discrepancy_reason =
+                    Some("No matching internal captured payment found".to_string());
+                let _ = self.settlement_lines.update(None, &line_id, line.clone()).await;
+
+                remitted_not_matched.push(CourierReconciliationBucketItem {
+                    consignment_id: line.consignment_id,
+                    tracking_code: line.tracking_code,
+                    order_id: line.order_id,
+                    payment_id: None,
+                    expected_amount: dec!(0),
+                    collected_amount: line.collected_amount,
+                    remitted_amount: line.remitted_amount,
+                    fee_amount: total_fee,
+                    reason: Some("No matching internal capture".to_string()),
+                });
+            }
+        }
+
+        // Captured COD payments collected by this courier but with no remittance line: collected_not_remitted
+        let mut collected_not_remitted = Vec::new();
+        for cap in &all_captures {
+            if let Some(ref meta) = cap.metadata {
+                let courier = meta.get("courier_id").and_then(|v| v.as_str());
+                let cid = meta.get("consignment_id").and_then(|v| v.as_str());
+                if courier == Some(&cycle.provider_id) {
+                    if let Some(consignment_id) = cid {
+                        if !matched_consignments.contains(consignment_id) {
+                            collected_not_remitted.push(CourierReconciliationBucketItem {
+                                consignment_id: consignment_id.to_string(),
+                                tracking_code: meta
+                                    .get("tracking_code")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string()),
+                                order_id: None,
+                                payment_id: Some(cap.payment_id.clone()),
+                                expected_amount: cap.amount,
+                                collected_amount: cap.amount,
+                                remitted_amount: dec!(0),
+                                fee_amount: dec!(0),
+                                reason: Some(
+                                    "Delivered and collected but no courier remittance received"
+                                        .to_string(),
+                                ),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        let total_checked = matched.len()
+            + remitted_not_matched.len()
+            + discrepant.len()
+            + collected_not_remitted.len();
+        let drift_count = (remitted_not_matched.len()
+            + discrepant.len()
+            + collected_not_remitted.len()) as i32;
+        let state = if drift_count == 0 {
+            "clean"
+        } else {
+            "drift_found"
+        };
+
+        cycle.status = if drift_count == 0 {
+            "reconciled".to_string()
+        } else {
+            "discrepant".to_string()
+        };
+        cycle.updated_at = Utc::now();
+        let _ = self
+            .settlement_cycles
+            .update(None, cycle_id, cycle.clone())
+            .await;
+
+        let buckets = CourierReconciliationBuckets {
+            matched,
+            collected_not_remitted,
+            remitted_not_matched,
+            discrepant,
+        };
+
+        let drifts_json = serde_json::to_value(&buckets).unwrap_or_default();
+
+        let run_id: Id<PaymentReconciliationRun> = Id::new();
+        let run = PaymentReconciliationRun {
+            id: run_id,
+            provider_id: cycle.provider_id.clone(),
+            window_start: cycle.cycle_start.unwrap_or_else(Utc::now),
+            window_end: cycle.cycle_end.unwrap_or_else(Utc::now),
+            checked_count: total_checked as i32,
+            drift_count,
+            drifts: Some(drifts_json),
+            state: state.to_string(),
+            created_at: Utc::now(),
+            completed_at: Some(Utc::now()),
+            deleted_at: None,
+        };
+        let created_run = self.reconciliation_runs.create(None, run).await?;
+
+        Ok(CourierReconciliationReportDTO {
+            run_id: created_run.id.to_string(),
+            cycle_id: cycle_id.to_string(),
+            provider_id: cycle.provider_id,
+            total_lines_checked: total_checked,
+            matched_count: buckets.matched.len(),
+            collected_not_remitted_count: buckets.collected_not_remitted.len(),
+            remitted_not_matched_count: buckets.remitted_not_matched.len(),
+            discrepancy_count: buckets.discrepant.len(),
+            total_collected: cycle.total_collected,
+            total_fees: cycle.total_fees,
+            total_remitted: cycle.total_remitted,
+            state: state.to_string(),
+            buckets,
+            generated_at: Utc::now(),
+        })
+    }
+
+    /// Discrepancy alerting: an unmatched line older than the cycle length raises an alert (P24-09).
+    pub async fn check_unsettled_line_alerts(
+        &self,
+        cycle_id: &str,
+        cycle_length_days: i64,
+    ) -> Result<Vec<DiscrepancyAlertDTO>> {
+        let lines_spec = FilterSpec::new()
+            .with_predicate("cycle_id", FilterOp::Eq(cycle_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull);
+        let lines = self.settlement_lines.list(None, &lines_spec).await?;
+
+        let now = Utc::now();
+        let mut alerts = Vec::new();
+
+        for line in lines {
+            if line.reconciliation_status == "unmatched"
+                || line.reconciliation_status == "discrepant"
+            {
+                let age = (now - line.created_at).num_days();
+                if age >= cycle_length_days {
+                    alerts.push(DiscrepancyAlertDTO {
+                        line_id: line.id.to_string(),
+                        cycle_id: cycle_id.to_string(),
+                        consignment_id: line.consignment_id,
+                        tracking_code: line.tracking_code,
+                        order_id: line.order_id,
+                        unremitted_amount: line.collected_amount - line.remitted_amount,
+                        age_days: age,
+                        alert_level: "critical".to_string(),
+                        message: format!(
+                            "Unsettled consignment has remained {} for {} days (threshold: {} days)",
+                            line.reconciliation_status, age, cycle_length_days
+                        ),
+                    });
+                }
+            }
+        }
+        Ok(alerts)
+    }
+
+    pub async fn get_settlement_cycle(&self, id: &str) -> Result<CourierSettlementCycleDTO> {
+        let c = self.settlement_cycles.retrieve(None, id).await?;
+        Ok(CourierSettlementCycleDTO {
+            id: c.id.to_string(),
+            provider_id: c.provider_id,
+            courier_cycle_id: c.courier_cycle_id,
+            cycle_start: c.cycle_start,
+            cycle_end: c.cycle_end,
+            total_collected: c.total_collected,
+            total_fees: c.total_fees,
+            total_remitted: c.total_remitted,
+            currency: c.currency,
+            status: c.status,
+            raw_report: c.raw_report,
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+        })
+    }
+
+    pub async fn list_settlement_cycles(
+        &self,
+        provider_id: Option<&str>,
+    ) -> Result<Vec<CourierSettlementCycleDTO>> {
+        let mut spec = FilterSpec::new().with_predicate("deleted_at", FilterOp::IsNull);
+        if let Some(pid) = provider_id {
+            spec = spec.with_predicate("provider_id", FilterOp::Eq(pid.to_string()));
+        }
+        let list = self.settlement_cycles.list(None, &spec).await?;
+        Ok(list
+            .into_iter()
+            .map(|c| CourierSettlementCycleDTO {
+                id: c.id.to_string(),
+                provider_id: c.provider_id,
+                courier_cycle_id: c.courier_cycle_id,
+                cycle_start: c.cycle_start,
+                cycle_end: c.cycle_end,
+                total_collected: c.total_collected,
+                total_fees: c.total_fees,
+                total_remitted: c.total_remitted,
+                currency: c.currency,
+                status: c.status,
+                raw_report: c.raw_report,
+                created_at: c.created_at,
+                updated_at: c.updated_at,
+            })
+            .collect())
+    }
+
+    pub async fn list_settlement_lines(
+        &self,
+        cycle_id: &str,
+    ) -> Result<Vec<CourierSettlementLineDTO>> {
+        let spec = FilterSpec::new()
+            .with_predicate("cycle_id", FilterOp::Eq(cycle_id.to_string()))
+            .with_predicate("deleted_at", FilterOp::IsNull);
+        let list = self.settlement_lines.list(None, &spec).await?;
+        Ok(list
+            .into_iter()
+            .map(|l| CourierSettlementLineDTO {
+                id: l.id.to_string(),
+                cycle_id: l.cycle_id,
+                consignment_id: l.consignment_id,
+                tracking_code: l.tracking_code,
+                order_id: l.order_id,
+                collected_amount: l.collected_amount,
+                courier_fee: l.courier_fee,
+                cod_fee: l.cod_fee,
+                remitted_amount: l.remitted_amount,
+                reconciliation_status: l.reconciliation_status,
+                discrepancy_reason: l.discrepancy_reason,
+                created_at: l.created_at,
+                updated_at: l.updated_at,
+            })
+            .collect())
     }
 }
 

@@ -1,5 +1,7 @@
 //! `stheno-api-store`: Medusa v2 wire-compatible Store API routes.
 
+pub mod branding;
+pub mod cache;
 pub mod carts;
 pub mod categories;
 pub mod collections;
@@ -65,6 +67,7 @@ pub struct StoreApiContext {
     pub fulfillment_service: Arc<FulfillmentService>,
     pub auth_service: Arc<AuthService>,
     pub translation_service: Arc<TranslationService>,
+    pub cache_service: Option<Arc<stheno_caching::CacheService>>,
 }
 
 /// Mounts all store catalog API routes (products & categories).
@@ -110,6 +113,13 @@ pub fn store_region_routes(region_service: Arc<RegionService>) -> Router {
         .route("/store/regions", get(regions::list_regions))
         .route("/store/regions/{id}", get(regions::get_region))
         .with_state(region_service)
+}
+
+/// Mounts the store branding route (P26-03).
+pub fn store_branding_routes(store_service: Arc<stheno_store::StoreService>) -> Router {
+    Router::new()
+        .route("/store/branding", get(branding::get_branding))
+        .with_state(branding::BrandingContext { store_service })
 }
 
 /// Mounts store currency API routes.
@@ -291,7 +301,7 @@ pub fn store_routes(ctx: StoreApiContext) -> Router {
             crate::social::SocialContext {
                 social_flows: ctx.social_flows,
                 store_name: ctx.store_name,
-                store_service: ctx.store_service,
+                store_service: ctx.store_service.clone(),
             },
         ))
         .merge(store_catalog_routes(products::CatalogContext {
@@ -299,6 +309,7 @@ pub fn store_routes(ctx: StoreApiContext) -> Router {
             pricing_service: ctx.pricing_service.clone(),
             region_service: ctx.region_service.clone(),
             inventory_service: ctx.inventory_service.clone(),
+            cache_service: ctx.cache_service.clone(),
         }))
         .merge(store_region_routes(ctx.region_service.clone()))
         .merge(store_currency_routes(ctx.currency_service))
@@ -332,6 +343,7 @@ pub fn store_routes(ctx: StoreApiContext) -> Router {
         // `store_customer_routes` mounts through a GatedGroup in stheno-server, the
         // same way admin reporting does. Merging it here would make it ungateable.
         .merge(store_locale_routes(ctx.translation_service))
+        .merge(store_branding_routes(ctx.store_service.clone()))
 }
 
 /// Mounts Store API routes for Phase P3 (catalog, regions, currencies).
@@ -342,6 +354,7 @@ pub fn store_pricing_routes(ctx: StoreApiContext) -> Router {
             pricing_service: ctx.pricing_service.clone(),
             region_service: ctx.region_service.clone(),
             inventory_service: ctx.inventory_service.clone(),
+            cache_service: ctx.cache_service.clone(),
         }))
         .merge(store_region_routes(ctx.region_service))
         .merge(store_currency_routes(ctx.currency_service))

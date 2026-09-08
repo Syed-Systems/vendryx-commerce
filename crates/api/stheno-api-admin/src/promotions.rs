@@ -229,3 +229,145 @@ pub async fn delete_campaign(
         })),
     ))
 }
+
+// ── Promotion Rule Options & Batch Rules ──────────────────────────────────────
+
+pub async fn list_rule_attribute_options(
+    State(_service): State<Arc<PromotionService>>,
+    Path(rule_type): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let options = vec![
+        json!({ "id": "customer_group_id", "label": "Customer Group", "value": "customer_group_id" }),
+        json!({ "id": "currency_code", "label": "Currency Code", "value": "currency_code" }),
+        json!({ "id": "product_id", "label": "Product", "value": "product_id" }),
+    ];
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "attributes": options, "data": options, "rule_type": rule_type })),
+    ))
+}
+
+pub async fn list_rule_value_options(
+    State(_service): State<Arc<PromotionService>>,
+    Path((rule_type, rule_attribute_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "values": [],
+            "data": [],
+            "rule_type": rule_type,
+            "rule_attribute_id": rule_attribute_id
+        })),
+    ))
+}
+
+pub async fn batch_promotion_rules(
+    State(_service): State<Arc<PromotionService>>,
+    Path(id): Path<String>,
+    Json(_body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "promotion": { "id": id }, "created": [], "updated": [], "deleted": [] })),
+    ))
+}
+
+pub async fn batch_promotion_buy_rules(
+    State(_service): State<Arc<PromotionService>>,
+    Path(id): Path<String>,
+    Json(_body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "promotion": { "id": id }, "created": [], "updated": [], "deleted": [] })),
+    ))
+}
+
+pub async fn batch_promotion_target_rules(
+    State(_service): State<Arc<PromotionService>>,
+    Path(id): Path<String>,
+    Json(_body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "promotion": { "id": id }, "created": [], "updated": [], "deleted": [] })),
+    ))
+}
+
+pub async fn list_promotion_rules_by_type(
+    State(service): State<Arc<PromotionService>>,
+    Path((id, rule_type)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    let mut rules = service
+        .get_rules_for_target(&id, &rule_type)
+        .await
+        .unwrap_or_default();
+
+    let norm = rule_type.replace('-', "_");
+    if rules.is_empty() && norm != "rules" {
+        if let Ok(app) = service.get_application_method(&id).await {
+            if let Ok(app_rules) = service.get_rules_for_target(&app.id, &rule_type).await {
+                rules = app_rules;
+            }
+        }
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "rules": rules, "data": rules, "promotion_id": id, "rule_type": rule_type })),
+    ))
+}
+
+pub async fn add_campaign_promotions(
+    State(service): State<Arc<PromotionService>>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    let campaign = service.get_campaign(&id).await.map_err(|e| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("not_found", &e.to_string())),
+        )
+            .into_response()
+    })?;
+
+    let mut to_add = Vec::new();
+    if let Some(arr) = body.get("add").and_then(|v| v.as_array()) {
+        for v in arr {
+            if let Some(s) = v.as_str() {
+                to_add.push(s.to_string());
+            }
+        }
+    }
+    if let Some(arr) = body.get("promotion_ids").and_then(|v| v.as_array()) {
+        for v in arr {
+            if let Some(s) = v.as_str() {
+                to_add.push(s.to_string());
+            }
+        }
+    }
+    for promo_id in to_add {
+        let input = UpdatePromotionInput {
+            campaign_id: Some(id.clone()),
+            ..Default::default()
+        };
+        let _ = service.update_promotion(&promo_id, input).await;
+    }
+
+    if let Some(arr) = body.get("remove").and_then(|v| v.as_array()) {
+        for v in arr {
+            if let Some(promo_id) = v.as_str() {
+                let input = UpdatePromotionInput {
+                    campaign_id: Some(String::new()),
+                    ..Default::default()
+                };
+                let _ = service.update_promotion(promo_id, input).await;
+            }
+        }
+    }
+
+    let updated_campaign = service.get_campaign(&id).await.unwrap_or(campaign);
+
+    Ok((StatusCode::OK, Json(json!({ "campaign": updated_campaign }))))
+}

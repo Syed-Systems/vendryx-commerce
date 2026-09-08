@@ -24,6 +24,26 @@ pub struct CatalogContext {
     pub pricing_service: Arc<PricingService>,
     pub region_service: Arc<RegionService>,
     pub inventory_service: Arc<stheno_inventory::InventoryService>,
+    pub cache_service: Option<Arc<stheno_caching::CacheService>>,
+}
+
+impl CatalogContext {
+    pub fn new(
+        product_service: Arc<ProductService>,
+        pricing_service: Arc<PricingService>,
+        region_service: Arc<RegionService>,
+        inventory_service: Arc<stheno_inventory::InventoryService>,
+    ) -> Self {
+        Self {
+            product_service,
+            pricing_service,
+            region_service,
+            inventory_service,
+            cache_service: Some(Arc::new(stheno_caching::CacheService::new(Arc::new(
+                stheno_caching::InMemoryCacheProvider::new(),
+            )))),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -44,7 +64,7 @@ pub struct GetProductQuery {
     pub currency_code: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ListProductsResponse {
     pub products: Vec<StoreProduct>,
     pub count: usize,
@@ -52,7 +72,7 @@ pub struct ListProductsResponse {
     pub limit: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GetProductResponse {
     pub product: StoreProduct,
 }
@@ -151,12 +171,34 @@ pub async fn list_products(
     State(ctx): State<CatalogContext>,
     RawQuery(raw_query): RawQuery,
     Query(query): Query<ListProductsQuery>,
-) -> Result<Json<ListProductsResponse>, Response> {
+) -> Result<(axum::http::HeaderMap, Json<ListProductsResponse>), Response> {
     // Both spellings, so `?id=x` and `?id[]=x` behave the same.
     let mut ids = multi_param(raw_query.as_deref(), "id");
     ids.extend(query.id.clone());
     let mut handles = multi_param(raw_query.as_deref(), "handle");
     handles.extend(query.handle.clone());
+
+    let offset = query.offset.unwrap_or(0);
+    let limit = query.limit.unwrap_or(20);
+    let currency = resolve_currency(&ctx, query.region_id.as_ref(), query.currency_code).await;
+
+    let cache_key = format!(
+        "catalog:products:list:{}:{}:{}:{}:{}:{}",
+        offset,
+        limit,
+        currency,
+        query.region_id.as_deref().unwrap_or(""),
+        ids.join(","),
+        handles.join(",")
+    );
+
+    let headers = crate::cache::public_cache_headers(&["products", "catalog"]);
+
+    if let Some(ref cache) = ctx.cache_service {
+        if let Ok(Some(cached)) = cache.get_json::<ListProductsResponse>(&cache_key).await {
+            return Ok((headers, Json(cached)));
+        }
+    }
 
     let all = ctx
         .product_service
@@ -184,15 +226,12 @@ pub async fn list_products(
         .collect();
 
     let count = filtered.len();
-    let offset = query.offset.unwrap_or(0);
-    let limit = query.limit.unwrap_or(20);
 
     // Expansion runs on the page, never the whole catalog: it costs a price evaluation
     // per variant, and paying that for rows nobody asked for is how a catalog endpoint
     // becomes the slowest thing in the product.
     let page: Vec<ProductDTO> = filtered.into_iter().skip(offset).take(limit).collect();
 
-    let currency = resolve_currency(&ctx, query.region_id.as_ref(), query.currency_code).await;
     let products = expand_products(
         page,
         &ctx.product_service,
@@ -204,19 +243,40 @@ pub async fn list_products(
     .await
     .map_err(internal)?;
 
-    Ok(Json(ListProductsResponse {
+    let response = ListProductsResponse {
         products,
         count,
         offset,
         limit,
-    }))
+    };
+
+    if let Some(ref cache) = ctx.cache_service {
+        let _ = cache.set_json(&cache_key, &response, Some(300)).await;
+    }
+
+    Ok((headers, Json(response)))
 }
 
 pub async fn get_product(
     State(ctx): State<CatalogContext>,
     Path(id): Path<String>,
     Query(query): Query<GetProductQuery>,
-) -> Result<Json<GetProductResponse>, Response> {
+) -> Result<(axum::http::HeaderMap, Json<GetProductResponse>), Response> {
+    let currency = resolve_currency(&ctx, query.region_id.as_ref(), query.currency_code).await;
+    let cache_key = format!(
+        "catalog:products:get:{}:{}:{}",
+        id,
+        currency,
+        query.region_id.as_deref().unwrap_or("")
+    );
+    let headers = crate::cache::public_cache_headers(&["products", &format!("product-{}", id)]);
+
+    if let Some(ref cache) = ctx.cache_service {
+        if let Ok(Some(cached)) = cache.get_json::<GetProductResponse>(&cache_key).await {
+            return Ok((headers, Json(cached)));
+        }
+    }
+
     let product = ctx
         .product_service
         .get_product(&id)
@@ -227,7 +287,6 @@ pub async fn get_product(
         return Err(product_not_found(&id));
     }
 
-    let currency = resolve_currency(&ctx, query.region_id.as_ref(), query.currency_code).await;
     let mut expanded = expand_products(
         vec![product],
         &ctx.product_service,
@@ -239,9 +298,15 @@ pub async fn get_product(
     .await
     .map_err(internal)?;
 
-    Ok(Json(GetProductResponse {
+    let response = GetProductResponse {
         product: expanded.remove(0),
-    }))
+    };
+
+    if let Some(ref cache) = ctx.cache_service {
+        let _ = cache.set_json(&cache_key, &response, Some(300)).await;
+    }
+
+    Ok((headers, Json(response)))
 }
 
 #[derive(Debug, Deserialize, Default)]

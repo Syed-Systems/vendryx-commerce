@@ -8,10 +8,11 @@ use crate::dto::{
     CalculatePriceContext, CreateFulfillmentItemInput, CreateFulfillmentResponse,
     FulfillmentOptionDTO,
 };
+use crate::status::CourierStatus;
 
 #[async_trait]
 pub trait FulfillmentProvider: Send + Sync {
-    /// Unique provider identifier (e.g., "manual", "shipstation", "easypost").
+    /// Unique provider identifier (e.g., "manual", "shipstation", "easypost", "pathao").
     fn identifier(&self) -> &'static str;
 
     /// Returns list of supported fulfillment options.
@@ -44,4 +45,17 @@ pub trait FulfillmentProvider: Send + Sync {
         &self,
         data: Option<&serde_json::Value>,
     ) -> Result<CreateFulfillmentResponse>;
+
+    /// Map a courier webhook payload to a consignment reference and CourierStatus (P23-05).
+    fn map_webhook_event(
+        &self,
+        _payload: &serde_json::Value,
+    ) -> Result<Option<(String, CourierStatus)>> {
+        Ok(None)
+    }
+
+    /// Query live tracking status by consignment/tracking reference (P23-10).
+    async fn get_tracking_status(&self, _reference: &str) -> Result<CourierStatus> {
+        Ok(CourierStatus::Created)
+    }
 }

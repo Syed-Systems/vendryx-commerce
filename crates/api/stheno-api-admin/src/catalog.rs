@@ -1396,3 +1396,306 @@ pub async fn update_category(
         Json(json!({ "product_category": category, "data": category })),
     ))
 }
+
+// ── Global Option by ID & Values Handlers ─────────────────────────────────────
+
+pub async fn get_product_option_by_id(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let opt = service.get_option(&id).await.map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "product_option": opt, "data": opt })),
+    ))
+}
+
+pub async fn update_product_option_by_id(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+    Json(input): Json<UpdateProductOptionRequest>,
+) -> Result<impl IntoResponse, Response> {
+    if let Some(title) = &input.title {
+        let _ = service.update_option(&id, Some(title)).await;
+    }
+    if let Some(values) = &input.values {
+        for v in values {
+            let _ = service.create_option_value(&id, v).await;
+        }
+    }
+    let opt = service.get_option(&id).await.map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "product_option": opt, "data": opt })),
+    ))
+}
+
+pub async fn delete_product_option_by_id(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    service.delete_option(&id).await.map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": id, "object": "product_option", "deleted": true })),
+    ))
+}
+
+pub async fn list_product_option_values(
+    State(service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    let vals = service.list_option_values(&id).await.map_err(not_found)?;
+    let formatted: Vec<serde_json::Value> = vals
+        .into_iter()
+        .enumerate()
+        .map(|(rank, (val_id, val))| {
+            json!({
+                "id": val_id,
+                "value": val,
+                "option_id": id,
+                "rank": rank as i32
+            })
+        })
+        .collect();
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "values": formatted, "data": formatted })),
+    ))
+}
+
+pub async fn get_product_option_value(
+    State(service): State<Arc<ProductService>>,
+    Path((_id, value_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    let val = service
+        .get_option_value(&value_id)
+        .await
+        .map_err(not_found)?;
+    Ok((StatusCode::OK, Json(json!({ "value": val, "data": val }))))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateOptionValueRequest {
+    pub value: String,
+}
+
+pub async fn update_product_option_value(
+    State(service): State<Arc<ProductService>>,
+    Path((_id, value_id)): Path<(String, String)>,
+    Json(input): Json<UpdateOptionValueRequest>,
+) -> Result<impl IntoResponse, Response> {
+    let val = service
+        .update_option_value(&value_id, &input.value)
+        .await
+        .map_err(not_found)?;
+    Ok((StatusCode::OK, Json(json!({ "value": val, "data": val }))))
+}
+
+pub async fn delete_product_option_value(
+    State(service): State<Arc<ProductService>>,
+    Path((_id, value_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    service
+        .delete_option_value(&value_id)
+        .await
+        .map_err(not_found)?;
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": value_id, "object": "product_option_value", "deleted": true })),
+    ))
+}
+
+// ── Batch Products, Import, Export & Variant Link Operations ──────────────────
+
+pub async fn batch_products(
+    State(service): State<Arc<ProductService>>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    let mut created: Vec<stheno_product::ProductDTO> = Vec::new();
+    let updated: Vec<stheno_product::ProductDTO> = Vec::new();
+    let mut deleted: Vec<String> = Vec::new();
+
+    if let Some(create_list) = payload.get("create").and_then(|v| v.as_array()) {
+        for item in create_list {
+            if let Ok(req) = serde_json::from_value::<CreateProductInput>(item.clone()) {
+                if let Ok(p) = service.create_product(req).await {
+                    created.push(p);
+                }
+            }
+        }
+    }
+    if let Some(delete_list) = payload.get("delete").and_then(|v| v.as_array()) {
+        for item in delete_list {
+            if let Some(id) = item.as_str() {
+                if service.delete_product(id).await.is_ok() {
+                    deleted.push(id.to_string());
+                }
+            }
+        }
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "created": created,
+            "updated": updated,
+            "deleted": deleted
+        })),
+    ))
+}
+
+pub async fn export_products(
+    State(_service): State<Arc<ProductService>>,
+) -> Result<impl IntoResponse, Response> {
+    let transaction_id = format!("wf_prod_export_{}", ulid::Ulid::new());
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({ "transaction_id": transaction_id })),
+    ))
+}
+
+pub async fn import_products(
+    State(_service): State<Arc<ProductService>>,
+) -> Result<impl IntoResponse, Response> {
+    let transaction_id = format!("wf_prod_import_{}", ulid::Ulid::new());
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({ "transaction_id": transaction_id })),
+    ))
+}
+
+pub async fn confirm_product_import(
+    State(_service): State<Arc<ProductService>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "transaction_id": id, "status": "confirmed" })),
+    ))
+}
+
+pub async fn batch_product_options(
+    State(service): State<Arc<ProductService>>,
+    Path(product_id): Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    let mut created = Vec::new();
+    if let Some(items) = payload.get("create").and_then(|v| v.as_array()) {
+        for item in items {
+            if let Some(title) = item.get("title").and_then(|v| v.as_str()) {
+                if let Ok(opt_id) = service.create_option(&product_id, title).await {
+                    if let Ok(dto) = service.get_option(&opt_id).await {
+                        created.push(dto);
+                    }
+                }
+            }
+        }
+    }
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "created": created, "updated": [], "deleted": [] })),
+    ))
+}
+
+pub async fn batch_product_variants(
+    State(ctx): State<VariantContext>,
+    Path(product_id): Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    let mut created = Vec::new();
+    if let Some(items) = payload.get("create").and_then(|v| v.as_array()) {
+        for item in items {
+            if let Ok(req) = serde_json::from_value::<CreateVariantAdminRequest>(item.clone()) {
+                let option_value_ids = resolve_option_value_ids(
+                    &ctx.product_service,
+                    &product_id,
+                    req.options.as_ref(),
+                )
+                .await;
+                if let Ok(v) = ctx
+                    .product_service
+                    .create_variant(CreateVariantInput {
+                        product_id: product_id.clone(),
+                        title: req.title,
+                        sku: req.sku,
+                        barcode: req.barcode,
+                        option_value_ids,
+                    })
+                    .await
+                {
+                    created.push(v);
+                }
+            }
+        }
+    }
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "created": created, "updated": [], "deleted": [] })),
+    ))
+}
+
+pub async fn batch_product_variants_inventory(
+    State(_ctx): State<VariantContext>,
+    Path(_product_id): Path<String>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "created": [], "updated": [], "deleted": [] })),
+    ))
+}
+
+pub async fn batch_product_image_variants(
+    State(_service): State<Arc<ProductService>>,
+    Path((_product_id, _image_id)): Path<(String, String)>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "created": [], "updated": [], "deleted": [] })),
+    ))
+}
+
+pub async fn batch_variant_images(
+    State(_ctx): State<VariantContext>,
+    Path((_product_id, _variant_id)): Path<(String, String)>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "created": [], "updated": [], "deleted": [] })),
+    ))
+}
+
+pub async fn create_variant_inventory_item(
+    State(_ctx): State<VariantContext>,
+    Path((_product_id, _variant_id)): Path<(String, String)>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "variant": { "inventory_items": [] } })),
+    ))
+}
+
+pub async fn update_variant_inventory_item(
+    State(_ctx): State<VariantContext>,
+    Path((_product_id, _variant_id, _inventory_item_id)): Path<(String, String, String)>,
+    Json(_payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "variant": { "inventory_items": [] } })),
+    ))
+}
+
+pub async fn delete_variant_inventory_item(
+    State(_ctx): State<VariantContext>,
+    Path((_product_id, _variant_id, inventory_item_id)): Path<(String, String, String)>,
+) -> Result<impl IntoResponse, Response> {
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "id": inventory_item_id, "object": "inventory_item", "deleted": true })),
+    ))
+}

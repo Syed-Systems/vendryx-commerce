@@ -33,6 +33,26 @@ pub(crate) struct Order {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+impl Order {
+    pub fn get_cod_amounts(&self) -> Option<crate::dto::CodAmounts> {
+        let meta = self.metadata.as_ref()?;
+        let cod = meta.get("cod_amounts")?;
+        serde_json::from_value(cod.clone()).ok()
+    }
+
+    pub fn set_cod_amounts(&mut self, amounts: crate::dto::CodAmounts) {
+        let mut map = match self.metadata.take() {
+            Some(serde_json::Value::Object(m)) => m,
+            _ => serde_json::Map::new(),
+        };
+        map.insert(
+            "cod_amounts".to_string(),
+            serde_json::to_value(amounts).unwrap_or_default(),
+        );
+        self.metadata = Some(serde_json::Value::Object(map));
+    }
+}
+
 // 2. OrderItem (Versioned Snapshot)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct OrderItem {

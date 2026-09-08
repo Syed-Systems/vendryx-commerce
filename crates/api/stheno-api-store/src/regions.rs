@@ -14,12 +14,16 @@ pub async fn list_regions(
     match service.list_regions().await {
         Ok(regions) => {
             let count = regions.len();
-            Ok(Json(json!({
-                "regions": regions,
-                "count": count,
-                "offset": 0,
-                "limit": 50
-            })))
+            let headers = crate::cache::public_cache_headers(&["regions", "catalog"]);
+            Ok((
+                headers,
+                Json(json!({
+                    "regions": regions,
+                    "count": count,
+                    "offset": 0,
+                    "limit": 50
+                })),
+            ))
         }
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -33,7 +37,11 @@ pub async fn get_region(
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     match service.get_region(&id).await {
-        Ok(region) => Ok(Json(json!({ "region": region }))),
+        Ok(region) => {
+            let headers =
+                crate::cache::public_cache_headers(&["regions", &format!("region-{}", id)]);
+            Ok((headers, Json(json!({ "region": region }))))
+        }
         Err(stheno_types::Error::NotFound { .. }) => Err((
             StatusCode::NOT_FOUND,
             Json(json!({

@@ -229,8 +229,7 @@ pub async fn update_price_preference(
         })?;
     let preferences = service.list_price_preferences().await.unwrap_or_default();
     let pref = preferences.into_iter().find(|p| {
-        p.id.to_string() == id
-            || (p.attribute == request.attribute && p.value == request.value)
+        p.id.to_string() == id || (p.attribute == request.attribute && p.value == request.value)
     });
     Ok((
         StatusCode::OK,

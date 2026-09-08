@@ -28,6 +28,7 @@ fn app(tier: Tier, usage: UsageSnapshot) -> axum::Router {
         entitlements: entitlements.clone(),
         usage: Arc::new(usage),
         workflows: Arc::new(WorkflowStore::new()),
+        platform: None,
     })
     .layer(axum::Extension(entitlements))
 }

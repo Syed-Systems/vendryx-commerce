@@ -4,8 +4,13 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use stheno_events::{Event, EventBus};
 use stheno_types::Result;
+pub mod identity_subscriber;
 pub mod push_order_placed;
 
+pub use identity_subscriber::{
+    IdentityCreatedSubscriber, OrderConfirmationEmailSubscriber, PasswordResetSubscriber,
+    UserInviteSubscriber,
+};
 pub use push_order_placed::PushOrderPlacedSubscriber;
 
 #[async_trait]

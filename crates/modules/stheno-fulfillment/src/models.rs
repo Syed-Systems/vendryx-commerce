@@ -205,6 +205,22 @@ pub(crate) struct FulfillmentProviderRequest {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct FulfillmentWebhookEvent {
+    pub id: Id<FulfillmentWebhookEvent>,
+    pub provider_id: String,
+    pub provider_event_id: String,
+    pub event_type: String,
+    pub payload: serde_json::Value,
+    pub signature_verified: bool,
+    pub provider_created_at: DateTime<Utc>,
+    pub state: String,
+    pub processed_at: Option<DateTime<Utc>>,
+    pub error: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
 // Medusa id prefixes for this module's entities (ADR-010).
 stheno_types::prefixed_id! {
     Address => "addr",
@@ -213,6 +229,7 @@ stheno_types::prefixed_id! {
     FulfillmentLabel => "ful_lbl",
     FulfillmentProvider => "ful_pv",
     FulfillmentProviderRequest => "fpreq",
+    FulfillmentWebhookEvent => "fwhevt",
     FulfillmentSet => "fset",
     GeoZone => "gzone",
     ServiceZone => "szone",
@@ -246,6 +263,11 @@ impl_crud_entity!(
     FulfillmentProviderRequest,
     "fulfillment.fulfillment_provider_request",
     "fulfillment_provider_request"
+);
+impl_crud_entity!(
+    FulfillmentWebhookEvent,
+    "fulfillment.fulfillment_webhook_event",
+    "fulfillment_webhook_event"
 );
 impl_crud_entity!(
     FulfillmentItem,
