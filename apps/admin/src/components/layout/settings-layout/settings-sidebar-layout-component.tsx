@@ -1,6 +1,4 @@
-import { MinusMini } from "@medusajs/icons"
-import { clx, Divider, IconButton, Text } from "@medusajs/ui"
-import { Collapsible as RadixCollapsible } from "radix-ui"
+import { clx } from "@medusajs/ui"
 import { Fragment, ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { LayoutComponentProps } from "../../layout-composer/types"
@@ -9,38 +7,31 @@ function hasContent(node: ReactNode): boolean {
   return Array.isArray(node) ? node.length > 0 : Boolean(node)
 }
 
-const CollapsibleGroup = ({
+const SettingsGroup = ({
   label,
   children,
 }: {
-  label: string
+  label?: string
   children: ReactNode
 }) => {
+  if (!hasContent(children)) {
+    return null
+  }
+
   return (
-    <RadixCollapsible.Root defaultOpen className="py-3">
-      <div className="px-3">
-        <div className="text-ui-fg-muted flex h-7 items-center justify-between px-2">
-          <Text size="small" leading="compact">
-            {label}
-          </Text>
-          <RadixCollapsible.Trigger asChild>
-            <IconButton size="2xsmall" variant="transparent" className="static">
-              <MinusMini className="text-ui-fg-muted" />
-            </IconButton>
-          </RadixCollapsible.Trigger>
+    <div className="space-y-0.5">
+      {label && (
+        <div className="px-2.5 pt-3 pb-1 text-[11px] font-semibold tracking-wider text-ui-fg-muted/70 uppercase select-none">
+          {label}
         </div>
-      </div>
-      <RadixCollapsible.Content>
-        <div className="flex flex-col gap-y-0.5 px-3 pt-0.5">{children}</div>
-      </RadixCollapsible.Content>
-    </RadixCollapsible.Root>
+      )}
+      <div className="flex flex-col gap-y-0.5 px-0.5">{children}</div>
+    </div>
   )
 }
 
 const GroupDivider = () => (
-  <div className="flex items-center justify-center px-3">
-    <Divider variant="dashed" />
-  </div>
+  <div className="my-1.5 mx-2.5 border-t border-ui-border-base/40" />
 )
 
 export const SettingsSidebarLayoutComponent = ({
@@ -50,24 +41,32 @@ export const SettingsSidebarLayoutComponent = ({
   const { t } = useTranslation()
 
   return (
-    <div className={clx("flex flex-1 flex-col", className)}>
-      <CollapsibleGroup label={t("app.nav.settings.general")}>
+    <div className={clx("flex flex-1 flex-col pb-6", className)}>
+      <SettingsGroup label={t("app.nav.settings.general", "General")}>
         {sections["general"]}
-      </CollapsibleGroup>
-      <GroupDivider />
-      <CollapsibleGroup label={t("app.nav.settings.developer")}>
-        {sections["developer"]}
-      </CollapsibleGroup>
-      <GroupDivider />
-      <CollapsibleGroup label={t("app.nav.settings.myAccount")}>
-        {sections["myAccount"]}
-      </CollapsibleGroup>
+      </SettingsGroup>
+      {hasContent(sections["developer"]) && (
+        <Fragment>
+          <GroupDivider />
+          <SettingsGroup label={t("app.nav.settings.developer", "Developer")}>
+            {sections["developer"]}
+          </SettingsGroup>
+        </Fragment>
+      )}
+      {hasContent(sections["myAccount"]) && (
+        <Fragment>
+          <GroupDivider />
+          <SettingsGroup label={t("app.nav.settings.myAccount", "Account")}>
+            {sections["myAccount"]}
+          </SettingsGroup>
+        </Fragment>
+      )}
       {hasContent(sections["extensions"]) && (
         <Fragment>
           <GroupDivider />
-          <CollapsibleGroup label={t("app.nav.common.extensions")}>
+          <SettingsGroup label={t("app.nav.common.extensions", "Extensions")}>
             {sections["extensions"]}
-          </CollapsibleGroup>
+          </SettingsGroup>
         </Fragment>
       )}
     </div>

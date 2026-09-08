@@ -63,9 +63,9 @@ const Content = forwardRef<
   return (
     <Drawer.Content
       ref={ref}
-      className={clx(className)}
+      className={clx("!z-[60]", className)}
       overlayProps={{
-        className: "bg-transparent",
+        className: "bg-transparent !z-[60]",
       }}
       {...props}
     />

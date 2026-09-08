@@ -40,9 +40,9 @@ export default function AvatarBox({ checked }: { checked?: boolean }) {
           </motion.div>
         )}
         <img
-          src="/stheno-logo.png"
-          alt="Stheno by Syed Systems"
-          className="h-16 w-auto max-w-[200px] object-contain"
+          src="/brand/vendryx/vendryx-logo.svg"
+          alt="Vendryx by Syed Systems"
+          className="h-12 w-auto max-w-[200px] object-contain"
         />
       </div>
     </div>

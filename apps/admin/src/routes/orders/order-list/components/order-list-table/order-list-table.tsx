@@ -17,6 +17,7 @@ const PAGE_SIZE = 20
 export const OrderListTable = () => {
   const { t } = useTranslation()
   const location = useLocation()
+  const isSocial = location.pathname.includes("/social")
 
   const { searchParams, raw } = useOrderTableQuery({
     pageSize: PAGE_SIZE,
@@ -26,6 +27,7 @@ export const OrderListTable = () => {
     {
       fields: DEFAULT_FIELDS,
       ...searchParams,
+      ...(isSocial ? { status: "draft" } : {}),
     },
     {
       placeholderData: keepPreviousData,
@@ -50,7 +52,7 @@ export const OrderListTable = () => {
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
-        <Heading>{t("orders.domain")}</Heading>
+        <Heading>{isSocial ? "Social Commerce Orders" : t("orders.domain")}</Heading>
         <Button size="small" variant="secondary" asChild>
           <Link to={`export${location.search}`}>{t("actions.export")}</Link>
         </Button>

@@ -3292,7 +3292,7 @@
   },
   "login": {
     "forgotPassword": "Forgot password? - <0>Reset</0>",
-    "title": "Welcome to Stheno",
+    "title": "Welcome to Vendryx",
     "hint": "Sign in to access the account area",
     "mfa": {
       "title": "Two-factor authentication",
@@ -3310,7 +3310,7 @@
     }
   },
   "invite": {
-    "title": "Welcome to Stheno",
+    "title": "Welcome to Vendryx",
     "hint": "Create your account below",
     "backToLogin": "Back to login",
     "createAccount": "Create account",
@@ -3318,8 +3318,8 @@
     "emailTooltip": "Your email cannot be changed. If you would like to use another email, a new invite must be sent.",
     "invalidInvite": "The invite is invalid or has expired.",
     "successTitle": "Your account has been registered",
-    "successHint": "Get started with Stheno Admin right away.",
-    "successAction": "Start Stheno Admin",
+    "successHint": "Get started with Vendryx Admin right away.",
+    "successAction": "Start Vendryx Admin",
     "invalidTokenTitle": "Your invite token is invalid",
     "invalidTokenHint": "Try requesting a new invite link.",
     "passwordMismatch": "Passwords do not match",
@@ -3712,7 +3712,7 @@
   },
   "auth": {
     "login": {
-      "noProviders": "Register an auth provider in your Stheno config to be able to login",
+      "noProviders": "Register an auth provider in your Vendryx config to be able to login",
       "authenticationFailed": "Authentication failed",
       "continueWithProvider": "Continue with {{provider}}",
       "or": "or",

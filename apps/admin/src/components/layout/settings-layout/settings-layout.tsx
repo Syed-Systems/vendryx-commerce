@@ -1,6 +1,26 @@
 import { CORE_LAYOUT_IDS } from "@medusajs/admin-shared"
-import { ArrowUturnLeft } from "@medusajs/icons"
-import { clx, Divider, Text } from "@medusajs/ui"
+import {
+  ArrowUturnLeft,
+  BuildingStorefront,
+  Channels,
+  CommandLine,
+  CreditCard,
+  CurrencyDollar,
+  DocumentText,
+  GlobeEurope,
+  Key,
+  Language,
+  LockClosedSolid,
+  MapPin,
+  ReceiptPercent,
+  ShieldCheck,
+  Sparkles,
+  Tag,
+  TruckFast,
+  User,
+  Users,
+} from "@medusajs/icons"
+import { clx, Text } from "@medusajs/ui"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation } from "react-router-dom"
@@ -37,16 +57,24 @@ const useSettingRoutes = (): INavItem[] => {
       {
         label: t("store.domain"),
         to: "/settings/store",
+        icon: <BuildingStorefront />,
+      },
+      {
+        label: "Storefront Branding",
+        to: "/settings/branding",
+        icon: <Sparkles />,
       },
       {
         label: t("users.domain"),
         to: "/settings/users",
+        icon: <Users />,
       },
       ...(canReadRoles
         ? [
             {
               label: t("roles.domain"),
               to: "/settings/roles",
+              icon: <ShieldCheck />,
             },
           ]
         : []),
@@ -55,50 +83,71 @@ const useSettingRoutes = (): INavItem[] => {
             {
               label: t("policies.domain"),
               to: "/settings/policies",
+              icon: <DocumentText />,
             },
           ]
         : []),
       {
         label: t("regions.domain"),
         to: "/settings/regions",
+        icon: <GlobeEurope />,
       },
       {
         label: "Payment Providers",
         to: "/settings/payment-providers",
+        icon: <CreditCard />,
+      },
+      {
+        label: "Courier Logistics",
+        to: "/settings/couriers",
+        icon: <TruckFast />,
+      },
+      {
+        label: "Domains & SSL",
+        to: "/settings/domains",
+        icon: <GlobeEurope />,
       },
       {
         label: t("taxRegions.domain"),
         to: "/settings/tax-regions",
-      },
-      {
-        label: t("returnReasons.domain"),
-        to: "/settings/return-reasons",
-      },
-      {
-        label: t("refundReasons.domain"),
-        to: "/settings/refund-reasons",
+        icon: <ReceiptPercent />,
       },
       {
         label: t("salesChannels.domain"),
         to: "/settings/sales-channels",
-      },
-      {
-        label: t("productTypes.domain"),
-        to: "/settings/product-types",
-      },
-      {
-        label: t("productTags.domain"),
-        to: "/settings/product-tags",
+        icon: <Channels />,
       },
       {
         label: t("stockLocations.domain"),
         to: "/settings/locations",
+        icon: <MapPin />,
+      },
+      {
+        label: t("productTypes.domain"),
+        to: "/settings/product-types",
+        icon: <Tag />,
+      },
+      {
+        label: t("productTags.domain"),
+        to: "/settings/product-tags",
+        icon: <Tag />,
+      },
+      {
+        label: t("returnReasons.domain"),
+        to: "/settings/return-reasons",
+        icon: <ArrowUturnLeft />,
+      },
+      {
+        label: t("refundReasons.domain"),
+        to: "/settings/refund-reasons",
+        icon: <CurrencyDollar />,
       },
       ...(isViewConfigEnabled
         ? [
             {
               label: t("propertyLabels.domain", "Property Labels"),
               to: "/settings/property-labels",
+              icon: <DocumentText />,
             },
           ]
         : []),
@@ -107,6 +156,7 @@ const useSettingRoutes = (): INavItem[] => {
             {
               label: t("translations.domain"),
               to: "/settings/translations",
+              icon: <Language />,
             },
           ]
         : []),
@@ -129,18 +179,17 @@ const useDeveloperRoutes = (): INavItem[] => {
       {
         label: t("apiKeyManagement.domain.publishable"),
         to: "/settings/publishable-api-keys",
+        icon: <Key />,
       },
       {
         label: t("apiKeyManagement.domain.secret"),
         to: "/settings/secret-api-keys",
+        icon: <LockClosedSolid />,
       },
       {
         label: t("workflowExecutions.domain"),
         to: "/settings/workflows",
-      },
-      {
-        label: "Platform & Entitlements",
-        to: "/settings/entitlements",
+        icon: <CommandLine />,
       },
     ],
     [t]
@@ -155,6 +204,12 @@ const useMyAccountRoutes = (): INavItem[] => {
       {
         label: t("profile.domain"),
         to: "/settings/profile",
+        icon: <User />,
+      },
+      {
+        label: "Subscription & Billing",
+        to: "/settings/billing",
+        icon: <CreditCard />,
       },
     ],
     [t]
@@ -189,15 +244,12 @@ const SettingsSidebar = () => {
   const extensionRoutes = getMenu("settingsExtensions")
 
   return (
-    <aside className="relative flex flex-1 flex-col justify-between overflow-y-auto">
-      <div className="bg-ui-bg-subtle sticky top-0">
+    <aside className="relative flex flex-1 flex-col justify-between overflow-y-auto h-full select-none">
+      <div className="bg-[var(--vx-bg-sidebar,#F7F3ED)] dark:bg-[#141416] sticky top-0 z-[1] border-b border-ui-border-base/60">
         <Header />
-        <div className="flex items-center justify-center px-3">
-          <Divider variant="dashed" />
-        </div>
       </div>
-      <div className="flex flex-1 flex-col">
-        <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="flex flex-1 flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2">
           <LayoutComposer
             widgetsZonePrefix="settings.sidebar"
             preferredLayoutId={CORE_LAYOUT_IDS.SETTINGS_SIDEBAR}
@@ -213,7 +265,7 @@ const SettingsSidebar = () => {
             }}
           />
         </div>
-        <div className="bg-ui-bg-subtle sticky bottom-0">
+        <div className="sticky bottom-0 z-[1] border-t border-ui-border-base/60 bg-[var(--vx-bg-sidebar,#F7F3ED)] dark:bg-[#141416]">
           <UserSection />
         </div>
       </div>
@@ -234,22 +286,25 @@ const Header = () => {
   }, [location])
 
   return (
-    <div className="bg-ui-bg-subtle p-3">
+    <div className="p-2.5">
       <Link
         to={from}
         replace
         className={clx(
-          "bg-ui-bg-subtle transition-fg flex items-center rounded-md outline-none",
-          "hover:bg-ui-bg-subtle-hover",
+          "group transition-all duration-150 flex items-center gap-x-2.5 rounded-xl p-1.5 outline-none",
+          "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
           "focus-visible:shadow-borders-focus"
         )}
       >
-        <div className="flex items-center gap-x-2.5 px-2 py-1">
-          <div className="flex items-center justify-center">
-            <ArrowUturnLeft className="text-ui-fg-subtle" />
-          </div>
-          <Text leading="compact" weight="plus" size="small">
-            {t("app.nav.settings.header")}
+        <div className="flex size-7 items-center justify-center rounded-lg bg-ui-bg-subtle border border-ui-border-base shadow-xs text-ui-fg-muted group-hover:text-ui-fg-base transition-colors shrink-0">
+          <ArrowUturnLeft className="size-3.5" />
+        </div>
+        <div className="flex flex-col min-w-0">
+          <Text leading="compact" weight="plus" size="small" className="text-[13px] font-semibold text-ui-fg-base">
+            {t("app.nav.settings.header", "Settings")}
+          </Text>
+          <Text size="xsmall" leading="compact" className="text-[11px] text-ui-fg-muted">
+            {t("app.nav.settings.return", "Back to store")}
           </Text>
         </div>
       </Link>
@@ -260,9 +315,6 @@ const Header = () => {
 const UserSection = () => {
   return (
     <div>
-      <div className="px-3">
-        <Divider variant="dashed" />
-      </div>
       <UserMenu />
     </div>
   )

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useState, useEffect } from "react"
 import { sdk } from "../../../lib/client"
 import { PaymentProvider } from "./provider-credential-modal"
+import { formatProviderTitle } from "./provider-logo"
 
 interface Region {
   id: string
@@ -69,7 +70,7 @@ export const ProviderRegionModal = ({
         })
       }
 
-      toast.success(`Region availability updated for ${provider.name}`)
+      toast.success(`Region availability updated for ${formatProviderTitle(provider.id, provider.name)}`)
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -87,7 +88,7 @@ export const ProviderRegionModal = ({
         <FocusModal.Header>
           <div className="flex flex-col">
             <FocusModal.Title asChild>
-              <Heading level="h2">Enable Regions for {provider.name}</Heading>
+              <Heading level="h2">Enable Regions for {formatProviderTitle(provider.id, provider.name)}</Heading>
             </FocusModal.Title>
             <Text size="small" className="text-ui-fg-subtle">
               Choose which sales regions can checkout with this provider.

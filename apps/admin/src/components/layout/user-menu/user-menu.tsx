@@ -49,39 +49,38 @@ export const UserMenu = () => {
     <div>
       <DropdownMenu dir={direction} open={openMenu} onOpenChange={setOpenMenu}>
         <UserBadge />
-        <DropdownMenu.Content className="min-w-[var(--radix-dropdown-menu-trigger-width)] max-w-[var(--radix-dropdown-menu-trigger-width)]">
+        <DropdownMenu.Content className="w-[244px] rounded-xl p-1.5 shadow-2xl border border-ui-border-base bg-ui-bg-base/95 backdrop-blur-xl">
           <UserItem />
-          <DropdownMenu.Separator />
-          <DropdownMenu.Item asChild>
+          <DropdownMenu.Separator className="my-1 border-ui-border-base/60" />
+          <DropdownMenu.Item className="gap-x-2.5 rounded-lg py-1.5 px-2.5 text-[13px]" asChild>
             <Link to="/settings/profile" state={{ from: location.pathname }}>
-              <UserIcon className="text-ui-fg-subtle me-2" />
+              <UserIcon className="text-ui-fg-muted size-4 me-1" />
               {t("app.menus.user.profileSettings")}
             </Link>
           </DropdownMenu.Item>
-          <DropdownMenu.Separator />
+          <DropdownMenu.Separator className="my-1 border-ui-border-base/60" />
           {DOCS_URL && (
-            <DropdownMenu.Item asChild>
+            <DropdownMenu.Item className="gap-x-2.5 rounded-lg py-1.5 px-2.5 text-[13px]" asChild>
               <Link to={DOCS_URL} target="_blank">
-                <BookOpen className="text-ui-fg-subtle me-2" />
+                <BookOpen className="text-ui-fg-muted size-4 me-1" />
                 {t("app.menus.user.documentation")}
               </Link>
             </DropdownMenu.Item>
           )}
           {CHANGELOG_URL && (
-            <DropdownMenu.Item asChild>
+            <DropdownMenu.Item className="gap-x-2.5 rounded-lg py-1.5 px-2.5 text-[13px]" asChild>
               <Link to={CHANGELOG_URL} target="_blank">
-                <TimelineVertical className="text-ui-fg-subtle me-2" />
+                <TimelineVertical className="text-ui-fg-muted size-4 me-1" />
                 {t("app.menus.user.changelog")}
               </Link>
             </DropdownMenu.Item>
           )}
-          <DropdownMenu.Separator />
-          <DropdownMenu.Item onClick={toggleModal}>
-            <Keyboard className="text-ui-fg-subtle me-2" />
+          <DropdownMenu.Item className="gap-x-2.5 rounded-lg py-1.5 px-2.5 text-[13px]" onClick={toggleModal}>
+            <Keyboard className="text-ui-fg-muted size-4 me-1" />
             {t("app.menus.user.shortcuts")}
           </DropdownMenu.Item>
           <ThemeToggle />
-          <DropdownMenu.Separator />
+          <DropdownMenu.Separator className="my-1 border-ui-border-base/60" />
           <Logout />
         </DropdownMenu.Content>
       </DropdownMenu>
@@ -95,15 +94,21 @@ const UserBadge = () => {
 
   const name = [user?.first_name, user?.last_name].filter(Boolean).join(" ")
   const displayName = name || user?.email
+  const email = user?.email
 
   const fallback = displayName ? displayName[0].toUpperCase() : null
 
   if (isPending) {
     return (
-      <button className="shadow-borders-base flex max-w-[192px] select-none items-center gap-x-2 overflow-hidden text-ellipsis whitespace-nowrap rounded-full py-1 pe-2.5 ps-1">
-        <Skeleton className="h-5 w-5 rounded-full" />
-        <Skeleton className="h-[9px] w-[70px]" />
-      </button>
+      <div className="p-2">
+        <div className="flex select-none items-center gap-x-2.5 rounded-xl px-2 py-1.5">
+          <Skeleton className="h-7 w-7 rounded-full" />
+          <div className="flex flex-col gap-1">
+            <Skeleton className="h-3 w-[90px]" />
+            <Skeleton className="h-2.5 w-[60px]" />
+          </div>
+        </div>
+      </div>
     )
   }
 
@@ -112,38 +117,47 @@ const UserBadge = () => {
   }
 
   return (
-    <div className="p-3">
+    <div className="p-2">
       <DropdownMenu.Trigger
         disabled={!user}
         className={clx(
-          "bg-ui-bg-subtle grid w-full cursor-pointer grid-cols-[24px_1fr_15px] items-center gap-2 rounded-md py-1 pe-2 ps-0.5 outline-none",
-          "hover:bg-ui-bg-subtle-hover",
-          "data-[state=open]:bg-ui-bg-subtle-hover",
+          "bg-transparent grid w-full cursor-pointer grid-cols-[28px_1fr_auto] items-center gap-2.5 rounded-xl px-2 py-1.5 outline-none text-start transition-all duration-150",
+          "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
+          "data-[state=open]:bg-black/[0.05] dark:data-[state=open]:bg-white/[0.08]",
           "focus-visible:shadow-borders-focus"
         )}
       >
-        <div className="flex size-6 items-center justify-center">
+        <div className="flex size-7 items-center justify-center shrink-0">
           {fallback ? (
-            <Avatar size="xsmall" fallback={fallback} />
+            <Avatar size="xsmall" fallback={fallback} className="size-7 rounded-full bg-ui-bg-subtle border border-ui-border-base" />
           ) : (
-            <Skeleton className="h-6 w-6 rounded-full" />
+            <Skeleton className="h-7 w-7 rounded-full" />
           )}
         </div>
-        <div className="flex items-center overflow-hidden">
+        <div className="flex flex-col overflow-hidden text-start min-w-0">
           {displayName ? (
             <Text
-              size="xsmall"
+              size="small"
               weight="plus"
               leading="compact"
-              className="truncate"
+              className="truncate text-[13px] font-semibold text-ui-fg-base"
             >
               {displayName}
             </Text>
           ) : (
-            <Skeleton className="h-[9px] w-[70px]" />
+            <Skeleton className="h-3 w-[80px]" />
+          )}
+          {email && email !== displayName && (
+            <Text
+              size="xsmall"
+              leading="compact"
+              className="truncate text-[11px] text-ui-fg-muted font-normal mt-0.5"
+            >
+              {email}
+            </Text>
           )}
         </div>
-        <EllipsisHorizontal className="text-ui-fg-muted" />
+        <EllipsisHorizontal className="text-ui-fg-muted size-3.5 shrink-0" />
       </DropdownMenu.Trigger>
     </div>
   )

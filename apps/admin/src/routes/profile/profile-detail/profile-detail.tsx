@@ -3,6 +3,8 @@ import { CORE_LAYOUT_IDS } from "@medusajs/admin-shared"
 import { useMe } from "../../../hooks/api/users"
 import { ProfileGeneralSection } from "./components/profile-general-section"
 import { ProfileMfaSection } from "./components/profile-mfa-section/profile-mfa-section"
+import { ProfilePasswordSection } from "./components/profile-password-section"
+import { ProfileSessionsSection } from "./components/profile-sessions-section"
 
 import { SingleColumnPageSkeleton } from "../../../components/common/skeleton"
 import { LayoutComposer } from "../../../components/layout-composer"
@@ -11,7 +13,7 @@ export const ProfileDetail = () => {
   const { user, isPending: isLoading, isError, error } = useMe()
 
   if (isLoading || !user) {
-    return <SingleColumnPageSkeleton sections={2} />
+    return <SingleColumnPageSkeleton sections={4} />
   }
 
   if (isError) {
@@ -28,8 +30,14 @@ export const ProfileDetail = () => {
             <LayoutComposer.Entry id="ProfileGeneralSection">
               <ProfileGeneralSection user={user} />
             </LayoutComposer.Entry>
+            <LayoutComposer.Entry id="ProfilePasswordSection">
+              <ProfilePasswordSection />
+            </LayoutComposer.Entry>
             <LayoutComposer.Entry id="ProfileMfaSection">
               <ProfileMfaSection />
+            </LayoutComposer.Entry>
+            <LayoutComposer.Entry id="ProfileSessionsSection">
+              <ProfileSessionsSection />
             </LayoutComposer.Entry>
           </>
         ),

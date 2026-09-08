@@ -13,7 +13,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { DotsSix, Eye, EyeSlash } from "@medusajs/icons"
+import { DotsSix, Eye, EyeSlash, TriangleRightMini } from "@medusajs/icons"
 import { IconButton, Kbd, Text, clx } from "@medusajs/ui"
 import { Collapsible as RadixCollapsible } from "radix-ui"
 import {
@@ -49,11 +49,12 @@ export type INavItem = {
 }
 
 const BASE_NAV_LINK_CLASSES =
-  "text-ui-fg-subtle transition-fg hover:bg-ui-bg-subtle-hover flex items-center gap-x-2 rounded-md py-0.5 pl-0.5 pr-2 outline-none [&>svg]:text-ui-fg-subtle focus-visible:shadow-borders-focus"
+  "group text-ui-fg-subtle transition-all duration-150 hover:text-ui-fg-base hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-x-2.5 rounded-lg h-[34px] px-2.5 outline-none [&_svg]:text-ui-fg-muted hover:[&_svg]:text-ui-fg-subtle focus-visible:shadow-borders-focus select-none"
 const ACTIVE_NAV_LINK_CLASSES =
-  "bg-ui-bg-base shadow-elevation-card-rest text-ui-fg-base hover:bg-ui-bg-base"
-const NESTED_NAV_LINK_CLASSES = "pl-[34px] pr-2 py-1 w-full text-ui-fg-muted"
-const SETTING_NAV_LINK_CLASSES = "pl-2 py-1"
+  "bg-black/[0.07] text-ui-fg-base font-semibold shadow-xs dark:bg-white/[0.12] dark:text-white hover:bg-black/[0.08] dark:hover:bg-white/[0.16] [&_svg]:text-ui-fg-base dark:[&_svg]:text-white"
+const NESTED_NAV_LINK_CLASSES =
+  "h-7 px-2.5 py-1 text-[12px] font-normal text-ui-fg-muted hover:text-ui-fg-base rounded-md w-full"
+const SETTING_NAV_LINK_CLASSES = "h-[32px] px-2.5 py-1.5"
 
 // Prefix match that respects path-segment boundaries, so that a route like
 // "/inventory-sources" is not considered a match for "/inventory". This keeps
@@ -363,76 +364,67 @@ export const NavItem = ({
   )
 
   const isSetting = type === "setting"
+  const hasSubItems = items && items.length > 0
 
   return (
     <div>
-      <NavItemTooltip to={to}>
-        <NavLink
-          to={getLinkTarget(to)}
-          end={items?.some((i) => i.to === pathname)}
-          state={
-            from
-              ? {
-                  from,
-                }
-              : undefined
-          }
-          className={({ isActive }) => {
-            return clx(navLinkClassNames({ isActive, isSetting, to }), {
-              "max-lg:hidden": !!items?.length,
-            })
-          }}
-        >
-          {type !== "setting" && (
-            <div className="flex size-6 items-center justify-center">
-              <Icon icon={icon} type={type} />
-            </div>
-          )}
-          <Text size="small" weight="plus" leading="compact">
-            {displayLabel}
-          </Text>
-        </NavLink>
-      </NavItemTooltip>
-      {items && items.length > 0 && (
-        <RadixCollapsible.Root open={editMode || open} onOpenChange={setOpen}>
-          <RadixCollapsible.Trigger
-            className={clx(
-              "text-ui-fg-subtle hover:text-ui-fg-base transition-fg hover:bg-ui-bg-subtle-hover flex w-full items-center gap-x-2 rounded-md py-0.5 pl-0.5 pr-2 outline-none lg:hidden",
-              { "pl-2": isSetting }
-            )}
+      <div className="relative flex items-center group">
+        <NavItemTooltip to={to}>
+          <NavLink
+            to={getLinkTarget(to)}
+            end={items?.some((i) => i.to === pathname)}
+            state={
+              from
+                ? {
+                    from,
+                  }
+                : undefined
+            }
+            className={({ isActive }) => {
+              return clx(
+                navLinkClassNames({ isActive, isSetting, to }),
+                "flex-1",
+                hasSubItems && "pe-7"
+              )
+            }}
           >
-            <div className="flex size-6 items-center justify-center">
-              <Icon icon={icon} type={type} />
-            </div>
-            <Text size="small" weight="plus" leading="compact">
+            {icon && (
+              <div className="flex size-5 items-center justify-center shrink-0 [&>svg]:size-[18px]">
+                <Icon icon={icon} type={type} />
+              </div>
+            )}
+            <Text size="small" weight="plus" leading="compact" className="truncate text-[13px]">
               {displayLabel}
             </Text>
-          </RadixCollapsible.Trigger>
+          </NavLink>
+        </NavItemTooltip>
+
+        {hasSubItems && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setOpen((prev) => !prev)
+            }}
+            aria-label={open ? "Collapse" : "Expand"}
+            className="absolute end-1.5 flex size-5 items-center justify-center rounded-md text-ui-fg-muted hover:text-ui-fg-base hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors"
+          >
+            <TriangleRightMini
+              className={clx(
+                "size-3.5 transition-transform duration-200 text-ui-fg-muted",
+                open && "rotate-90 text-ui-fg-subtle"
+              )}
+            />
+          </button>
+        )}
+      </div>
+
+      {hasSubItems && (
+        <RadixCollapsible.Root open={editMode || open} onOpenChange={setOpen}>
           <RadixCollapsible.Content>
-            <div className="flex flex-col gap-y-0.5 pb-2 pt-0.5">
+            <div className="ml-5 pl-2.5 border-l border-ui-border-base/50 flex flex-col gap-y-0.5 my-1">
               <ul className="flex flex-col gap-y-0.5">
-                <li className="flex w-full items-center gap-x-1 lg:hidden">
-                  <NavItemTooltip to={to}>
-                    <NavLink
-                      to={getLinkTarget(to)}
-                      end
-                      className={({ isActive }) => {
-                        return clx(
-                          navLinkClassNames({
-                            to,
-                            isActive,
-                            isSetting,
-                            isNested: true,
-                          })
-                        )
-                      }}
-                    >
-                      <Text size="small" weight="plus" leading="compact">
-                        {displayLabel}
-                      </Text>
-                    </NavLink>
-                  </NavItemTooltip>
-                </li>
                 <NavSubItems
                   parentTo={to}
                   items={items}

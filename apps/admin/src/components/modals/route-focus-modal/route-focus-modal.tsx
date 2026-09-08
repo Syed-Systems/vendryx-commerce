@@ -74,7 +74,10 @@ const Content = ({ stackedModalOpen, children }: ContentProps) => {
             }
           : undefined
       }
-      className={clx({
+      overlayProps={{
+        className: "!z-50",
+      }}
+      className={clx("!z-50", {
         "!bg-ui-bg-disabled !inset-x-5 !inset-y-3": stackedModalOpen,
       })}
     >

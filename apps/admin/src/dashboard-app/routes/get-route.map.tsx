@@ -1,6 +1,6 @@
 import { HttpTypes } from "@medusajs/types"
 import { t } from "i18next"
-import { Outlet, RouteObject, UIMatch } from "react-router-dom"
+import { Navigate, Outlet, RouteObject, UIMatch } from "react-router-dom"
 import { ProtectedRoute } from "../../components/authentication/protected-route"
 import { RoutePermissionGuard } from "../../components/authentication/route-permission-guard"
 import { MainLayout } from "../../components/layout/main-layout"
@@ -12,7 +12,6 @@ import { HydrateFallback } from "../../components/utilities/hydrate-fallback"
 const MERCHANT_WORKSPACE_ROUTES = new Set([
   "/",
   "/analytics",
-  "/onboarding",
   "/orders",
   "/orders/social",
   "/products",
@@ -23,27 +22,28 @@ const MERCHANT_WORKSPACE_ROUTES = new Set([
   "/promotions",
   "/price-lists",
   "/profile",
+  "/help",
+  "/release-notes",
+  "/onboarding",
+  "/campaigns",
+  "/customer-groups",
+  "/reservations",
+  "/product-options",
+  "/product-variants",
+  "/reconciliation",
 ])
 
 const MERCHANT_SETTINGS_ROUTES = new Set([
   "",
   "profile",
-  "entitlements",
+  "branding",
   "store",
   "users",
-  "notifications",
   "billing",
-  "brand-kit",
-  "gateways",
-  "couriers",
   "domains",
-  "bespoke-theme",
-  // Everything below is linked from the settings sidebar. They were absent from this set,
-  // so each of those links resolved through the public 404 — fourteen dead links out of
-  // eighteen, including the payment-providers page a merchant needs to take money at all.
-  // An allowlist that disagrees with the navigation is worse than either choice on its own:
-  // the merchant is shown the door and then told it does not exist. Narrow this again if a
-  // tier should not see one of these, but hide its link in the same change.
+  "couriers",
+  "help",
+  "release-notes",
   "regions",
   "payment-providers",
   "tax-regions",
@@ -58,7 +58,13 @@ const MERCHANT_SETTINGS_ROUTES = new Set([
   "publishable-api-keys",
   "secret-api-keys",
   "workflows",
+  "roles",
+  "policies",
+  "shipping-option-types",
+  "shipping-profiles",
+  "api-key-management",
 ])
+
 
 /**
  * The Medusa fork remains the implementation underneath this map, but a small merchant is not
@@ -130,6 +136,14 @@ export function getRouteMap({
               lazy: () => import("../../routes/analytics"),
               handle: {
                 breadcrumb: () => "Analytics & Reports",
+              },
+            },
+            {
+              path: "/onboarding",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/onboarding"),
+              handle: {
+                breadcrumb: () => "Store Setup Guide",
               },
             },
             {
@@ -503,6 +517,13 @@ export function getRouteMap({
                       lazy: () => import("../../routes/orders/order-export"),
                     },
                   ],
+                },
+                {
+                  path: "social",
+                  lazy: () => import("../../routes/orders/order-list"),
+                  handle: {
+                    breadcrumb: () => "Social Commerce Orders",
+                  },
                 },
                 {
                   path: ":id",
@@ -1161,6 +1182,38 @@ export function getRouteMap({
                 },
               ],
             },
+            {
+              path: "/help",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/help"),
+              handle: {
+                breadcrumb: () => "Help & Support",
+              },
+            },
+            {
+              path: "/release-notes",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/release-notes"),
+              handle: {
+                breadcrumb: () => "Release Notes",
+              },
+            },
+            {
+              path: "/profile",
+              element: <Navigate to="/settings/profile" replace />,
+            },
+            {
+              path: "/product-variants",
+              element: <Navigate to="/products" replace />,
+            },
+            {
+              path: "/reconciliation",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/reconciliation"),
+              handle: {
+                breadcrumb: () => "Courier COD Reconciliation",
+              },
+            },
             ...coreRoutes,
           ],
         },
@@ -1198,11 +1251,11 @@ export function getRouteMap({
               ],
             },
             {
-              path: "entitlements",
+              path: "billing",
               errorElement: <ErrorBoundary />,
-              lazy: () => import("../../routes/entitlements"),
+              lazy: () => import("../../routes/billing"),
               handle: {
-                breadcrumb: () => "Platform & Entitlements",
+                breadcrumb: () => "Subscription & Billing",
               },
             },
             {
@@ -1282,6 +1335,14 @@ export function getRouteMap({
                   ],
                 },
               ],
+            },
+            {
+              path: "branding",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/branding"),
+              handle: {
+                breadcrumb: () => "Branding & Appearance",
+              },
             },
             {
               path: "store",
@@ -1969,6 +2030,10 @@ export function getRouteMap({
               ],
             },
             {
+              path: "api-key-management",
+              element: <Navigate to="../publishable-api-keys" replace />,
+            },
+            {
               path: "publishable-api-keys",
               element: <Outlet />,
               handle: {
@@ -2245,6 +2310,20 @@ export function getRouteMap({
               lazy: () => import("../../routes/payment-providers"),
               handle: {
                 breadcrumb: () => "Payment Providers",
+              },
+            },
+            {
+              path: "couriers",
+              lazy: () => import("../../routes/couriers"),
+              handle: {
+                breadcrumb: () => "Courier Logistics",
+              },
+            },
+            {
+              path: "domains",
+              lazy: () => import("../../routes/domains"),
+              handle: {
+                breadcrumb: () => "Domains & SSL",
               },
             },
             {

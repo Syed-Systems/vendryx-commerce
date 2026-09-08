@@ -10,6 +10,7 @@ import { LayoutComposer, detailPageDefaultEntries } from "../../../components/la
 import { useFeatureFlag } from "../../../providers/feature-flag-provider"
 import { StoreCurrencySection } from "./components/store-currency-section"
 import { StoreLocaleSection } from "./components/store-locale-section"
+import { StorePoliciesSection } from "./components/store-policies-section"
 
 export const StoreDetail = () => {
   const initialData = useLoaderData() as Awaited<ReturnType<typeof storeLoader>>
@@ -46,6 +47,9 @@ export const StoreDetail = () => {
                 <StoreLocaleSection store={store} />
               </LayoutComposer.Entry>
             )}
+            <LayoutComposer.Entry id="StorePoliciesSection">
+              <StorePoliciesSection />
+            </LayoutComposer.Entry>
             {detailPageDefaultEntries(store, { permissions: false })}
           </>
         ),

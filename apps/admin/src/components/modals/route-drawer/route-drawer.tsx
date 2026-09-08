@@ -50,7 +50,10 @@ const Root = ({ prev = "..", children }: RouteDrawerProps) => {
         <StackedModalProvider onOpenChange={onStackedModalOpen}>
           <Drawer.Content
             aria-describedby={undefined}
-            className={clx({
+            overlayProps={{
+              className: "!z-50",
+            }}
+            className={clx("!z-50", {
               "!bg-ui-bg-disabled !inset-y-5 !right-5": stackedModalOpen,
             })}
           >

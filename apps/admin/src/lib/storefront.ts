@@ -1,2 +1,4 @@
 export const STHENO_STOREFRONT_URL =
-  __STOREFRONT_URL__ ?? "http://localhost:8000"
+  typeof __STOREFRONT_URL__ !== "undefined"
+    ? __STOREFRONT_URL__
+    : "http://localhost:8000"

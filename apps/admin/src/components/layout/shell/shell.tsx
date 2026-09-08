@@ -20,15 +20,8 @@ import { useTheme } from "../../../providers/theme-provider"
 import { ProgressBar } from "../../common/progress-bar"
 import {
   LayoutCustomizerHostProvider,
-  LayoutCustomizerSlot,
 } from "../../../providers/customizer-host-provider/customizer-host-provider"
 import { Notifications } from "../notifications"
-import { CustomizerMenu, LayoutComposer } from "../../layout-composer"
-import {
-  CUSTOMIZE_IDS,
-  LAYOUT_CONTROLS_LOCATION,
-} from "../../layout-composer/constants"
-import { CORE_LAYOUT_IDS } from "@medusajs/admin-shared"
 
 export const Shell = ({ children }: PropsWithChildren) => {
   const globalShortcuts = useGlobalShortcuts()
@@ -40,13 +33,13 @@ export const Shell = ({ children }: PropsWithChildren) => {
     <KeybindProvider shortcuts={globalShortcuts}>
       <DocumentTitle />
       <LayoutCustomizerHostProvider>
-        <div className="relative flex h-screen flex-col items-start overflow-hidden lg:flex-row">
+        <div className="relative flex h-screen flex-col items-start overflow-hidden lg:flex-row bg-[var(--vx-bg-canvas,#FCFBF9)] dark:bg-ui-bg-subtle">
           <NavigationBar loading={loading} />
-          <div>
+          <div className="isolate">
             <MobileSidebarContainer>{children}</MobileSidebarContainer>
             <DesktopSidebarContainer>{children}</DesktopSidebarContainer>
           </div>
-          <div className="flex h-screen w-full flex-col overflow-auto">
+          <div className="flex h-screen w-full flex-col overflow-auto bg-[var(--vx-bg-canvas,#FCFBF9)] dark:bg-ui-bg-subtle">
             <Topbar />
             <main
               className={clx(
@@ -230,30 +223,13 @@ const ThemeToggle = () => {
 
 const Topbar = () => {
   return (
-    <div className="grid w-full grid-cols-2 border-b p-3">
-      <div className="flex items-center gap-x-1.5">
+    <div className="grid min-h-[64px] h-16 w-full grid-cols-2 border-b border-ui-border-base bg-[var(--vx-bg-surface,#FFFFFF)]/90 backdrop-blur-sm px-4 py-2">
+      <div className="flex items-center gap-x-2">
         <ToggleSidebar />
         <Breadcrumbs />
       </div>
       <div className="flex items-center justify-end gap-x-3">
-        {/* Single trigger for every host; while editing, the active composer's
-            controls portal into the adjacent slot in its place. */}
-        <CustomizerMenu />
-        <LayoutCustomizerSlot location={LAYOUT_CONTROLS_LOCATION} />
-        <LayoutComposer
-          widgetsZonePrefix="topbar"
-          preferredLayoutId={CORE_LAYOUT_IDS.SINGLE_ROW}
-          sections={{
-            main: (
-              <LayoutComposer.Entry id="Notifications">
-                <Notifications />
-              </LayoutComposer.Entry>
-            ),
-          }}
-          hasOutlet={false}
-          customizeId={CUSTOMIZE_IDS.TOPBAR}
-          controlSize="xsmall"
-        />
+        <Notifications />
         <ThemeToggle />
       </div>
     </div>
@@ -265,7 +241,7 @@ const DesktopSidebarContainer = ({ children }: PropsWithChildren) => {
 
   return (
     <div
-      className={clx("hidden h-screen w-[220px] border-e", {
+      className={clx("isolate hidden h-screen w-[260px] border-e border-ui-border-base bg-[var(--vx-bg-sidebar,#F7F3ED)] dark:bg-[#141416] transition-all", {
         "lg:flex": desktop,
       })}
     >

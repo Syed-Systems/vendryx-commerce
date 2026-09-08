@@ -8,9 +8,11 @@ import {
 } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Select, Table, Text } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { TimeSeriesChart } from "../../components/charts/time-series-chart"
 import { SingleColumnPage } from "../../components/layout/pages"
+import { useCurrencies } from "../../hooks/api/currencies"
+import { useStore } from "../../hooks/api/store"
 import { sdk } from "../../lib/client"
 
 // @medusajs/ui types Table.Cell as HTMLAttributes rather than TdHTMLAttributes, so
@@ -65,8 +67,63 @@ interface AovData {
 }
 
 export const AnalyticsDashboard = () => {
+  const { store } = useStore()
+  const { currencies: registeredCurrencies } = useCurrencies()
+
+  const availableCurrencies = useMemo(() => {
+    const list: Array<{ code: string; label: string }> = []
+    const seen = new Set<string>()
+
+    if (store?.supported_currencies) {
+      for (const sc of store.supported_currencies) {
+        const code = sc.currency_code?.toUpperCase()
+        if (code && !seen.has(code)) {
+          seen.add(code)
+          const sym = sc.currency?.symbol_native || sc.currency?.symbol || code
+          list.push({ code, label: `${code} (${sym})` })
+        }
+      }
+    }
+
+    if (registeredCurrencies) {
+      for (const c of registeredCurrencies) {
+        const code = c.code?.toUpperCase()
+        if (code && !seen.has(code)) {
+          seen.add(code)
+          const sym = c.symbol_native || c.symbol || code
+          list.push({ code, label: `${code} (${sym})` })
+        }
+      }
+    }
+
+    const defaults = [
+      { code: "BDT", label: "BDT (৳)" },
+      { code: "USD", label: "USD ($)" },
+      { code: "EUR", label: "EUR (€)" },
+      { code: "GBP", label: "GBP (£)" },
+    ]
+    for (const d of defaults) {
+      if (!seen.has(d.code)) {
+        seen.add(d.code)
+        list.push(d)
+      }
+    }
+
+    return list
+  }, [store, registeredCurrencies])
+
   const [windowDays, setWindowDays] = useState<TimeWindow>("30")
   const [currency, setCurrency] = useState("USD")
+
+  const defaultCurrencyCode =
+    store?.supported_currencies?.find((c) => c.is_default)?.currency_code ||
+    store?.supported_currencies?.[0]?.currency_code
+
+  useEffect(() => {
+    if (defaultCurrencyCode) {
+      setCurrency(defaultCurrencyCode.toUpperCase())
+    }
+  }, [defaultCurrencyCode])
 
   // Fetch Revenue Over Time
   const {
@@ -139,7 +196,8 @@ export const AnalyticsDashboard = () => {
   const currencyFormat = new Intl.NumberFormat(undefined, {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })
 
   // These series have been in the API response since the reporting module landed;
@@ -186,13 +244,15 @@ export const AnalyticsDashboard = () => {
               onValueChange={(val) => setCurrency(val)}
               size="small"
             >
-              <Select.Trigger className="w-[100px]">
+              <Select.Trigger className="w-[130px]">
                 <Select.Value />
               </Select.Trigger>
               <Select.Content>
-                <Select.Item value="USD">USD ($)</Select.Item>
-                <Select.Item value="EUR">EUR (€)</Select.Item>
-                <Select.Item value="GBP">GBP (£)</Select.Item>
+                {availableCurrencies.map((c) => (
+                  <Select.Item key={c.code} value={c.code}>
+                    {c.label}
+                  </Select.Item>
+                ))}
               </Select.Content>
             </Select>
 
@@ -235,9 +295,9 @@ export const AnalyticsDashboard = () => {
             </div>
             <div className="mt-3 flex items-baseline gap-x-2">
               <Text size="xlarge" weight="plus" className="text-ui-fg-base">
-                ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {currencyFormat.format(totalRevenue)}
               </Text>
-              <Badge size="xsmall" color="green">Live</Badge>
+              <Badge size="xsmall" color="blue">Last {windowDays}d</Badge>
             </div>
             <Text size="xsmall" className="text-ui-fg-muted mt-1">
               Window: past {windowDays} days
@@ -255,9 +315,9 @@ export const AnalyticsDashboard = () => {
             </div>
             <div className="mt-3 flex items-baseline gap-x-2">
               <Text size="xlarge" weight="plus" className="text-ui-fg-base">
-                {totalOrders}
+                {totalOrders.toLocaleString()}
               </Text>
-              <Badge size="xsmall" color="blue">Tracked</Badge>
+              <Badge size="xsmall" color="blue">Volume</Badge>
             </div>
             <Text size="xsmall" className="text-ui-fg-muted mt-1">
               Confirmed checkout orders
@@ -275,9 +335,9 @@ export const AnalyticsDashboard = () => {
             </div>
             <div className="mt-3 flex items-baseline gap-x-2">
               <Text size="xlarge" weight="plus" className="text-ui-fg-base">
-                ${aovValue.toFixed(2)}
+                {currencyFormat.format(aovValue)}
               </Text>
-              <Badge size="xsmall" color="purple">AOV</Badge>
+              <Badge size="xsmall" color="blue">Per basket</Badge>
             </div>
             <Text size="xsmall" className="text-ui-fg-muted mt-1">
               Gross revenue per customer basket
