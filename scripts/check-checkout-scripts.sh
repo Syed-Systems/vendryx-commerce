@@ -12,19 +12,21 @@ fi
 
 echo "Verifying checkout script inventory in $MANIFEST..."
 
-# 1. Ensure js.stripe.com is present
-if ! grep -q "https://js.stripe.com" "$MANIFEST"; then
-    echo "FAIL: Stripe script not documented in $MANIFEST."
-    exit 1
-fi
+# 1. Ensure all registered gateways are covered in manifest
+for origin in "js.stripe.com" "bka.sh" "mynagad.com" "sslcommerz.com"; do
+    if ! grep -q "$origin" "$MANIFEST"; then
+        echo "FAIL: Gateway origin $origin not documented in $MANIFEST."
+        exit 1
+    fi
+done
 
 # 2. Ensure forbidden scripts (GTM, Meta, analytics) are explicitly banned
-for banned in "Google Tag Manager" "Meta Pixel" "chat widgets"; do
+for banned in "Google Tag Manager" "Meta Pixel" "chat widgets" "Hotjar"; do
     if ! grep -q "$banned" "$MANIFEST"; then
         echo "FAIL: Missing prohibition for $banned in $MANIFEST."
         exit 1
     fi
 done
 
-echo "PASS: Checkout script manifest verified (PCI SAQ A compliant)."
+echo "PASS: Checkout script and gateway origin manifest verified (PCI SAQ A compliant)."
 exit 0

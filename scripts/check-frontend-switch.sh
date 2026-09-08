@@ -15,6 +15,7 @@ cd "$(dirname "$0")/.."
 APP="apps/storefront"
 
 node - "$APP" <<'NODE'
+const fs = require("fs")
 const path = require("path")
 const app = path.resolve(process.argv[2])
 
@@ -59,7 +60,13 @@ const check = (label, actual, expected) => {
   return ok
 }
 
-for (const frontend of ["default", "matrix"]) {
+const frontends = fs
+  .readdirSync(path.join(app, "packages"), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory() && /^frontend-(?!fixture-)/.test(entry.name))
+  .map((entry) => entry.name.replace(/^frontend-/, ""))
+  .sort()
+
+for (const frontend of frontends) {
   const map = loadRewriter(frontend)
 
   // A frontend slot resolves into that frontend, and no other.
@@ -91,18 +98,19 @@ for (const frontend of ["default", "matrix"]) {
 }
 
 // The distDirs must differ, or two parallel frontends overwrite each other's build.
-const dirs = ["default", "matrix"].map((frontend) => {
+const dirs = frontends.map((frontend) => {
   process.env.STHENO_FRONTEND = frontend
   delete require.cache[require.resolve(path.join(app, "next.config.js"))]
   return require(path.join(app, "next.config.js")).distDir
 })
-if (dirs[0] === dirs[1]) {
-  console.error(`FAIL: both frontends build into ${dirs[0]}; they cannot run in parallel.`)
+const uniqueDirs = new Set(dirs)
+if (uniqueDirs.size !== dirs.length) {
+  console.error(`FAIL: frontends share build dirs (${dirs.join(", ")}); they cannot run in parallel.`)
   failed = 1
 }
 
 if (!failed) {
-  console.log(`PASS: default and matrix each bind their own frontend (${dirs.join(", ")}).`)
+  console.log(`PASS: ${frontends.join(", ")} each bind their own frontend (${dirs.join(", ")}).`)
 }
 process.exit(failed)
 NODE

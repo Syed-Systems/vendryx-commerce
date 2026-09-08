@@ -11,14 +11,17 @@ if (-not (Test-Path $MANIFEST)) {
 Write-Host "Verifying checkout script inventory in $MANIFEST..." -ForegroundColor Yellow
 $content = Get-Content $MANIFEST -Raw
 
-# 1. Ensure js.stripe.com is present
-if ($content -notmatch "https://js.stripe.com") {
-    Write-Error "FAIL: Stripe script not documented in $MANIFEST."
-    exit 1
+# 1. Ensure all registered gateway origins are documented
+$origins = @("js.stripe.com", "bka.sh", "mynagad.com", "sslcommerz.com")
+foreach ($origin in $origins) {
+    if ($content -notmatch [regex]::Escape($origin)) {
+        Write-Error "FAIL: Gateway origin $origin not documented in $MANIFEST."
+        exit 1
+    }
 }
 
 # 2. Ensure forbidden scripts are explicitly banned
-$bannedList = @("Google Tag Manager", "Meta Pixel", "chat widgets")
+$bannedList = @("Google Tag Manager", "Meta Pixel", "chat widgets", "Hotjar")
 foreach ($banned in $bannedList) {
     if ($content -notmatch [regex]::Escape($banned)) {
         Write-Error "FAIL: Missing prohibition for $banned in $MANIFEST."
@@ -26,5 +29,5 @@ foreach ($banned in $bannedList) {
     }
 }
 
-Write-Host "PASS: Checkout script manifest verified (PCI SAQ A compliant)." -ForegroundColor Green
+Write-Host "PASS: Checkout script and gateway origin manifest verified (PCI SAQ A compliant)." -ForegroundColor Green
 exit 0
