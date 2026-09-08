@@ -1,6 +1,12 @@
 # Platform completion — the 23 handlers between 74% and 100%
 
-**Status:** Plan · **Date:** 2026-09-01 · **Refines:** [CONTROL_PLANE.md](CONTROL_PLANE.md)
+**Status:** Plan · **Date:** 2026-09-01 (Updated 2026-09-08) · **Refines:** [CONTROL_PLANE.md](CONTROL_PLANE.md) · **Space Target:** [SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md](SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md) · **Decisions:** [ADR-030](DECISIONS.md#adr-030)
+
+> [!NOTE]
+> **Context — Transition to Space (2026-09-08):**  
+> The company control plane architecture has transitioned to **Space**, an independent project at
+> `D:\Syed Systems\Space`. These 23 handlers complete the in-repo `stheno-api-platform` surface for Vendryx
+> Commerce, providing the verified baseline that will be exposed to Space through versioned product connectors.
 
 ---
 
@@ -13,11 +19,11 @@ Two measurements, because they disagree and the gap is the point.
 | Surface coverage | **59 / 63 (94%)** | capabilities in CONTROL_PLANE.md §2 with a live route answering 200 |
 | Substance | **66 / 89 (74%)** | handlers that read or write real data rather than returning literals |
 
-CONTROL_PLANE.md §3 still reports **7 / 63 (11%)**, dated 2026-08-21. That scorecard is three
-weeks stale and understates the work badly — D1, D2, D3, D9 and D10 are largely built since.
-It should be replaced with the table above.
+CONTROL_PLANE.md §3 used to report **7 / 63 (11%)**, dated 2026-08-21 — three weeks stale, and
+understating the work badly, since D1, D2, D3, D9 and D10 were largely built by then.
+**Replaced with the table above on 2026-09-02.**
 
-The 26-point gap between surface and substance is one specific failure mode: a route exists,
+The 20-point gap between surface and substance is one specific failure mode: a route exists,
 answers 200, returns a shape the frontend renders — and the values are hardcoded. Verified
 example, `GET /platform/settlements/cod` on a database with zero courier remittances:
 

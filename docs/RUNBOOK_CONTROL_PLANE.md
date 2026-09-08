@@ -1,6 +1,12 @@
 # Stheno Platform Control Plane Runbook
 
-This document details operational procedures for Stheno platform operators managing multi-tenant infrastructure, incidents, credential compromise, and recovery.
+This document details operational procedures for platform operators managing multi-tenant infrastructure, incidents, credential compromise, and recovery.
+
+> [!NOTE]
+> **Operational Scope Note (2026-09-08):**  
+> Procedures in this runbook apply to the in-repo `stheno-api-platform` service during the transitional phase.
+> The permanent company-wide control plane is **Space** (`D:\Syed Systems\Space`), which manages fleet-wide
+> operations, credentials, and tenant organizations through product connectors. See [ADR-030](DECISIONS.md#adr-030).
 
 ---
 

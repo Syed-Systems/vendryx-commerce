@@ -1,15 +1,15 @@
 # Control Plane — remediation plan and full dashboard scope
 
-**Date:** 2026-08-22 · **Scope doc:** [CONTROL_PLANE.md](CONTROL_PLANE.md) ·
-**Phase 4 tasks:** [PHASE4_TASKS.md](PHASE4_TASKS.md)
+**Date:** 2026-08-22 (Updated 2026-09-08) · **Scope doc:** [CONTROL_PLANE.md](CONTROL_PLANE.md) ·
+**Phase 4 tasks:** [PHASE4_TASKS.md](PHASE4_TASKS.md) · **Space Target:** [SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md](SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md) ·
+**Decisions:** [ADR-030](DECISIONS.md#adr-030)
 
-[CONTROL_PLANE.md](CONTROL_PLANE.md) decided *what the control plane is for* and named ten
-domains and 63 capabilities. It scored 7 of 63 built, and it has not been updated since
-P29–P35 landed. This document is the re-score against the code as it actually stands, plus
-the work that makes the difference real.
-
-**It defines phase P37.** Task IDs continue from [PHASE4_TASKS.md](PHASE4_TASKS.md) and never
-collide with it. Where P37 supersedes an earlier task, the row says so.
+> [!NOTE]
+> **Evolution to Space (2026-09-08):**  
+> The company-wide control plane has been updated to **Space**, living as an independent project at
+> `D:\Syed Systems\Space`. The handler remediation documented here stabilizes the in-repo `stheno-api-platform`
+> surface for Vendryx Commerce, ensuring verified business logic is available to wrap into Space connectors during the
+> phased migration.
 
 ---
 

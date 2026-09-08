@@ -8,20 +8,21 @@ Legend: **RSC** = React Server Component (server-rendered) · **CC** = Client Co
 
 ---
 
-## Part 0 — Official Stheno SaaS website (`apps/marketing`)
+## Part 0 — Official Vendryx website (`apps/marketing`)
 
 The marketing site is the merchant-facing entry point. It is separate from the storefront and has
 no documentation navigation. Its public routes are:
 
 | Route | Purpose |
 |---|---|
-| `/` | Product story and spatial 3D launch experience |
-| `/features` | Focused merchant service capabilities |
-| `/pricing` | Free 14-day store-request trial and Pro commercial terms |
+| `/` | Product story, bento capabilities, pricing calculator, and interactive plans (`/#features`, `/#pricing`) |
+| `/demo` | Interactive browser sandbox (catalog edit, cart drawer, social order converter, and live checkout) |
 | `/login` | Merchant Google or email/password authentication |
 | `/signup` | Merchant signup with resumable optional business draft |
 | `/forgot-password` | Password reset request |
 | `/welcome` | Account-level empty state, create-store request, and launch status |
+| `/privacy` | Merchant sovereignty and buyer guest checkout data protection policy |
+| `/terms` | Terms of service, merchant data ownership, and uptime commitments |
 
 `/welcome` is intentionally not an admin tenant route. Email accounts verify before a store request
 may be submitted. Once submitted, the customer-visible status is `Submitted`, `In review`,
@@ -144,9 +145,10 @@ Pro additionally mounts gateways, couriers, domains, and bespoke-theme status.
 | Orders | `/orders`, `/orders/social` |
 | Catalog | `/products`, `/collections`, `/categories`, `/inventory` |
 | Analytics | `/analytics` |
-| Merchant settings | `/settings/store`, `/settings/users`, `/settings/notifications`, `/settings/billing`, `/profile` |
+| Merchant settings | `/settings/store`, `/settings/users`, `/settings/notifications`, `/settings/billing`, `/settings/entitlements`, `/profile` |
 | Brand kit | `/settings/brand-kit` |
-| Pro operations | `/settings/gateways`, `/settings/couriers`, `/settings/domains`, `/settings/bespoke-theme` |
+| Help & Support | `/help` (searchable docs, ticket tracker `TK-*`), `/release-notes` (engine changelog) |
+| Pro operations | `/settings/payment-providers`, `/settings/couriers`, `/settings/domains`, `/settings/bespoke-theme` |
 
 ### 2.2 Inherited route inventory (not automatically exposed)
 

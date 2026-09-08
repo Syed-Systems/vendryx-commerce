@@ -1,7 +1,17 @@
 # The Control Plane — the business's only control centre
 
-**Status:** Draft · **Date:** 2026-08-21 · **Refines:** [ADR-012](DECISIONS.md#adr-012),
-[ADR-016](DECISIONS.md#adr-016) · **Tasks:** [PHASE4_TASKS.md](PHASE4_TASKS.md)
+**Status:** Superseded by Space Architecture · **Date:** 2026-08-21 (Updated 2026-09-08) · **Refines:** [ADR-012](DECISIONS.md#adr-012),
+[ADR-016](DECISIONS.md#adr-016), [ADR-030](DECISIONS.md#adr-030) · **Architecture Plan:** [SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md](SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md) · **Tasks:** [PHASE4_TASKS.md](PHASE4_TASKS.md)
+
+> [!IMPORTANT]
+> **Architecture Update (2026-09-08 — [ADR-030](DECISIONS.md#adr-030)):**  
+> The company control plane has been updated and extracted into **Space**, a separate standalone project at
+> `D:\Syed Systems\Space` (sibling directory to `Store`). Space is the unified company control plane for customer
+> organizations, product catalog, subscriptions, entitlements, provisioning, and billing across all Syed Systems products
+> (Vendryx Commerce, ERP, LMS). Vendryx integrates with Space via versioned connector APIs (`/space/integration/v1/*`).
+>
+> The legacy `apps/platform` and `stheno-api-platform` within this repository are retained as the transitional
+> surface during the phased migration (expand, shadow, reconcile, cutover, contract).
 
 ---
 
@@ -220,19 +230,59 @@ Flow A, seen from above. Depends on P21–P24.
 
 ## 3. Scorecard
 
-| Domain | Built | Total | |
-|---|---:|---:|---|
-| D1 Tenant lifecycle | 2 | 9 | ▓▓░░░░░░░ |
-| D2 Plans & entitlements | 5 | 8 | ▓▓▓▓▓▓░░ |
-| D3 Subscription billing | 0 | 9 | ░░░░░░░░░ |
-| D4 Payments oversight | 0 | 8 | ░░░░░░░░ |
-| D5 Fulfillment oversight | 0 | 5 | ░░░░░ |
-| D6 Support operations | 0 | 5 | ░░░░░ |
-| D7 Themes & branding | 0 | 3 | ░░░ |
-| D8 Platform configuration | 0 | 4 | ░░░░ |
-| D9 Access & compliance | 0 | 7 | ░░░░░░░ |
-| D10 Growth analytics | 0 | 5 | ░░░░░ |
-| **Total** | **7** | **63** | **11%** |
+**Updated 2026-09-01.** The previous scorecard read **7 / 63 (11%)**, dated 2026-08-21. It was
+three weeks stale and understated the work badly — D1, D2, D3, D9 and D10 are largely built
+since. Two measurements replace it, because they disagree and **the gap between them is the
+point**.
+
+| Measure | Value | What it counts |
+|---|---:|---|
+| **Surface** | **59 / 63 (94%)** | capabilities in §2 with a live route answering 200 |
+| **Substance** | **66 / 89 (74%)** | handlers that read or write real data rather than returning literals |
+
+The 20-point gap is one specific failure mode: **a route exists, answers 200, returns a shape the
+frontend renders — and the values are hardcoded.** Verified on a database with zero courier
+remittances, `GET /platform/settlements/cod` still answers with `12500.00 BDT` collected, from
+literals at [oversight.rs:414](../crates/api/stheno-api-platform/src/oversight.rs#L414).
+
+`apps/admin`'s e2e suite already guards against this class with *"previously stubbed endpoints
+return real data"*. The control plane had no such guard, which is why the gap grew unnoticed.
+
+**It has one now.** `scripts/check-no-fabricated-handlers.py` tests whether a handler ever uses
+its own `State(...)` binding, with the authentication and audit preamble stripped first --
+because every control-plane handler awaits `actor()` and `record()`, and doing so says nothing
+about where the response body came from. Under its previous rule (*"did it await anything?"*)
+the entire `stheno-api-platform` crate was exempt by construction and **zero** of its handlers
+were ever inspected. It now reports 13 stubs here -- 7 in `oversight.rs`, 3 in `support.rs`,
+2 in `themes_and_config.rs`, 1 in `security.rs` -- and holds the repo-wide count to a budget
+that may not rise without sign-off.
+
+Where the 23 stubbed handlers are concentrated:
+
+| Module | Handlers | Backed | Stubbed | Domain |
+|---|---:|---:|---:|---|
+| `oversight.rs` | 14 | 2 | **12** | D4 payments · D5 fulfillment |
+| `support.rs` | 8 | 5 | **3** | D6 support ops |
+| `lib.rs` | 26 | 24 | 2 | D1 tenants · D3 billing |
+| `merchant.rs` | 6 | 4 | 2 | merchant launch |
+| `security.rs` | 8 | 6 | 2 | D9 access |
+| `themes_and_config.rs` | 11 | 9 | 2 | D7 themes |
+| `analytics.rs` · `launch_requests.rs` · `operators.rs` · `tiers.rs` | 16 | 16 | 0 | D10 · launch · D9 · D2 |
+| **Total** | **89** | **66** | **23** | |
+
+The weakness sits exactly where §4 predicted: the domains marked *"depends on P21–P24"* have
+routes and DTOs but nothing behind them. The per-handler task list is
+[PLATFORM_COMPLETION_TASKS.md](PLATFORM_COMPLETION_TASKS.md).
+
+**One caveat this table does not show.** D3 billing is *built* — invoices generate, the dunning
+ladder is implemented and tested, suspension is written and enforced in `tenant_layer`. Until
+2026-09-02 it was also **inert**: nothing advanced the ladder on a clock, because the engine had
+no job scheduler at all. A billing system that never runs collects nothing, and no handler count
+reveals that.
+
+The scheduler now exists (`crates/stheno-server/src/scheduler.rs`) and registers
+`subscription-dunning` daily at 03:00, so the ladder advances. What has **not** been proven is
+collection end to end against a live gateway — that is P22, and it needs credentials.
 
 ---
 

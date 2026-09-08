@@ -69,8 +69,8 @@ Counts are exact. Names map 1:1 to Medusa model files.
 | **workflow-engine** | 1 | `workflow_execution` |
 | | **127** | |
 
-Modules without persistence (9): `analytics`, `cache-inmemory`, `cache-redis`, `caching`,
-`event-bus-local`, `event-bus-redis`, `file`, `locking`, `link-modules`. The 16 provider packages
+Modules without persistence (10): `analytics`, `cache-inmemory`, `cache-redis`, `caching`,
+`demo` (client sandbox sessions), `event-bus-local`, `event-bus-redis`, `file`, `locking`, `link-modules`. The 16 provider packages
 under `providers/` are counted separately.
 
 ---

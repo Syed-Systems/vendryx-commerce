@@ -24,16 +24,18 @@ a stated cost is a preference wearing a suit.
 | [ADR-017](#adr-017) | Subscription billing is first-party, collected on the gateways already integrated | Accepted |
 | [ADR-018](#adr-018) | Support impersonation: time-boxed, scope-limited, fully audited, secret-opaque | Accepted |
 | [ADR-019](#adr-019) | Provider credentials are tenant-owned, encrypted, and resolved through factories | Accepted |
-| [ADR-020](#adr-020) | Content pages a design needs are core routes fed by a theme slot | **Proposed** |
-| [ADR-021](#adr-021) | AI-authored storefront content is data against a closed schema, never code | **Proposed** |
-| [ADR-022](#adr-022) | Tenant identity is the Host header; the Store API is served same-origin | **Proposed** |
-| [ADR-023](#adr-023) | One storefront build per theme, routed by host | **Proposed** |
-| [ADR-024](#adr-024) | Compute next to the data; delivery by CDN over an origin that speaks HTTP caching | **Proposed** |
-| [ADR-025](#adr-025) | Connection pooling is transaction-mode, with a session-mode route | **Proposed** |
-| [ADR-026](#adr-026) | Docker Compose now, Kubernetes at scale | **Proposed** |
-| [ADR-027](#adr-027) | Medusa compatibility is an implementation detail, never a product claim | **Proposed** |
-
----
+| [ADR-020](#adr-020) | Content pages a design needs are core routes fed by a theme slot | Accepted |
+| [ADR-021](#adr-021) | AI-authored storefront content is data against a closed schema, never code | Accepted |
+| [ADR-022](#adr-022) | Tenant identity is the Host header; the Store API is served same-origin | Accepted |
+| [ADR-023](#adr-023) | One storefront build per theme, routed by host | Accepted |
+| [ADR-024](#adr-024) | Compute next to the data; delivery by CDN over an origin that speaks HTTP caching | Accepted |
+| [ADR-025](#adr-025) | Connection pooling is transaction-mode, with a session-mode route | Accepted |
+| [ADR-026](#adr-026) | Docker Compose now, Kubernetes at scale | Accepted |
+| [ADR-027](#adr-027) | Medusa compatibility is an implementation detail, never a product claim | Accepted |
+| [ADR-028](#adr-028) | Customer-facing brand is Vendryx; internal identifiers remain `stheno-*` | Accepted |
+| [ADR-029](#adr-029) | Merchant Admin Truth Contract & Apple HIG Information Architecture | Accepted |
+| [ADR-030](#adr-030) | Company Control Plane extracted to standalone 'Space' project | Accepted |
+| [ADR-031](#adr-031) | Dynamic multi-tenant visual theming on a unified default storefront runtime | Accepted |
 
 <a id="adr-001"></a>
 
@@ -1496,7 +1498,7 @@ would be the third for frontend-matrix.
 
 ## ADR-021 — AI-authored storefront content is data against a closed schema, never code
 
-**Status:** Proposed · **Date:** 2026-09-02 · **Relates to:** [ADR-013](#adr-013), [ADR-020](#adr-020)
+**Status:** Accepted · **Date:** 2026-09-02 (Finalized 2026-09-08) · **Relates to:** [ADR-013](#adr-013), [ADR-020](#adr-020)
 
 ### Context
 
@@ -1607,7 +1609,7 @@ routing alone converts a dormant bug into a live cross-tenant leak.
 
 ## ADR-023 — One storefront build per theme, routed by host
 
-**Status:** Proposed · **Date:** 2026-09-02 · **Relates to:** [ADR-013](#adr-013), [ADR-022](#adr-022)
+**Status:** Accepted · **Date:** 2026-09-02 (Finalized 2026-09-08) · **Relates to:** [ADR-013](#adr-013), [ADR-022](#adr-022)
 
 ### Context
 
@@ -1648,7 +1650,7 @@ only because it began as a copy of `frontend-default`.
 
 ## ADR-024 — Compute sits next to the data; delivery is a CDN over an origin that speaks HTTP caching
 
-**Status:** Proposed · **Date:** 2026-09-02 · **Relates to:** [ADR-012](#adr-012), [ADR-022](#adr-022)
+**Status:** Accepted · **Date:** 2026-09-02 · **Relates to:** [ADR-012](#adr-012), [ADR-022](#adr-022)
 
 ### Context
 
@@ -1684,12 +1686,12 @@ and for this architecture that answer is wrong.
 **Good.** The bill scales with cache misses rather than page views. Vendor choice stays a DNS
 change.
 
-**Bad, and currently blocking.** `getCacheOptions()` and `getAuthHeaders()` call `cookies()`,
-and every data function calls `getCacheOptions` — so no route is in the Full Route Cache and
-every page view is a render plus database work. `middleware.ts` also sets a cookie on
-responses. **Until the cookie write leaves the cacheable path and the shell stops calling
-`cookies()`, a CDN in front of this origin will cache almost nothing.** That is a refactor, not
-a setting, and it is the single largest cost item in the system.
+**Resolved blocker (2026-09-08).** `getCacheTag()` was refactored to check against public catalog tags
+(`products`, `categories`, `collections`, `regions`, `locales`, `variants`, `shippingOptions`) and
+omits `cookies()` for public cacheable requests, restoring Next.js Full Route Cache (ISR).
+`middleware.ts` no longer writes `_stheno_cache_id` on the public route path, allowing CDNs to cache
+responses directly without `Set-Cookie` invalidation. Origin emits `public_cache_headers` with
+`Surrogate-Key` and `Cache-Tag`.
 
 ---
 
@@ -1697,7 +1699,7 @@ a setting, and it is the single largest cost item in the system.
 
 ## ADR-025 — Connection pooling is transaction-mode, with a session-mode route for session state
 
-**Status:** Proposed · **Date:** 2026-09-02 · **Relates to:** [ADR-012](#adr-012)
+**Status:** Accepted · **Date:** 2026-09-02 · **Relates to:** [ADR-012](#adr-012)
 
 ### Context
 
@@ -1730,7 +1732,8 @@ binary that makes fine-grained autoscaling attractive is exactly what makes this
 
 ### Consequences
 
-**Good.** Connection count stops growing with replica count, so autoscaling becomes safe.
+**Good.** Connection count stops growing with replica count, so autoscaling becomes safe. PgBouncer
+is configured in `docker-compose.yml` on port 6432 in transaction mode with prepared statements tracked.
 
 **Bad.** Another hop and another component. And transaction duration now caps concurrency —
 throughput is `pool_size / transaction duration` — which makes the extra round trips on the
@@ -1742,7 +1745,7 @@ non-transactional path a *concurrency* cost rather than merely a latency one.
 
 ## ADR-026 — Docker Compose now, Kubernetes at scale
 
-**Status:** Proposed · **Date:** 2026-09-02
+**Status:** Accepted · **Date:** 2026-09-02
 
 ### Context
 
@@ -1775,7 +1778,7 @@ Kubernetes phase.
 
 ## ADR-027 — Medusa compatibility is an implementation detail, never a product claim
 
-**Status:** Proposed · **Date:** 2026-09-02 · **Amends:** [ADR-002](#adr-002)
+**Status:** Accepted · **Date:** 2026-09-02 · **Amends:** [ADR-002](#adr-002)
 
 ### Context
 
@@ -1829,3 +1832,225 @@ already true in practice; this records it.
 **Cost of the exception.** Keeping `/admin/*` compatible means a Medusa upgrade can still, in
 principle, force admin-side work. That is accepted: it is cheaper than owning 278 route
 contracts against a UI we did not write.
+
+---
+
+<a id="adr-028"></a>
+
+## ADR-028 — Customer-facing brand is Vendryx; internal identifiers remain `stheno-*`
+
+**Status:** Accepted · **Date:** 2026-09-08
+
+### Context
+
+The commerce engine, APIs, and UI suites were originally built and documented under the internal
+engineering codename `stheno`. As the product enters commercial operations for merchants, a distinct
+and mature customer-facing brand identity — **Vendryx** — has been established by Syed Systems.
+
+Renaming every identifier across a 40-crate modular Rust workspace, database schemas, migration
+history, API headers, and deployment configurations simultaneously introduces immense operational
+risk, schema drift, and build disruption for zero commercial value.
+
+### Decision
+
+1. **Customer-facing brand is Vendryx.** All public interfaces, marketing copy, website pages,
+   login and onboarding flows, merchant dashboard UI, email templates, favicons, wordmarks,
+   metadata, and public documentation adopt **Vendryx** (and *Vendryx by Syed Systems* where legal
+   attribution is required).
+2. **Internal identifiers remain `stheno-*`.** Rust crate names (`crates/modules/stheno-*`,
+   `stheno-types`, etc.), Cargo package and binary names (`stheno-server`, `stheno-cli`), Postgres
+   database schemas (`payment`, `fulfillment`, etc.) and migration history, environment variables
+   (`STHENO_*`), compatibility headers (`X-Stheno-CSRF`), and internal TypeScript packages
+   (`@stheno/*`) remain unchanged during this phase to preserve stability and wire compatibility.
+3. **Machine-readable manifest is source of truth.** `brand/vendryx/brand.json` defines approved
+   names, legal copy, asset paths, domains, and social handles. Automated verification scripts
+   (`scripts/check-brand-surface.sh`) enforce that public surfaces display Vendryx and never the
+   legacy customer-facing name.
+4. **No blind find-and-replace.** Code identifiers, historical ADRs, test fixtures, and internal
+   provenance are maintained explicitly.
+5. **Provider contract.** Merchant UI displays only zero-code supported providers compiled into the
+   server registry. Unimplemented or unverified providers remain hidden from merchants.
+
+### Consequences
+
+**Good.** Clear, clean separation between external branding and internal implementation stability.
+Public users experience a unified, premium Vendryx product while CI, migrations, and crate
+dependencies compile without regression.
+
+**Bad.** Engineers must remember that `stheno-*` represents the internal engine powering Vendryx.
+Public documentation includes a single standard note explaining this relationship.
+
+**Cost of the exception.** None. A later, dedicated compatibility migration can rename internal
+crates and variables if ever deemed necessary.
+
+---
+
+<a id="adr-029"></a>
+
+## ADR-029 — Merchant Admin Truth Contract & Apple HIG Information Architecture
+
+**Status:** Accepted · **Date:** 2026-09-08
+
+### Context
+
+The merchant admin dashboard contained several mock implementations, simulated state (e.g.
+`localStorage` for sessions and domains, `setTimeout` pretending to verify domains or update passwords,
+hardcoded dummy invoices and token strings), and lacked a cohesive information architecture in Settings.
+Settings was a flat unorganized list with an instant redirect to `/settings/store`, hiding crucial
+features and overwhelming merchants.
+
+Furthermore, route collisions existed (such as `/orders/:id` capturing `/orders/social` before the
+latter could resolve) and several unmounted routes were referenced in navigation.
+
+### Decision
+
+1. **Truth Before Beauty Contract.** Zero mock storage or fake timers in production admin code.
+   Every UI card, switch, and list must bind to a real, tested backend endpoint or be unmounted from
+   navigation until the corresponding backend contract is delivered.
+2. **Backend-First API Parity.** Implement genuine backend services and mount endpoints before
+   functionalizing UI:
+   - `GET /admin/rbac/me/permissions` resolves staff permissions across assigned roles and policies.
+   - Column metadata and view configurations for all admin data tables (`columns_for()`).
+   - `GET/POST /admin/settings/{key}` and `GET /admin/settings?category=...` for tenant business policies
+     (such as Cash-on-Delivery rules and store policies) with schema and size validations.
+   - `GET/POST /admin/domains`, `POST /admin/domains/{domain}/verify`, and `DELETE /admin/domains/{domain}`
+     with tenant scoping, DNS record instructions, and conflict checks.
+   - `GET /admin/billing/subscription` and `GET /admin/billing/invoices` exposing live billing and usage.
+3. **Apple Human Interface Guidelines (HIG) Architecture.**
+   - Redesign `/settings` into an organized Settings Hub featuring 7 clear categories:
+     Store & Operations, Product Catalog, Sales & Customers, Delivery & Fulfillment, Payments & Finance,
+     Security & Access, and Developer & Integrations.
+   - Interactive search with synonyms (e.g. searching "vat" surfaces Tax Regions; "cash" surfaces
+     Payment Providers; "rbac" surfaces Users & Permissions).
+   - Component primitives: `SettingsRow`, `SettingsSection`, `StatusAccessory`, and `AsyncState`
+     providing minimum 44px touch targets, progressive disclosure, and responsive push navigation.
+4. **Route Integrity.**
+   - Ensure specific static subroutes (`/orders/social`) mount before parameterized paths (`/orders/:id`).
+   - Route `/profile` cleanly redirects to `/settings/profile`.
+   - Remove orphaned/unmounted routes from navigation until implemented.
+5. **Automated Enforcement.**
+   - CI enforces zero mock storage in admin routes via `scripts/check-no-mock-storage.ps1` (denying
+     `localStorage` and simulation timers across `apps/admin/src/routes`).
+
+### Consequences
+
+**Good.** Eliminates deceptive merchant states, fake successes, and data loss from browser refreshes.
+Merchants navigate a predictable, polished, Apple HIG-compliant configuration suite backed by robust Rust APIs.
+
+**Bad.** Some incomplete auxiliary mock screens (like fake ticket simulators) are removed or simplified
+to knowledge hubs until genuine service contracts exist.
+
+**Cost of the exception.** None.
+
+---
+
+<a id="adr-030"></a>
+
+## ADR-030 — Company Control Plane extracted to standalone 'Space' project
+
+**Status:** Accepted · **Date:** 2026-09-08 · **Refines:** [ADR-012](#adr-012), [ADR-016](#adr-016)
+
+### Context
+
+The platform control plane began as `apps/platform` and `stheno-api-platform` inside the Store
+repository. Its scope originally grew to manage tenants, subscriptions, plan definitions, and
+operator identity for the commerce engine.
+
+However, Syed Systems operates and is expanding multiple B2B and SaaS products — including Vendryx
+Commerce, ERP, LMS, and future offerings. Operating commercial relationships, organizations,
+memberships, unified billing, cross-product catalog bundles, and provisioning inside a single product's
+repository (Store) would:
+1. Inappropriately couple unrelated enterprise products (ERP, LMS) to Vendryx commerce release cycles
+   and schemas.
+2. Violate the shared-kernel boundary principle by turning `stheno-platform` into an unwieldy
+   company-wide dependency.
+3. Obscure commercial and operational oversight across disparate domain systems.
+
+### Decision
+
+1. **Independent Standalone Project:** The company control plane is extracted into **Space**, an
+   independently deployed and maintained project situated at `D:\Syed Systems\Space` (a standalone
+   folder beside `Store`). Space has its own workspace, `apps/space` console, `crates/space-server`,
+   and migration history.
+2. **Product Connector Architecture:** Products remain authoritative for their own domain databases.
+   Vendryx owns stores, orders, and products; ERP owns ledgers and payroll; LMS owns courses. Space
+   does not read or join product databases directly.
+3. **Integration Boundary:** Vendryx Commerce connects to Space through versioned connector APIs
+   (`/space/integration/v1/*`) using signed delivery, service identities, idempotent commands, and
+   replay protection.
+4. **Phased Migration (SPACE-ADR-007):** In-repo platform components (`apps/platform`,
+   `stheno-api-platform`) are maintained as the legacy surface during the transition (expand, shadow,
+   reconcile, cutover, and contract phases). Existing verified money, dunning, and audit logic will
+   be wrapped by the Vendryx Space connector.
+
+### Consequences
+
+**Good.**
+- Clean separation between company-level SaaS management (Space) and commerce engine internals (Vendryx).
+- Enables cross-product customer organizations, unified billing, and centralized entitlement resolution.
+- Preserves module isolation and keeps `stheno-types` starved of company-level domain concepts.
+
+**Bad.**
+- Requires maintaining an interim transitional platform in `Store` until the connector cutover is
+  complete.
+- Two repositories to deploy and coordinate during migration.
+
+**Cost of the exception.** None. This replaces an ad-hoc commerce-centric control plane with a true
+multi-product architecture.
+
+---
+
+<a id="adr-031"></a>
+
+## ADR-031 — Dynamic Multi-Tenant Visual Theming on a Unified Default Storefront Runtime
+
+**Status:** Accepted · **Date:** 2026-09-09 · **Relates to:** [ADR-012](#adr-012), [ADR-013](#adr-013), [ADR-022](#adr-022), [ADR-023](#adr-023)
+
+### Context
+
+Merchants require distinct, branded storefront experiences (color schemes, curated typography, card aspect ratios, squircle corner radii, and Apple Human Interface Guidelines aesthetics).
+
+However, deploying separate Next.js servers per merchant or theme creates:
+1. Operational sprawl: N running containers, complex build pipelines, DNS routing fragility, and high hosting bills.
+2. Divergence and bugs: Rebuilding or copying the DOM creates divergence in form validation, cart state, accessibility (WCAG 2.2 Level AA), and checkout integration.
+3. Slower merchant updates: Recompiling or redeploying for simple styling updates introduces unacceptable minutes of delay.
+
+The reference package `frontend-default` contains a battle-tested, mature DOM structure that already correctly handles complex edge cases, responsive behaviors, accessibility, and secure checkout boundaries.
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| Deploy separate Next.js servers per merchant/theme | Complete DOM isolation per store | Severe server proliferation, high infrastructure costs, complex deployment orchestrations, version drift |
+| Runtime dynamic module loading / component plugins | Can swap React components per request | Requires dynamic imports, defeats tree-shaking, unstable component ABI. Rejected by [ADR-001](#adr-001) and [ADR-013](#adr-013) |
+| **Unified default storefront with runtime design tokens & visual variant modifiers** (chosen) | One Next.js server serves all merchants. Battle-tested mature DOM retained. Instant zero-deploy styling changes | Visual variations must be expressed through parameterized tokens, CSS custom properties, and variant data attributes rather than arbitrary freeform JSX forks |
+
+### Decision
+
+1. **Unified Next.js Storefront Runtime:** All merchant storefronts run on a single Next.js application instance/cluster. No per-merchant or per-theme server deployment is required for visual differentiation.
+2. **Preserve `frontend-default` as the Mature Structural Foundation:** The rock-solid, accessible DOM structure of `frontend-default` remains the canonical chassis for the store.
+3. **Runtime Design Token Injection:**
+   - Next.js `middleware.ts` resolves the tenant identity from the `Host` header in `<1ms`.
+   - `storefront-core/src/app/layout.tsx` dynamically injects tenant-specific design tokens into `<style id="stheno-brand-tokens">:root { ... }</style>` on SSR.
+   - Tokens govern: Color system (`--brand-primary`, `--brand-surface`, `--brand-background`, `--brand-text`, `--brand-hairline`), Typography (`--brand-font-family`), Corner Radii (`--brand-radius-card`, `--brand-radius-button`, `--brand-radius-input`), and Materials (frosted glass blur).
+4. **Config-Driven Visual Variant Modifiers:**
+   - Mature components support semantic data attributes and variant modifiers (e.g. `data-card-style="apple-minimal"`, `data-image-aspect="portrait"`, `data-buy-box="sticky"`).
+   - Enables presentation variations (Apple sticky 2-column detail page vs inline, 1:1 square vs 4:5 portrait media, segmented option pills vs standard chips) without mutating core data pipelines or validation logic.
+5. **Apple Human Interface Guidelines (HIG) as the Platform Baseline:**
+   - The default aesthetic baseline adopts Apple HIG: 8pt spatial grid, generous whitespace, high-contrast typography with tabular pricing numerals, smooth 16px squircle corner radii, 9999px full-pill buttons, translucent frosted materials (`backdrop-filter`), and fluid spring transitions (`cubic-bezier(0.16, 1, 0.3, 1)`).
+6. **Instant Zero-Deploy Real-Time Admin Preview:**
+   - When merchants customize their theme in the Admin settings, changes are previewed live via `postMessage` (`STHENO_PREVIEW_TOKENS`), providing instant feedback without build cycles or server redeployments.
+
+### Consequences
+
+**Good.**
+- One Next.js server serves thousands of distinct branded storefronts with zero deployment overhead.
+- Preserves the battle-tested, accessible DOM structure and PCI SAQ-A checkout compliance across all stores.
+- Platform improvements, bug fixes, and security patches apply instantly to all stores.
+- Instant merchant theme updates on save (0 seconds delay).
+
+**Bad.**
+- Visual variations must be structured through tokens and modifier attributes rather than uncontrolled ad-hoc JSX rewriting.
+- Merchants wanting fundamentally incompatible commerce paradigms (such as live auction bidding or multi-step quote builders) cannot be satisfied by CSS/variant tokens alone and require custom service engagements per ADR-013.
+
+**Cost of the exception.** None. This replaces operational server proliferation with a scalable token-driven multi-tenant architecture.

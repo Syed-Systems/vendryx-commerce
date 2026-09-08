@@ -17,17 +17,32 @@ are configuration, never build constants.
 
 This is the input P21-11 and P21-12 are built against.
 
-| Gateway | Fields a merchant supplies | Notes |
-|---|---|---|
-| **bKash** | `base_url`, `app_key`, `app_secret`, `username`, `password` | Base URL issued at onboarding |
-| **Nagad** | `base_url`, `merchant_id`, **merchant private key (PEM)**, **Nagad public key (PEM)** | Two multi-line PEM blobs, not short strings |
-| **SSLCommerz** | `store_id`, `store_passwd`, `is_sandbox` | Base URL is fixed per environment |
+| Gateway | Status | Fields a merchant supplies | Notes |
+|---|---|---|---|
+| **bKash** | **Compiled & Live** | `base_url`, `app_key`, `app_secret`, `username`, `password` | Base URL issued at onboarding; remote grant token probe |
+| **SSLCommerz** | **Compiled & Live** | `store_id`, `store_passwd`, `is_sandbox` | Base URL is fixed per environment (Sandbox/Live) |
+| **Stripe** | **Compiled & Live** | `api_key`, `webhook_secret`, `base_url`, `livemode` | Direct credit card processing; remote balance probe |
+| **Nagad** | **Planned (Blocked on PDF)** | `base_url`, `merchant_id`, **merchant private key (PEM)**, **Nagad public key (PEM)** | Two multi-line PEM blobs; awaiting vendor portal spec |
 
 **Nagad breaks the "paste an API key" assumption.** It needs an RSA keypair: the merchant
 signs with their private key and Nagad encrypts responses with the public key the merchant
 uploaded to Nagad's portal. The admin UI needs a multi-line PEM field and validation that the
 key parses, and P21-12's encryption-at-rest has to cover a private key, which is a materially
 worse thing to leak than an API key.
+
+---
+
+### Compiled Provider Catalog (Generated)
+
+<!-- BEGIN GENERATED PROVIDER CATALOG -->
+| Provider ID | Provider Name | Credential Fields | Environments | Verification Strategy |
+|---|---|---|---|---|
+| `pp_system_default` | Offline / Cash on Delivery | *(none)* | Built-in | Immediate / Available |
+| `pp_stripe_stripe` | Stripe | `api_key` (secret, required), `webhook_secret` (secret, required), `base_url` (url, optional), `livemode` (bool, optional) | Live, Sandbox | Remote account retrieve |
+| `pp_sslcommerz_sslcommerz` | SSLCommerz | `store_id` (secret, required), `store_passwd` (secret, required), `is_sandbox` (bool, optional), `base_url` (url, optional) | Live, Sandbox | Configured, awaiting first transaction |
+| `pp_bkash_bkash` | bKash | `base_url` (url, required), `app_key` (secret, required), `app_secret` (secret, required), `username` (secret, required), `password` (secret, required) | Live, Sandbox | Remote grant token probe |
+| `pp_nagad_nagad` | Nagad | `base_url` (url, required), `merchant_id` (secret, required), `merchant_private_key` (secret, required), `nagad_public_key` (secret, required) | Live, Sandbox | RSA keypair validation probe |
+<!-- END GENERATED PROVIDER CATALOG -->
 
 ---
 

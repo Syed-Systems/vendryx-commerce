@@ -3,10 +3,10 @@
 Read this before writing code. It is not background reading; the rules below are enforced by CI,
 and a change that violates them fails the build rather than earning a review comment.
 
-**Spec package:** [docs/PRD.md](docs/PRD.md) · [docs/TRD.md](docs/TRD.md) ·
+**Spec package:** [docs/PRD.md](docs/PRD.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/TRD.md](docs/TRD.md) ·
 [docs/DATA_MODEL.md](docs/DATA_MODEL.md) · [docs/API_SPEC.md](docs/API_SPEC.md) ·
 [docs/WORKFLOWS.md](docs/WORKFLOWS.md) · [docs/PAYMENTS.md](docs/PAYMENTS.md) · [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) · [docs/SECURITY.md](docs/SECURITY.md) · [docs/SITEMAP.md](docs/SITEMAP.md) ·
-[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) · [docs/TASKS.md](docs/TASKS.md) · [docs/DECISIONS.md](docs/DECISIONS.md)
+[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) · [docs/TASKS.md](docs/TASKS.md) · [docs/DECISIONS.md](docs/DECISIONS.md) · [docs/DOCS_WORKFLOW.md](docs/DOCS_WORKFLOW.md) · [docs/WORK_LOG.md](docs/WORK_LOG.md)
 
 **Working a task?** [TASKS.md §1](docs/TASKS.md) is the loop protocol. Rule L3 — never edit an exit
 command to make it pass — is the one that keeps the loop honest.
@@ -322,6 +322,7 @@ cargo deny check
 ./scripts/check-no-domain-gates.sh      # no Entitlements inside crates/modules/
 ./scripts/check-schema-drift.sh
 cargo run -p stheno-cli -- openapi --check      # SDK drift
+python scripts/doc-sync-workflow.py check       # documentation sync & pricing invariants
 k6 run tests/load/<phase>.js                    # at phase gates
 ```
 

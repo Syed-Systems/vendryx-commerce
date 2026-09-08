@@ -27,3 +27,5 @@ __pycache__/
 
 # Local preview screenshots, not site assets
 apps/marketing/*-preview.png
+
+.claude/

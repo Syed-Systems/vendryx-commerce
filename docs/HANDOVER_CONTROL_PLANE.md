@@ -1,7 +1,16 @@
 # Handover — Control Plane, Phase 4
 
-**Date:** 2026-08-21 · **Branch:** `fix/storefront-checkout-and-alignment`
-**Scope doc:** [CONTROL_PLANE.md](CONTROL_PLANE.md) · **Task list:** [PHASE4_TASKS.md](PHASE4_TASKS.md)
+**Date:** 2026-08-21 (Updated 2026-09-08) · **Branch:** `fix/storefront-checkout-and-alignment`  
+**Scope doc:** [CONTROL_PLANE.md](CONTROL_PLANE.md) · **Task list:** [PHASE4_TASKS.md](PHASE4_TASKS.md) ·
+**Space Architecture:** [SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md](SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md) ·
+**Decisions:** [ADR-030](DECISIONS.md#adr-030)
+
+> [!IMPORTANT]
+> **Space Standalone Project Handoff (2026-09-08):**  
+> Long-term company-wide control plane development now occurs in **Space** at `D:\Syed Systems\Space`.
+> Space has its own workspace, `apps/space`, `crates/space-server`, migrations, and tests.
+> The tasks below for `apps/platform` and `stheno-api-platform` cover the in-repo transitional surface
+> for Vendryx Commerce. When working on new company control plane features, work in `D:\Syed Systems\Space`.
 
 This is a mid-phase handover. **P29 is complete and verified. P30 is 2 of 17 done, with a
 third task half-landed.** Read §4 before writing any code — there is one migration on disk
@@ -18,7 +27,8 @@ Two documents were written first, and they are the map:
 
 - **[CONTROL_PLANE.md](CONTROL_PLANE.md)** — what the surface is *for*. It is not a tenant
   admin panel; it is the only place the business is operated from. Ten domains (D1–D10),
-  63 capabilities, **7 built at the time of writing (11%)**.
+  63 capabilities, **7 built at the time of writing (11%)** — now **59/63 surface, 66/89
+  substance**, see [CONTROL_PLANE.md §3](CONTROL_PLANE.md#3-scorecard).
 - **[PHASE4_TASKS.md](PHASE4_TASKS.md)** — 87 tasks across P29–P36, same format as
   PHASE3_TASKS.md: stable IDs, explicit deps, an exit command that exits 0, `[BP]` markers
   on the ones where a plausible implementation passes its own test and fails in production.

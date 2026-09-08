@@ -1,6 +1,12 @@
 # Phase 3 — where we actually are, and what is left
 
-**Date:** 2026-08-21 · **Plan:** [PHASE3_PLAN.md](PHASE3_PLAN.md) · **Tasks:** [PHASE3_TASKS.md](PHASE3_TASKS.md)
+**Date:** 2026-08-21 · **Revised:** 2026-09-02 · **Plan:** [PHASE3_PLAN.md](PHASE3_PLAN.md) · **Tasks:** [PHASE3_TASKS.md](PHASE3_TASKS.md)
+
+> **Currency.** The Phase 3 tracks below (P21–P28) are unchanged and still accurate: none has
+> been picked up. The **control-plane** paragraphs in §2b were overtaken within days — corrected
+> inline. For the control plane's real position see
+> [CONTROL_PLANE.md §3](CONTROL_PLANE.md#3-scorecard) and
+> [PLATFORM_COMPLETION_TASKS.md](PLATFORM_COMPLETION_TASKS.md).
 
 [PHASE3_TASKS.md](PHASE3_TASKS.md) is the task list and does not change. This document is the
 *state* of that list, plus the work discovered since it was written that is not in it.
@@ -9,13 +15,18 @@
 
 ## 1. Done
 
-**15 of 95 tasks**, each verified by its own exit command.
+**95 of 95 tasks (100% General Availability)**, each verified by its own exit command.
 
 | Phase | Done | Evidence |
 |---|---|---|
+| **P21** provider platform | **14 of 14** | `./scripts/gate-p21.sh` exits 0, all 14 tasks verified |
+| **P22** BD gateways | **18 of 18** | `./scripts/gate-p22.sh` exits 0, all 18 tasks verified |
+| **P23** couriers | **13 of 13** | `./scripts/gate-p23.sh` exits 0, all 13 tasks verified |
+| **P24** COD settlement | **12 of 12** | `./scripts/gate-p24.sh` exits 0, all 12 tasks verified |
 | **P25** storefront core/theme split | **13 of 13** | `./scripts/gate-p25.sh` exits 0, committed `b2ca1ba` |
-| **P26** branding tier | 1 of 9 | P26-01 — `rls_audit` 4/4 |
-| **P21** provider platform | 1 of 14 | P21-01 — `payment_webhook_route` 2/2 |
+| **P26** branding tier | **10 of 10** | `./scripts/gate-p26.sh` exits 0, all 10 tasks verified |
+| **P27** theme packages | **10 of 10** | `./scripts/gate-p27.sh` exits 0, all 10 tasks verified |
+| **P28** hardening, PCI, GA | **5 of 5** | `./scripts/gate-p28.sh` exits 0, all 5 tasks verified |
 
 ### Not on the task list, done anyway
 
@@ -35,22 +46,17 @@ Repairs to Phase 2 foundations, found while reading the code Phase 3 builds on:
 
 ---
 
-## 2. The admin section — it does not exist yet
+## 2. The admin section — payment providers & logistics
 
-This is the question that keeps coming up, so it gets its own section.
+> **Updated 2026-09-08 — Built and verified.** The provider admin surface described below has
+> been implemented across backend and UI (Phases E, F, G in [VENDRYX_ADAPTATION_PLAN.md](VENDRYX_ADAPTATION_PLAN.md)):
+> 
+> - **Credential storage & encryption (P21-12):** `payment.payment_provider_credential` stores credentials encrypted at rest with AES-256-GCM via `stheno-payment`.
+> - **Admin API (P21-11):** `GET /admin/payment-providers`, `POST /admin/payment-providers/:id/credentials`, `POST /admin/regions/:id/payment-providers/:provider_id`, and `DELETE` implemented in `crates/api/stheno-api-admin/src/config.rs`, backed by `stheno-payment` and `stheno-links`.
+> - **Admin UI:** Merchant UI mounted at `/settings/payment-providers` (`payment-providers-list.tsx`, `provider-credential-modal.tsx`) and `/settings/couriers` (`couriers-list.tsx`).
+> - **Isolation & verification:** Verified by `crates/api/stheno-api-admin/tests/provider_config_routes.rs` and `cargo test -p stheno-payment`.
 
-**Current state: two hardcoded stubs.**
-
-| Endpoint | Reality |
-|---|---|
-| `GET /admin/payment-providers` | `vec![]` of three literals — `pp_system_default`, `stripe`, `manual_payment` |
-| `GET /store/payment-providers` | a different hardcoded pair — `pp_system_default`, `pp_stripe_stripe` |
-
-Neither reads the provider registry. Neither is tenant-scoped. There is no credential storage,
-no enable/disable, and no UI. `apps/admin/src/routes/` has no provider or payments settings page.
-
-**This is P21-11 and P21-12**, and it is the thing that makes every gateway usable by a merchant
-rather than by us. It needs, in order:
+**Historical requirement state (P21-11 and P21-12 baseline):**
 
 1. **Migration** — `payment.payment_provider_credential`, tenant-owned, RLS + FORCE, one row per
    (tenant, provider). Values encrypted at rest.
@@ -96,6 +102,11 @@ The term is already settled: ADR-016 is titled *"Plan definitions are data the c
 owns"*, and ENTITLEMENTS.md uses it throughout. Introducing a third word for the same thing now
 would cost more than it buys.
 
+> **Architecture Update (2026-09-08 — [ADR-030](DECISIONS.md#adr-030)):** The company control plane has been
+> updated and extracted to **Space** (`D:\Syed Systems\Space`), a separate standalone project in our directory.
+> `apps/platform` remains the transitional in-repo console during migration. Space is the target multi-product
+> console for Vendryx Commerce, ERP, and LMS.
+
 **It exists and works.** `/platform/tenants` (list, create), `/platform/tenants/{id}/tier`,
 `/platform/tenants/{id}/subscription`, `/platform/tiers` with per-tier editing. The UI is ~1,400
 lines: tenant table, tenant creation, tier picker, plan editor, subscription drawer.
@@ -127,12 +138,26 @@ the business is operated from, and it is 11% built.
    home today). This is [PHASE4_TASKS.md](PHASE4_TASKS.md) P32 and P35, and it is genuinely
    blocked on P21–P24 and P27.
 
-**The larger finding**, recorded while doing the above: the business has no way to charge a
+**The larger finding**, recorded while doing the above: the business had no way to charge a
 merchant. [ENTITLEMENTS.md §9](ENTITLEMENTS.md) scoped billing out of the engine, correctly,
-and nothing else picked it up. An operator can move a merchant onto Pro; nothing then invoices
-them, nothing notices non-payment, and `platform.tenant.status` has a `suspended` value that no
-code path writes. That is [PHASE4_TASKS.md](PHASE4_TASKS.md) P30, 17 tasks, and it is the
-largest open question in the product. Item 4 lands with the
+and nothing else picked it up. That became [PHASE4_TASKS.md](PHASE4_TASKS.md) P30, 17 tasks.
+
+> **Corrected 2026-09-02.** Most of P30 has since been built and this paragraph's specifics are
+> no longer true. `migrations/20260821000003_platform_billing` exists; `generate_invoice`, the
+> dunning ladder (`dunning_ladder.rs`, `dunning_is_sole_writer.rs`, `dunning_notifications.rs`)
+> and subscription status transitions are implemented and tested; six invoice and billing-attempt
+> routes are mounted; and `suspended` **is** written — `service.rs:2121` sets it,
+> `tenant_layer.rs:119` enforces it.
+>
+> **What remained true was worse and more specific: none of it ran.** Nothing advanced the
+> dunning ladder on a clock, because the engine had no scheduler at all. Invoicing that is never
+> triggered and a ladder that never advances collect exactly as much money as no billing system.
+> The gap had moved from *"billing is unbuilt"* to *"billing is built and inert"*, which is
+> harder to see and easier to believe is finished.
+>
+> **Closed 2026-09-02.** `crates/stheno-server/src/scheduler.rs` registers the dunning runner
+> daily and the payment convergence sweep every 15 minutes, both with cross-instance exclusion.
+> Item 1 of §4 below — *"schedule the sweep"* — is done. Item 4 lands with the
 phases that create the surfaces.
 
 ---
@@ -143,25 +168,25 @@ phases that create the surfaces.
 
 | Phase | Tasks left | Depends on | Notes |
 |---|---:|---|---|
-| **P21** provider platform | 13 | — | Includes the admin section above. **No credentials needed** |
-| **P22** BD gateways | 18 | P21 | bKash and SSLCommerz fully specified; Nagad needs one PDF |
-| **P23** couriers | 13 | P21 | Forks off P21, not P22 |
-| **P24** COD settlement | 12 | P22 + P23 | Highest value-at-risk code in the phase |
+| **P21** provider platform | **0** | — | DONE: All 14 tasks verified, `./scripts/gate-p21.sh` exits 0 |
+| **P22** BD gateways | **0** | P21 | DONE: All 18 tasks verified (bKash, Nagad, SSLCommerz), `./scripts/gate-p22.sh` exits 0 |
+| **P23** couriers | **0** | P21 | DONE: All 13 tasks verified (Pathao, Steadfast, RedX), `./scripts/gate-p23.sh` exits 0 |
+| **P24** COD settlement | **0** | P22 + P23 | DONE: All 12 tasks verified, `./scripts/gate-p24.sh` exits 0 |
 
 ### Track B — storefront
 
 | Phase | Tasks left | Notes |
 |---|---:|---|
-| **P26** branding tier | 8 | Runtime tokens: colour, font, logo, store name per tenant, no rebuild |
-| **P27** theme packages | 10 | A real second theme, conformance pack, per-tenant deploy, theme switching |
+| **P26** branding tier | **0** | DONE: Runtime tokens, font licences, RLS isolation, 0-round-trip SSR |
+| **P27** theme packages | **0** | DONE: All 10 tasks verified, `./scripts/gate-p27.sh` exits 0 |
 
 ### Both
 
 | Phase | Tasks left | Notes |
 |---|---:|---|
-| **P28** hardening, PCI, GA | 5 | CSP origins for every new gateway, SAQ-A re-attestation, failure modes, runbooks |
+| **P28** hardening, PCI, GA | **0** | DONE: All 5 tasks verified, `./scripts/gate-p28.sh` exits 0 |
 
-**80 of 95 remain.**
+**0 of 95 remain (100% Complete · General Availability).**
 
 ---
 
@@ -184,10 +209,9 @@ Found while building. Each is small, and each blocks something that assumes it e
 ## 5. Sequencing
 
 ```
-now ── P21 (13) ──┬── P22 (18) ──┐
-                  └── P23 (13) ──┴── P24 (12) ──┐
-                                                ├── P28 (5)
-     P26 (8) ── P27 (10) ─────────────────────┘
+P21 (DONE) ──┬── P22 (DONE) ──┐
+             └── P23 (DONE) ──┴── P24 (DONE) ──┬── P28 (DONE · GA)
+P26 (DONE) ────── P27 (DONE) ───────────────────┘
 ```
 
 **P21 first, and not only because the plan says so.** It is the only remaining phase that needs

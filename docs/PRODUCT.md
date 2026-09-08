@@ -5,8 +5,8 @@ this specifies the product merchants actually use.
 
 Adopted from a prior Medusa-based product plan whose engineering research was verified against
 Medusa's source. **The tenancy model from that plan was deliberately not adopted** — see
-[ADR-009](DECISIONS.md#adr-009). Everything below is engine-agnostic and applies to Stheno as
-written.
+[ADR-009](DECISIONS.md#adr-009). Everything below is engine-agnostic and specifies the Vendryx
+commercial product, powered by the internal Stheno engine (see [ADR-028](DECISIONS.md#adr-028)).
 
 ---
 

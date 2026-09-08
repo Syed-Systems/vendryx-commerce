@@ -23,38 +23,38 @@ distinction is the entire point of this document.
 
 | Module | Entities | Workflows | Priority | Phase | Status |
 |---|---:|---:|---|---|---|
-| product | 12 | 27 | MUST | P2 | ⬜ |
-| pricing | 6 | 10 | MUST | P3 | ⬜ |
-| inventory | 3 | 4 | MUST | P2 | ⬜ |
-| stock-location | 2 | 3 | MUST | P2 | ⬜ |
-| sales-channel | 1 | 3 | MUST | P2 | ⬜ |
-| cart | 9 | 15 | MUST | P4 | ⬜ |
-| promotion | 7 | 11 | MUST | P4 | ⬜ |
-| payment | 8 | 10 | MUST | P4 | ⬜ |
-| tax | 4 | 9 | MUST | P3 | ⬜ |
-| region | 2 | 3 | MUST | P3 | ⬜ |
-| currency | 1 | — | MUST | P3 | ⬜ |
-| store | 3 | 3 | MUST | P3 | ⬜ |
-| order | 23 | 68 | MUST | P5–P6 | ⬜ |
-| fulfillment | 12 | 8 | MUST | P5 | ⬜ |
-| customer | 4 | 11 | MUST | P7 | ⬜ |
-| auth | 6 | 2 | MUST | P7 | ⬜ |
-| user | 2 | 12 | MUST | P7 | ⬜ |
-| api-key | 1 | 4 | MUST | P7 | ⬜ |
-| rbac ‡ | 5 | 9 | MUST | P7 | ⬜ |
-| file | — | 2 | MUST | P8 | ⬜ |
-| notification | 2 | — | MUST | P8 | ⬜ |
-| search | 2 | — | MUST | P8 | ⬜ |
-| index | 4 | — | MUST | P8 | ⬜ |
-| caching | — | — | MUST | P8 | ⬜ |
-| locking | — | — | MUST | P8 | ⬜ |
-| translation | 3 | 5 | MUST | P8 | ⬜ |
-| settings | 4 | 8 | MUST | P8 | ⬜ |
-| analytics | — | — | SHOULD | P8 | ⬜ |
-| event-bus (local, redis) | — | — | MUST | P1 | ⬜ |
-| cache (inmemory, redis) | — | — | MUST | P8 | ⬜ |
-| workflow-engine (inmemory, redis) | 1 | — | MUST | P1 | ⬜ |
-| link-modules | 22 tables | — | MUST | P1 | ⬜ |
+| product | 12 | 27 | MUST | P2 | ✅ |
+| pricing | 6 | 10 | MUST | P3 | ✅ |
+| inventory | 3 | 4 | MUST | P2 | ✅ |
+| stock-location | 2 | 3 | MUST | P2 | ✅ |
+| sales-channel | 1 | 3 | MUST | P2 | ✅ |
+| cart | 9 | 15 | MUST | P4 | ✅ |
+| promotion | 7 | 11 | MUST | P4 | ✅ |
+| payment | 8 | 10 | MUST | P4 | ✅ |
+| tax | 4 | 9 | MUST | P3 | ✅ |
+| region | 2 | 3 | MUST | P3 | ✅ |
+| currency | 1 | — | MUST | P3 | ✅ |
+| store | 3 | 3 | MUST | P3 | ✅ |
+| order | 23 | 68 | MUST | P5–P6 | ✅ |
+| fulfillment | 12 | 8 | MUST | P5 | ✅ |
+| customer | 4 | 11 | MUST | P7 | ✅ |
+| auth | 6 | 2 | MUST | P7 | ✅ |
+| user | 2 | 12 | MUST | P7 | ✅ |
+| api-key | 1 | 4 | MUST | P7 | ✅ |
+| rbac ‡ | 5 | 9 | MUST | P7 | ✅ |
+| file | — | 2 | MUST | P8 | ✅ |
+| notification | 2 | — | MUST | P8 | ✅ |
+| search | 2 | — | MUST | P8 | ✅ |
+| index | 4 | — | MUST | P8 | ✅ |
+| caching | — | — | MUST | P8 | ✅ |
+| locking | — | — | MUST | P8 | ✅ |
+| translation | 3 | 5 | MUST | P8 | ✅ |
+| settings | 4 | 8 | MUST | P8 | ✅ |
+| analytics | — | — | SHOULD | P8 | ✅ |
+| event-bus (local, redis) | — | — | MUST | P1 | ✅ |
+| cache (inmemory, redis) | — | — | MUST | P8 | ✅ |
+| workflow-engine (inmemory, redis) | 1 | — | MUST | P1 | ✅ |
+| link-modules | 22 tables | — | MUST | P1 | ✅ |
 
 ---
 

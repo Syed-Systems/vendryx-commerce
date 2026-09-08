@@ -1,6 +1,6 @@
 # Entitlements — Feature Gating and Plan Tiers
 
-**Status:** Draft v1.0 · **Model:** one deployment per store, config-driven entitlements
+**Status:** Draft v1.1 · **Model:** one multi-tenant deployment, entitlements resolved per request
 **Companion:** [TRD §3](TRD.md) (modular monolith) · [DECISIONS ADR-009](DECISIONS.md#adr-009)
 
 This document exists because the modular monolith was mistaken for a feature-toggle mechanism. It
@@ -467,7 +467,10 @@ which no step can assert on its own.
 
 ## 9. What this deliberately does not include
 
-- **No multi-tenancy.** One deployment per store ([PRD NG2](PRD.md)).
+- ~~**No multi-tenancy.** One deployment per store ([PRD NG2](PRD.md)).~~ **Reversed by
+  [ADR-012](DECISIONS.md#adr-012).** §2 has described the multi-tenant model since 2026-08-19;
+  this bullet contradicted it and is struck rather than deleted, because it is the assumption
+  the tier design was originally reasoned under.
 - **No usage-based metering.** Entitlements say what is *allowed*; billing systems say what is
   *owed*. Every quota here is a cap, not a meter, and nothing counts consumption for a price.
   **Amended by [ADR-017](DECISIONS.md#adr-017) (2026-08-21):** the original bullet also said
@@ -475,7 +478,8 @@ which no step can assert on its own.
   and was read as a decision about the product. No provider can collect BDT from bKash or
   Nagad, so subscription invoicing and collection are first-party and live in the `platform`
   schema. The warning still holds for metering, revenue recognition and multi-currency
-  dunning — none of those is built.
+  dunning — none of those is built. Multi-product subscription billing, catalog pricing, and
+  cross-product entitlement snapshots are centralized in **Space** (`D:\Syed Systems\Space`, [ADR-030](DECISIONS.md#adr-030)).
 - **No in-domain feature branching** (§5.1).
 - **No licence server.** Config now, signed licence file when self-hosting becomes real (§4.3).
 - **No per-user or per-role feature gates.** That is RBAC's job, and it is a separate axis.

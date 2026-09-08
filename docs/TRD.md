@@ -1,7 +1,13 @@
 # Technical Requirements Document — Stheno Commerce Engine
 
-**Status:** Draft v1.0 · **Baseline:** `medusajs/medusa@b733400`
+**Status:** Draft v1.1 · **Baseline:** `medusajs/medusa@b733400` · **Last updated:** 2026-09-02
 **Companion docs:** [DATA_MODEL.md](DATA_MODEL.md) · [API_SPEC.md](API_SPEC.md) · [WORKFLOWS.md](WORKFLOWS.md) · [PAYMENTS.md](PAYMENTS.md) · [ENTITLEMENTS.md](ENTITLEMENTS.md) · [SECURITY.md](SECURITY.md) · [DECISIONS.md](DECISIONS.md)
+
+> **ADR currency.** §1–17 were written on 2026-08-15 against ADR-001–008 and describe the engine
+> accurately. Nineteen ADRs have landed since. The one that changes this document materially is
+> [ADR-012](DECISIONS.md#adr-012) — multi-tenancy — which §1.2 now covers; §13 carries the
+> deployment consequences. Where any section below still implies one deployment per merchant,
+> [DECISIONS.md](DECISIONS.md) wins.
 
 ---
 
@@ -54,6 +60,59 @@ Everything else — HTTP, validation, DI, ORM — is replaced outright, because 
 One process contains the API, the workflow engine, the scheduler, and the subscribers. Horizontal scaling runs N identical processes; Postgres advisory locks and `SKIP LOCKED` queues arbitrate who does background work. There is no separate worker deployment, and no leader election service.
 
 **Optional worker mode.** `stheno-server --role=api` and `--role=worker` split the responsibilities for large deployments. Default is `--role=all`, and small deployments should stay there.
+
+
+### 1.2 Tenancy — the shape of the whole system
+
+Added 2026-09-02, recording [ADR-012](DECISIONS.md#adr-012) (Accepted, superseding
+[ADR-009](DECISIONS.md#adr-009)). This section did not exist while the engine was single-tenant
+and its absence made the rest of this document read as if it still is.
+
+**One database. `tenant_id` on every tenant-owned row. Isolation enforced by Postgres, not by
+the application.**
+
+```
+shop-a.example.com ─┐
+shop-b.example.com ─┼─→ one stheno process ─→ one postgres, RLS by tenant_id
+shop-c.example.com ─┘      tier resolved per request, never at boot
+```
+
+| Layer | Mechanism |
+|---|---|
+| Identify the tenant | `Host` header → `stheno_platform::service::tenant_for_domain`. An unknown host **404s**, so the surface cannot be probed to enumerate merchants |
+| Scope the connection | `tenant_layer` sets the tenant GUC once per checkout, in the same round trip that opens the transaction |
+| Enforce the scope | Every tenant-owned table carries `FORCE ROW LEVEL SECURITY`. `FORCE` matters: without it the table owner bypasses the policy, and the migration role is the owner |
+| Resolve entitlements | Per request, from `entitlement_state` — one process serves Trial, Free and Pro simultaneously, so boot-time route mounting cannot express a gate (§6.1 of [ENTITLEMENTS.md](ENTITLEMENTS.md)) |
+
+**Why the database and not the application.** The "every query needs scoping" cost is paid once,
+in Postgres, rather than 127 times in Rust and again in every future query. A missed `WHERE
+tenant_id = $1` in one handler is then a query that returns nothing, not a query that returns
+another merchant's orders.
+
+**What it costs, stated plainly:**
+
+- **Isolation is a policy, not a boundary.** There is no physical separation to fall back on. An
+  RLS policy that is missing, or a table that is `ENABLE` without `FORCE`, is a cross-tenant leak.
+  `./scripts/rls_audit` exists for exactly this and is not optional.
+- **Anything outside the tenant layer must be deliberate.** The legacy in-repo control plane (`/platform/*`)
+  is mounted outside it on purpose and therefore sees every tenant; that is why it has its own credentials and its
+  own append-only audit table ([ADR-016](DECISIONS.md#adr-016), [ADR-018](DECISIONS.md#adr-018)). The permanent
+  company control plane is **Space** (`D:\Syed Systems\Space`), which integrates externally via signed product connectors ([ADR-030](DECISIONS.md#adr-030)).
+- **Caches are a tenancy surface.** Any cache keyed without the tenant serves one merchant's data
+  to another. This has been a real defect twice — the storefront region cache and the Next.js
+  Data Cache both had to be partitioned by host.
+- **Noisy-neighbour effects are now possible** and were not before. One merchant's import can
+  contend for the same pool. Bounded by pool sizing and per-tenant quotas, not eliminated.
+
+**What it buys.** One binary deploy and one migration run moves every merchant. Engine updates do
+not scale with customer count — the property ADR-009 could not offer, and the reason it was
+superseded.
+
+**The N-cost did not vanish; it moved to the storefront and has not been paid.** `STHENO_FRONTEND`
+binds a theme at *build* time with its own `distDir`, so each theme is a separate Next build and
+nothing yet maps a merchant's host to the right one. [ADR-023](DECISIONS.md#adr-023) (**Proposed**)
+answers this with one deployed artifact per theme routed by host, making deploy count O(themes)
+and never O(merchants). Until it is accepted, this is a manual release checklist.
 
 ---
 
@@ -696,6 +755,31 @@ Jobs that must exist at 1.0, because each closes a silent-failure hole: payment 
 (nightly, [PAYMENTS §9](PAYMENTS.md)), authorization-expiry warning (T−48h), abandoned-3DS session
 sweep (30 min), search and read-index sync, and workflow-execution retention pruning.
 
+> **Status 2026-09-02 — the scheduler exists as of today; three of the five jobs above do not.**
+> Until this afternoon `crates/core/` contained no scheduler crate and nothing invoked periodic
+> work at all. It now lives in `crates/stheno-server/src/scheduler.rs`: cron schedules via
+> `croner`, single execution across instances via a Postgres advisory lock keyed on the job
+> name and taken with zero wait, a panicking job isolated on its own task, and an unparseable
+> schedule refused at boot rather than logged and skipped.
+>
+> Two jobs are registered — `payment-reconcile` (every 15 minutes) and `subscription-dunning`
+> (daily 03:00). Both iterate tenants explicitly, because the methods they call read
+> tenant-owned tables under RLS and an unscoped sweep reports a clean pass over an empty
+> result. The remaining three jobs above, and the trial → Free transition from
+> [ENTITLEMENTS §5](ENTITLEMENTS.md), have no domain method to call yet.
+>
+> What was inert before it existed:
+>
+> | Logic | Where it lives | What its absence means |
+> |---|---|---|
+> | `reconcile_unsettled_requests` | `stheno-payment` | A payment left `in_flight` by a crash converges only if the same idempotency key is retried. After a crash nothing retries, so the row sits forever |
+> | Dunning ladder advance | `stheno-platform` (`dunning_ladder.rs`, `dunning_is_sole_writer.rs`) | Invoices generate and the ladder is correct, but no clock advances it. Non-payment is never noticed and no subscription is ever suspended for it |
+> | Trial → Free transition | [ENTITLEMENTS §5](ENTITLEMENTS.md) specifies a daily job | A 14-day trial does not end on its own |
+>
+> The first two now run. The third still needs its domain method. It was one missing
+> component, not three bugs — which is why one module closed two of them.
+> **A convergence path that never runs is not a convergence path.**
+
 ---
 
 ## 10. Providers
@@ -784,6 +868,39 @@ Page inventory and data contracts: [SITEMAP.md](SITEMAP.md).
 
 **Health.** `/health/live` (process up) and `/health/ready` (pool reachable, migrations current). Readiness fails during migration, so rolling deploys hold traffic correctly.
 
+### 13.1 Running it as a hosted service
+
+Added 2026-09-02. The table above describes one process; this describes the fleet that actually
+serves merchants.
+
+**One deploy serves everyone.** Per [§1.2](#12-tenancy--the-shape-of-the-whole-system), a release
+is one binary rollout and one migration run regardless of merchant count. A migration that is not
+backward-compatible with the running binary takes every merchant down at once — expand/contract is
+mandatory here in a way it was not under one-deployment-per-store.
+
+**The transitional control plane is off unless credentialed.** `STHENO_PLATFORM_TOKEN` unset means the entire
+in-repo `/platform/*` surface 404s. Fails closed, never open by default. Named `platform.operator`
+credentials are the real identities; the environment token is a bootstrap and break-glass path
+only, audited as `op_bootstrap`. Note that company control plane architecture has transitioned to
+**Space** (`D:\Syed Systems\Space`, [ADR-030](DECISIONS.md#adr-030)).
+
+**Connection pooling is transaction-mode** ([ADR-025](DECISIONS.md#adr-025), **Proposed**), with a
+session-mode route reserved for the paths that carry session state. This interacts directly with
+§1.2: the tenant GUC is set per transaction, so a transaction-mode pooler is safe only because the
+scope is established inside the transaction that uses it, never on the connection.
+
+**Compute sits next to the data; a CDN sits in front of the origin, never as the runtime**
+([ADR-024](DECISIONS.md#adr-024), **Proposed**). The storefront is SSR on the **Node** runtime, not
+edge — not a preference but a constraint: the theme binding at `apps/storefront/next.config.js` is
+a webpack `NormalModuleReplacementPlugin` hook, and any bundler or adapter that does not read it
+(Turbopack, `@cloudflare/next-on-pages`) will serve the wrong theme's markup while reporting a
+successful build. `scripts/check-frontend-switch.sh` exists because that failure has happened.
+
+**Docker Compose now, Kubernetes only at scale** ([ADR-026](DECISIONS.md#adr-026), **Proposed**).
+
+Deployment manifests live in [deploy/](../deploy); the operator runbook is
+[RUNBOOK_CONTROL_PLANE.md](RUNBOOK_CONTROL_PLANE.md) and [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ---
 
 ## 14. Testing strategy
@@ -824,6 +941,12 @@ Where the budgets in PRD §7.1 actually come from:
 
 ## 16. Migration from Medusa v2
 
+> **Status after [ADR-027](DECISIONS.md#adr-027) (Proposed).** This importer is an **engine
+> capability and an onboarding tool for an individual merchant arriving from Medusa**. It is no
+> longer a product promise: "swap the binary, keep your frontends" was addressed to self-hosting
+> Medusa operators, and we do not sell to them. Build it when a real merchant needs it — not
+> before. The requirement it came from is [PRD G6](PRD.md), which is amended by the same ADR.
+
 `stheno import-medusa --source-url postgres://… --dry-run`
 
 - Maps Medusa's schema to Stheno's table by table. **Preserves all IDs**, so external references, webhooks, and analytics keep working.
@@ -848,5 +971,9 @@ Stated plainly, because a TRD that lists only strengths is marketing.
    the data inventory in [SECURITY §11.1](SECURITY.md) must be updated whenever a new jsonb column
    can hold request data.
 5. **The read index is eventually consistent.** Cross-module filtered lists can lag writes by seconds under heavy load. Bounded and observable, but not zero.
+6. **Tenant isolation has no physical fallback.** Under [§1.2](#12-tenancy--the-shape-of-the-whole-system) a missing RLS policy, a table left `ENABLE` without `FORCE`, or a cache key without the tenant in it is a cross-tenant data leak. The mitigations are `./scripts/rls_audit` and review discipline; there is no second wall behind them.
+7. **One bad migration takes every merchant down together.** The flip side of "engine updates do not scale with customers". Expand/contract is not a nicety here.
+8. **Three of the five scheduled jobs in §9 still have no domain method**, and so does the daily trial → Free transition. The scheduler itself now exists; what it can run is the limit.
+9. **Storefront theme selection binds at build time.** Deploy count is currently O(themes) only by hand; nothing yet routes a merchant's host to the right build. [ADR-023](DECISIONS.md#adr-023) is **Proposed** and unimplemented.
 6. **The admin inherits Medusa's API design.** Offset pagination can skip or duplicate rows under concurrent writes, and error envelopes are flat. Accepted in [ADR-002](DECISIONS.md#adr-002) in exchange for a working dashboard, and it makes us a permanent downstream consumer of Medusa's admin API decisions.
 7. **Rust talent pool.** Smaller than Node's. This is a real staffing constraint on the plan, not a footnote.

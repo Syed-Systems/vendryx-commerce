@@ -92,6 +92,10 @@ All runtime configuration is supplied via environment variables. Sensitive value
 
 ### 3.1 The control-plane credential
 
+> **Note (2026-09-08 — [ADR-030](DECISIONS.md#adr-030)):** The primary company control plane is **Space**
+> (`D:\Syed Systems\Space`), which manages fleet-wide operations. The credential below applies to the legacy
+> in-repo `/platform/*` surface during the transitional phase.
+
 `/platform/*` reads and writes across **every** tenant, outside the RLS layer
 ([ADR-012](DECISIONS.md#adr-012)). It is the highest-privilege surface in the deployment,
 and it is credentialed separately from every merchant account.

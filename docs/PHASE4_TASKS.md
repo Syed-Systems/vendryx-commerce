@@ -1,6 +1,12 @@
 # Phase 4 — Control Plane Task Decomposition
 
-**Status:** Draft · **Date:** 2026-08-21 · **Scope:** [CONTROL_PLANE.md](CONTROL_PLANE.md)
+**Status:** Draft · **Date:** 2026-08-21 (Updated 2026-09-08) · **Scope:** [CONTROL_PLANE.md](CONTROL_PLANE.md) · **Space Target:** [SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md](SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md) · **Decisions:** [ADR-030](DECISIONS.md#adr-030)
+
+> [!NOTE]
+> **Space Standalone Target (2026-09-08):**  
+> The company control plane is now established as **Space**, a separate standalone project at `D:\Syed Systems\Space`.
+> Tasks in this file complete the transitional in-repo `stheno-api-platform` service. Greenfield company-wide
+> control plane development is tracked under Space tickets (`SPACE-...`) in `D:\Syed Systems\Space\docs\IMPLEMENTATION_BACKLOG.md`.
 
 **87 tasks across 8 phases (P29–P36).** Each is 2 hours to 2 days, has explicit
 dependencies, and ends in a **command that exits 0** — never a judgement call.

@@ -1,15 +1,26 @@
 # Product Requirements Document — Stheno Commerce Engine
 
-**Status:** Draft v1.0 · **Owner:** Syed Systems · **Last updated:** 2026-08-14
+**Status:** Draft v1.1 · **Owner:** Syed Systems · **Last updated:** 2026-09-02
 **Baseline:** `medusajs/medusa@b733400` (`develop` branch)
+
+> **Scope of this document.** This is the **engine** PRD: what the commerce runtime must do
+> and how fast. The *product* built on it — who buys it, what it costs, how a merchant is
+> onboarded — is [PRODUCT.md](PRODUCT.md) and [ENTITLEMENTS.md](ENTITLEMENTS.md).
+>
+> Written on 2026-08-14, when the plan was a self-hosted single-tenant engine. That changed:
+> Stheno is a hosted multi-tenant service ([ADR-012](DECISIONS.md#adr-012)) sold as a
+> subscription ([ADR-017](DECISIONS.md#adr-017)). The engine requirements below survive that
+> change unaltered — the deployment and distribution claims did not, and are corrected inline.
 
 ---
 
 ## 1. Summary
 
-Stheno is an open-source, headless commerce engine written in Rust, with Next.js frontends for the storefront and admin dashboard. It delivers the complete Medusa v2 feature set — catalog, pricing, promotions, carts, orders, returns/claims/exchanges, multi-region, multi-channel, inventory, fulfillment, tax, payments, RBAC, i18n — on a compiled runtime with an order-of-magnitude smaller operational footprint.
+Stheno is a headless commerce engine written in Rust, with dedicated frontends for the storefront and the merchant dashboard, integrating with **Space** (`D:\Syed Systems\Space`) as the standalone company operator control plane ([ADR-030](DECISIONS.md#adr-030)). It delivers a complete commerce feature set — catalog, pricing, promotions, carts, orders, returns/claims/exchanges, multi-region, multi-channel, inventory, fulfillment, tax, payments, RBAC, i18n — on a compiled runtime with an order-of-magnitude smaller operational footprint than the Node stack it is measured against.
 
-**One sentence:** everything Medusa does, in a single 40 MB binary that starts in under a second and holds p95 latency under 25 ms.
+**One sentence:** a full commerce domain in a single 40 MB binary that starts in under a second, holds p95 latency under 25 ms, and serves every merchant from one process.
+
+The Medusa v2 baseline is a **measuring stick and an internal wire contract, not a product claim** ([ADR-027](DECISIONS.md#adr-027)). It tells us the domain is complete and lets the admin dashboard be forked rather than rebuilt. Nothing a customer sees mentions it.
 
 ---
 
@@ -40,7 +51,7 @@ Considered and rejected. The dominant costs are structural — GC pressure from 
 ### 3.1 Goals
 
 - **G1 — Functional parity.** Every capability in [PARITY_MATRIX.md](PARITY_MATRIX.md) reaches *Complete*. Parity is measured by golden-file tests against a live Medusa instance, not by reading feature lists.
-- **G2 — Drop-in compatibility, both surfaces.** An unmodified Medusa storefront works. `@medusajs/js-sdk` works. **Medusa's admin dashboard works.** Swap the binary, keep your frontends.
+- **G2 — Admin wire compatibility, as an internal economy.** The forked Medusa dashboard runs against Stheno's Admin API unmodified, which is what makes G5 affordable. **Amended by [ADR-027](DECISIONS.md#adr-027):** this is an engineering goal, never a marketed one. The former goal — "swap the binary, keep your frontends", addressed to Medusa operators — is withdrawn, because we sell a hosted service and have no such audience.
 - **G3 — Performance.** Meet every budget in §7 at the stated load, on the stated hardware.
 - **G4 — Operational simplicity.** One statically linked binary. Postgres required, Redis optional. No Node runtime, no build step at deploy, no separate workflow service.
 - **G5 — A working admin on day one.** Medusa's dashboard is forked, not rebuilt: Enterprise RBAC and SSO screens replaced clean-room, the rest adopted as-is. Improvements are additive and post-1.0. *(Previously "a better admin" — see [ADR-002](DECISIONS.md#adr-002) for what was traded and why.)*
@@ -49,7 +60,7 @@ Considered and rejected. The dominant costs are structural — GC pressure from 
 ### 3.2 Non-goals
 
 - **NG1 — A plugin marketplace.** Extensibility is compile-time (ADR-001). There is no runtime plugin installer. Deliberate.
-- **NG2 — Multi-tenancy in the core.** One deployment serves one merchant, with its own database.
+- **NG2 — ~~Multi-tenancy in the core.~~ Reversed by [ADR-012](DECISIONS.md#adr-012) (2026-08-19).** Multi-tenancy *is* the core: one database, `tenant_id` on every row, isolation enforced by Postgres RLS with `FORCE`, tier resolved per request. The original non-goal — one deployment per merchant with its own database — was affordable per-store and unaffordable per-fleet: it made every engine update N updates. Kept visible rather than deleted, because it is the assumption most of this document was written under.
   Multiple stores are multiple deployments. This is a **deliberate commercial choice, not just a
   scoping one**: when Stheno is sold as a service, physical separation means a gating bug leaks a
   *feature*, never another customer's orders. Plan tiers are delivered by
@@ -465,7 +476,7 @@ Full specification, threat model, and the 29-finding audit of this package:
 
 | # | Question | Needed by | Default if unanswered |
 |---|---|---|---|
-| Q1 | Is a hosted/cloud offering planned? It changes multi-tenancy and metering assumptions | P0 | No. Self-host only, per NG2 |
+| Q1 | ~~Is a hosted/cloud offering planned?~~ **Answered 2026-08-19: yes, and it is the only offering.** Self-hosting is not sold. See [ADR-012](DECISIONS.md#adr-012), [ADR-017](DECISIONS.md#adr-017), [ENTITLEMENTS.md](ENTITLEMENTS.md) | — | — |
 | Q2 | Which payment providers beyond Stripe are required for 1.0? | P4 | Stripe only; the trait proven with a second stub |
 | Q3 | Is B2B (company accounts, quotes, spending limits) in 1.0 scope? | P5 | No. 1.1, as a module |
 | Q4 | Subscriptions and recurring billing? | P5 | No. Out of scope, matching Medusa |
