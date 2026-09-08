@@ -34,31 +34,47 @@
 }
 
 /* ===========================================================================
-   STHENO MARKETING DESIGN SYSTEM & STYLES
+   VENDRYX MARKETING DESIGN SYSTEM & STYLES
    Designed with Apple-level restraint, typographic hierarchy, and tonal depth.
    ========================================================================== */
 
 :root {
-  /* Color Palette — Pure White & Stheno Signature Brand Orange (#FF6B00 / #FF5500) */
-  --canvas: #ffffff;
-  --surface: #ffffff;
-  --surface-raised: #ffffff;
-  --surface-subtle: #f8fafc;
-  --surface-hover: #fff7ed;
+  /* Vendryx Design Tokens (docs/BRAND.md) */
+  --vx-bg-canvas: #FCFBF9;
+  --vx-bg-sidebar: #F7F3ED;
+  --vx-bg-surface: #FFFFFF;
+  --vx-bg-subtle: #F6F5F3;
+  --vx-fg-primary: #18181B;
+  --vx-fg-secondary: #5F6368;
+  --vx-fg-muted: #7C818A;
+  --vx-border: #E6E0D8;
+  --vx-border-strong: #D8CFC4;
+  --vx-brand-600: #EA580C;
+  --vx-brand-700: #C2410C;
+  --vx-brand-800: #9A3412;
+  --vx-brand-50: #FFF7ED;
+  --vx-focus: #C2410C;
+
+  /* Aliased application variables */
+  --canvas: var(--vx-bg-canvas);
+  --surface: var(--vx-bg-surface);
+  --surface-raised: var(--vx-bg-surface);
+  --surface-subtle: var(--vx-bg-subtle);
+  --surface-hover: var(--vx-brand-50);
   
-  --border-subtle: rgba(15, 23, 42, 0.08);
-  --border-medium: rgba(15, 23, 42, 0.14);
-  --border-strong: rgba(15, 23, 42, 0.24);
-  --border-accent: rgba(255, 107, 0, 0.4);
+  --border-subtle: var(--vx-border);
+  --border-medium: var(--vx-border);
+  --border-strong: var(--vx-border-strong);
+  --border-accent: rgba(234, 88, 12, 0.4);
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #64748b;
-  --text-muted: #94a3b8;
+  --text-primary: var(--vx-fg-primary);
+  --text-secondary: var(--vx-fg-secondary);
+  --text-tertiary: var(--vx-fg-secondary);
+  --text-muted: var(--vx-fg-muted);
 
-  --accent: #ff6b00;
-  --accent-hover: #ea580c;
-  --accent-soft: rgba(255, 107, 0, 0.08);
+  --accent: var(--vx-brand-600);
+  --accent-hover: var(--vx-brand-800);
+  --accent-soft: var(--vx-brand-50);
   --accent-solid-text: #ffffff;
 
   --badge-live-bg: rgba(22, 163, 74, 0.1);

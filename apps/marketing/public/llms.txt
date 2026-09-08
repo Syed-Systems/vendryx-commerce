@@ -1,19 +1,19 @@
-# Stheno
+# Vendryx
 
 > High-performance commerce operations platform engineered for independent merchants, ecommerce builders, and modern digital brands.
 
 ## Overview
 
-Stheno is an end-to-end commerce infrastructure system developed by Syed Systems. It unifies branded storefronts, dynamic catalogs, real-time inventory management, guest checkout, social conversation order handoffs (WhatsApp/Instagram/Messenger), courier dispatch, and staff operations into a single memory-safe core.
+Vendryx is an end-to-end commerce infrastructure system developed by Syed Systems. It unifies branded storefronts, dynamic catalogs, real-time inventory management, guest checkout, social conversation order handoffs (WhatsApp/Instagram/Messenger), courier dispatch, and staff operations into a single memory-safe core.
 
 ## Docs
 
-- [Homepage](https://stheno.shop/): Overview of Stheno commerce platform, value pillars, merchant stories, and pricing.
-- [Interactive Sandbox Demo](https://stheno.shop/demo): Full browser-based simulation featuring the executive dashboard, 1-click social order converter, catalog editor, order queue, and live customer checkout.
-- [Merchant Account Provisioning](https://stheno.shop/signup): 14-day full access free trial registration with zero platform fees.
-- [Merchant Login](https://stheno.shop/login): Secure merchant workspace authentication and dashboard access.
-- [Privacy Notice](https://stheno.shop/privacy): Clear documentation of data handling, guest checkout confidentiality, and security boundaries.
-- [Terms of Service](https://stheno.shop/terms): Service terms, merchant ownership rights, and uptime commitments.
+- [Homepage](https://vendryx.com/): Overview of Vendryx commerce platform, value pillars, merchant stories, and pricing.
+- [Interactive Sandbox Demo](https://vendryx.com/demo): Full browser-based simulation featuring the executive dashboard, 1-click social order converter, catalog editor, order queue, and live customer checkout.
+- [Merchant Account Provisioning](https://vendryx.com/signup): 14-day full access free trial registration with zero platform fees.
+- [Merchant Login](https://vendryx.com/login): Secure merchant workspace authentication and dashboard access.
+- [Privacy Notice](https://vendryx.com/privacy): Clear documentation of data handling, guest checkout confidentiality, and security boundaries.
+- [Terms of Service](https://vendryx.com/terms): Service terms, merchant ownership rights, and uptime commitments.
 
 ## Key Capabilities
 
@@ -26,8 +26,8 @@ Stheno is an end-to-end commerce infrastructure system developed by Syed Systems
 
 ## Pricing
 
-- **Free Tier**: ৳0/mo — Up to 50 active products, 1 staff seat, guest checkout, WhatsApp order handoff, standard support.
-- **Pro Tier**: ৳2,800/mo (৳2,380/mo billed annually) — Unlimited products, custom domain, courier integration, full analytics, unlimited staff accounts.
+- **Free Tier**: ৳0/mo — Up to 100 active products, 3 staff seats (Owner + 2), guest checkout, WhatsApp order handoff, 30-day analytics window, standard support.
+- **Pro Tier**: ৳1,500/mo (৳1,350/mo on 12-month commitment) — Unlimited products, custom domain, payment gateways, courier dispatch, full analytics history, 10 staff seats.
 
 ## Key Facts
 
@@ -38,7 +38,7 @@ Stheno is an end-to-end commerce infrastructure system developed by Syed Systems
 
 ## Contact
 
-- **Website**: https://stheno.shop
+- **Website**: https://vendryx.com
 - **Parent Organization**: https://www.smctiltd.com
 - **Support**: support@syedsystems.com
 - **Address**: 395 Purba Goran, Adarsha School Road, Khilgaon, Dhaka 1219, Bangladesh

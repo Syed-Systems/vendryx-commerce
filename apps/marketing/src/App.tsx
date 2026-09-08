@@ -94,6 +94,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { VendryxLogo } from "@/components/brand/VendryxLogo"
 
 type StaticPage = "/" | "/demo" | "/privacy" | "/terms" | "/login" | "/signup" | "/forgot-password" | "/welcome" | "/404"
 type DemoPage = { kind: "demo"; sessionId: string }
@@ -106,48 +107,48 @@ const launchDraftKey = "stheno-marketing-store-draft"
 
 const pageMetadata: Record<StaticPage, { title: string; description: string; indexable?: boolean }> = {
   "/": {
-    title: "Stheno | Commerce Infrastructure for Independent Merchants",
-    description: "Stheno is a commerce operations system for independent merchants. Manage catalogue, inventory, guest checkout, social-order handoff, and staff operations in one connected core.",
+    title: "Vendryx | Commerce Operations Infrastructure for Independent Merchants",
+    description: "Vendryx is a modern commerce operations system for independent merchants. Manage catalogue, inventory, guest checkout, social-order handoff, and staff operations in one connected core.",
     indexable: true,
   },
   "/demo": {
-    title: "Interactive Sandbox Demo | Stheno Commerce Operations",
-    description: "Test drive Stheno's merchant workspace directly in your browser: 1-click social order converter, real-time catalog sync, order queue, and live customer checkout simulation.",
+    title: "Interactive Sandbox Demo | Vendryx Commerce Operations",
+    description: "Test drive Vendryx's merchant workspace directly in your browser: 1-click social order converter, real-time catalog sync, order queue, and live customer checkout simulation.",
     indexable: true,
   },
   "/signup": {
-    title: "Create Merchant Account | 14-Day Free Trial | Stheno",
-    description: "Start a 14-day Stheno trial, then manage your catalogue, guest checkout, orders, and staff operations from one workspace.",
+    title: "Create Merchant Account | 14-Day Free Trial | Vendryx",
+    description: "Start a 14-day Vendryx trial, then manage your catalogue, guest checkout, orders, and staff operations from one workspace.",
     indexable: true,
   },
   "/login": {
-    title: "Merchant Workspace Login | Stheno Commerce Platform",
-    description: "Log in to your Stheno merchant dashboard to manage products, view order queues, and handle customer fulfillment.",
+    title: "Merchant Workspace Login | Vendryx Commerce Platform",
+    description: "Log in to your Vendryx merchant dashboard to manage products, view order queues, and handle customer fulfillment.",
     indexable: true,
   },
   "/forgot-password": {
-    title: "Reset Merchant Password | Stheno Commerce",
-    description: "Recover and reset your Stheno merchant account password securely.",
+    title: "Reset Merchant Password | Vendryx Commerce",
+    description: "Recover and reset your Vendryx merchant account password securely.",
     indexable: false,
   },
   "/welcome": {
-    title: "Welcome & Workspace Provisioning | Stheno",
-    description: "Your Stheno store environment is being configured. Track store status and next operational steps.",
+    title: "Welcome & Workspace Provisioning | Vendryx",
+    description: "Your Vendryx store environment is being configured. Track store status and next operational steps.",
     indexable: false,
   },
   "/privacy": {
-    title: "Privacy Notice & Data Protection Policy | Stheno",
-    description: "Comprehensive disclosure on how Stheno protects merchant sovereignty, guest checkout privacy, and operational data security.",
+    title: "Privacy Notice & Data Protection Policy | Vendryx",
+    description: "Comprehensive disclosure on how Vendryx protects merchant sovereignty, guest checkout privacy, and operational data security.",
     indexable: true,
   },
   "/terms": {
-    title: "Terms of Service & Uptime Commitments | Stheno",
-    description: "Terms of service, plan commitments, merchant data ownership rights, and uptime guarantees for Stheno by Syed Systems.",
+    title: "Terms of Service & Uptime Commitments | Vendryx",
+    description: "Terms of service, plan commitments, merchant data ownership rights, and uptime guarantees for Vendryx by Syed Systems.",
     indexable: true,
   },
   "/404": {
-    title: "404 - Page Not Found | Stheno Commerce",
-    description: "The requested commerce endpoint, document, or resource could not be found on Stheno.",
+    title: "404 - Page Not Found | Vendryx Commerce",
+    description: "The requested commerce endpoint, document, or resource could not be found on Vendryx.",
     indexable: false,
   },
 }
@@ -298,11 +299,7 @@ function NotFoundPage() {
 function Mark() {
   return (
     <span className="brand-logo-frame" aria-hidden="true">
-      <img src="/brand/stheno-mark-transparent.png" alt="Stheno Commerce Operations Logo" className="brand-mark-img" />
-      <span className="brand-text-group">
-        <span className="brand-title">Stheno</span>
-        <span className="brand-subtitle">by Syed Systems</span>
-      </span>
+      <VendryxLogo height={32} />
     </span>
   )
 }
@@ -318,9 +315,9 @@ function Header() {
 
   return (
     <header className="site-header">
-      <Link className="brand" to="/" onClick={() => setMenuOpen(false)} aria-label="Stheno home">
+      <Link className="brand" to="/" onClick={() => setMenuOpen(false)} aria-label="Vendryx home">
         <Mark />
-        <span className="sr-only">Stheno</span>
+        <span className="sr-only">Vendryx</span>
       </Link>
       <nav className="desktop-nav" aria-label="Primary navigation">
         <a href="#how-it-works">How It Works</a>
@@ -426,7 +423,7 @@ function Hero() {
           <p className="eyebrow">Commerce operations by Syed Systems</p>
           <h1>One commerce workspace for the store you run.</h1>
           <p className="hero-lede">
-            Stheno brings catalogue, inventory, guest checkout, social-order handoff, and day-to-day order work into one connected system.
+            Vendryx brings catalogue, inventory, guest checkout, social-order handoff, and day-to-day order work into one connected system.
           </p>
           <div className="hero-actions">
             <Link className="button button-primary" to="/signup">
@@ -435,7 +432,7 @@ function Hero() {
             </Link>
             <StartDemoButton />
           </div>
-          <ul className="hero-foundation-list" aria-label="Core Stheno capabilities">
+          <ul className="hero-foundation-list" aria-label="Core Vendryx capabilities">
             <li>Catalogue and inventory management</li>
             <li>Guest checkout and cash on delivery</li>
             <li>Staff-reviewed social-order handoff</li>
@@ -476,7 +473,7 @@ function LegacyHeroPreview() {
             Run your online store without app clutter or sales fees.
           </h1>
           <p className="hero-lede gsap-hero-anim">
-            Stheno gives store owners and growing brands a fast online storefront, automatic guest checkout, social chat order capture, and courier delivery in one unified system.
+            Vendryx gives store owners and growing brands a fast online storefront, automatic guest checkout, social chat order capture, and courier delivery in one unified system.
           </p>
           <div className="hero-actions gsap-hero-anim">
             <Link className="button button-primary" to="/signup">
@@ -487,18 +484,18 @@ function LegacyHeroPreview() {
           </div>
           <div className="hero-trust-metrics gsap-hero-anim">
             <div className="trust-metric-item">
-              <strong>৳42M+</strong>
-              <span>Merchant Volume</span>
-            </div>
-            <div className="trust-metric-sep" />
-            <div className="trust-metric-item">
-              <strong>32ms</strong>
-              <span>Global Edge TTFB</span>
-            </div>
-            <div className="trust-metric-sep" />
-            <div className="trust-metric-item">
               <strong>0%</strong>
               <span>Take-Rate On Sales</span>
+            </div>
+            <div className="trust-metric-sep" />
+            <div className="trust-metric-item">
+              <strong>Native</strong>
+              <span>Guest Checkout</span>
+            </div>
+            <div className="trust-metric-sep" />
+            <div className="trust-metric-item">
+              <strong>Isolated</strong>
+              <span>Database Schemas</span>
             </div>
           </div>
         </div>
@@ -512,7 +509,7 @@ function LegacyHeroPreview() {
                 <span className="dot yellow" />
                 <span className="dot green" />
               </div>
-              <span className="cockpit-title-tag">stheno.store/nodi-studio · Live Operations HUD</span>
+              <span className="cockpit-title-tag">vendryx.com/nodi-studio · Live Operations HUD</span>
               <div className="cockpit-live-indicator">
                 <span className="live-pulse-dot" />
                 <span>32ms Edge</span>
@@ -680,7 +677,7 @@ function LegacyMerchantValuePillars() {
             </div>
             <h3>Turn WhatsApp & Instagram chats into confirmed orders.</h3>
             <p>
-              When customers message you on WhatsApp or Instagram, Stheno formats the inquiry and adds a draft order directly to your queue in one click.
+              When customers message you on WhatsApp or Instagram, Vendryx formats the inquiry and adds a draft order directly to your queue in one click.
             </p>
           </div>
           <div className="bento-preview-box">
@@ -783,7 +780,7 @@ function LegacyMerchantValuePillars() {
           <div className="bento-preview-box">
             <div className="courier-slip-card">
               <div className="slip-top-row">
-                <span className="slip-brand">STHENO CONSIGNMENT</span>
+                <span className="slip-brand">VENDRYX CONSIGNMENT</span>
                 <span className="slip-barcode">||| | |||| || |||</span>
               </div>
               <div className="slip-body">
@@ -883,7 +880,7 @@ function MerchantJourney() {
   return (
     <section className="merchant-journey section-shell" id="how-it-works">
       <div className="journey-heading">
-        <p className="eyebrow">How Stheno works</p>
+        <p className="eyebrow">How Vendryx works</p>
         <h2>From initial setup to active order fulfillment in 3 steps.</h2>
         <p className="section-lede">
           Start with the core workflow, then choose the plan and integrations that fit the operation you run.
@@ -941,7 +938,7 @@ function MerchantReviews() {
       brand: "Bengal Clayworks",
       craft: "Studio Stoneware & Living",
       quote:
-        "With legacy platforms, plugin costs kept eating our margins every month. Stheno gave us a clean, fast storefront with zero add-on taxes and instant inventory synchronization.",
+        "With legacy platforms, plugin costs kept eating our margins every month. Vendryx gave us a clean, fast storefront with zero add-on taxes and instant inventory synchronization.",
       founder: "Tanvir Hasan, Lead Potter",
       metric: "BDT 210,000 Saved / yr",
       highlight: "Zero App Subscriptions",
@@ -1024,21 +1021,21 @@ function MerchantReviews() {
 
 function MarketingFaq() {
   const faqs = [
-    ["What is Stheno?", "Stheno is a commerce operations system for independent merchants. It connects storefront presentation with catalogue, inventory, guest checkout, orders, and staff operations."],
-    ["Who is Stheno for?", "It is for store owners who need practical day-to-day operations, ecommerce builders who need a dependable commerce core behind a custom storefront, and developers who need explicit APIs and workflow boundaries."],
-    ["Do buyers need to create an account?", "No. Stheno is designed around guest checkout. Merchants can still recognise repeat buyers through the buyer information collected for an order."],
+    ["What is Vendryx?", "Vendryx is a commerce operations system for independent merchants. It connects storefront presentation with catalogue, inventory, guest checkout, orders, and staff operations."],
+    ["Who is Vendryx for?", "It is for store owners who need practical day-to-day operations, ecommerce builders who need a dependable commerce core behind a custom storefront, and developers who need explicit APIs and workflow boundaries."],
+    ["Do buyers need to create an account?", "No. Vendryx is designed around guest checkout. Merchants can still recognise repeat buyers through the buyer information collected for an order."],
     ["How do social orders work?", "WhatsApp can open with a pre-filled order message. Messenger and Instagram use a copy-then-open handoff. The handoff creates a draft order for staff to review before confirmation."],
-    ["Can I move my catalogue to Stheno?", "Yes. The catalogue import flow is designed for spreadsheet data: map headers, review the result, discard unmapped columns, and continue with the imported product information."],
+    ["Can I move my catalogue to Vendryx?", "Yes. The catalogue import flow is designed for spreadsheet data: map headers, review the result, discard unmapped columns, and continue with the imported product information."],
     ["What happens after the 14-day trial?", "The store moves to the Free plan. Existing products, staff records, and order data are not deleted or hidden. Free limits apply to new creation until you upgrade or reduce usage."],
     ["What does Pro add?", "Pro adds the paid operational capabilities specified in your service order, including full analytics history, custom domain, bespoke storefront service, payment gateway, courier dispatch, and fraud or risk tooling where available."],
-    ["Is Stheno a marketplace or the seller of my goods?", "No. You remain responsible for your products, prices, fulfilment, customer communications, and the taxes on your own sales. Stheno provides the commerce system that supports your operation."],
+    ["Is Vendryx a marketplace or the seller of my goods?", "No. You remain responsible for your products, prices, fulfilment, customer communications, and the taxes on your own sales. Vendryx provides the commerce system that supports your operation."],
   ] as const
 
   return (
     <section className="faq-section section-shell" id="faq" aria-labelledby="faq-heading">
       <p className="eyebrow">Questions before you start</p>
       <h2 id="faq-heading">Clear answers for merchants, builders, and developers.</h2>
-      <Accordion className="faq-list stheno-faq" type="single" collapsible defaultValue="faq-0">
+      <Accordion className="faq-list vendryx-faq" type="single" collapsible defaultValue="faq-0">
         {faqs.map(([question, answer], index) => (
           <AccordionItem className="faq-item" key={question} value={`faq-${index}`}>
             <AccordionTrigger className="faq-question-btn">{question}</AccordionTrigger>
@@ -1069,7 +1066,7 @@ function CustomerReviews() {
       ) : (
         <Card className="customer-review-empty">
           <CardHeader><Badge variant="outline">Review publication standard</Badge><CardTitle>Reviews will appear here after merchant approval.</CardTitle></CardHeader>
-          <CardContent><p>Stheno does not publish invented testimonials, star ratings, or savings claims. Each published review will identify the merchant, its role, the approved comment, and permission to share it.</p></CardContent>
+          <CardContent><p>Vendryx does not publish invented testimonials, star ratings, or savings claims. Each published review will identify the merchant, its role, the approved comment, and permission to share it.</p></CardContent>
         </Card>
       )}
     </section>
@@ -1090,7 +1087,7 @@ function AudienceStakeholderSection() {
     },
     {
       title: "Ecommerce builders",
-      body: "Use Stheno as the commerce core behind a supported storefront today, then move to a custom domain and bespoke frontend through Pro.",
+      body: "Use Vendryx as the commerce core behind a supported storefront today, then move to a custom domain and bespoke frontend through Pro.",
       action: "See plan details",
       to: "#pricing",
     },
@@ -1106,7 +1103,7 @@ function AudienceStakeholderSection() {
     <section className="audience-section section-shell" id="who-its-for" aria-labelledby="audience-heading">
       <div className="section-header-block audience-header">
         <h2 id="audience-heading">Built for the people who run, build, and extend a store.</h2>
-        <p className="section-lede">Stheno is a commerce system, not a marketplace or a generic page builder.</p>
+        <p className="section-lede">Vendryx is a commerce system, not a marketplace or a generic page builder.</p>
       </div>
       <div className="audience-grid">
         {audiences.map((audience) => (
@@ -1131,7 +1128,7 @@ function LegacyAudienceStakeholderSection() {
       icon: Store,
       headline: "Run your entire store from one screen. Stop paying for 10 separate apps.",
       reality:
-        "Most ecommerce platforms charge $39/month for a basic storefront, then another $150/month for inventory plugins, WhatsApp order tools, and invoice generators. Stheno includes all of them natively with zero add-on fees.",
+        "Most ecommerce platforms charge $39/month for a basic storefront, then another $150/month for inventory plugins, WhatsApp order tools, and invoice generators. Vendryx includes all of them natively with zero add-on fees.",
       points: [
         "Manage products, incoming chats, and orders in one screen",
         "0% platform sales tax or GMV take-rate fees",
@@ -1145,7 +1142,7 @@ function LegacyAudienceStakeholderSection() {
       icon: TrendingUp,
       headline: "Capture social buyers and double checkout conversion with guest mode.",
       reality:
-        "Forcing buyers to create an account before purchase loses up to 35% of carts. Stheno gives your brand frictionless guest checkout and captures incoming WhatsApp and Instagram messages directly into fulfillment orders.",
+        "Forcing buyers to create an account before purchase loses up to 35% of carts. Vendryx gives your brand frictionless guest checkout and captures incoming WhatsApp and Instagram messages directly into fulfillment orders.",
       points: [
         "94% guest checkout completion vs 62% on account walls",
         "1-click WhatsApp message to confirmed order converter",
@@ -1159,7 +1156,7 @@ function LegacyAudienceStakeholderSection() {
       icon: ShieldCheck,
       headline: "A defensible commerce OS built on merchant retention, not app taxes.",
       reality:
-        "Legacy commerce software suffers high merchant churn because third-party plugin bloat slows down storefronts and inflates operational costs. Stheno delivers an integrated operating system with high retention and predictable subscription revenue.",
+        "Legacy commerce software suffers high merchant churn because third-party plugin bloat slows down storefronts and inflates operational costs. Vendryx delivers an integrated operating system with high retention and predictable subscription revenue.",
       points: [
         "Replaces fragmented $150+/mo plugin stacks entirely",
         "Predictable SaaS revenue model with zero take-rate friction",
@@ -1174,7 +1171,7 @@ function LegacyAudienceStakeholderSection() {
     <section className="audience-section section-shell" id="who-its-for">
       <div className="section-header-block">
         <p className="eyebrow">Built for Every Stakeholder</p>
-        <h2>Why store owners, growing brands, and investors choose Stheno.</h2>
+        <h2>Why store owners, growing brands, and investors choose Vendryx.</h2>
         <p className="section-lede">
           We replaced fragmented third-party plugin bloat and percentage sales taxes with one transparent, high-performance commerce system.
         </p>
@@ -1276,14 +1273,14 @@ function PricingSection() {
         ["Team access", "People who can work on products, orders, and fulfilment.", "Up to 10 seats", "Owner plus 2 staff seats", "Up to 10 seats"],
         ["Orders and guest checkout", "Let buyers browse, add to cart, and place orders without creating an account.", "Included for evaluation", "Included", "Included"],
         ["Cash on delivery", "Manage cash-on-delivery orders in the standard order workflow.", "Included for evaluation", "Included", "Included"],
-        ["CSV catalogue import", "Bring a product catalogue into Stheno with a CSV import.", "Included for evaluation", "Included", "Included"],
+        ["CSV catalogue import", "Bring a product catalogue into Vendryx with a CSV import.", "Included for evaluation", "Included", "Included"],
         ["Social order handoff", "Create staff-reviewable draft orders from supported social conversations.", "Included for evaluation", "Included", "Included"],
       ],
     },
     {
       title: "Storefront and reporting",
       rows: [
-        ["Brand kit and Stheno subdomain", "Launch with supported brand details on a Stheno-hosted subdomain.", "Included", "Included", "Included"],
+        ["Brand kit and Vendryx subdomain", "Launch with supported brand details on a Vendryx-hosted subdomain.", "Included", "Included", "Included"],
         ["Analytics", "Review store activity and reporting available to your plan.", "Basic", "Basic, 30-day window", "Full history"],
         ["Web push", "Send supported browser notifications to opted-in buyers.", "Included", "Included", "Included"],
         ["Custom domain", "Use your own domain name for your customer-facing storefront.", "Not included", "Not included", "Included"],
@@ -1327,7 +1324,7 @@ function PricingSection() {
           <h3 id="service-comparison-heading">Compare every service before you choose a plan.</h3>
           <p>Each row explains what the service does and how it is available in Trial, Free, and Pro.</p>
         </div>
-        <div className="service-comparison-table-wrap" role="region" aria-label="Stheno plan service comparison" tabIndex={0}>
+        <div className="service-comparison-table-wrap" role="region" aria-label="Vendryx plan service comparison" tabIndex={0}>
           <Table className="service-comparison-table">
             <TableHeader><TableRow><TableHead>Service</TableHead><TableHead>Trial</TableHead><TableHead>Free</TableHead><TableHead>Pro</TableHead></TableRow></TableHeader>
             <TableBody>
@@ -1358,8 +1355,8 @@ function LegacyPricingSection() {
   const legacyBaseFee = 4500
   const totalLegacyMonthly = legacyBaseFee + legacyPluginCost + legacyTxFee
 
-  const sthenoMonthly = commitment === 12 ? 1350 : 1500
-  const monthlySavings = Math.max(0, totalLegacyMonthly - sthenoMonthly)
+  const vendryxMonthly = commitment === 12 ? 1350 : 1500
+  const monthlySavings = Math.max(0, totalLegacyMonthly - vendryxMonthly)
   const annualSavings = monthlySavings * 12
 
   const plans = [
@@ -1557,9 +1554,9 @@ function LegacyPricingSection() {
             <small>Includes $39 base + 2% tx cuts ({formatMoney(legacyTxFee, currency)}) + app bloat</small>
           </div>
 
-          <div className="roi-card stheno">
-            <span className="roi-card-tag">Stheno Pro Tier</span>
-            <strong className="roi-price">{formatMoney(sthenoMonthly, currency)}/mo</strong>
+          <div className="roi-card stheno vendryx">
+            <span className="roi-card-tag">Vendryx Pro Tier</span>
+            <strong className="roi-price">{formatMoney(vendryxMonthly, currency)}/mo</strong>
             <small>All features built-in · 0% transaction penalty · 0 app taxes</small>
           </div>
 
@@ -1620,7 +1617,7 @@ function LegacyPricingSection() {
 
 function LaunchChapter() {
   const statuses = [
-    { label: "Submitted", desc: "Your store request has reached Stheno." },
+    { label: "Submitted", desc: "Your store request has reached Vendryx." },
     { label: "In review", desc: "The submitted store details are checked before provisioning." },
     { label: "Provisioning", desc: "Your merchant environment is being configured." },
     { label: "Ready", desc: "Your merchant workspace is ready for you and your staff." },
@@ -1685,7 +1682,7 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
         <div className="footer-cta-strip">
           <div className="footer-cta-info">
             <span className="footer-cta-badge">
-              Stheno by Syed Systems
+              Vendryx by Syed Systems
             </span>
             <h3>Ready to take full ownership of your store operations?</h3>
             <p>Start with a 14-day trial, then choose the operating capacity and paid services your store needs.</p>
@@ -1706,9 +1703,9 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
         <div className="footer-grid">
           {/* Brand & Mission Column */}
           <div className="footer-brand-col">
-            <Link className="brand" to="/" aria-label="Stheno home">
+            <Link className="brand" to="/" aria-label="Vendryx home">
               <Mark />
-              <span className="sr-only">Stheno</span>
+              <span className="sr-only">Vendryx</span>
             </Link>
             <p className="footer-brand-tagline">
               Commerce operations for independent merchants, ecommerce builders, and developers.
@@ -1755,7 +1752,7 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
               <li><Link to="/login">Merchant Workspace Login</Link></li>
               <li><Link to="#pricing">Plan comparison</Link></li>
               <li><Link to="#reviews">Customer reviews</Link></li>
-              <li><Link to="#how-it-works">How Stheno Works</Link></li>
+              <li><Link to="#how-it-works">How Vendryx Works</Link></li>
               <li><Link to="#faq">Merchant FAQ</Link></li>
             </ul>
           </div>
@@ -1775,7 +1772,7 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
         {/* Bottom Sub-Footer Bar */}
         <div className="footer-bottom-bar">
           <div className="footer-bottom-left">
-            <p>© 2026 Stheno by Syed Systems. All rights reserved.</p>
+            <p>© 2026 Vendryx by Syed Systems. All rights reserved.</p>
             <span className="footer-tax-badge">Plan, tax, and provider terms are confirmed before a paid term begins.</span>
           </div>
           <div className="footer-bottom-right">
@@ -1829,13 +1826,13 @@ function EngineersTalkModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
       title: "Headless Presentation Contracts",
       tag: "TypeScript Contract",
       icon: Store,
-      desc: "Strictly pure storefront presentation modules that plug into Stheno APIs with zero backend logic modification.",
+      desc: "Strictly pure storefront presentation modules that plug into Vendryx APIs with zero backend logic modification.",
       specs: ["Sub-50ms TTFB globally", "Pure presentation architecture", "Full theme customizability"],
     },
   ]
 
   const apiSnippets = {
-    curl: `curl -X POST https://api.stheno.shop/store/carts/cart_01HX/complete \\
+    curl: `curl -X POST https://api.vendryx.com/store/carts/cart_01HX/complete \\
   -H "Authorization: Bearer sk_live_demo_984" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -1948,7 +1945,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     <span>Time-to-First-Byte</span>
                   </div>
                   <strong className="bm-value">32ms</strong>
-                  <span className="bm-subtext">Stheno Global Edge</span>
+                  <span className="bm-subtext">Vendryx Global Edge</span>
                   <small className="bm-comparison">vs 380ms legacy monoliths</small>
                 </div>
 
@@ -2180,7 +2177,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
     link.setAttribute("href", encodedUri)
-    link.setAttribute("download", `stheno_catalog_${session.storeName.toLowerCase().replace(/\s+/g, "_")}.csv`)
+    link.setAttribute("download", `vendryx_catalog_${session.storeName.toLowerCase().replace(/\s+/g, "_")}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -2253,7 +2250,8 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
 
   const handleApplyPromo = (e: FormEvent) => {
     e.preventDefault()
-    if (promoCode.trim().toUpperCase() === "STHENO10") {
+    const code = promoCode.trim().toUpperCase()
+    if (code === "VENDRYX10" || code === "STHENO10") {
       setPromoApplied(true)
     }
   }
@@ -2337,7 +2335,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
         <div className="demo-topbar-left-group">
           <Link className="brand" to="/">
             <Mark />
-            <span className="sr-only">Stheno home</span>
+            <span className="sr-only">Vendryx home</span>
           </Link>
           <span className="demo-topbar-divider">/</span>
           <span className="demo-store-name-tag">{session.storeName} Sandbox</span>
@@ -2953,7 +2951,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
           <header className="demo-store-header">
             <div className="store-brand-group">
               <strong>{session.storeName}</strong>
-              <span className="store-domain-badge">.stheno.shop</span>
+              <span className="store-domain-badge">.vendryx.com</span>
             </div>
             <nav aria-label="Demo storefront">
               <button
@@ -3097,7 +3095,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
 
           <footer className="demo-store-footer">
             <strong>{session.storeName}</strong>
-            <span>Powered by Stheno Merchant Workspace</span>
+            <span>Powered by Vendryx Merchant Workspace</span>
           </footer>
         </div>
       </section>
@@ -3166,7 +3164,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
 
                         <form className="promo-code-box" onSubmit={handleApplyPromo}>
                           <input
-                            placeholder="Promo code (try STHENO10)"
+                            placeholder="Promo code (try VENDRYX10)"
                             value={promoCode}
                             onChange={(e) => setPromoCode(e.target.value)}
                           />
@@ -3174,7 +3172,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                             Apply
                           </button>
                         </form>
-                        {promoApplied && <span className="promo-success-tag">✓ STHENO10 applied: 10% discount</span>}
+                        {promoApplied && <span className="promo-success-tag">✓ VENDRYX10 applied: 10% discount</span>}
 
                         <div className="drawer-summary">
                           <div className="summary-line">
@@ -3278,7 +3276,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                     <h3>Order Received!</h3>
                     <p className="order-num-tag">{lastOrderId}</p>
                     <p className="confirmation-text">
-                      Your order has been recorded in the Stheno sandbox database and synchronized directly into the
+                      Your order has been recorded in the Vendryx sandbox database and synchronized directly into the
                       Admin Orders queue above!
                     </p>
                     <a href="#demo" className="button button-primary button-full" onClick={() => setCartOpen(false)}>
@@ -3901,7 +3899,7 @@ function Login() {
           <ArrowRight size={15} />
         </button>
         <p className="form-meta">
-          New to Stheno? <Link to="/signup">Create an account</Link>
+          New to Vendryx? <Link to="/signup">Create an account</Link>
         </p>
       </form>
     </AuthShell>
@@ -3982,7 +3980,7 @@ function Welcome() {
   if (submitted) {
     const steps = [
       { num: 1, title: "Submission Verified", desc: "Store parameters validated against schema." },
-      { num: 2, title: "DNS & Route Binding", desc: `${request.subdomain || "store"}.stheno.shop DNS record mapped.` },
+      { num: 2, title: "DNS & Route Binding", desc: `${request.subdomain || "store"}.vendryx.com DNS record mapped.` },
       { num: 3, title: "Tenant Database Schema", desc: "Postgres isolated tenant schema provisioned." },
       { num: 4, title: "Workspace Activated", desc: "Merchant Dashboard & Admin live for operations." },
     ]
@@ -4023,7 +4021,7 @@ function Welcome() {
 
           <div className="provision-actions">
             <button className="button button-primary" onClick={() => navigate("/")}>
-              <span>Return to Stheno Home</span>
+              <span>Return to Vendryx Home</span>
               <ArrowRight size={15} />
             </button>
           </div>
@@ -4070,7 +4068,7 @@ function Welcome() {
                 onChange={(e) => setRequest({ ...request, subdomain: e.target.value.toLowerCase() })}
                 placeholder="nodi-studio"
               />
-              <span className="domain-suffix">.stheno.shop</span>
+              <span className="domain-suffix">.vendryx.com</span>
             </div>
           </label>
         </div>
@@ -4172,7 +4170,7 @@ export default function App() {
       canonical.rel = "canonical"
       document.head.appendChild(canonical)
     }
-    canonical.href = "https://stheno.shop" + (activePath === "/" ? "/" : activePath)
+    canonical.href = "https://vendryx.com" + (activePath === "/" ? "/" : activePath)
   }, [activePath])
 
   if (typeof page !== "string") {

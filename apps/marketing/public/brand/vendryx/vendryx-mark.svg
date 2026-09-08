@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" fill="none">
+  <title>Vendryx Mark</title>
+  <defs>
+    <linearGradient id="vxG1" x1="20" y1="20" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FB923C" />
+      <stop offset="60%" stop-color="#EA580C" />
+      <stop offset="100%" stop-color="#C2410C" />
+    </linearGradient>
+    <linearGradient id="vxG2" x1="90" y1="25" x2="45" y2="95" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#EA580C" />
+      <stop offset="100%" stop-color="#9A3412" />
+    </linearGradient>
+    <linearGradient id="vxG3" x1="45" y1="28" x2="75" y2="72" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFF7ED" />
+      <stop offset="100%" stop-color="#FED7AA" />
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="28" fill="#18181B" />
+  <!-- Left primary wing -->
+  <path d="M26 28 H46 L60 68 L44 68 Z" fill="url(#vxG1)" />
+  <!-- Right dominant wing -->
+  <path d="M74 28 H94 L68 96 H50 Z" fill="url(#vxG2)" />
+  <!-- Center energetic dynamic bridge -->
+  <path d="M46 28 L60 68 L74 28 Z" fill="url(#vxG3)" opacity="0.9" />
+  <!-- Apex accent pip -->
+  <circle cx="60" cy="80" r="3.5" fill="#FB923C" />
+</svg>

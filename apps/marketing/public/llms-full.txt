@@ -1,12 +1,12 @@
-# Stheno Commerce Platform — Complete Technical Specification
+# Vendryx Commerce Platform — Complete Technical Specification
 
-> Comprehensive system architecture, data models, developer contracts, and merchant operational workflows for Stheno by Syed Systems.
+> Comprehensive system architecture, data models, developer contracts, and merchant operational workflows for Vendryx by Syed Systems.
 
 ## 1. System Overview
 
-Stheno is a modular, high-performance commerce operations engine engineered to provide independent merchants and ecommerce developers with an enterprise-grade backend without the bloat, vendor lock-in, or GMV revenue fees of legacy platforms.
+Vendryx is a modular, high-performance commerce operations engine engineered to provide independent merchants and ecommerce developers with an enterprise-grade backend without the bloat, vendor lock-in, or GMV revenue fees of legacy platforms.
 
-- **Canonical URL**: https://stheno.shop
+- **Canonical URL**: https://vendryx.com
 - **Parent Company**: Syed Systems (SMCTi Ltd.)
 - **Primary Runtime**: Native compiled Rust backend with Tokio async runtime and Postgres relational store.
 - **Storefront Architecture**: Headless pure presentation modules communicating via frozen Medusa v2 compatible REST contracts.
@@ -38,7 +38,7 @@ All state-mutating operations execute through distributed sagas. Every step impl
 
 ## 3. Developer REST API Reference
 
-Stheno exposes a clean, predictable REST API surface:
+Vendryx exposes a clean, predictable REST API surface:
 
 ### Carts & Guest Checkout
 - `POST /store/carts`: Create a new guest cart session.
@@ -57,15 +57,15 @@ Stheno exposes a clean, predictable REST API surface:
 
 | Feature / Capability | Free Plan | Pro Plan |
 |---|---|---|
-| Monthly Subscription | ৳0 (Free Forever) | ৳2,800/mo (৳2,380/mo billed annually) |
-| Active Product Limit | Up to 50 Products | Unlimited Products |
-| Staff Accounts | 1 Account | Unlimited Staff Roles |
-| Storefront Branding | Stheno Subdomain | Custom Branded Domain |
+| Monthly Subscription | ৳0 (Free Indefinite) | ৳1,500/mo (৳1,350/mo on 12-month commitment) |
+| Active Product Limit | 100 Products | Unlimited Products |
+| Staff Accounts | 3 Accounts (Owner + 2) | 10 Staff Seats |
+| Storefront Branding | Vendryx Subdomain + Brand Kit | Custom Branded Domain + Bespoke Frontends |
 | Guest Checkout | Included | Included |
 | WhatsApp / Social Handoff | Included | Included |
-| Automated Courier Dispatch | Manual Consignments | Pathao, Steadfast, RedX 1-Click Dispatch |
+| Automated Courier Dispatch | Manual Consignments | Pathao, Steadfast, RedX Dispatch Integration |
 | Global Multi-Currency | BDT Only | BDT, USD, EUR Auto-Conversion |
-| Analytics History | 7 Days | Full Historical Analytics & Export |
+| Analytics History | 30-Day Window | Full Historical Analytics & Export |
 
 ---
 
@@ -79,9 +79,9 @@ Stheno exposes a clean, predictable REST API surface:
 
 ## 6. Official Resources & Endpoints
 
-- **Live Sandbox**: https://stheno.shop/demo
-- **Account Sign Up**: https://stheno.shop/signup
-- **Merchant Login**: https://stheno.shop/login
-- **Privacy Policy**: https://stheno.shop/privacy
-- **Terms of Service**: https://stheno.shop/terms
+- **Live Sandbox**: https://vendryx.com/demo
+- **Account Sign Up**: https://vendryx.com/signup
+- **Merchant Login**: https://vendryx.com/login
+- **Privacy Policy**: https://vendryx.com/privacy
+- **Terms of Service**: https://vendryx.com/terms
 - **Support Inquiries**: support@syedsystems.com

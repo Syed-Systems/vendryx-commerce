@@ -1,11 +1,11 @@
-# Robots.txt for Stheno Commerce Platform (https://stheno.shop)
+# Robots.txt for Vendryx Commerce Platform (https://vendryx.com)
 User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /dashboard/
 
 # Sitemaps
-Sitemap: https://stheno.shop/sitemap.xml
+Sitemap: https://vendryx.com/sitemap.xml
 
 # LLM & AI Discovery Standard
-# See: https://stheno.shop/llms.txt
+# See: https://vendryx.com/llms.txt
