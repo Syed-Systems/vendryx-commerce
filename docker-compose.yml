@@ -43,7 +43,7 @@ services:
   # Port 6432: transaction-mode pooling for app traffic and engine replicas.
   # Port 5432: direct Postgres preserved for session-scoped advisory locks & tests.
   pgbouncer:
-    image: edoburu/pgbouncer:v1.22.1
+    image: edoburu/pgbouncer:latest
     ports:
       - "6432:6432"
     environment:
