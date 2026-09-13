@@ -1,10 +1,10 @@
 # frontend-lustre — slot ledger
 
 **Status:** `ADAPT` Complete · **Date:** 2026-09-08 ·
-**Required by:** [AGENTS.md §12](../AGENTS.md#12-frontends-adapting-a-design)
+**Required by:** [AGENTS.md §12](../../AGENTS.md#12-frontends-adapting-a-design)
 
 `ADAPT` requires every contract slot to be labelled. This is that label, for all 45 slots in
-[`contract.ts`](../apps/storefront/packages/storefront-core/src/frontend/contract.ts).
+[`contract.ts`](../../apps/storefront/packages/storefront-core/src/frontend/contract.ts).
 
 | Label | Meaning | Count |
 |---|---|---|

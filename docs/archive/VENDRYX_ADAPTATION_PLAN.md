@@ -66,7 +66,7 @@ only the missing provider-verification and courier capabilities.
 |---|---|---|
 | Marketing and auth routes | `apps/marketing/src/App.tsx` includes `/`, `/demo`, `/login`, `/signup`, `/forgot-password`, `/welcome`, `/privacy`, `/terms` | Restyle and decompose; preserve paths and metadata intent |
 | Merchant admin | `apps/admin` is the curated Medusa dashboard fork | Adapt shell and targeted product routes; do not rebuild all inherited commerce screens |
-| Operator control plane | `apps/platform` uses Medusa UI primitives; extracted to standalone **Space** (`D:\Syed Systems\Space`, [ADR-030](DECISIONS.md#adr-030)) | Maintain `apps/platform` as transitional surface; future development in Space |
+| Operator control plane | `apps/platform` uses Medusa UI primitives; extracted to standalone **Space** (`D:\Syed Systems\Space`, [ADR-030](../DECISIONS.md#adr-030)) | Maintain `apps/platform` as transitional surface; future development in Space |
 | Merchant payment setup | `/admin/payment-providers` and `/admin/payment-providers/{id}/credentials` exist | Reuse, add verification and honest connection states |
 | Payment providers | bKash, SSLCommerz, Stripe, and offline provider crates are registered | Harden and prove with sandbox fixtures |
 | Courier registry | only the manual fulfillment provider is registered in `stheno-server` | Build the courier factory and credential layer before showing partner Connect buttons |
@@ -768,7 +768,7 @@ For each page:
 
 ### Phase I: operator control plane alignment
 
-> **Note (2026-09-08 — [ADR-030](DECISIONS.md#adr-030)):** The primary company control plane is **Space**
+> **Note (2026-09-08 — [ADR-030](../DECISIONS.md#adr-030)):** The primary company control plane is **Space**
 > (`D:\Syed Systems\Space`), a standalone project. Phase I alignment below applies to the legacy in-repo
 > `apps/platform` console during the transitional migration.
 

@@ -1,10 +1,10 @@
 # frontend-matrix — slot ledger
 
 **Status:** `ADAPT` in progress · **Date:** 2026-08-22 ·
-**Required by:** [AGENTS.md §12](../AGENTS.md#12-frontends-adapting-a-design)
+**Required by:** [AGENTS.md §12](../../AGENTS.md#12-frontends-adapting-a-design)
 
 `ADAPT` requires every contract slot to be labelled. This is that label, for all 45 slots in
-[`contract.ts`](../apps/storefront/packages/storefront-core/src/frontend/contract.ts). It is
+[`contract.ts`](../../apps/storefront/packages/storefront-core/src/frontend/contract.ts). It is
 deliberately blunt: **`forked` is a failure state, not a status.** Every row still marked `forked`
 is frontend-default's markup wearing the Matrix palette, and the point of this file is that none of
 them can hide.
@@ -90,7 +90,7 @@ stylesheet is not progress** — it counts when a component renders it.
 `DiscountCode` · `SkeletonCardDetails` · `SkeletonCartPage` · `SkeletonOrderConfirmed`
 
 That is 22 slots the design never had an opinion about — and it is the normal case, not a
-surprise. [AGENTS.md §12.2](../AGENTS.md#12-frontends-adapting-a-design) rule 2 governs them:
+surprise. [AGENTS.md §12.2](../../AGENTS.md#12-frontends-adapting-a-design) rule 2 governs them:
 derive from the design, never from `frontend-default`.
 
 ---
@@ -122,7 +122,7 @@ Three bugs this uncovered, all worth knowing before pinning anything else:
   parent — a frontend-side fix, so core's page is untouched.
 
 **The routes.** `/about` and `/policies/[id]` have no core equivalent, and a frontend may not
-route. [ADR-020](DECISIONS.md#adr-020) is **Proposed** and records the options. That half does not
+route. [ADR-020](../DECISIONS.md#adr-020) is **Proposed** and records the options. That half does not
 start until it is decided.
 
 **Quick add-to-cart.** The source `ProductCard`'s slide-up rail added to cart from the listing.

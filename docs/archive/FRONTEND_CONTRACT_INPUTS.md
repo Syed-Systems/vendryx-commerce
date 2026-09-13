@@ -1,12 +1,12 @@
 # Frontend Contract Inputs — what frontend B needs
 
 **Status:** Draft, **awaiting designer sign-off** · **Date:** 2026-08-20 · **Task:** P25-02 ·
-**Governed by:** [ADR-013](DECISIONS.md#adr-013)
+**Governed by:** [ADR-013](../DECISIONS.md#adr-013)
 
 This document exists to be argued with, and it must be argued with **before**
-[P25-05](PHASE3_TASKS.md) freezes the frontend contract.
+[P25-05](../PHASE3_TASKS.md) freezes the frontend contract.
 
-[PHASE3_PLAN.md §P27](PHASE3_PLAN.md) states the risk this list answers:
+[PHASE3_PLAN.md §P27](../PHASE3_PLAN.md) states the risk this list answers:
 
 > A second frontend built by the same people who built core will not exercise the contract honestly.
 > They will unconsciously avoid the awkward parts.
@@ -24,7 +24,7 @@ designer who reads it and agrees with all of it has not read it.
 | Section | Who owns it |
 |---|---|
 | §3 Frontend surface | The designer. Cut it, rename it, restructure it |
-| §4 Core-owned | Nobody. Not negotiable — [ADR-013](DECISIONS.md#adr-013) decisions 2 and 4 |
+| §4 Core-owned | Nobody. Not negotiable — [ADR-013](../DECISIONS.md#adr-013) decisions 2 and 4 |
 | §5 Skinnable core | The designer owns the *look*; core owns the flow |
 | §6 Open questions | **Must be answered before P25-05.** These are the contract's real shape |
 | §7 Known pressure | Read before freezing. Three of these are already in motion |
@@ -33,7 +33,7 @@ designer who reads it and agrees with all of it has not read it.
 
 ## 2. The line, restated
 
-[ADR-013](DECISIONS.md#adr-013) decision 4: *a frontend supplies components against a typed contract
+[ADR-013](../DECISIONS.md#adr-013) decision 4: *a frontend supplies components against a typed contract
 and receives props. It does not fetch, and it does not route.*
 
 That single sentence decides every ambiguous row below. If a component in §3 turns out to need a
@@ -146,7 +146,7 @@ ship zero of them.** Do not let 47 internal components leak into the contract as
 
 ## 4. Core-owned — a frontend never supplies these
 
-Not a design position. [ADR-013](DECISIONS.md#adr-013) decision 4, and
+Not a design position. [ADR-013](../DECISIONS.md#adr-013) decision 4, and
 `check-storefront-boundaries.sh` (P25-09) fails the build on a violation.
 
 | Concern | Where |
@@ -163,7 +163,7 @@ Not a design position. [ADR-013](DECISIONS.md#adr-013) decision 4, and
 
 ## 5. Skinnable core — checkout
 
-[ADR-013](DECISIONS.md#adr-013) decision 2: **skinnable, never rewritable.** The 18 components in
+[ADR-013](../DECISIONS.md#adr-013) decision 2: **skinnable, never rewritable.** The 18 components in
 `src/modules/checkout` stay in core (P25-08). A Pro frontend restyles them; it cannot alter the flow,
 the step order, the validation, or the script manifest.
 
@@ -176,7 +176,7 @@ fail on an attempt.
 
 **Designer input needed:** the styling seam for checkout is not yet designed. If it turns out a
 frontend needs to move a field between steps to achieve its design, that is an
-[ADR-013](DECISIONS.md#adr-013) reversal condition and must be raised now, not in P27-06.
+[ADR-013](../DECISIONS.md#adr-013) reversal condition and must be raised now, not in P27-06.
 
 ---
 
@@ -201,7 +201,7 @@ document** — it decides whether frontend B is a restyle or a rebuild.
 
 Currency formatting is commerce logic with a presentation surface. Proposal: core formats and
 passes a formatted string *plus* the raw decimal; the frontend chooses which to render. This matters
-more than it sounds — [ADR-006](DECISIONS.md#adr-006) money is decimal, and a frontend doing its own
+more than it sounds — [ADR-006](../DECISIONS.md#adr-006) money is decimal, and a frontend doing its own
 `toFixed(2)` on a BDT total is exactly the silent wrongness Phase 3 is full of. **Confirm the
 proposal or replace it.**
 
@@ -223,7 +223,7 @@ not let it default.**
 
 frontend-default ships 17 icons, three of which are payment-brand marks (`ideal`, `bancontact`,
 `paypal`) rendered by checkout — which is core. Payment-method iconography is arguably core's, and
-it grows with every [P22](PHASE3_TASKS.md) gateway: bKash, Nagad and SSLCommerz all have brand
+it grows with every [P22](../PHASE3_TASKS.md) gateway: bKash, Nagad and SSLCommerz all have brand
 marks with usage rules attached.
 
 ---
@@ -240,7 +240,7 @@ that is the only reason they are cheap.
    start.**
 
 2. **Subscriptions are in flight and are a core feature, not a frontend.**
-   [ADR-013](DECISIONS.md#adr-013) says so explicitly in its consequences: *"A merchant wanting a
+   [ADR-013](../DECISIONS.md#adr-013) says so explicitly in its consequences: *"A merchant wanting a
    genuinely different purchase flow — subscription, quote-to-order, wholesale approval — is not
    served by any of the three tiers... answering it with a frontend would be the failure this record
    exists to prevent."* Work on subscriptions is happening concurrently with this phase. If it

@@ -1,9 +1,9 @@
 # Core changes frontend B required
 
-**Status:** Open · **Date:** 2026-08-22 · **Task:** [P27-07](PHASE3_TASKS.md) ·
-**Governed by:** [ADR-013](DECISIONS.md#adr-013)
+**Status:** Open · **Date:** 2026-08-22 · **Task:** [P27-07](../PHASE3_TASKS.md) ·
+**Governed by:** [ADR-013](../DECISIONS.md#adr-013)
 
-[P27-07](PHASE3_TASKS.md) budgets **two** core changes for frontend B:
+[P27-07](../PHASE3_TASKS.md) budgets **two** core changes for frontend B:
 
 > More than two means the P25 contract was drawn wrong and is fixed here.
 
@@ -51,7 +51,7 @@ is per-frontend so two frontends can run at once.
 
 **Why:** the P25-07 binding is a `tsconfig.json` path, which is one frontend per
 tree. Serving two frontends at once — the whole ask — needs the binding to be a
-process input rather than a file edit. This is [P27-08](PHASE3_TASKS.md)'s own
+process input rather than a file edit. This is [P27-08](../PHASE3_TASKS.md)'s own
 subject matter, so calling it a *delta* is arguably generous to the count; it
 changes no core module and no contract.
 

@@ -3,7 +3,7 @@
 **Status:** Design and implementation plan  
 **Package target:** `apps/storefront/packages/frontend-lustre`  
 **Architecture:** Independent frontend on `@stheno/storefront-core`  
-**Governed by:** [AGENTS.md](../AGENTS.md), [ADR-013](DECISIONS.md#adr-013), and the [frontend contract](../apps/storefront/packages/storefront-core/src/frontend/contract.ts)
+**Governed by:** [AGENTS.md](../../AGENTS.md), [ADR-013](../DECISIONS.md#adr-013), and the [frontend contract](../../apps/storefront/packages/storefront-core/src/frontend/contract.ts)
 
 `lustre` is an internal frontend key, not a customer-facing brand. Visible identity must come from
 merchant-approved data. The package must never render `Lustre` as the shop name.

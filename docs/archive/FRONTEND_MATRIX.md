@@ -1,7 +1,7 @@
 # frontend-matrix — The Matrix Hours
 
-**Status:** Working · **Date:** 2026-08-22 · **Relates to:** [P27-03..P27-05, P27-08](PHASE3_TASKS.md) ·
-**Governed by:** [ADR-013](DECISIONS.md#adr-013)
+**Status:** Working · **Date:** 2026-08-22 · **Relates to:** [P27-03..P27-05, P27-08](../PHASE3_TASKS.md) ·
+**Governed by:** [ADR-013](../DECISIONS.md#adr-013)
 
 A second storefront frontend, ported from the standalone **The Matrix Hours** shop
 (`../The Matrix Hours`) — a dark, flat, luxury-watch storefront. It exists to be
@@ -54,7 +54,7 @@ is in [FRONTEND_MATRIX_SLOTS.md](FRONTEND_MATRIX_SLOTS.md); the live count comes
 frontend-default's markup. §2 below describes how the original `SKIN` was built; it
 is history, not the target.
 
-**As first shipped, this was a `SKIN`, not a `PORT`** — see [AGENTS.md §12](../AGENTS.md#12-frontends-adapting-a-design).
+**As first shipped, this was a `SKIN`, not a `PORT`** — see [AGENTS.md §12](../../AGENTS.md#12-frontends-adapting-a-design).
 frontend-matrix started as a copy of `frontend-default`, so it satisfies all 45
 contract slots by construction, and none of The Matrix Hours' own components
 (`Navbar`, `CartDrawer`, `CollectionGrid`, `FilterBar`, `EditorialSection`,
