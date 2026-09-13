@@ -9,6 +9,8 @@ import { ExtensionProvider } from "./extension-provider"
 import { I18nProvider } from "./i18n-provider"
 import { ThemeProvider } from "./theme-provider"
 import { FeatureFlagProvider } from "./feature-flag-provider"
+import { ClerkAuthProvider } from "./clerk-provider"
+
 type ProvidersProps = PropsWithChildren<{
   api: DashboardApp["api"]
 }>
@@ -16,19 +18,21 @@ type ProvidersProps = PropsWithChildren<{
 export const Providers = ({ api, children }: ProvidersProps) => {
   return (
     <TooltipProvider>
-      <ExtensionProvider api={api}>
-        <HelmetProvider>
-          <QueryClientProvider client={queryClient}>
-            <ThemeProvider>
-              <FeatureFlagProvider>
-                <I18n />
-                <I18nProvider>{children}</I18nProvider>
-                <Toaster />
-              </FeatureFlagProvider>
-            </ThemeProvider>
-          </QueryClientProvider>
-        </HelmetProvider>
-      </ExtensionProvider>
+      <ClerkAuthProvider>
+        <ExtensionProvider api={api}>
+          <HelmetProvider>
+            <QueryClientProvider client={queryClient}>
+              <ThemeProvider>
+                <FeatureFlagProvider>
+                  <I18n />
+                  <I18nProvider>{children}</I18nProvider>
+                  <Toaster />
+                </FeatureFlagProvider>
+              </ThemeProvider>
+            </QueryClientProvider>
+          </HelmetProvider>
+        </ExtensionProvider>
+      </ClerkAuthProvider>
     </TooltipProvider>
   )
 }

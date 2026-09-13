@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   /** Merchant-facing help links. Unset hides the menu item rather than linking nowhere. */
   readonly VITE_DOCS_URL?: string
   readonly VITE_CHANGELOG_URL?: string
+  /** Clerk Authentication publishable key for storefront owner sign-in */
+  readonly VITE_CLERK_PUBLISHABLE_KEY?: string
 }
 
 interface ImportMeta {

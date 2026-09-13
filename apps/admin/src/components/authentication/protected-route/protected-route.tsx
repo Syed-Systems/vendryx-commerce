@@ -9,15 +9,18 @@ import { PermissionsProvider } from "../../../providers/permissions-provider"
 import { SearchProvider } from "../../../providers/search-provider"
 import { SidebarProvider } from "../../../providers/sidebar-provider"
 
+import { useSafeClerk } from "../../../providers/clerk-provider"
+
 export const ProtectedRoute = () => {
   const location = useLocation()
   const isRbacEnabled = useFeatureFlag("rbac")
 
   const { user, isLoading: isLoadingUser } = useMe()
+  const { isLoaded: isClerkLoaded, isSignedIn: isClerkSignedIn } = useSafeClerk()
   const { data: permissionsResponse, isLoading: isLoadingPermissions } =
     useMePermissions({
       // Don't fetch permissions until we know the user is authenticated.
-      enabled: !!user && isRbacEnabled,
+      enabled: !!user && isRbacEnabled && !isClerkSignedIn,
     })
 
   const policy: UserPolicy | null = useMemo(() => {
@@ -29,7 +32,7 @@ export const ProtectedRoute = () => {
     }
   }, [permissionsResponse])
 
-  if (isLoadingUser) {
+  if (isLoadingUser || !isClerkLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Spinner className="text-ui-fg-interactive animate-spin" />
@@ -37,7 +40,7 @@ export const ProtectedRoute = () => {
     )
   }
 
-  if (!user) {
+  if (!user && !isClerkSignedIn) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 

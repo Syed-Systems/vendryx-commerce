@@ -31,6 +31,7 @@ import { useGlobalShortcuts } from "../../../providers/keybind-provider/hooks"
 import { CHANGELOG_URL, DOCS_URL } from "../../../lib/external-links"
 import { useTheme } from "../../../providers/theme-provider"
 import { useDocumentDirection } from "../../../hooks/use-document-direction"
+import { useSafeClerk } from "../../../providers/clerk-provider"
 
 export const UserMenu = () => {
   const { t } = useTranslation()
@@ -91,10 +92,14 @@ export const UserMenu = () => {
 
 const UserBadge = () => {
   const { user, isPending, isError, error } = useMe()
+  const { user: clerkUser } = useSafeClerk()
 
-  const name = [user?.first_name, user?.last_name].filter(Boolean).join(" ")
-  const displayName = name || user?.email
-  const email = user?.email
+  const name =
+    [user?.first_name, user?.last_name].filter(Boolean).join(" ") ||
+    clerkUser?.fullName ||
+    ""
+  const email = user?.email || clerkUser?.primaryEmailAddress?.emailAddress || ""
+  const displayName = name || email
 
   const fallback = displayName ? displayName[0].toUpperCase() : null
 
@@ -216,19 +221,22 @@ const ThemeToggle = () => {
 const Logout = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
-
+  const { signOut: clerkSignOut } = useSafeClerk()
   const { mutateAsync: logoutMutation } = useLogout()
 
   const handleLogout = async () => {
-    await logoutMutation(undefined, {
-      onSuccess: () => {
-        /**
-         * When the user logs out, we want to clear the query cache
-         */
-        queryClient.clear()
-        navigate("/login")
-      },
-    })
+    try {
+      await clerkSignOut()
+    } catch {
+      // ignore
+    }
+    try {
+      await logoutMutation(undefined)
+    } catch {
+      // ignore
+    }
+    queryClient.clear()
+    navigate("/login")
   }
 
   return (
@@ -320,17 +328,21 @@ const GlobalKeybindsModal = (props: {
 
 const UserItem = () => {
   const { user, isPending, isError, error } = useMe()
+  const { user: clerkUser } = useSafeClerk()
 
-  const loaded = !isPending && !!user
+  const loaded = (!isPending && !!user) || !!clerkUser
 
   if (!loaded) {
     return <div></div>
   }
 
-  const name = [user.first_name, user.last_name].filter(Boolean).join(" ")
-  const email = user.email
-  const fallback = name ? name[0].toUpperCase() : email[0].toUpperCase()
-  const avatar = user.avatar_url
+  const name =
+    [user?.first_name, user?.last_name].filter(Boolean).join(" ") ||
+    clerkUser?.fullName ||
+    ""
+  const email = user?.email || clerkUser?.primaryEmailAddress?.emailAddress || ""
+  const fallback = name ? name[0].toUpperCase() : email ? email[0].toUpperCase() : "U"
+  const avatar = user?.avatar_url || clerkUser?.imageUrl
 
   if (isError) {
     throw error

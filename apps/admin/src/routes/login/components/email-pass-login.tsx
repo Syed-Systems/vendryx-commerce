@@ -9,6 +9,11 @@ import * as z from "zod"
 import { Form } from "../../../components/common/form"
 import { useSignInWithEmailPass } from "../../../hooks/api"
 import { isFetchError } from "../../../lib/is-fetch-error"
+import {
+  AVAILABLE_TENANTS,
+  resolveTenantHostFromEmail,
+  setActiveTenantHost,
+} from "../../../lib/tenant"
 
 const EmailPassSchema = z.object({
   email: z.string().email(),
@@ -32,14 +37,18 @@ export const EmailPassLogin = ({ onMfaChallenge }: EmailPassLoginProps) => {
   const form = useForm<z.infer<typeof EmailPassSchema>>({
     resolver: zodResolver(EmailPassSchema),
     defaultValues: {
-      email: "",
-      password: "",
+      email: AVAILABLE_TENANTS[0].defaultEmail,
+      password: "Sup3rSecret!",
     },
   })
 
   const { mutateAsync, isPending } = useSignInWithEmailPass()
 
   const handleSubmit = form.handleSubmit(async ({ email, password }) => {
+    // Automatically route to the store matching the entered credentials
+    const targetHost = resolveTenantHostFromEmail(email)
+    setActiveTenantHost(targetHost)
+
     await mutateAsync(
       {
         email,
@@ -82,9 +91,49 @@ export const EmailPassLogin = ({ onMfaChallenge }: EmailPassLoginProps) => {
     form.formState.errors.email?.message ||
     form.formState.errors.password?.message
 
+  const currentEmail = form.watch("email")
+
   return (
     <Form {...form}>
-      <form onSubmit={handleSubmit} className="flex w-full flex-col gap-y-6">
+      <form onSubmit={handleSubmit} className="flex w-full flex-col gap-y-4">
+        <div className="flex flex-col gap-y-1.5 rounded-lg border border-ui-border-base/70 bg-ui-bg-subtle/50 p-2.5">
+          <span className="text-[11px] font-medium text-ui-fg-muted">
+            Select store dashboard:
+          </span>
+          <div className="grid grid-cols-3 gap-1.5">
+            {AVAILABLE_TENANTS.map((tenant) => {
+              const active = currentEmail === tenant.defaultEmail
+              return (
+                <button
+                  key={tenant.id}
+                  type="button"
+                  onClick={() => {
+                    form.setValue("email", tenant.defaultEmail)
+                    form.setValue("password", "Sup3rSecret!")
+                    setActiveTenantHost(tenant.host)
+                  }}
+                  className={`flex flex-col p-1.5 rounded-md text-start border transition-all text-xs ${
+                    active
+                      ? "border-ui-border-interactive bg-ui-bg-base text-ui-fg-base shadow-xs"
+                      : "border-ui-border-base/60 bg-ui-bg-base/50 text-ui-fg-subtle hover:text-ui-fg-base hover:bg-ui-bg-base"
+                  }`}
+                >
+                  <span className="font-semibold truncate">
+                    {tenant.genre === "appliance"
+                      ? "Appliances"
+                      : tenant.genre === "clothing"
+                      ? "Clothing"
+                      : "Tech"}
+                  </span>
+                  <span className="text-[10px] text-ui-fg-muted truncate">
+                    {tenant.tierLabel}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         <div className="flex flex-col gap-y-1">
           <Form.Field
             control={form.control}

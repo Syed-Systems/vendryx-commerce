@@ -60,10 +60,34 @@ export default defineConfig(({ mode }) => {
         "/auth": {
           target: "http://127.0.0.1:9000",
           changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on("proxyReq", (proxyReq, req) => {
+              const cookies = req.headers.cookie || ""
+              const match = cookies.match(/stheno_tenant_host=([^;]+)/)
+              const customHost =
+                (req.headers["x-stheno-tenant-host"] as string) ||
+                (match ? decodeURIComponent(match[1].trim()) : null)
+              if (customHost) {
+                proxyReq.setHeader("host", customHost)
+              }
+            })
+          },
         },
         "/admin": {
           target: "http://127.0.0.1:9000",
           changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on("proxyReq", (proxyReq, req) => {
+              const cookies = req.headers.cookie || ""
+              const match = cookies.match(/stheno_tenant_host=([^;]+)/)
+              const customHost =
+                (req.headers["x-stheno-tenant-host"] as string) ||
+                (match ? decodeURIComponent(match[1].trim()) : null)
+              if (customHost) {
+                proxyReq.setHeader("host", customHost)
+              }
+            })
+          },
         },
       },
     },

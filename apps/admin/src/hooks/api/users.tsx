@@ -11,6 +11,9 @@ import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 
+import { useMemo } from "react"
+import { useSafeClerk } from "../../providers/clerk-provider"
+
 const USERS_QUERY_KEY = "users" as const
 const usersQueryKeys = {
   ...queryKeysFactory(USERS_QUERY_KEY),
@@ -27,14 +30,45 @@ export const useMe = (
     QueryKey
   >
 ) => {
+  const { user: clerkUser, isSignedIn: isClerkSignedIn } = useSafeClerk()
+
   const { data, ...rest } = useQuery({
     queryFn: () => sdk.admin.user.me(query),
     queryKey: usersQueryKeys.me(query),
+    retry: isClerkSignedIn ? false : undefined,
     ...options,
   })
 
+  // Prioritize native backend user; fallback to Clerk authenticated user
+  const effectiveUser = useMemo(() => {
+    if (data?.user) {
+      return data.user
+    }
+    if (isClerkSignedIn && clerkUser) {
+      const email =
+        clerkUser.primaryEmailAddress?.emailAddress ||
+        clerkUser.emailAddresses?.[0]?.emailAddress ||
+        "owner@clerk.local"
+      return {
+        id: clerkUser.id,
+        email,
+        first_name: clerkUser.firstName || "Storefront",
+        last_name: clerkUser.lastName || "Owner",
+        avatar_url: clerkUser.imageUrl || undefined,
+        metadata: {
+          role: "owner",
+          clerk_id: clerkUser.id,
+        },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        deleted_at: null,
+      } as unknown as HttpTypes.AdminUser
+    }
+    return undefined
+  }, [data?.user, isClerkSignedIn, clerkUser])
+
   return {
-    ...data,
+    user: effectiveUser,
     ...rest,
   }
 }

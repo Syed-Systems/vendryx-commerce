@@ -35,6 +35,11 @@ import { useSearch } from "../../../providers/search-provider"
 import { UserMenu } from "../user-menu"
 import { useDocumentDirection } from "../../../hooks/use-document-direction"
 import { CUSTOMIZE_IDS } from "../../layout-composer/constants"
+import {
+  AVAILABLE_TENANTS,
+  getActiveTenantHost,
+  setActiveTenantHost,
+} from "../../../lib/tenant"
 
 declare const __STOREFRONT_URL__: string | undefined
 
@@ -89,6 +94,7 @@ const Header = () => {
     },
   })
   const tier = entitlements?.tier || "Pro"
+  const activeHost = getActiveTenantHost()
   const storefrontUrl = typeof __STOREFRONT_URL__ !== "undefined" ? __STOREFRONT_URL__ : "http://localhost:8000"
 
   if (isError) {
@@ -183,6 +189,36 @@ const Header = () => {
                 <span>{t("app.nav.main.storeSettings", "Store Settings")}</span>
               </Link>
             </DropdownMenu.Item>
+            <DropdownMenu.Separator className="my-1 border-ui-border-base/60" />
+            <div className="px-2.5 py-1 text-[10px] font-semibold uppercase text-ui-fg-muted tracking-wider">
+              Switch Store Dashboard
+            </div>
+            {AVAILABLE_TENANTS.map((tenant) => {
+              const isCurrent = activeHost === tenant.host
+              return (
+                <DropdownMenu.Item
+                  key={tenant.id}
+                  onClick={() => {
+                    if (!isCurrent) {
+                      setActiveTenantHost(tenant.host)
+                      window.location.reload()
+                    }
+                  }}
+                  className={clx(
+                    "gap-x-2 rounded-lg py-1.5 px-2 text-[12px] flex items-center justify-between cursor-pointer",
+                    isCurrent && "bg-ui-bg-base-pressed font-semibold text-ui-fg-base"
+                  )}
+                >
+                  <div className="flex items-center gap-x-2 truncate">
+                    <BuildingStorefront className="text-ui-fg-muted size-3.5 shrink-0" />
+                    <span className="truncate">{tenant.name}</span>
+                  </div>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-ui-border-base text-ui-fg-subtle shrink-0">
+                    {tenant.genre} · {tenant.tier}
+                  </span>
+                </DropdownMenu.Item>
+              )
+            })}
             <DropdownMenu.Separator className="my-1 border-ui-border-base/60" />
             <DropdownMenu.Item className="gap-x-2.5 rounded-lg py-1.5 px-2.5 text-[13px]" asChild>
               <Link to="/help">
