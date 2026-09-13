@@ -1,6 +1,6 @@
 # VENDRYX_SCREEN_MATRIX.md — UI Screen Matrix & Adaptation Registry
 
-This document registers every implemented user interface surface against its designated reference image, recording target routes, visual references, state fixtures, explicit architectural divergences, and audit stamps per [VENDRYX_ADAPTATION_PLAN.md §5](VENDRYX_ADAPTATION_PLAN.md#5-reference-to-surface-map).
+This document registers every implemented user interface surface against its designated reference image, recording target routes, visual references, state fixtures, explicit architectural divergences, and audit stamps per [VENDRYX_ADAPTATION_PLAN.md §5](archive/VENDRYX_ADAPTATION_PLAN.md#5-reference-to-surface-map).
 
 ## Screen Matrix Registry
 

@@ -2,6 +2,13 @@
 
 **Status:** Final · **Date:** 2026-08-19 · **Governed by:** [ADR-013](DECISIONS.md#adr-013)
 
+> [!WARNING]
+> **ARCHITECTURE DEPRECATION NOTICE (v2.28.0)**
+>
+> The frontend extraction and multi-theme architecture described in this plan (specifically the scaffolding of `frontend-<name>` packages in Phases P25–P27) has been **deprecated** by [ADR-031](DECISIONS.md#adr-031). 
+> 
+> The platform now uses a **Unified Default Storefront Runtime** (`frontend-default`) with dynamic, runtime CSS custom property injection and `data-*` variant modifiers. Agents must NOT scaffold new frontend packages for visual variations.
+
 **~25 engineer-weeks of work · ~14 calendar weeks with two parallel tracks · 8 phases (P21–P28)**
 
 Phase 2 ([PHASE2_PLAN.md](PHASE2_PLAN.md)) made the engine durable and multi-tenant. It did not

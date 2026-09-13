@@ -58,21 +58,17 @@ Vendryx Commerce is a high-performance, multi-tenant commerce platform tailored 
 
 The platform separates commerce logic from presentation into two independent, symmetrical building blocks:
 
-### Block 1: Pluggable Presentation Layer (Storefront Frontends)
-- **Location:** `apps/storefront/packages/`
-- **Core Package:** `storefront-core` provides standard URL routing (`/[countryCode]/(main)/*`), Next.js App Router layout shells, regional cart management, and server data loaders.
-- **Frontend Modules:** Each visual theme is an independent, self-contained package implementing the slot contract defined in `storefront-core/src/frontend/contract.ts`:
-  - `frontend-default`: Mature, canonical reference theme used as the structural foundation for dynamic multi-tenant stores (ADR-031).
-  - `frontend-matrix`: High-density luxury watch/horology theme.
-  - `frontend-lustre`: Clean, editorial fashion/lifestyle theme.
+### Block 1: Unified Storefront Presentation Layer
+- **Location:** `apps/storefront/packages/frontend-default`
+- **Core Engine:** Next.js App Router providing standard URL routing (`/[countryCode]/(main)/*`), server data loaders, and regional cart management.
 - **Unified Multi-Tenant Runtime (ADR-031):**
   - **Single Next.js Server:** All merchant stores run on a single Next.js application cluster without deploying separate servers per tenant or theme.
   - **Host-Based Resolution:** Request hostnames are resolved in `<1ms` by `middleware.ts`, injecting tenant context into server components.
   - **Dynamic Design Tokens (CSS Custom Properties):** The root layout (`layout.tsx`) dynamically injects tenant theme tokens into `<style id="stheno-brand-tokens">:root { ... }</style>` on SSR. Tokens control colors, typography (SF Pro, Inter, Geist), corner radii (squircles, pills), and materials (frosted glass blur).
   - **Config-Driven Visual Modifiers:** Mature `frontend-default` components expose semantic variant attributes (`data-card-style="apple-minimal"`, `data-buy-box="sticky"`, `data-image-aspect="portrait"`), enabling layout and styling variety across stores while preserving battle-tested accessibility and form validation.
   - **Apple HIG Baseline:** The platform defaults to Apple Human Interface Guidelines: 8pt spatial rhythm, generous whitespace, tabular pricing numerals, 16px squircle containers, 9999px pill buttons, and fluid spring curves (`cubic-bezier(0.16, 1, 0.3, 1)`).
-- **Independence Guarantee:** Frontend modules **present data only; they never fetch directly** (enforced by `./scripts/check-frontend-purity.sh`). Data arrives as strongly typed props from `storefront-core` server components.
-- **No Forking Policy:** Modifying an existing frontend to create a new merchant theme is prohibited. New storefront designs are cleanly created as standalone frontend packages adhering to the slot contract (enforced by `./scripts/check-frontend-not-forked.sh`).
+- **Independence Guarantee:** Frontend modules **present data only; they never fetch directly** (enforced by `./scripts/check-frontend-purity.sh`). Data arrives as strongly typed props from server components.
+- **No Forking Policy:** Modifying the Next.js storefront package to create a standalone visual theme for a specific merchant is an architectural violation. All visual differentiation must happen via CSS design tokens and data attribute variant modifiers.
 
 ### Block 2: High-Performance Engine (`stheno-server`)
 - **Location:** `crates/`
@@ -81,7 +77,7 @@ The platform separates commerce logic from presentation into two independent, sy
   - `/store/*`: Public shopper API (catalog, cart, checkout, customer accounts).
   - `/admin/*`: Merchant administration API (products, orders, inventory, pricing, promotions).
   - `/platform/*` (or Space): Fleet orchestration and provisioning.
-- **Symmetry:** The engine has zero awareness of which frontend is rendering the UI. Switching a store from `frontend-default` to `frontend-matrix` or `frontend-lustre` requires changing only the storefront package configuration; the backend remains completely unchanged.
+- **Symmetry:** The engine has zero awareness of the visual styling or theme tokens used by the storefront. Brand injection happens purely in the Next.js runtime.
 
 ---
 

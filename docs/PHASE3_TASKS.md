@@ -206,6 +206,11 @@ readiness** — see the P22 risk. P3-00e blocks P21-01 and P25-01.
 
 ## P25 — Storefront core/theme split (13 tasks)
 
+> [!WARNING]
+> **ARCHITECTURE DEPRECATION NOTICE**
+> The P25 frontend extraction tasks are deprecated. The core/theme split and standalone `frontend-*` packages have been superseded by [ADR-031](DECISIONS.md#adr-031) (Unified Default Storefront Runtime). Do not execute these tasks.
+
+
 | ID | Task | Deps | Exit |
 |---|---|---|---|
 | P25-01 | Workspace restructure: `packages/storefront-core`, `packages/frontend-default`, app shell consuming both. No code moved yet | P3-00e | `npm --prefix apps/storefront run build` |
@@ -246,6 +251,11 @@ readiness** — see the P22 risk. P3-00e blocks P21-01 and P25-01.
 ---
 
 ## P27 — Theme packages and conformance (10 tasks)
+
+> [!WARNING]
+> **ARCHITECTURE DEPRECATION NOTICE**
+> The P27 theme conformance tasks are deprecated. Building standalone frontend packages and skinning checkouts has been superseded by [ADR-031](DECISIONS.md#adr-031). Do not execute these tasks.
+
 
 | ID | Task | Deps | Exit |
 |---|---|---|---|

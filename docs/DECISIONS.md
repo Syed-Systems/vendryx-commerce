@@ -17,17 +17,17 @@ a stated cost is a preference wearing a suit.
 | [ADR-010](#adr-010) | `Id<T>` carries its Medusa prefix as a compile-time constant | Accepted |
 | [ADR-011](#adr-011) | `FilterSpec` stays single-entity; joins belong to the query engine | Accepted |
 | [ADR-012](#adr-012) | One database, `tenant_id` on every row, isolation enforced by Postgres RLS | Accepted |
-| [ADR-013](#adr-013) | Storefront presentation is swappable; commerce logic is not | Accepted |
+| [ADR-013](#adr-013) | Storefront presentation is swappable; commerce logic is not | **Superseded by [ADR-031](#adr-031)** |
 | [ADR-014](#adr-014) | A line item's price comes from the catalogue, never from the request | Accepted |
 | [ADR-015](#adr-015) | Wire-shape expansion lives in the API layer, not in module DTOs | Accepted |
-| [ADR-016](#adr-016) | Plan definitions are data the control plane owns, not config baked into the image | Accepted |
+| [ADR-016](#adr-016) | Plan definitions are data the control plane owns, not config baked into the image | Accepted · **Refined by [ADR-030](#adr-030)** |
 | [ADR-017](#adr-017) | Subscription billing is first-party, collected on the gateways already integrated | Accepted |
 | [ADR-018](#adr-018) | Support impersonation: time-boxed, scope-limited, fully audited, secret-opaque | Accepted |
 | [ADR-019](#adr-019) | Provider credentials are tenant-owned, encrypted, and resolved through factories | Accepted |
-| [ADR-020](#adr-020) | Content pages a design needs are core routes fed by a theme slot | Accepted |
+| [ADR-020](#adr-020) | Content pages a design needs are core routes fed by a theme slot | **Superseded by [ADR-031](#adr-031)** |
 | [ADR-021](#adr-021) | AI-authored storefront content is data against a closed schema, never code | Accepted |
 | [ADR-022](#adr-022) | Tenant identity is the Host header; the Store API is served same-origin | Accepted |
-| [ADR-023](#adr-023) | One storefront build per theme, routed by host | Accepted |
+| [ADR-023](#adr-023) | One storefront build per theme, routed by host | **Superseded by [ADR-031](#adr-031)** |
 | [ADR-024](#adr-024) | Compute next to the data; delivery by CDN over an origin that speaks HTTP caching | Accepted |
 | [ADR-025](#adr-025) | Connection pooling is transaction-mode, with a session-mode route | Accepted |
 | [ADR-026](#adr-026) | Docker Compose now, Kubernetes at scale | Accepted |
@@ -854,7 +854,11 @@ ADR-009's model remains valid for self-hosted single-merchant deployments, which
 
 ## ADR-013 — Storefront presentation is swappable; commerce logic is not
 
-**Status:** Accepted · **Date:** 2026-08-19 · **Implemented by:** [Phase 3](PHASE3_PLAN.md)
+> [!WARNING]
+> **ARCHITECTURE DEPRECATION NOTICE**
+> The core/theme package split defined in this ADR is completely superseded by [ADR-031](#adr-031) (Unified Default Storefront Runtime). The platform no longer supports scaffolding distinct `frontend-*` packages for visual themes. Visual branding is now accomplished strictly via CSS design tokens and component variant modifiers on a single Next.js unified runtime.
+
+**Status:** Superseded by [ADR-031](#adr-031) · **Date:** 2026-08-19 · **Implemented by:** [Phase 3](PHASE3_PLAN.md)
 
 ### Context
 
@@ -1092,6 +1096,10 @@ through a wrapper, and it is a struct field in Rust either way.
 <a id="adr-016"></a>
 
 ## ADR-016 — Plan definitions are data the control plane owns, not config baked into the image
+
+> [!NOTE]
+> **REFINED BY ADR-030**
+> The rules regarding data ownership described in this ADR remain fully valid. However, the application surface providing the control plane (`apps/platform`) has been extracted into a completely independent project named **Space** ([ADR-030](#adr-030)).
 
 **Status:** Accepted · **Date:** 2026-08-20 · **Refines:** [ADR-012](#adr-012) · [ENTITLEMENTS.md 5b](ENTITLEMENTS.md)
 
@@ -1421,8 +1429,12 @@ instance and therefore the same secret-bearing client.
 
 ## ADR-020 — Content pages a design needs are core routes fed by a theme slot
 
-**Status:** Proposed — **decision required before any frontend's own pages are built** · **Date:** 2026-08-22 ·
-**Raised by:** `ADAPT The Matrix Hours` ([FRONTEND_MATRIX_SLOTS.md](FRONTEND_MATRIX_SLOTS.md))
+> [!WARNING]
+> **ARCHITECTURE DEPRECATION NOTICE**
+> The "theme slot" paradigm is entirely eradicated by [ADR-031](#adr-031). Since there are no longer separate theme packages, any necessary content pages are strictly core Next.js routes styled via data variant modifiers.
+
+**Status:** Superseded by [ADR-031](#adr-031) · **Date:** 2026-08-22 ·
+**Raised by:** `ADAPT The Matrix Hours` ([FRONTEND_MATRIX_SLOTS.md](archive/FRONTEND_MATRIX_SLOTS.md))
 
 ### Context
 
@@ -1609,7 +1621,11 @@ routing alone converts a dormant bug into a live cross-tenant leak.
 
 ## ADR-023 — One storefront build per theme, routed by host
 
-**Status:** Accepted · **Date:** 2026-09-02 (Finalized 2026-09-08) · **Relates to:** [ADR-013](#adr-013), [ADR-022](#adr-022)
+> [!WARNING]
+> **ARCHITECTURE DEPRECATION NOTICE**
+> This decision to maintain N builds for themes is completely superseded by [ADR-031](#adr-031). All merchant storefronts run on a **single** Next.js unified runtime application cluster. There are no separate themed builds.
+
+**Status:** Superseded by [ADR-031](#adr-031) · **Date:** 2026-09-02 (Finalized 2026-09-08) · **Relates to:** [ADR-013](#adr-013), [ADR-022](#adr-022)
 
 ### Context
 

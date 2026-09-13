@@ -2,6 +2,13 @@
 
 **~56 engineer-weeks of work · ~30 calendar weeks with three parallel tracks · 11 phases**
 
+> [!WARNING]
+> **ARCHITECTURE DEPRECATION NOTICE (v2.28.0)**
+>
+> The frontend extraction and multi-theme architecture described in this plan (specifically the scaffolding of `frontend-<name>` packages in Phases P25–P27) has been **deprecated** by [ADR-031](DECISIONS.md#adr-031). 
+> 
+> The platform now uses a **Unified Default Storefront Runtime** (`frontend-default`) with dynamic, runtime CSS custom property injection and `data-*` variant modifiers. Agents must NOT scaffold new frontend packages for visual variations.
+
 Estimates assume a team of **4–6 engineers**: 3 Rust backend, 1–2 frontend, 1 shared
 QA/infrastructure. They assume competence with Rust and async, not expertise with Diesel or
 commerce domains — R7 in the [PRD](PRD.md) risk register is priced into P0 and P1.

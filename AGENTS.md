@@ -399,82 +399,27 @@ casually give that away.
 
 ---
 
-## 12. Frontends: adapting a design
+## 12. Frontends: Visual Theming (ADR-031)
 
-<a id="12-frontends-adapting-a-design"></a>
+<a id="12-frontends-visual-theming"></a>
 
-### 12.1 What is actually being built
+### 12.1 The Unified Runtime
 
-The engine is one backend that many frontends plug into. `apps/storefront/packages/frontend-*` are
-called frontends for historical reasons, and the word has caused three rebuilds. **Read them as
-frontends.** A frontend is a complete storefront UI — its own components, its own DOM, its own
-design system — that satisfies [the contract](apps/storefront/packages/storefront-core/src/frontend/contract.ts)
-and plugs into the engine unchanged.
+The engine uses a single, unified Next.js storefront runtime ([ADR-031](docs/DECISIONS.md#adr-031)) that serves all multi-tenant branded storefronts. **We do not scaffold or deploy separate `frontend-*` packages for different tenants.** The battle-tested, accessible DOM structure of `frontend-default` is the canonical chassis for every store.
 
-The product is: *hand over a design, get a working storefront on the same trusted backend.*
-Nothing about that sentence is satisfied by recolouring the frontend that already exists.
+Scaffolding a new frontend package (`apps/storefront/packages/frontend-<name>`) for purely visual differentiation is an architectural violation. The CI pipeline and architectural guidelines reject it. The concept of "ADAPT vs SKIN" is deprecated.
 
-`frontend-default` is the Medusa-derived one ([ADR-002](docs/DECISIONS.md#adr-002)). It is a
-reference, **not a starting point.** Copying it and restyling is the failure this section exists
-to prevent, and it has happened three times.
+### 12.2 Dynamic Theming and Variant Modifiers
 
-### 12.2 `ADAPT <design>` — the standing instruction
+All visual variations must be structured through design tokens and data attributes on `frontend-default`. Do not fork or rewrite JSX to achieve a new design.
 
-> `ADAPT The Matrix Hours into packages/frontend-matrix.`
+1. **Runtime Design Token Injection**: Tenant-specific design tokens are injected dynamically on SSR. These govern colors (`--brand-primary`, etc.), typography (`--brand-font-family`), corner radii (`--brand-radius-card`), and materials (e.g., frosted glass).
+2. **Config-Driven Visual Variant Modifiers**: If a design requires structural layout shifts (e.g., Apple sticky 2-column layout vs inline, square vs portrait media), these are implemented using semantic data attributes (e.g., `data-card-style="apple-minimal"`, `data-image-aspect="portrait"`) on mature `frontend-default` components.
+3. **Apple HIG Baseline**: The default aesthetic baseline strictly follows Apple Human Interface Guidelines: 8pt spatial grid, generous whitespace, tabular pricing numerals, smooth 16px squircles, pill buttons, translucent frosted materials, and fluid spring transitions.
 
-Build a new frontend module from that design. Three rules, in order:
+### 12.3 Routes
 
-1. **The design has a component → port it.** Its JSX structure, its stylesheet, its interaction
-   behaviour. Not its data layer: source-shop fetching (context providers, API clients, sheet
-   readers) is **dropped, not adapted** — data arrives as props ([ADR-013](docs/DECISIONS.md#adr-013)
-   decision 4).
-2. **The design has no such component → derive it from the design.** This is most of the work and
-   the part that gets skipped. A lookbook has no address book; a watch shop has no order-transfer
-   screen. Expect **two thirds of the contract to have no counterpart.** Those components are
-   drawn from the design's own rules — its palette, type scale, spacing, border and motion
-   language, as evidenced by the components it *did* ship. Match the components already ported
-   from that design, not the ones in `frontend-default`.
-3. **Never inherit frontend-default's markup.** Not as a base, not as a starting point, not "just for
-   the account pages nobody looks at". If rule 2 is hard, that is the work, not a licence to fall
-   back to rule 3.
-
-**The report is per slot** — every contract slot labelled `ported` / `derived` / `forked`.
-`forked` is a failure state, not a status. Example: [FRONTEND_MATRIX_SLOTS.md](docs/FRONTEND_MATRIX_SLOTS.md).
-
-### 12.3 This is enforced, not trusted
-
-`./scripts/check-frontend-not-forked.sh` strips every `className` from the frontend's files and
-compares the remaining structure to `frontend-default`. Identical structure fails, whatever the
-palette says. It also fails on any `@medusajs/ui` component import, because borrowing Medusa's
-primitives keeps the DOM Medusa's after the class names stop being.
-
-Opt a frontend in with `"stheno": { "independent": true }` in its package.json. `frontend-default` is
-exempt by definition.
-
-It is a **ratchet**, not a cliff: a frontend mid-conversion declares its remaining debt as
-`stheno.forkDebt: { files, medusaUi }`, and the build fails the moment either count goes **up**.
-New forking is blocked today; existing debt is paid down by lowering the numbers, and the gate
-prints the new figure to lower them to. A frontend with no `forkDebt` must have zero of both.
-
-Lower the declared debt in the same commit that lowers the real count. Leaving it high "for
-headroom" re-opens the hole.
-
-Every other storefront gate — purity, boundaries, pin, resolution — passed on all three forks.
-None of them look at markup. Do not read a green build as evidence that this rule was followed.
-
-### 12.4 `SKIN` — when a recolour is genuinely what is wanted
-
-> `SKIN frontend-default to the Matrix palette.`
-
-Tokens only: palette, type, radii, spacing, easings. Markup, DOM and interactions unchanged. If
-you are editing JSX to satisfy a `SKIN`, you have exceeded it — stop and say so.
-
-A `SKIN` is a legitimate, cheap product. It is only a failure when it is delivered in answer to an
-`ADAPT`.
-
-### 12.5 Routes
-
-A design's own pages (`/about`, `/policies/...`) have no core route, and a frontend may not route
+A design's own pages (`/about`, `/policies/...`) have no core route, and the storefront may not route
 — core owns every URL shape ([ADR-013](docs/DECISIONS.md#adr-013) decision 4,
 `check-storefront-boundaries.sh`). Say so and stop; the fix is a core route plus a recorded
 decision. [ADR-020](docs/DECISIONS.md#adr-020) is the open one.
@@ -499,6 +444,6 @@ storefront that quietly states things nobody verified is the same class of defec
 [§2.5 floating-point money](#25-no-floating-point-in-money): confidently wrong, and invisible
 until it costs someone.
 
-A frontend-matrix hero shipped "120 references in stock · 24 month warranty · 48h authentication".
+A theme's hero shipped "120 references in stock · 24 month warranty · 48h authentication".
 All three were invented to balance a layout. See
-[FRONTEND_MATRIX.md §5](docs/FRONTEND_MATRIX.md).
+[FRONTEND_MATRIX.md §5](docs/archive/FRONTEND_MATRIX.md).

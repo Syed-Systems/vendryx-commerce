@@ -1,6 +1,9 @@
-# Phase 3 — where we actually are, and what is left
+# Phase 3 Status Archive
 
 **Date:** 2026-08-21 · **Revised:** 2026-09-02 · **Plan:** [PHASE3_PLAN.md](PHASE3_PLAN.md) · **Tasks:** [PHASE3_TASKS.md](PHASE3_TASKS.md)
+
+> **Current status source:** [STATUS.md](STATUS.md). This file is retained as Phase 3 evidence
+> and historical context only. Do not use it as the live project dashboard.
 
 > **Currency.** The Phase 3 tracks below (P21–P28) are unchanged and still accurate: none has
 > been picked up. The **control-plane** paragraphs in §2b were overtaken within days — corrected
@@ -49,7 +52,7 @@ Repairs to Phase 2 foundations, found while reading the code Phase 3 builds on:
 ## 2. The admin section — payment providers & logistics
 
 > **Updated 2026-09-08 — Built and verified.** The provider admin surface described below has
-> been implemented across backend and UI (Phases E, F, G in [VENDRYX_ADAPTATION_PLAN.md](VENDRYX_ADAPTATION_PLAN.md)):
+> been implemented across backend and UI (Phases E, F, G in [VENDRYX_ADAPTATION_PLAN.md](archive/VENDRYX_ADAPTATION_PLAN.md)):
 > 
 > - **Credential storage & encryption (P21-12):** `payment.payment_provider_credential` stores credentials encrypted at rest with AES-256-GCM via `stheno-payment`.
 > - **Admin API (P21-11):** `GET /admin/payment-providers`, `POST /admin/payment-providers/:id/credentials`, `POST /admin/regions/:id/payment-providers/:provider_id`, and `DELETE` implemented in `crates/api/stheno-api-admin/src/config.rs`, backed by `stheno-payment` and `stheno-links`.
@@ -118,7 +121,7 @@ the control plane is off, never open.
 **Items 1–3 below were resolved on 2026-08-21** — see [PHASE4_TASKS.md](PHASE4_TASKS.md) P29.
 The full scope of this surface is now specified separately in
 [CONTROL_PLANE.md](CONTROL_PLANE.md): it is not a tenant admin panel, it is the only place
-the business is operated from, and it is 11% built.
+the business is operated from. Current completion counts live in [STATUS.md](STATUS.md).
 
 1. ~~**No tests.**~~ **Done.** `operator_identity.rs` (6) and `audit_trail.rs` (7) cover the
    surface, on top of the existing `subscription_journey.rs`.
