@@ -4,6 +4,9 @@
 **Phase 4 tasks:** [PHASE4_TASKS.md](PHASE4_TASKS.md) · **Space Target:** [SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md](SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md) ·
 **Decisions:** [ADR-030](DECISIONS.md#adr-030)
 
+> **Current status source:** [STATUS.md](STATUS.md). This plan is a remediation design and
+> should not be used as the live completion dashboard.
+>
 > [!NOTE]
 > **Evolution to Space (2026-09-08):**  
 > The company-wide control plane has been updated to **Space**, living as an independent project at

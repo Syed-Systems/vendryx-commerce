@@ -2,6 +2,9 @@
 
 **Status:** Draft · **Date:** 2026-08-21 (Updated 2026-09-08) · **Scope:** [CONTROL_PLANE.md](CONTROL_PLANE.md) · **Space Target:** [SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md](SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md) · **Decisions:** [ADR-030](DECISIONS.md#adr-030)
 
+> **Current status source:** [STATUS.md](STATUS.md). This file defines acceptance criteria and
+> task order. It should not carry independent progress percentages.
+>
 > [!NOTE]
 > **Space Standalone Target (2026-09-08):**  
 > The company control plane is now established as **Space**, a separate standalone project at `D:\Syed Systems\Space`.

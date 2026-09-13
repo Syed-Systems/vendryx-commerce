@@ -5,6 +5,9 @@
 **Space Architecture:** [SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md](SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md) ·
 **Decisions:** [ADR-030](DECISIONS.md#adr-030)
 
+> **Current status source:** [STATUS.md](STATUS.md). This handover is historical context for
+> Phase 4 work, not the current completion ledger.
+>
 > [!IMPORTANT]
 > **Space Standalone Project Handoff (2026-09-08):**  
 > Long-term company-wide control plane development now occurs in **Space** at `D:\Syed Systems\Space`.

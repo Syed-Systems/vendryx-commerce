@@ -2,6 +2,9 @@
 
 **Status:** Plan · **Date:** 2026-09-01 (Updated 2026-09-08) · **Refines:** [CONTROL_PLANE.md](CONTROL_PLANE.md) · **Space Target:** [SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md](SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md) · **Decisions:** [ADR-030](DECISIONS.md#adr-030)
 
+> **Current status source:** [STATUS.md](STATUS.md). This file is the handler remediation
+> backlog for the transitional platform surface, not the global project dashboard.
+>
 > [!NOTE]
 > **Context — Transition to Space (2026-09-08):**  
 > The company control plane architecture has transitioned to **Space**, an independent project at

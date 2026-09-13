@@ -8,6 +8,10 @@ dist/
 .next/
 **/.next/
 *.tsbuildinfo
+.env
+.env.local
+.env.*.local
+*.env
 
 # Binary staged by scripts/restart-durability.sh
 target-bin/

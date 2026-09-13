@@ -3,6 +3,9 @@
 **Status:** Superseded by Space Architecture · **Date:** 2026-08-21 (Updated 2026-09-08) · **Refines:** [ADR-012](DECISIONS.md#adr-012),
 [ADR-016](DECISIONS.md#adr-016), [ADR-030](DECISIONS.md#adr-030) · **Architecture Plan:** [SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md](SPACE_CONTROL_PLANE_IMPLEMENTATION_PLAN.md) · **Tasks:** [PHASE4_TASKS.md](PHASE4_TASKS.md)
 
+> **Current status source:** [STATUS.md](STATUS.md). This document explains the control-plane
+> scope and risk model. It no longer owns completion percentages.
+>
 > [!IMPORTANT]
 > **Architecture Update (2026-09-08 — [ADR-030](DECISIONS.md#adr-030)):**  
 > The company control plane has been updated and extracted into **Space**, a separate standalone project at

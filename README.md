@@ -4,6 +4,10 @@
 > The repository retains the internal `stheno-*` identifiers for engine and wire compatibility
 > (see [ADR-028](docs/DECISIONS.md#adr-028) for the brand boundary definition).
 
+> **Current status:** [docs/STATUS.md](docs/STATUS.md) is the single source of truth for
+> completion state. Older phase and handover documents are evidence or task context, not the
+> live project dashboard.
+
 ## What we are building
 
 A **hosted, multi-tenant commerce platform for small social-commerce sellers** — merchants
@@ -34,9 +38,10 @@ Four sentences that fix the shape of everything else:
 The **implementation and the specs it is built from**, together: the Rust engine, three
 frontends (`apps/storefront`, `apps/admin`, `apps/platform`), the migrations, and `docs/`.
 
-Current stage: engine and merchant dashboard serve a Free-tier merchant today. The Pro
-feature set (gateways, couriers, COD settlement) and subscription billing are **specified and
-unbuilt** — see [Where the work is](#where-the-work-is) below.
+Current stage is tracked in one place: [docs/STATUS.md](docs/STATUS.md). In short, the
+commerce product is GA complete through Phase 3; the transitional control plane is the
+remaining partially complete surface, while new company-wide control-plane work has moved to
+Space (`D:\Syed Systems\Space`).
 
 ### Where the docs disagree, this is the order of precedence
 
@@ -47,8 +52,9 @@ nuance to be interpreted.
 | | Authority | Why it wins |
 |---|---|---|
 | 1 | [docs/DECISIONS.md](docs/DECISIONS.md) | The ADR log. Every architectural reversal is recorded here first, with its supersession |
-| 2 | [docs/PRODUCT.md](docs/PRODUCT.md) · [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) · [docs/CONTROL_PLANE.md](docs/CONTROL_PLANE.md) | The product as sold and operated. Written after the hosted-SaaS turn |
-| 3 | [docs/PRD.md](docs/PRD.md) · [docs/TRD.md](docs/TRD.md) | Requirements and architecture. Correct on the engine, superseded wherever they describe self-hosting |
+| 2 | [docs/STATUS.md](docs/STATUS.md) | The current completion ledger. This is the source for "how much is done" |
+| 3 | [docs/PRODUCT.md](docs/PRODUCT.md) · [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) · [docs/CONTROL_PLANE.md](docs/CONTROL_PLANE.md) | The product as sold and operated. Written after the hosted-SaaS turn |
+| 4 | [docs/PRD.md](docs/PRD.md) · [docs/TRD.md](docs/TRD.md) | Requirements and architecture. Correct on the engine, superseded wherever they describe self-hosting |
 
 An ADR marked **Proposed** records a decision taken in conversation that the orchestrator has
 not accepted. It is not yet binding, and no document may cite it as settled.
@@ -59,6 +65,7 @@ not accepted. It is not yet binding, and no document may cite it as settled.
 
 | Document | What it answers |
 |---|---|
+| [docs/STATUS.md](docs/STATUS.md) | Current project status, completion counts, and the active source-of-truth rules |
 | [docs/PRODUCT.md](docs/PRODUCT.md) | Who the merchant is, what it costs them today, onboarding, checkout, notifications |
 | [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) | The three tiers, the rule that decides what is free, how a gate is enforced |
 | [docs/CONTROL_PLANE.md](docs/CONTROL_PLANE.md) | The operator surface — provisioning, billing, oversight, support |
@@ -86,9 +93,10 @@ not accepted. It is not yet binding, and no document may cite it as settled.
 
 | Document | What it answers |
 |---|---|
-| [docs/PHASE3_STATUS.md](docs/PHASE3_STATUS.md) | Phase 3 — what is done, what is left, in what order |
+| [docs/STATUS.md](docs/STATUS.md) | Current status across commerce, transitional platform, and Space |
+| [docs/PHASE3_STATUS.md](docs/PHASE3_STATUS.md) | Phase 3 evidence archive; current summary lives in STATUS.md |
 | [docs/PHASE3_TASKS.md](docs/PHASE3_TASKS.md) | P21–P28: providers, gateways, couriers, COD settlement, themes |
-| [docs/PHASE4_TASKS.md](docs/PHASE4_TASKS.md) | P29–P36: the control plane, including the 17 unbuilt billing tasks |
+| [docs/PHASE4_TASKS.md](docs/PHASE4_TASKS.md) | P29-P36: control-plane acceptance criteria and task order |
 | [docs/PLATFORM_COMPLETION_TASKS.md](docs/PLATFORM_COMPLETION_TASKS.md) | The 23 control-plane handlers that answer 200 with hardcoded values |
 | [docs/TASKS.md](docs/TASKS.md) | P0–P10 and the build-loop protocol every later phase still follows |
 
