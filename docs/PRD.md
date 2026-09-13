@@ -16,7 +16,7 @@
 
 ## 1. Summary
 
-Stheno is a headless commerce engine written in Rust, with dedicated frontends for the storefront and the merchant dashboard, integrating with **Space** (`D:\Syed Systems\Space`) as the standalone company operator control plane ([ADR-030](DECISIONS.md#adr-030)). It delivers a complete commerce feature set — catalog, pricing, promotions, carts, orders, returns/claims/exchanges, multi-region, multi-channel, inventory, fulfillment, tax, payments, RBAC, i18n — on a compiled runtime with an order-of-magnitude smaller operational footprint than the Node stack it is measured against.
+Stheno is a headless commerce engine written in Rust, with dedicated frontends for the storefront and the merchant dashboard, integrating with **Space** (`D:\Syed Systems\Space`) as the standalone company operator control plane ([ADR-031](DECISIONS.md#adr-030)). It delivers a complete commerce feature set — catalog, pricing, promotions, carts, orders, returns/claims/exchanges, multi-region, multi-channel, inventory, fulfillment, tax, payments, RBAC, i18n — on a compiled runtime with an order-of-magnitude smaller operational footprint than the Node stack it is measured against.
 
 **One sentence:** a full commerce domain in a single 40 MB binary that starts in under a second, holds p95 latency under 25 ms, and serves every merchant from one process.
 
