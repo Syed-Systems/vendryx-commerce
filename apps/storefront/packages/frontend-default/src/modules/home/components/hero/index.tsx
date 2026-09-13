@@ -6,7 +6,7 @@ export default function Hero() {
       {/* -------------------------------------------------------------------------- */}
       {/* DEFAULT (STHENO) THEME HERO                                                */}
       {/* -------------------------------------------------------------------------- */}
-      <section className="
+      <section className="theme-hero theme-hero-default
         flex flex-col space-y-4 sm:space-y-6
         group-data-[theme=mahal]:hidden group-data-[theme=lustre]:hidden group-data-[theme=matrix]:hidden
       ">
@@ -49,7 +49,7 @@ export default function Hero() {
       {/* -------------------------------------------------------------------------- */}
       {/* MAHAL THEME HERO                                                           */}
       {/* -------------------------------------------------------------------------- */}
-      <section className="
+      <section className="theme-hero theme-hero-mahal
         hidden group-data-[theme=mahal]:flex
         relative w-full overflow-hidden rounded-[24px] bg-brand-primary border-[4px] border-brand-accent/20 min-h-[600px] lg:min-h-[700px] items-center justify-center
       ">
@@ -82,7 +82,7 @@ export default function Hero() {
       {/* -------------------------------------------------------------------------- */}
       {/* LUSTRE THEME HERO                                                          */}
       {/* -------------------------------------------------------------------------- */}
-      <section className="
+      <section className="theme-hero theme-hero-lustre
         hidden group-data-[theme=lustre]:block
         relative w-full h-[85vh] min-h-[600px] bg-brand-primary overflow-hidden
       ">
@@ -122,7 +122,7 @@ export default function Hero() {
       {/* -------------------------------------------------------------------------- */}
       {/* MATRIX THEME HERO                                                          */}
       {/* -------------------------------------------------------------------------- */}
-      <section className="
+      <section className="theme-hero theme-hero-matrix
         hidden group-data-[theme=matrix]:flex
         relative w-full h-[90vh] min-h-[600px] bg-brand-background overflow-hidden border border-brand-primary items-center justify-center font-mono
       ">

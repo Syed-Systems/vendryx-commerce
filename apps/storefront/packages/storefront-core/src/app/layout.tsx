@@ -26,25 +26,6 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
           id="stheno-brand-tokens"
           dangerouslySetInnerHTML={{ __html: brandCss }}
         />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if (typeof window !== "undefined") {
-                window.addEventListener("message", function(e) {
-                  if (e.data && e.data.type === "STHENO_PREVIEW_TOKENS") {
-                    if (e.data.css) {
-                      var el = document.getElementById("stheno-brand-tokens");
-                      if (el) { el.textContent = e.data.css; }
-                    }
-                    if (e.data.themeName) {
-                      document.body.setAttribute('data-theme', e.data.themeName);
-                    }
-                  }
-                });
-              }
-            `,
-          }}
-        />
       </head>
       <body data-theme={themeName} className="group bg-brand-background text-brand-text" style={{ fontFamily: "var(--brand-font-family)" }}>
         <main className="relative">{props.children}</main>

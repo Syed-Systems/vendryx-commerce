@@ -17,3 +17,26 @@
   --brand-radius-button: 9999px;
   --brand-radius-input: 12px;
 }
+
+body[data-theme="default"] .theme-hero-default,
+body[data-theme="stheno-store"] .theme-hero-default {
+  display: flex;
+}
+
+body[data-theme="mahal"] .theme-hero-default,
+body[data-theme="lustre"] .theme-hero-default,
+body[data-theme="matrix"] .theme-hero-default,
+.theme-hero-mahal,
+.theme-hero-lustre,
+.theme-hero-matrix {
+  display: none;
+}
+
+body[data-theme="mahal"] .theme-hero-mahal,
+body[data-theme="matrix"] .theme-hero-matrix {
+  display: flex;
+}
+
+body[data-theme="lustre"] .theme-hero-lustre {
+  display: block;
+}

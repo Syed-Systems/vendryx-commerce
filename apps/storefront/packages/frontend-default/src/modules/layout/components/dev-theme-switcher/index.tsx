@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   DEFAULT_BRANDING,
   MAHAL_BRANDING,
@@ -19,17 +19,31 @@ const THEMES = [
 export default function DevThemeSwitcher() {
   const [activeTheme, setActiveTheme] = useState("Default")
 
+  useEffect(() => {
+    const currentTheme = document.body.dataset.theme
+    const matchingTheme = THEMES.find(
+      (theme) => theme.name.toLowerCase().replace(/\s+/g, "-") === currentTheme
+    )
+
+    if (matchingTheme) {
+      setActiveTheme(matchingTheme.name)
+    }
+  }, [])
+
   const handleThemeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const themeName = e.target.value
     setActiveTheme(themeName)
 
     const theme = THEMES.find((t) => t.name === themeName)
     if (theme) {
-      // emitBrandingCss returns `:root { --brand-primary: ... }`
       const css = emitBrandingCss(theme.data)
-      
-      // We push the new CSS to the listener embedded in layout.tsx
-      window.postMessage({ type: "STHENO_PREVIEW_TOKENS", css, themeName: theme.name.toLowerCase().replace(/\s+/g, '-') }, "*")
+      const style = document.getElementById("stheno-brand-tokens")
+
+      if (style) {
+        style.textContent = css
+      }
+
+      document.body.dataset.theme = theme.name.toLowerCase().replace(/\s+/g, "-")
     }
   }
 
