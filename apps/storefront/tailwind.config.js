@@ -21,6 +21,15 @@ module.exports = {
         padding: "padding-top padding-right padding-bottom padding-left",
       },
       colors: {
+        brand: {
+          primary: "var(--brand-primary, #1C1917)",
+          secondary: "var(--brand-secondary, #78716C)",
+          accent: "var(--brand-accent, #D97706)",
+          background: "var(--brand-background, #FAF8F5)",
+          surface: "var(--brand-surface, #FFFFFF)",
+          text: "var(--brand-text, #1C1917)",
+          hairline: "var(--brand-hairline, rgba(28, 25, 23, 0.08))",
+        },
         grey: {
           0: "#FFFFFF",
           5: "#F9FAFB",

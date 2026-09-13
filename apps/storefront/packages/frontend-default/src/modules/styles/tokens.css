@@ -1,7 +1,19 @@
 /**
- * frontend-default's token layer.
+ * frontend-default's design token layer (ADR-031).
  *
- * Core imports @frontend/styles/theme.css from the root layout, so every theme
- * supplies this file. frontend-default is the light skin the Medusa UI preset
- * already ships, so it overrides nothing — the file exists so the seam does.
+ * Core injects tenant-specific tokens on SSR from store.tenant_branding.
+ * These CSS custom properties provide the default theme values.
  */
+:root {
+  --brand-primary: #1C1917;
+  --brand-secondary: #78716C;
+  --brand-accent: #D97706;
+  --brand-background: #FAF8F5;
+  --brand-surface: #FFFFFF;
+  --brand-text: #1C1917;
+  --brand-hairline: rgba(28, 25, 23, 0.08);
+  --brand-font-family: var(--font-serif, 'Playfair Display', Georgia, -apple-system, sans-serif);
+  --brand-radius-card: 16px;
+  --brand-radius-button: 9999px;
+  --brand-radius-input: 12px;
+}

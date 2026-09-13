@@ -1,0 +1,7 @@
+/**
+ * frontend-default's token layer.
+ *
+ * Core imports @frontend/styles/theme.css from the root layout, so every theme
+ * supplies this file. frontend-default is the light skin the Medusa UI preset
+ * already ships, so it overrides nothing — the file exists so the seam does.
+ */

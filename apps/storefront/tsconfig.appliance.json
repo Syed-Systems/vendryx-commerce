@@ -1,0 +1,30 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "paths": {
+      "@core/*": ["../packages/storefront-core/src/*"],
+      "@frontend/*": ["../packages/frontend-appliance/src/modules/*"],
+      "@lib/*": ["../packages/storefront-core/src/lib/*"],
+      "@modules/checkout/*": ["../packages/storefront-core/src/modules/checkout/*"],
+      "@modules/common/components/localized-client-link": ["../packages/storefront-core/src/modules/common/components/localized-client-link"],
+      "@modules/*": ["../packages/frontend-appliance/src/modules/*"],
+      "@pages/*": ["pages/*"]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "packages/frontend-fixture-violating",
+    "packages/frontend-default",
+    "packages/frontend-matrix",
+    "packages/frontend-lustre",
+    "packages/frontend-mahal",
+    ".next",
+    ".next-appliance",
+    ".next-matrix",
+    ".next-mahal",
+    ".nyc_output",
+    "coverage",
+    "jest-coverage"
+  ]
+}

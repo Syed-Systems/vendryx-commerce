@@ -45,6 +45,8 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
         currentLocale={currentLocale}
         cartButton={<CartButtonLoader />}
         categories={productCategories}
+        enableCustomerAccounts={false}
+        customer={customer}
       />
       {customer && cart && (
         <CartMismatchBanner customer={customer} cart={cart} />
@@ -58,7 +60,11 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
         />
       )}
       {props.children}
-      <Footer collections={collections} productCategories={productCategories} />
+      <Footer
+        collections={collections}
+        productCategories={productCategories}
+        enableCustomerAccounts={false}
+      />
     </>
   )
 }

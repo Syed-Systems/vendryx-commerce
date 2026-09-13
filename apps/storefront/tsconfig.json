@@ -51,12 +51,13 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    "next-env.d.ts",
+    ".next-lustre/types/**/*.ts",
     ".next-matrix/types/**/*.ts",
     ".next/types/**/*.ts",
+    ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-lustre/types/**/*.ts"
+    "next-env.d.ts",
+    ".next-appliance/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
@@ -70,6 +71,8 @@
     "packages/frontend-mahal",
     ".next-mahal",
     "packages/frontend-lustre",
-    ".next-lustre"
+    ".next-lustre",
+    "packages/frontend-appliance",
+    ".next-appliance"
   ]
 }

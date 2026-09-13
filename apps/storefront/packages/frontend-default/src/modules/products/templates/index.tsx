@@ -74,11 +74,11 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
         data-testid="related-products-container"
       >
         <div className="mb-8">
-          <span className="text-xs font-mono uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400 font-semibold block mb-1">
-            Compatible Ecosystem
+          <span className="text-xs uppercase tracking-[0.2em] text-zinc-500 font-semibold block mb-1">
+            Complete the Look
           </span>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
-            Recommended Devices & Accessories
+          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-zinc-950">
+            You May Also Admire
           </h2>
         </div>
         <Suspense fallback={<SkeletonRelatedProducts />}>

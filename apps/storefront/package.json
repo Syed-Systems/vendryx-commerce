@@ -25,7 +25,11 @@
     "dev:mahal": "node scripts/frontend.js mahal dev -p 8003",
     "build:mahal": "node scripts/frontend.js mahal build",
     "start:mahal": "node scripts/frontend.js mahal start -p 8003",
-    "typecheck:mahal": "tsc --noEmit -p tsconfig.mahal.json"
+    "typecheck:mahal": "tsc --noEmit -p tsconfig.mahal.json",
+    "dev:appliance": "node scripts/frontend.js appliance dev -p 8004",
+    "build:appliance": "node scripts/frontend.js appliance build",
+    "start:appliance": "node scripts/frontend.js appliance start -p 8004",
+    "typecheck:appliance": "tsc --noEmit -p tsconfig.appliance.json"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

@@ -9,9 +9,9 @@ import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
 
 export const metadata: Metadata = {
-  title: "VENDRYX | Flagship Pro Hardware & Tech Store",
+  title: "Vendryx | Demo Store",
   description:
-    "Explore cutting-edge smartphones, high-performance ultrabooks, spatial audio, and precision workspace accessories engineered for pro performance.",
+    "Demo store environment powered by Vendryx Commerce.",
 }
 
 export default async function Home(props: {
@@ -31,16 +31,14 @@ export default async function Home(props: {
 
   return (
     <div className="w-full flex flex-col">
-      {/* Editorial Fashion Hero */}
+      <div className="w-full bg-ui-bg-subtle text-ui-fg-base text-center py-2 text-sm border-b border-ui-border-base">
+        <strong>Demo Store Environment</strong> — powered by Vendryx Commerce
+      </div>
+
       <Hero />
 
-      {/* Trust & Brand Values Bar */}
-      <BrandFeatures />
-
-      {/* Curated Wardrobe Categories Grid */}
       <CategoryGrid />
 
-      {/* Featured Products / Capsule Collections */}
       {collections && collections.length > 0 && (
         <section className="w-full bg-white">
           <ul className="flex flex-col">
@@ -48,12 +46,6 @@ export default async function Home(props: {
           </ul>
         </section>
       )}
-
-      {/* Brand Craft & Lookbook Narrative */}
-      <LookbookStory />
-
-      {/* VIP Club / Newsletter Capture */}
-      <NewsletterSection />
     </div>
   )
 }

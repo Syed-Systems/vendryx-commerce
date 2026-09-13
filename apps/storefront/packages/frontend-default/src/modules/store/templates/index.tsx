@@ -20,21 +20,20 @@ const StoreTemplate = ({
 
   return (
     <div className="w-full">
-      {/* Header Banner - Apple HIG Tech Store */}
-      <div className="bg-zinc-950 text-white py-12 sm:py-16 mb-8 border-b border-zinc-850">
+      {/* Header Banner */}
+      <div className="bg-zinc-900 text-white py-12 sm:py-16 mb-8">
         <div className="content-container">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] font-medium tracking-wide text-zinc-400 mb-3">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Pro Hardware Catalog
-          </div>
+          <span className="text-xs uppercase tracking-[0.25em] text-zinc-400 font-semibold block mb-2">
+            The Complete Atelier Collection
+          </span>
           <h1
-            className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-white"
+            className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold tracking-tight text-white"
             data-testid="store-page-title"
           >
-            All Devices & Accessories
+            All Apparel & Essentials
           </h1>
-          <p className="text-sm text-zinc-400 font-normal max-w-xl mt-3 leading-relaxed">
-            Explore cutting-edge smartphones, high-performance ultrabooks, spatial audio, and precision workspace accessories engineered for pro performance.
+          <p className="text-sm text-zinc-300 font-light max-w-xl mt-3 leading-relaxed">
+            Discover modern tailoring, organic textiles, and timeless silhouettes engineered for enduring elegance.
           </p>
         </div>
       </div>
