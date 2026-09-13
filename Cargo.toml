@@ -68,6 +68,7 @@ members = [
     "crates/subscribers/stheno-subscribers",
     "crates/flows/stheno-flows",
     "crates/flows/stheno-flows-order",
+    "crates/flows/stheno-flows-platform",
     "crates/api/stheno-api-core",
     "crates/api/stheno-api-store",
     "crates/api/stheno-api-admin",
@@ -148,6 +149,7 @@ stheno-notification-webpush = { path = "crates/providers/stheno-notification-web
 # Flows & API
 stheno-flows = { path = "crates/flows/stheno-flows", version = "0.1.0" }
 stheno-flows-order = { path = "crates/flows/stheno-flows-order", version = "0.1.0" }
+stheno-flows-platform = { path = "crates/flows/stheno-flows-platform", version = "0.1.0" }
 stheno-api-core = { path = "crates/api/stheno-api-core", version = "0.1.0" }
 stheno-api-store = { path = "crates/api/stheno-api-store", version = "0.1.0" }
 stheno-api-admin = { path = "crates/api/stheno-api-admin", version = "0.1.0" }

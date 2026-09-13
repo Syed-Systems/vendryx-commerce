@@ -20,10 +20,11 @@ use crate::dto::{
     ProrationDTO, ProrationLineDTO, QuotaHeadroomDTO, RevenueMetricsDTO, RevenueMetricsInput,
     StartBillingAttemptInput, SubmitLaunchRequestInput, SubscriptionDTO, SubscriptionPatch,
     TenantDTO, TenantExportBundleDTO, TenantListQuery, TenantPurgeResultDTO, TierDefinitionDTO,
-    TopMerchantGmvDTO, VatLineDTO,
+    TopMerchantGmvDTO, VatLineDTO, FxRateDTO,
 };
 use crate::models::{
     Announcement, BillingAttempt, DeploymentConfig, GlobalFlag, ImpersonationSession, Invoice,
+    FxRate,
     InvoiceLine, LaunchRequest, LaunchRequestEvent, MerchantAccount, MerchantTenantOwner, Operator,
     OperatorAudit, Subscription, Tenant, TenantDomain, TenantTheme, TierDefinitionRow,
 };
@@ -60,6 +61,8 @@ pub struct PlatformService {
     merchant_tenant_owners: PgCrudRepository<MerchantTenantOwner>,
     launch_requests: PgCrudRepository<LaunchRequest>,
     launch_request_events: PgCrudRepository<LaunchRequestEvent>,
+    fx_rates: PgCrudRepository<crate::models::FxRate>,
+    payment_proofs: PgCrudRepository<crate::models::InvoicePaymentProof>,
 }
 
 impl PlatformService {
@@ -83,7 +86,9 @@ impl PlatformService {
             merchant_accounts: PgCrudRepository::new(pool.clone()),
             merchant_tenant_owners: PgCrudRepository::new(pool.clone()),
             launch_requests: PgCrudRepository::new(pool.clone()),
-            launch_request_events: PgCrudRepository::new(pool),
+            launch_request_events: PgCrudRepository::new(pool.clone()),
+            fx_rates: PgCrudRepository::new(pool.clone()),
+            payment_proofs: PgCrudRepository::new(pool),
         }
     }
 
@@ -1485,6 +1490,8 @@ impl PlatformService {
                         status: "open".to_string(),
                         issued_at: now,
                         paid_at: None,
+                        fx_metadata: input.fx_metadata.clone(),
+                        payable_amount: input.payable_amount.map(|m| m.amount),
                         created_at: now,
                         updated_at: now,
                         deleted_at: None,
@@ -1604,12 +1611,45 @@ impl PlatformService {
                 .find_invoice(&sub.tenant_id, period_start)
                 .await?
                 .is_some();
+            let billing_country = "BD"; // Hardcoded for now until tenant address is available
+            
+            // Fetch FX metadata if needed (for BD)
+            let fx_metadata = if billing_country == "BD" {
+                let dto = self.get_fx_rate("USD/BDT").await?;
+                Some(crate::calculator::FxMetadata {
+                    source: dto.source,
+                    rate_kind: dto.rate_kind,
+                    rate: Some(dto.rate),
+                    rate_date: Some(dto.rate_date),
+                })
+            } else {
+                None
+            };
+            
+            // Assume discount starts at 12 months, 10%
+            let discount_percent = Some(rust_decimal::Decimal::new(1000, 2));
+            
+            let calculated = crate::calculator::SubscriptionInvoiceCalculator::calculate(
+                price.amount.amount,
+                discount_percent,
+                Some(12),
+                price.interval_months as i32,
+                billing_country,
+                fx_metadata,
+            ).map_err(|e| Error::Invalid {
+                code: "calculator_error",
+                message: format!("Calculator error: {:?}", e),
+                field: None,
+            })?;
+
             self.generate_invoice(GenerateInvoiceInput {
                 tenant_id: sub.tenant_id.clone(),
                 tier: sub.tier.clone(),
                 period_start,
                 period_end,
-                amount: price.amount,
+                amount: stheno_types::money::Money::new(calculated.total_usd, stheno_types::currency::CurrencyCode::Usd),
+                fx_metadata: Some(serde_json::to_value(calculated.fx_metadata).unwrap_or(serde_json::json!({}))),
+                payable_amount: Some(stheno_types::money::Money::new(calculated.payable_amount, calculated.presentment_currency)),
             })
             .await?;
             if !existed {
@@ -2871,5 +2911,214 @@ impl PlatformService {
             self.operators.update(None, operator_id, row).await
         })
         .await
+    }
+
+    /// Get the current FX rate for a given currency pair (e.g. "USD/BDT")
+    pub async fn get_fx_rate(&self, currency_pair: &str) -> Result<FxRateDTO> {
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            self.fx_rates.retrieve(None, currency_pair).await
+        })
+        .await
+        .map(FxRateDTO::from)
+    }
+
+    /// Upsert an FX rate from a background job.
+    pub async fn upsert_fx_rate(
+        &self,
+        currency_pair: &str,
+        rate: Decimal,
+        source: &str,
+        rate_kind: &str,
+    ) -> Result<FxRateDTO> {
+        let now = Utc::now();
+        let row = FxRate {
+            id: Id::new(),
+            currency_pair: currency_pair.to_string(),
+            rate,
+            source: source.to_string(),
+            rate_kind: rate_kind.to_string(),
+            operator_id: None,
+            rate_date: now,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        };
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            self.fx_rates.upsert(None, row).await
+        })
+        .await
+        .map(FxRateDTO::from)
+    }
+
+    /// Override an FX rate manually, logging the action.
+    pub async fn override_fx_rate(
+        &self,
+        operator_id: &str,
+        currency_pair: &str,
+        rate: Decimal,
+    ) -> Result<FxRateDTO> {
+        let now = Utc::now();
+        let row = FxRate {
+            id: Id::new(),
+            currency_pair: currency_pair.to_string(),
+            rate,
+            source: "operator_override".to_string(),
+            rate_kind: "override".to_string(),
+            operator_id: Some(operator_id.to_string()),
+            rate_date: now,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        };
+        
+        let audit = OperatorAudit {
+            id: Id::new(),
+            actor_id: operator_id.to_string(),
+            actor_name: "operator".to_string(),
+            action: "override_fx_rate".to_string(),
+            entity_type: "fx_rate".to_string(),
+            entity_id: currency_pair.to_string(),
+            diff: Some(serde_json::json!({ "rate": rate.to_string() })),
+            created_at: now,
+        };
+
+        let operator_audit = self.operator_audit.clone();
+        let fx_rates = self.fx_rates.clone();
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            let mut conn = self.pool.get().await.map_err(|e| Error::Database(e.to_string()))?;
+            stheno_db::transaction::with_transaction(&mut conn, move |conn| {
+                Box::pin(async move {
+                    let mut tx = conn;
+                    operator_audit.create(Some(&mut tx), audit).await?;
+                    let upserted = fx_rates.upsert(Some(&mut tx), row).await?;
+                    Ok(upserted)
+                })
+            }).await
+        })
+        .await
+        .map(FxRateDTO::from)
+    }
+
+    pub async fn upload_payment_proof(
+        &self,
+        tenant_id: &str,
+        invoice_id: &str,
+        input: crate::dto::UploadPaymentProofInput,
+    ) -> Result<crate::dto::InvoicePaymentProofDTO> {
+        let now = Utc::now();
+        let invoices = self.invoices.clone();
+        let payment_proofs = self.payment_proofs.clone();
+        
+        let tenant_id = tenant_id.to_string();
+        let invoice_id = invoice_id.to_string();
+
+        tenant::scope(tenant::PLATFORM_SCOPE, async move {
+            let mut conn = self.pool.get().await.map_err(|e| Error::Database(e.to_string()))?;
+            stheno_db::transaction::with_transaction(&mut conn, move |conn| {
+                Box::pin(async move {
+                    let mut tx = conn;
+                    
+                    // Verify the invoice exists and belongs to the tenant
+                    let mut invoice = invoices.retrieve(Some(&mut tx), &invoice_id).await?;
+                    if invoice.tenant_id != tenant_id {
+                        return Err(Error::NotFound { entity: "invoice", id: invoice_id.clone() });
+                    }
+                    
+                    // Duplicate check inside the same method/tenant. We don't rely solely on DB constraint to give a good error.
+                    // Instead, we just let the DB unique index fail.
+                    let row = crate::models::InvoicePaymentProof {
+                        id: Id::new(),
+                        invoice_id: invoice_id.clone(),
+                        tenant_id: tenant_id.clone(),
+                        payment_method: input.payment_method,
+                        transaction_id: input.transaction_id,
+                        proof_asset_url: input.proof_asset_url,
+                        operator_id: None,
+                        reviewed_at: None,
+                        status: "pending".to_string(),
+                        rejection_reason: None,
+                        created_at: now,
+                        updated_at: now,
+                        deleted_at: None,
+                    };
+                    
+                    let created = payment_proofs.create(Some(&mut tx), row).await.map_err(|e| {
+                        if let Error::Conflict { .. } = e {
+                            Error::Invalid {
+                                code: "duplicate_transaction",
+                                message: "This transaction ID has already been submitted for this payment method.".to_string(),
+                                field: Some("transaction_id".to_string()),
+                            }
+                        } else {
+                            e
+                        }
+                    })?;
+                    
+                    // Update invoice status
+                    invoice.status = "pending_verification".to_string();
+                    invoice.updated_at = now;
+                    invoices.update(Some(&mut tx), &invoice_id, invoice).await?;
+                    
+                    Ok(created)
+                })
+            }).await
+        })
+        .await
+        .map(crate::dto::InvoicePaymentProofDTO::from)
+    }
+
+    pub async fn review_payment_proof(
+        &self,
+        operator_id: &str,
+        proof_id: &str,
+        input: crate::dto::ReviewPaymentProofInput,
+    ) -> Result<crate::dto::InvoicePaymentProofDTO> {
+        let now = Utc::now();
+        let payment_proofs = self.payment_proofs.clone();
+        let invoices = self.invoices.clone();
+        
+        let proof_id = proof_id.to_string();
+        let operator_id = operator_id.to_string();
+
+        tenant::scope(tenant::PLATFORM_SCOPE, async move {
+            let mut conn = self.pool.get().await.map_err(|e| Error::Database(e.to_string()))?;
+            stheno_db::transaction::with_transaction(&mut conn, move |conn| {
+                Box::pin(async move {
+                    let mut tx = conn;
+                    
+                    let mut proof = payment_proofs.retrieve(Some(&mut tx), &proof_id).await?;
+                    if proof.status != "pending" {
+                        return Err(Error::Invalid {
+                            code: "invalid_status",
+                            message: "Payment proof is not pending.".to_string(),
+                            field: None,
+                        });
+                    }
+
+                    proof.operator_id = Some(operator_id.clone());
+                    proof.reviewed_at = Some(now);
+                    proof.updated_at = now;
+                    
+                    let mut invoice = invoices.retrieve(Some(&mut tx), &proof.invoice_id).await?;
+
+                    if input.approved {
+                        proof.status = "approved".to_string();
+                        invoice.status = "paid".to_string();
+                        invoice.paid_at = Some(now);
+                    } else {
+                        proof.status = "rejected".to_string();
+                        proof.rejection_reason = input.rejection_reason;
+                        invoice.status = "needs_more_info".to_string();
+                    }
+
+                    invoices.update(Some(&mut tx), &proof.invoice_id, invoice).await?;
+                    let updated_proof = payment_proofs.update(Some(&mut tx), &proof_id, proof).await?;
+                    
+                    Ok(updated_proof)
+                })
+            }).await
+        })
+        .await
+        .map(crate::dto::InvoicePaymentProofDTO::from)
     }
 }

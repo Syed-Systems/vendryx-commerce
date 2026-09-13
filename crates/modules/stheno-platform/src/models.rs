@@ -237,6 +237,8 @@ pub struct Invoice {
     pub status: String,
     pub issued_at: DateTime<Utc>,
     pub paid_at: Option<DateTime<Utc>>,
+    pub fx_metadata: Option<serde_json::Value>,
+    pub payable_amount: Option<Decimal>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
@@ -272,6 +274,42 @@ pub struct InvoiceLine {
 impl CrudEntity for InvoiceLine {
     const TABLE: &'static str = "platform.invoice_line";
     const ENTITY: &'static str = "invoice_line";
+
+    fn id(&self) -> String {
+        self.id.to_string()
+    }
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
+impl stheno_types::Prefixed for InvoicePaymentProof {
+    const PREFIX: &'static str = "ipp";
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InvoicePaymentProof {
+    pub id: Id<InvoicePaymentProof>,
+    pub invoice_id: String,
+    pub tenant_id: String,
+    pub payment_method: String,
+    pub transaction_id: String,
+    pub proof_asset_url: String,
+    pub operator_id: Option<String>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub status: String,
+    pub rejection_reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+impl CrudEntity for InvoicePaymentProof {
+    const TABLE: &'static str = "platform.invoice_payment_proof";
+    const ENTITY: &'static str = "invoice_payment_proof";
 
     fn id(&self) -> String {
         self.id.to_string()
@@ -622,6 +660,37 @@ impl CrudEntity for LaunchRequestEvent {
     fn set_deleted(&mut self, _deleted: bool) {}
 }
 
+/// A stored exchange rate for subscription billing (ADR-017 / Phase C3).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FxRate {
+    pub id: Id<FxRate>,
+    pub currency_pair: String,
+    pub rate: Decimal,
+    pub source: String,
+    pub rate_kind: String,
+    pub operator_id: Option<String>,
+    pub rate_date: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+impl CrudEntity for FxRate {
+    const TABLE: &'static str = "platform.fx_rate";
+    const ENTITY: &'static str = "fx_rate";
+    const ID_COLUMN: &'static str = "currency_pair";
+
+    fn id(&self) -> String {
+        self.currency_pair.clone()
+    }
+    fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+    fn set_deleted(&mut self, deleted: bool) {
+        self.deleted_at = if deleted { Some(Utc::now()) } else { None };
+    }
+}
+
 // Medusa id prefixes for this module's entities (ADR-010).
 stheno_types::prefixed_id! {
     Operator => "op",
@@ -633,4 +702,5 @@ stheno_types::prefixed_id! {
     Announcement => "ann",
     LaunchRequest => "lr",
     LaunchRequestEvent => "lre",
+    FxRate => "fxr",
 }

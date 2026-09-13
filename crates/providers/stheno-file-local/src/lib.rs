@@ -42,13 +42,15 @@ impl FileProvider for LocalFileProvider {
         filename: &str,
         _content_type: &str,
         bytes: &[u8],
+        is_private: bool,
     ) -> Result<FileUploadResult> {
         let size_bytes = bytes.len() as i64;
         let mut map = self.in_memory_storage.write().unwrap();
         map.insert(file_id.to_string(), bytes.to_vec());
 
         let extension = filename.rsplit('.').next().unwrap_or("bin");
-        let url = format!("{}/uploads/{}.{}", self.base_url, file_id, extension);
+        let prefix = if is_private { "private" } else { "uploads" };
+        let url = format!("{}/{}/{}.{}", self.base_url, prefix, file_id, extension);
 
         Ok(FileUploadResult { url, size_bytes })
     }
@@ -76,10 +78,12 @@ impl FileProvider for LocalFileProvider {
         filename: &str,
         content_type: &str,
         expires_in_seconds: u64,
+        is_private: bool,
     ) -> Result<PresignedUrlResult> {
         let extension = filename.rsplit('.').next().unwrap_or("bin");
+        let prefix = if is_private { "private" } else { "uploads" };
         let upload_url = format!("{}/api/upload/direct/{}", self.base_url, file_id);
-        let file_url = format!("{}/uploads/{}.{}", self.base_url, file_id, extension);
+        let file_url = format!("{}/{}/{}.{}", self.base_url, prefix, file_id, extension);
 
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), content_type.to_string());
@@ -93,5 +97,22 @@ impl FileProvider for LocalFileProvider {
             headers,
             expires_at,
         })
+    }
+    
+    async fn get_presigned_download_url(
+        &self,
+        file_id: &str,
+        expires_in_seconds: u64,
+    ) -> Result<String> {
+        let map = self.in_memory_storage.read().unwrap();
+        if !map.contains_key(file_id) {
+            return Err(Error::NotFound {
+                entity: "file",
+                id: file_id.to_string(),
+            });
+        }
+        
+        let download_url = format!("{}/api/download/direct/{}?expires={}", self.base_url, file_id, expires_in_seconds);
+        Ok(download_url)
     }
 }

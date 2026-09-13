@@ -653,6 +653,9 @@ pub const PAYMENT_SWEEP_SCHEDULE: &str = "*/15 * * * *";
 /// subscription to change nothing.
 pub const DUNNING_SCHEDULE: &str = "0 3 * * *";
 
+/// Daily at 01:00. Fetch FX rates for platform subscriptions.
+pub const FX_FETCH_SCHEDULE: &str = "0 1 * * *";
+
 /// Requests older than this are considered stranded rather than merely in progress.
 const SWEEP_MIN_AGE_SECONDS: i64 = 300;
 const SWEEP_LIMIT: usize = 500;
@@ -725,7 +728,19 @@ pub fn scheduled_jobs(
         }
     });
 
-    vec![sweep, dunning]
+    let fx_platform = platform.clone();
+    let fx_fetch = scheduler::Job::new("fx-rate-fetch", FX_FETCH_SCHEDULE, move || {
+        let platform = fx_platform.clone();
+        async move {
+            let fetcher = stheno_flows_platform::fx::BangladeshBankRateFetcher::new(platform);
+            match fetcher.fetch_and_store().await {
+                Ok(_) => Ok("FX rate fetched successfully".to_string()),
+                Err(e) => Err(format!("FX rate fetch failed: {}", e)),
+            }
+        }
+    });
+
+    vec![sweep, dunning, fx_fetch]
 }
 
 pub struct AppServer {

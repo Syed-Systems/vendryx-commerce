@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use stheno_types::Money;
 
 use crate::models::{
-    BillingAttempt, Invoice, LaunchRequest, LaunchRequestEvent, MerchantAccount, Operator,
+    BillingAttempt, FxRate, Invoice, LaunchRequest, LaunchRequestEvent, MerchantAccount, Operator,
     OperatorAudit, Subscription, Tenant, TierDefinitionRow,
 };
 
@@ -327,6 +327,8 @@ pub struct GenerateInvoiceInput {
     pub period_start: DateTime<Utc>,
     pub period_end: DateTime<Utc>,
     pub amount: Money,
+    pub fx_metadata: Option<serde_json::Value>,
+    pub payable_amount: Option<Money>,
 }
 
 /// One subscription invoice.
@@ -344,6 +346,34 @@ pub struct InvoiceDTO {
     pub status: String,
     pub issued_at: DateTime<Utc>,
     pub paid_at: Option<DateTime<Utc>>,
+    pub fx_metadata: Option<serde_json::Value>,
+    pub payable_amount: Option<Money>,
+}
+
+/// A fetched FX rate for platform subscription billing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FxRateDTO {
+    pub currency_pair: String,
+    pub rate: Decimal,
+    pub source: String,
+    pub rate_kind: String,
+    pub operator_id: Option<String>,
+    pub rate_date: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<FxRate> for FxRateDTO {
+    fn from(row: FxRate) -> Self {
+        Self {
+            currency_pair: row.currency_pair,
+            rate: row.rate,
+            source: row.source,
+            rate_kind: row.rate_kind,
+            operator_id: row.operator_id,
+            rate_date: row.rate_date,
+            updated_at: row.updated_at,
+        }
+    }
 }
 
 /// Credits and discounts to apply to an existing invoice.
@@ -526,6 +556,18 @@ impl From<Invoice> for InvoiceDTO {
             status: row.status,
             issued_at: row.issued_at,
             paid_at: row.paid_at,
+            fx_metadata: row.fx_metadata.clone(),
+            payable_amount: row.payable_amount.map(|amt| {
+                let mut p_curr = currency;
+                if let Some(fx) = &row.fx_metadata {
+                    if let Some(c) = fx.get("presentment_currency").and_then(|v| v.as_str()) {
+                        if let Ok(cc) = c.parse() {
+                            p_curr = cc;
+                        }
+                    }
+                }
+                Money::new(amt, p_curr)
+            }),
         }
     }
 }
@@ -698,4 +740,52 @@ pub struct QuotaHeadroomDTO {
     pub limit: u64,
     pub usage_percentage: f64,
     pub is_near_limit: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InvoicePaymentProofDTO {
+    pub id: String,
+    pub invoice_id: String,
+    pub tenant_id: String,
+    pub payment_method: String,
+    pub transaction_id: String,
+    pub proof_asset_url: String,
+    pub operator_id: Option<String>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub status: String,
+    pub rejection_reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<crate::models::InvoicePaymentProof> for InvoicePaymentProofDTO {
+    fn from(model: crate::models::InvoicePaymentProof) -> Self {
+        Self {
+            id: model.id.to_string(),
+            invoice_id: model.invoice_id,
+            tenant_id: model.tenant_id,
+            payment_method: model.payment_method,
+            transaction_id: model.transaction_id,
+            proof_asset_url: model.proof_asset_url,
+            operator_id: model.operator_id,
+            reviewed_at: model.reviewed_at,
+            status: model.status,
+            rejection_reason: model.rejection_reason,
+            created_at: model.created_at,
+            updated_at: model.updated_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UploadPaymentProofInput {
+    pub payment_method: String,
+    pub transaction_id: String,
+    pub proof_asset_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewPaymentProofInput {
+    pub approved: bool,
+    pub rejection_reason: Option<String>,
 }

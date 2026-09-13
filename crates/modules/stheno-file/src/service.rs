@@ -48,6 +48,7 @@ impl FileService {
                 &input.filename,
                 mime_type_str,
                 &input.bytes,
+                input.is_private,
             )
             .await?;
 
@@ -82,6 +83,7 @@ impl FileService {
                 &input.filename,
                 &input.content_type,
                 expires_in,
+                input.is_private,
             )
             .await?;
 

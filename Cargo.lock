@@ -3444,6 +3444,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "stheno-flows-platform"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "reqwest",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "stheno-db",
+ "stheno-platform",
+ "stheno-types",
+ "tokio",
+]
+
+[[package]]
 name = "stheno-fulfillment"
 version = "0.1.0"
 dependencies = [
@@ -4104,6 +4119,7 @@ dependencies = [
  "stheno-file-local",
  "stheno-flows",
  "stheno-flows-order",
+ "stheno-flows-platform",
  "stheno-fulfillment",
  "stheno-fulfillment-manual",
  "stheno-fulfillment-pathao",

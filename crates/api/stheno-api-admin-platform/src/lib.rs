@@ -638,6 +638,64 @@ pub async fn get_billing_portal_url(
     ))
 }
 
+pub async fn upload_payment_proof(
+    State(ctx): State<AdminPlatformContext>,
+    axum::extract::Path(invoice_id): axum::extract::Path<String>,
+    Json(input): Json<stheno_platform::dto::UploadPaymentProofInput>,
+) -> Result<impl IntoResponse, Response> {
+    let tenant_id = stheno_db::tenant::current().map_err(|e| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "message": "unauthorized" })),
+        )
+            .into_response()
+    })?;
+
+    let platform = ctx.platform.as_ref().ok_or_else(|| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "message": "platform service not available" })),
+        )
+            .into_response()
+    })?;
+
+    match platform.upload_payment_proof(&tenant_id, &invoice_id, input).await {
+        Ok(proof) => Ok((StatusCode::CREATED, Json(json!({ "proof": proof })))),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "message": e.to_string() })),
+        )
+            .into_response()),
+    }
+}
+
+pub async fn review_payment_proof(
+    State(ctx): State<AdminPlatformContext>,
+    axum::extract::Path(proof_id): axum::extract::Path<String>,
+    Json(input): Json<stheno_platform::dto::ReviewPaymentProofInput>,
+) -> Result<impl IntoResponse, Response> {
+    // In a real scenario, this gets the operator ID from an auth token.
+    // We will hardcode it for now.
+    let operator_id = "op_test"; 
+
+    let platform = ctx.platform.as_ref().ok_or_else(|| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "message": "platform service not available" })),
+        )
+            .into_response()
+    })?;
+
+    match platform.review_payment_proof(operator_id, &proof_id, input).await {
+        Ok(proof) => Ok((StatusCode::OK, Json(json!({ "proof": proof })))),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "message": e.to_string() })),
+        )
+            .into_response()),
+    }
+}
+
 /// Mounts the admin platform routes. These are never gated: the dashboard needs to read
 /// its own entitlements in order to hide the screens it is not allowed to show.
 pub fn admin_platform_routes(ctx: AdminPlatformContext) -> Router {
@@ -715,6 +773,14 @@ pub fn admin_platform_routes(ctx: AdminPlatformContext) -> Router {
         .route(
             "/admin/workflow-executions/{workflow_id}/{transaction_id}/subscribe",
             get(subscribe_workflow_transaction),
+        )
+        .route(
+            "/admin/billing/invoices/{invoice_id}/payment-proof",
+            post(upload_payment_proof),
+        )
+        .route(
+            "/admin/platform/payment-proofs/{proof_id}/review",
+            post(review_payment_proof),
         )
         .with_state(ctx)
 }

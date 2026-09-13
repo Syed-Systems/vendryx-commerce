@@ -6,33 +6,39 @@ fn test_trial_lifecycle_warnings_and_expiration_to_free() {
     let started_at = Utc::now();
     let mut job = TrialLifecycleJob::new(started_at);
 
-    // Day 10 -> Active
+    // Day 3 -> Active
     assert_eq!(
-        job.evaluate_lifecycle_at(started_at + Duration::days(10)),
+        job.evaluate_lifecycle_at(started_at + Duration::days(3)),
         TrialStatus::Active
     );
 
-    // Day 24 -> WarningDay23
+    // Day 7 -> WarningDay7 (7 days remaining)
     assert_eq!(
-        job.evaluate_lifecycle_at(started_at + Duration::days(24)),
-        TrialStatus::WarningDay23
+        job.evaluate_lifecycle_at(started_at + Duration::days(7)),
+        TrialStatus::WarningDay7
     );
 
-    // Day 29 -> WarningDay29
+    // Day 13 -> WarningDay13 (1 day remaining / final warning)
     assert_eq!(
-        job.evaluate_lifecycle_at(started_at + Duration::days(29)),
-        TrialStatus::WarningDay29
+        job.evaluate_lifecycle_at(started_at + Duration::days(13)),
+        TrialStatus::WarningDay13
     );
 
-    // Day 30 -> ExpiredToFree
+    // Day 14 -> ExpiredToFree
     assert_eq!(
-        job.evaluate_lifecycle_at(started_at + Duration::days(30)),
+        job.evaluate_lifecycle_at(started_at + Duration::days(14)),
         TrialStatus::ExpiredToFree
     );
 
-    // Verify audit logs were written for all transitions
+    // Idempotent re-evaluation at Day 15 -> still ExpiredToFree, no new duplicate logs
+    assert_eq!(
+        job.evaluate_lifecycle_at(started_at + Duration::days(15)),
+        TrialStatus::ExpiredToFree
+    );
+
+    // Verify audit logs were written for transitions
     assert_eq!(job.audit_logs.len(), 3);
-    assert!(job.audit_logs[0].contains("Day 23"));
-    assert!(job.audit_logs[1].contains("Day 29"));
-    assert!(job.audit_logs[2].contains("Day 30"));
+    assert!(job.audit_logs[0].contains("Day 7"));
+    assert!(job.audit_logs[1].contains("Day 13"));
+    assert!(job.audit_logs[2].contains("Day 14"));
 }

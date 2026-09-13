@@ -311,8 +311,15 @@ impl SpaceClient {
             observed_state: observed_state.to_string(),
             observed_revision,
         };
+        let body_bytes = serde_json::to_vec(&input)?;
+        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        let sig = sign_space_webhook(self.config.webhook_secret.as_bytes(), timestamp, &body_bytes);
 
-        let response = self.client.post(&url).json(&input).send().await?;
+        let response = self.client.post(&url)
+            .header("x-space-signature", sig)
+            .header("content-type", "application/json")
+            .body(body_bytes)
+            .send().await?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -339,7 +346,9 @@ impl SpaceClient {
             self.config.instance_ref
         );
 
-        let mut req = self.client.get(&url);
+        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        let sig = sign_space_webhook(self.config.webhook_secret.as_bytes(), timestamp, b"");
+        let mut req = self.client.get(&url).header("x-space-signature", sig);
         if let Some(etag) = cached_etag {
             req = req.header(IF_NONE_MATCH, etag);
         }
@@ -381,8 +390,15 @@ impl SpaceClient {
         );
 
         let input = UsageEventBatchInput { events };
+        let body_bytes = serde_json::to_vec(&input)?;
+        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        let sig = sign_space_webhook(self.config.webhook_secret.as_bytes(), timestamp, &body_bytes);
 
-        let response = self.client.post(&url).json(&input).send().await?;
+        let response = self.client.post(&url)
+            .header("x-space-signature", sig)
+            .header("content-type", "application/json")
+            .body(body_bytes)
+            .send().await?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -414,8 +430,15 @@ impl SpaceClient {
             manifest_version: "1.0.0".to_string(),
             capabilities,
         };
+        let body_bytes = serde_json::to_vec(&input)?;
+        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        let sig = sign_space_webhook(self.config.webhook_secret.as_bytes(), timestamp, &body_bytes);
 
-        let response = self.client.post(&url).json(&input).send().await?;
+        let response = self.client.post(&url)
+            .header("x-space-signature", sig)
+            .header("content-type", "application/json")
+            .body(body_bytes)
+            .send().await?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();

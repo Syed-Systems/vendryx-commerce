@@ -33,6 +33,8 @@ async fn invoice(
             period_start,
             period_end,
             amount: Money::from_minor_units(amount_minor, CurrencyCode::Bdt),
+            payable_amount: Some(Money::from_minor_units(amount_minor, CurrencyCode::Bdt)),
+            fx_metadata: None,
         })
         .await
         .expect("invoice")

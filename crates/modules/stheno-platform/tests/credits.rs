@@ -18,6 +18,8 @@ async fn service() -> (TestDb, PlatformService, String) {
             period_start: Utc.with_ymd_and_hms(2026, 8, 1, 0, 0, 0).unwrap(),
             period_end: Utc.with_ymd_and_hms(2026, 9, 1, 0, 0, 0).unwrap(),
             amount: Money::from_minor_units(150_000, CurrencyCode::Bdt),
+            payable_amount: Some(Money::from_minor_units(150_000, CurrencyCode::Bdt)),
+            fx_metadata: None,
         })
         .await
         .expect("invoice");

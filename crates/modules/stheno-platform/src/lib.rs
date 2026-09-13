@@ -10,6 +10,7 @@
 //! merchant's tenant. The `platform` tables carry no RLS policy, so that scope exists
 //! only to satisfy the connection helper, not to filter anything.
 
+pub mod calculator;
 pub mod dto;
 pub mod models;
 pub mod service;

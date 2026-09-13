@@ -64,6 +64,7 @@ stheno-file = { workspace = true }
 stheno-file-local = { workspace = true }
 stheno-flows = { workspace = true }
 stheno-flows-order = { workspace = true }
+stheno-flows-platform = { workspace = true }
 tower-http = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }

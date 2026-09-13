@@ -19,6 +19,8 @@ pub struct UploadFileInput {
     pub content_type: Option<String>,
     pub bytes: Vec<u8>,
     pub metadata: Option<serde_json::Value>,
+    #[serde(default)]
+    pub is_private: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -26,6 +28,8 @@ pub struct CreatePresignedUploadInput {
     pub filename: String,
     pub content_type: String,
     pub expires_in_seconds: Option<u64>,
+    #[serde(default)]
+    pub is_private: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

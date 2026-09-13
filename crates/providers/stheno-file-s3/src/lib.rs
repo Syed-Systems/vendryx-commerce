@@ -67,10 +67,12 @@ impl FileProvider for S3FileProvider {
         filename: &str,
         _content_type: &str,
         bytes: &[u8],
+        is_private: bool,
     ) -> Result<FileUploadResult> {
         let size_bytes = bytes.len() as i64;
         let extension = filename.rsplit('.').next().unwrap_or("bin");
-        let key = format!("uploads/{}.{}", file_id, extension);
+        let prefix = if is_private { "private" } else { "uploads" };
+        let key = format!("{}/{}.{}", prefix, file_id, extension);
 
         let mut map = self.in_memory_storage.write().unwrap();
         map.insert(key.clone(), bytes.to_vec());
@@ -112,9 +114,11 @@ impl FileProvider for S3FileProvider {
         filename: &str,
         content_type: &str,
         expires_in_seconds: u64,
+        is_private: bool,
     ) -> Result<PresignedUrlResult> {
         let extension = filename.rsplit('.').next().unwrap_or("bin");
-        let key = format!("uploads/{}.{}", file_id, extension);
+        let prefix = if is_private { "private" } else { "uploads" };
+        let key = format!("{}/{}.{}", prefix, file_id, extension);
         let file_url = self.build_public_url(&key);
 
         let s3_endpoint = self
@@ -158,5 +162,43 @@ impl FileProvider for S3FileProvider {
             headers,
             expires_at,
         })
+    }
+    
+    async fn get_presigned_download_url(
+        &self,
+        file_id: &str,
+        expires_in_seconds: u64,
+    ) -> Result<String> {
+        let map = self.in_memory_storage.read().unwrap();
+        let key = map
+            .keys()
+            .find(|k| k.contains(file_id))
+            .cloned()
+            .ok_or_else(|| Error::NotFound {
+                entity: "file",
+                id: file_id.to_string(),
+            })?;
+            
+        let s3_endpoint = self
+            .config
+            .endpoint
+            .as_deref()
+            .unwrap_or("s3.amazonaws.com");
+        let timestamp = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+
+        let download_url = format!(
+            "https://{}.{}/{}?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential={}%2F{}%2F{}%2Fs3%2Faws4_request&X-Amz-Date={}&X-Amz-Expires={}&X-Amz-Signature=mock_signature_{}",
+            self.config.bucket,
+            s3_endpoint.trim_start_matches("https://").trim_start_matches("http://"),
+            key,
+            self.config.access_key_id,
+            Utc::now().format("%Y%m%d"),
+            self.config.region,
+            timestamp,
+            expires_in_seconds,
+            file_id
+        );
+
+        Ok(download_url)
     }
 }

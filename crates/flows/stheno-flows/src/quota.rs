@@ -146,8 +146,8 @@ impl QuotaReconciliationJob {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TrialStatus {
     Active,
-    WarningDay23,
-    WarningDay29,
+    WarningDay7,
+    WarningDay13,
     ExpiredToFree,
 }
 
@@ -170,20 +170,24 @@ impl TrialLifecycleJob {
         let age = as_of.signed_duration_since(self.trial_started_at);
         let days = age.num_days();
 
-        if days >= 30 && self.status != TrialStatus::ExpiredToFree {
+        if self.status == TrialStatus::ExpiredToFree {
+            return self.status.clone();
+        }
+
+        if days >= 14 {
             self.status = TrialStatus::ExpiredToFree;
             self.audit_logs.push(format!(
                 "Day {}: Trial expired, downgraded to Free tier",
                 days
             ));
-        } else if days >= 29 && self.status != TrialStatus::WarningDay29 {
-            self.status = TrialStatus::WarningDay29;
+        } else if days >= 13 && self.status != TrialStatus::WarningDay13 {
+            self.status = TrialStatus::WarningDay13;
             self.audit_logs
-                .push("Day 29: Final trial expiration warning emitted".to_string());
-        } else if days >= 23 && self.status != TrialStatus::WarningDay23 {
-            self.status = TrialStatus::WarningDay23;
+                .push("Day 13: Final trial expiration warning emitted".to_string());
+        } else if days >= 7 && self.status != TrialStatus::WarningDay7 {
+            self.status = TrialStatus::WarningDay7;
             self.audit_logs
-                .push("Day 23: First trial expiration warning emitted".to_string());
+                .push("Day 7: First trial expiration warning emitted".to_string());
         }
 
         self.status.clone()

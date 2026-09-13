@@ -219,6 +219,28 @@ fn the_shipped_pro_plan_discounts_twelve_or_more_months() {
 }
 
 #[test]
+fn the_shipped_pro_plan_12_and_24_month_totals_are_exact() {
+    let config = config(SHIPPED);
+    let pricing = config.pricing(Tier::Pro).unwrap().unwrap();
+    let pro = config.definition(Tier::Pro).expect("pro exists");
+
+    let discount_percent = Decimal::from_str(&pro.discounts[0].percent).unwrap();
+    let one_hundred = Decimal::from(100);
+
+    // 12 months
+    let subtotal_12 = pricing.price * Decimal::from(12);
+    let discount_12 = subtotal_12 * (discount_percent / one_hundred);
+    let total_12 = subtotal_12 - discount_12;
+    assert_eq!(total_12, Decimal::from_str("216.00").unwrap(), "12 months total should be exactly USD 216.00");
+
+    // 24 months
+    let subtotal_24 = pricing.price * Decimal::from(24);
+    let discount_24 = subtotal_24 * (discount_percent / one_hundred);
+    let total_24 = subtotal_24 - discount_24;
+    assert_eq!(total_24, Decimal::from_str("432.00").unwrap(), "24 months total should be exactly USD 432.00");
+}
+
+#[test]
 fn every_interval_the_engine_accepts_round_trips() {
     for interval in BillingInterval::ALL {
         assert_eq!(
