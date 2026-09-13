@@ -29,6 +29,8 @@ module.exports = {
           surface: "var(--brand-surface, #FFFFFF)",
           text: "var(--brand-text, #1C1917)",
           hairline: "var(--brand-hairline, rgba(28, 25, 23, 0.08))",
+          error: "var(--brand-error, #EF4444)",
+          interactive: "var(--brand-interactive, #D97706)",
         },
         grey: {
           0: "#FFFFFF",
@@ -51,6 +53,9 @@ module.exports = {
         rounded: "8px",
         large: "16px",
         circle: "9999px",
+        card: "var(--brand-radius-card, 8px)",
+        input: "var(--brand-radius-input, 4px)",
+        button: "var(--brand-radius-button, 4px)",
       },
       maxWidth: {
         "8xl": "100rem",
@@ -69,6 +74,7 @@ module.exports = {
       },
       fontFamily: {
         sans: [
+          "var(--brand-font-body)",
           "Inter",
           "-apple-system",
           "BlinkMacSystemFont",
@@ -77,6 +83,17 @@ module.exports = {
           "Helvetica Neue",
           "Ubuntu",
           "sans-serif",
+        ],
+        heading: [
+          "var(--brand-font-heading)",
+          "Inter",
+          "-apple-system",
+          "sans-serif",
+        ],
+        mono: [
+          "var(--brand-font-mono)",
+          "ui-monospace",
+          "monospace",
         ],
       },
       keyframes: {
