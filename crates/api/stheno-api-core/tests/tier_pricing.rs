@@ -35,14 +35,13 @@ fn the_shipped_pro_plan_has_an_exact_price_in_the_currency_the_business_charges(
 
     assert_eq!(
         pricing.price,
-        Decimal::from_str("1500.00").unwrap(),
+        Decimal::from_str("20.00").unwrap(),
         "the shipped Pro price must survive parsing exactly"
     );
     assert_eq!(
         pricing.currency,
-        CurrencyCode::Bdt,
-        "the business charges in BDT; a plan priced in a currency its customers do not \
-         hold is a plan nobody can pay for"
+        CurrencyCode::Usd,
+        "the platform subscription is priced in USD; merchant checkout money can still be BDT"
     );
     assert_eq!(pricing.interval, BillingInterval::Month);
 }
@@ -191,13 +190,32 @@ fn a_control_plane_edit_does_not_take_a_plan_off_sale() {
         .pricing()
         .expect("resolves")
         .expect("an edited plan is still sold");
-    assert_eq!(pricing.price, Decimal::from_str("1500.00").unwrap());
-    assert_eq!(pricing.currency, CurrencyCode::Bdt);
+    assert_eq!(pricing.price, Decimal::from_str("20.00").unwrap());
+    assert_eq!(pricing.currency, CurrencyCode::Usd);
     assert_eq!(
         edited.term_months,
-        vec![6, 12],
-        "and the commitment terms survive alongside it"
+        vec![1],
+        "and the minimum purchase term survives alongside it"
     );
+    assert_eq!(
+        edited.discounts, shipped.discounts,
+        "and long-term discounts survive alongside it"
+    );
+}
+
+#[test]
+fn the_shipped_pro_plan_discounts_twelve_or_more_months() {
+    let config = config(SHIPPED);
+    let pro = config.definition(Tier::Pro).expect("pro exists");
+
+    assert_eq!(
+        pro.term_months,
+        vec![1],
+        "one month is the minimum selectable term, not the maximum"
+    );
+    assert_eq!(pro.discounts.len(), 1);
+    assert_eq!(pro.discounts[0].starts_at_months, 12);
+    assert_eq!(pro.discounts[0].percent, "10.00");
 }
 
 #[test]

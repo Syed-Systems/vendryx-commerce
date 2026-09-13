@@ -176,6 +176,10 @@ each merchant's callbacks landing only in that merchant's rows.
   been run against a real bKash, SSLCommerz or Stripe account from this codebase. First
   contact with production credentials is the remaining unknown, and it is the reason for
   step 6 above.
+- Bangladesh subscription collection is intentionally manual first: invoice in USD/BDT,
+  collect proof by transaction ID and screenshot, then activate Pro only after operator
+  verification. The source-of-truth workflow is
+  [COMMERCIAL_IMPLEMENTATION_PLAN.md](COMMERCIAL_IMPLEMENTATION_PLAN.md).
 - `credential_health` reports `unconfigured` until a provider has actually been called;
   a configured gateway with no traffic is not a failing one.
 - Rotating `STHENO_CREDENTIAL_KEY` invalidates stored credentials, as noted in §1.

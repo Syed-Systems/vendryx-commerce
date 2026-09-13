@@ -24,7 +24,8 @@ This gate asserts five invariants:
    `App.tsx`) must match the canonical quotas in [config/tiers.toml](../config/tiers.toml) and
    [docs/ENTITLEMENTS.md](ENTITLEMENTS.md):
    - Free Tier: `max_products = 100`, `max_staff_seats = 3`, `analytics_window_days = 30`
-   - Pro Tier: `price = 1500.00` BDT/mo, `max_products = 0` (unlimited), `max_staff_seats = 10`
+   - Pro Tier: `price = 20.00` USD/mo, 1-month minimum, 10% discount at 12+ months,
+     `max_products = 0` (unlimited), `max_staff_seats = 10`
    - Fabricated numbers (e.g. `2,800` or `50 products`) fail the build immediately.
 
 2. **Module Coverage:**
@@ -61,6 +62,16 @@ python scripts/doc-sync-workflow.py log \
 
 This updates [docs/WORK_LOG.md](WORK_LOG.md) chronologically, maintaining an immutable ledger
 of what was changed, what was verified, and what quality gates passed.
+
+## 2.1 Status Ledger Protocol
+
+[STATUS.md](STATUS.md) is the only live completion ledger. When a change affects phase
+completion, task-group counts, or the answer to "how much is done", update `STATUS.md` in
+the same change.
+
+Do not add fresh completion percentages to plan, task, handover, or work-log documents.
+Those files may link to `STATUS.md` and may preserve historical evidence, but they should
+not become competing dashboards.
 
 ---
 

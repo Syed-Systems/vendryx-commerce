@@ -82,7 +82,7 @@ scale with the window, not with the feature.
 | Inventory tracking | Full | Full | Full |
 | Products | Unlimited | **100** (existing grandfathered) | Unlimited |
 | Staff seats | 10 | **Owner + 2** | 10 |
-| Storefront | supported brand kit + subdomain | supported brand kit + subdomain | developer-built bespoke storefront + custom domain |
+| Storefront | supported brand kit + subdomain | supported brand kit + subdomain | developer-built bespoke storefront; merchant brings their own domain if mapping one |
 | Order placement + COD | Yes | Yes | Yes |
 | Spreadsheet import / CSV export | Yes | Yes | Yes |
 | Analytics | Basic | Basic, **30-day window** | **Full history** |
@@ -93,10 +93,13 @@ scale with the window, not with the feature.
 | **Brand kit** | Yes | Yes | Yes |
 | **Bespoke storefront service** | No | No | **Yes, after payment** |
 
-Pro is sold on a **6- or 12-month commitment**, never month-to-month. That is defensible only
-because the free tier is indefinite: a merchant runs a real store and takes real orders before
-being asked for anything. Commercial terms live in the business plan, not here — what the engine
-needs from them is a **term end date** on the entitlement.
+Pro is **$20/month**, with a 1-month minimum purchase, no maximum term, and a **10% discount when a
+merchant prepays 12 or more months**. The price does **not** include domain registration; a merchant
+brings their own domain if they want one mapped to the platform. The full commercial rules live in
+[COMMERCIAL_IMPLEMENTATION_PLAN.md](COMMERCIAL_IMPLEMENTATION_PLAN.md). That is defensible only because the free tier is indefinite: a
+merchant runs a real store and takes real orders before being asked for anything. Commercial
+terms live in the business plan, not here — what the engine needs from them is a **term end
+date** on the entitlement.
 
 ### 4.1 What is never gateable
 
@@ -113,7 +116,7 @@ The first two were already specified. **The third came from this tier plan and i
 
 | Kind | Mechanism | Used by |
 |---|---|---|
-| **Feature gate** | Route group not mounted | `payment_gateway`, `courier_dispatch`, `fraud_score`, `custom_domain` |
+| **Feature gate** | Route group not mounted | `payment_gateway`, `courier_dispatch`, `fraud_score` |
 | **Quota gate** | Atomic counter, reject at limit | `max_products` (100), `max_staff_seats` (3) |
 | **Window gate** | Query bounded by a time horizon | `analytics_window_days` (30 vs unlimited) |
 
@@ -131,7 +134,7 @@ Not every row above is a Stheno capability. Stated plainly so nothing is silentl
 | `analytics_window_days` | **Engine** — reporting queries |
 | `payment_gateway` | **Engine** — provider registration; COD-only when off |
 | `courier_dispatch` | **Engine** — fulfillment provider registration |
-| `custom_domain` | **Platform** — routing/TLS layer above the engine |
+| merchant-owned domain mapping | **Platform** — routing/TLS layer above the engine; domain registration is not included |
 | `fraud_score` | **Platform** — a scoring service the engine calls, not a module |
 
 Platform gates read the same `Entitlements` value; they are simply enforced outside the binary.
@@ -165,7 +168,7 @@ entitlement_state
   tier             text          -- 'trial' | 'free' | 'pro'
   trial_started_at timestamptz   -- set on store-request submission, once, never reset
   trial_ends_at    timestamptz   -- trial_started_at + 14 days
-  term_ends_at     timestamptz   -- Pro commitment end, null otherwise
+  term_ends_at     timestamptz   -- paid period end, null otherwise
   state            text          -- 'active' | 'grace'
 ```
 
@@ -199,10 +202,15 @@ windows       = { analytics_window_days = 30 }
 
 [pro]
 features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic",
-                 "payment_gateway", "courier_dispatch", "fraud_score", "custom_domain"]
+                 "payment_gateway", "courier_dispatch", "fraud_score",
+                 "custom_theme", "branding"]
 quotas        = { max_products = 0, max_staff_seats = 10 }
 windows       = { analytics_window_days = 0 }
-term_months   = [6, 12]                       # no month-to-month
+term_months   = [1]                           # minimum purchase is 1 month; checkout may sell any length
+price         = "20.00"
+currency      = "usd"
+interval      = "month"
+discounts     = [{ starts_at_months = 12, percent = "10.00" }]
 ```
 
 `0` means unlimited for both quotas and windows — one sentinel, so a missing value can never

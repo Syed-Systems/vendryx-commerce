@@ -205,6 +205,16 @@ pub struct TierDefinition {
     pub currency: Option<String>,
     #[serde(default)]
     pub interval: Option<String>,
+    #[serde(default)]
+    pub discounts: Vec<TierDiscount>,
+}
+
+/// A term-length discount as written in `config/tiers.toml`.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct TierDiscount {
+    pub starts_at_months: u32,
+    /// Exact decimal string for the same reason plan prices are strings.
+    pub percent: String,
 }
 
 impl TierDefinition {
@@ -237,6 +247,7 @@ impl TierDefinition {
             price: None,
             currency: None,
             interval: None,
+            discounts: Vec::new(),
         }
     }
 
@@ -252,6 +263,7 @@ impl TierDefinition {
         self.price = base.price.clone();
         self.currency = base.currency.clone();
         self.interval = base.interval.clone();
+        self.discounts = base.discounts.clone();
         self
     }
 }

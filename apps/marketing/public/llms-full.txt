@@ -57,10 +57,10 @@ Vendryx exposes a clean, predictable REST API surface:
 
 | Feature / Capability | Free Plan | Pro Plan |
 |---|---|---|
-| Monthly Subscription | ৳0 (Free Indefinite) | ৳1,500/mo (৳1,350/mo on 12-month commitment) |
+| Monthly Subscription | $0 (Free Indefinite) | $20/mo, 1-month minimum; 10% off at 12+ months |
 | Active Product Limit | 100 Products | Unlimited Products |
 | Staff Accounts | 3 Accounts (Owner + 2) | 10 Staff Seats |
-| Storefront Branding | Vendryx Subdomain + Brand Kit | Custom Branded Domain + Bespoke Frontends |
+| Storefront Branding | Vendryx Subdomain + Brand Kit | Merchant-Owned Domain Mapping + Bespoke Frontends |
 | Guest Checkout | Included | Included |
 | WhatsApp / Social Handoff | Included | Included |
 | Automated Courier Dispatch | Manual Consignments | Pathao, Steadfast, RedX Dispatch Integration |

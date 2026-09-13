@@ -166,7 +166,9 @@ Fleet management and multi-store orchestration are decoupled from individual sto
 - **Data Plane (This Repository):** Hosts the tenant's store operations, product catalogs, customer checkouts, and merchant dashboards.
 - **Control Plane (`Space` at `D:\Syed Systems\Space`):** Dedicated fleet management system handling:
   - Store provisioning and lifecycle management.
-  - Subscription billing, invoicing, and manual payment verification (bKash, Nagad, bank transfers).
+  - Subscription billing, invoicing, Bangladesh Bank USD/BDT conversion, and manual payment
+    verification (bKash, Nagad, Rocket, bank transfers) per
+    [COMMERCIAL_IMPLEMENTATION_PLAN.md](COMMERCIAL_IMPLEMENTATION_PLAN.md).
   - Custom domain SSL orchestration and DNS verification.
   - Global merchant support and oversight.
 

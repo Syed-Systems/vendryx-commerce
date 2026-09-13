@@ -40,10 +40,19 @@ def check_pricing_invariants():
     print("==> [1/5] Checking pricing and quota invariants across surfaces...")
     tiers_content = read_file("config/tiers.toml")
     
-    # Parse tiers price
+    # Parse tiers price and currency from the canonical config.
     price_match = re.search(r'price\s*=\s*"([^"]+)"', tiers_content)
     pro_price = price_match.group(1) if price_match else "1500.00"
     pro_price_int = str(int(float(pro_price)))
+    currency_match = re.search(r'currency\s*=\s*"([^"]+)"', tiers_content)
+    pro_currency = currency_match.group(1).upper() if currency_match else "BDT"
+    discount_match = re.search(
+        r'starts_at_months\s*=\s*(\d+),\s*percent\s*=\s*"([^"]+)"',
+        tiers_content,
+    )
+    discount_months = discount_match.group(1) if discount_match else "12"
+    discount_percent = discount_match.group(2) if discount_match else "10.00"
+    discount_label = str(int(float(discount_percent)))
     
     # Check llms.txt and llms-full.txt
     llms = read_file("apps/marketing/public/llms.txt")
@@ -63,14 +72,24 @@ def check_pricing_invariants():
     
     # Ensure canonical price is cited
     if pro_price_int not in llms and f"1,{pro_price_int[1:]}" not in llms:
-        errors.append(f"Canonical Pro price {pro_price_int} BDT not found in apps/marketing/public/llms.txt")
+        errors.append(f"Canonical Pro price {pro_price_int} {pro_currency} not found in apps/marketing/public/llms.txt")
+    if pro_currency not in llms and (pro_currency != "USD" or "$" not in llms):
+        errors.append(f"Canonical Pro currency {pro_currency} not found in apps/marketing/public/llms.txt")
+    if discount_match and (
+        discount_months not in llms
+        or discount_label not in llms
+        or "discount" not in llms.lower()
+    ):
+        errors.append(
+            f"Canonical Pro discount {discount_label}% at {discount_months}+ months not found in apps/marketing/public/llms.txt"
+        )
     
     if errors:
         for err in errors:
             print(f"  FAIL: {err}", file=sys.stderr)
         return False
         
-    print(f"  PASS: Pricing invariants verified (Pro: ৳{pro_price_int}/mo, Free: 100 products / 3 seats).")
+    print(f"  PASS: Pricing invariants verified (Pro: {pro_price_int} {pro_currency}/mo, {discount_label}% at {discount_months}+ months, Free: 100 products / 3 seats).")
     return True
 
 

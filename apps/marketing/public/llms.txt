@@ -27,7 +27,7 @@ Vendryx is an end-to-end commerce infrastructure system developed by Syed System
 ## Pricing
 
 - **Free Tier**: ৳0/mo — Up to 100 active products, 3 staff seats (Owner + 2), guest checkout, WhatsApp order handoff, 30-day analytics window, standard support.
-- **Pro Tier**: ৳1,500/mo (৳1,350/mo on 12-month commitment) — Unlimited products, custom domain, payment gateways, courier dispatch, full analytics history, 10 staff seats.
+- **Pro Tier**: $20/mo, 1-month minimum, 10% discount at 12+ months — Unlimited products, merchant-owned domain mapping, payment gateways, courier dispatch, full analytics history, 10 staff seats.
 
 ## Key Facts
 
