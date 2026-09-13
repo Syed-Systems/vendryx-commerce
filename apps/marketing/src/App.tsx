@@ -2,7 +2,6 @@ import {
   ArrowRight,
   ArrowDown,
   ArrowUpRight,
-  Calculator,
   MessageSquareQuote,
   TrendingUp,
   ClipboardList,
@@ -26,7 +25,6 @@ import {
   Paintbrush,
   Plus,
   Printer,
-  Quote,
   ShoppingBag,
   ShoppingCart,
   ShieldCheck,
@@ -38,12 +36,11 @@ import {
   QrCode,
   X,
 } from "lucide-react"
-import { gsap } from "gsap"
-import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { /* gsap */ } from "/* gsap */"
+import { AnimatePresence, motion, /* useReducedMotion */ } from "motion/react"
 import {
   Fragment,
   useEffect,
-  useRef,
   useState,
   type AnchorHTMLAttributes,
   type CSSProperties,
@@ -95,11 +92,12 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { VendryxLogo } from "@/components/brand/VendryxLogo"
+import { ADMIN_URL, ADMIN_LOGIN_URL } from "./lib/config"
 
 type StaticPage = "/" | "/demo" | "/privacy" | "/terms" | "/login" | "/signup" | "/forgot-password" | "/welcome" | "/404"
 type DemoPage = { kind: "demo"; sessionId: string }
 type Page = StaticPage | DemoPage
-type Plan = "free" | "pro"
+
 type Currency = "BDT" | "USD" | "EUR"
 
 const accountDraftKey = "stheno-marketing-account-draft"
@@ -214,6 +212,10 @@ function Link({
       className={className}
       href={to}
       onClick={(event) => {
+        if (to.startsWith("http://") || to.startsWith("https://")) {
+          onClick?.()
+          return
+        }
         if (to.startsWith("#")) {
           const el = document.querySelector(to)
           if (el) {
@@ -331,9 +333,13 @@ function Header() {
           <Sparkles size={14} />
           <span>Explore demo</span>
         </button>
-        <Link className="nav-login" to="/login">
+        <a className="button button-outline button-sm nav-admin-btn" href={ADMIN_URL} title="Open Merchant Admin Dashboard">
+          <span>Admin</span>
+          <ArrowUpRight size={14} />
+        </a>
+        <a className="nav-login" href={ADMIN_LOGIN_URL}>
           Log in
-        </Link>
+        </a>
         <Link className="button button-primary nav-cta" to="/signup">
           <span>Sign up</span>
           <ArrowUpRight size={15} />
@@ -384,9 +390,13 @@ function Header() {
               <Sparkles size={14} />
               <span>Explore demo</span>
             </button>
-            <Link to="/login" onClick={() => setMenuOpen(false)}>
-              Log in
-            </Link>
+            <a className="button button-outline button-sm" href={ADMIN_URL}>
+              <span>Merchant Admin Dashboard</span>
+              <ArrowUpRight size={14} />
+            </a>
+            <a href={ADMIN_LOGIN_URL} onClick={() => setMenuOpen(false)}>
+              Log in to Admin
+            </a>
             <Link className="mobile-signup-link" to="/signup" onClick={() => setMenuOpen(false)}>
               Create Account
             </Link>
@@ -431,6 +441,10 @@ function Hero() {
               <ArrowRight size={16} />
             </Link>
             <StartDemoButton />
+            <a className="button button-outline" href={ADMIN_URL} title="Launch Vendryx Admin">
+              <span>Open Admin</span>
+              <ArrowUpRight size={16} />
+            </a>
           </div>
           <ul className="hero-foundation-list" aria-label="Core Vendryx capabilities">
             <li>Catalogue and inventory management</li>
@@ -447,155 +461,6 @@ function Hero() {
   )
 }
 
-function LegacyHeroPreview() {
-  const heroRef = useRef<HTMLDivElement>(null)
-  const [heroProductAdded, setHeroProductAdded] = useState(false)
-  const [heroSocialConverted, setHeroSocialConverted] = useState(false)
-
-  useEffect(() => {
-    if (!heroRef.current) return
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        ".gsap-hero-anim",
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.65, stagger: 0.08, ease: "power2.out" }
-      )
-    }, heroRef)
-    return () => ctx.revert()
-  }, [])
-
-  return (
-    <section className="hero collective-hero section-shell" ref={heroRef}>
-      <div className="hero-split-grid">
-        {/* Left Column: Authoritative Editorial Copy */}
-        <div className="hero-left-column">
-          <h1 className="gsap-hero-anim">
-            Run your online store without app clutter or sales fees.
-          </h1>
-          <p className="hero-lede gsap-hero-anim">
-            Vendryx gives store owners and growing brands a fast online storefront, automatic guest checkout, social chat order capture, and courier delivery in one unified system.
-          </p>
-          <div className="hero-actions gsap-hero-anim">
-            <Link className="button button-primary" to="/signup">
-              <span>Start 14-day free trial</span>
-              <ArrowRight size={16} />
-            </Link>
-            <StartDemoButton />
-          </div>
-          <div className="hero-trust-metrics gsap-hero-anim">
-            <div className="trust-metric-item">
-              <strong>0%</strong>
-              <span>Take-Rate On Sales</span>
-            </div>
-            <div className="trust-metric-sep" />
-            <div className="trust-metric-item">
-              <strong>Native</strong>
-              <span>Guest Checkout</span>
-            </div>
-            <div className="trust-metric-sep" />
-            <div className="trust-metric-item">
-              <strong>Isolated</strong>
-              <span>Database Schemas</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Layered Live Commerce Cockpit Visual */}
-        <div className="hero-right-column gsap-hero-anim">
-          <div className="hero-cockpit-window">
-            <div className="cockpit-window-topbar">
-              <div className="cockpit-dots">
-                <span className="dot red" />
-                <span className="dot yellow" />
-                <span className="dot green" />
-              </div>
-              <span className="cockpit-title-tag">vendryx.com/nodi-studio · Live Operations HUD</span>
-              <div className="cockpit-live-indicator">
-                <span className="live-pulse-dot" />
-                <span>32ms Edge</span>
-              </div>
-            </div>
-
-            <div className="cockpit-window-content">
-              {/* Product Preview Card */}
-              <div className="cockpit-product-card">
-                <div className="cockpit-product-header">
-                  <span className="cockpit-badge">Storefront Guest View</span>
-                  <span className="cockpit-price-tag">৳850</span>
-                </div>
-                <div className="cockpit-product-meta">
-                  <h4>Canvas Market Tote</h4>
-                  <p>Heavyweight cotton canvas with full grain leather handles.</p>
-                </div>
-                <button
-                  type="button"
-                  className={`cockpit-action-btn ${heroProductAdded ? "is-added" : ""}`}
-                  onClick={() => setHeroProductAdded(true)}
-                >
-                  {heroProductAdded ? (
-                    <>
-                      <Check size={14} />
-                      <span>Added to Bag (৳850)</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingBag size={14} />
-                      <span>1-Click Add to Bag</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Order Ingest & Social Converter Card */}
-              <div className="cockpit-order-stream-card">
-                <div className="order-stream-header">
-                  <span className="stream-badge">
-                    <WhatsAppIcon size={14} />
-                    Social Handoff Feed
-                  </span>
-                  <span className="stream-status">Draft Ready</span>
-                </div>
-                <div className="order-stream-bubble">
-                  <p>&quot;Hi! I need 2x Studio Stoneware Mugs sent to Dhanmondi.&quot;</p>
-                  <small>Nafis Anjum · WhatsApp Message</small>
-                </div>
-                <div className="order-stream-footer">
-                  <button
-                    type="button"
-                    className={`stream-convert-btn ${heroSocialConverted ? "is-confirmed" : ""}`}
-                    onClick={() => setHeroSocialConverted(true)}
-                  >
-                    {heroSocialConverted ? (
-                      <>
-                        <CheckCircle2 size={13} className="text-emerald-500" />
-                        <span>Order #ORD-78201 Confirmed (৳1,700)</span>
-                      </>
-                    ) : (
-                      <>
-                        <Zap size={13} />
-                        <span>1-Click Convert to Order</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="cockpit-footer-pill">
-              <ShieldCheck size={14} className="text-accent" />
-              <span>Direct Operations · Fast Checkout · Automated Logistics</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* ==========================================================================
-   MERCHANT VALUE PILLARS (EDITORIAL BENTO GRID WITH RICH DEPTH)
-   ========================================================================== */
-
 function MerchantValuePillars() {
   const capabilities = [
     {
@@ -611,7 +476,7 @@ function MerchantValuePillars() {
     {
       icon: Code,
       title: "A commerce core that can grow",
-      body: "Trial and Free use a supported brand kit and subdomain. Pro can add a custom domain and a developer-built storefront after payment.",
+      body: "Trial and Free use a supported brand kit and subdomain. Pro can map a merchant-owned domain and add a developer-built storefront after payment.",
     },
   ]
 
@@ -638,176 +503,6 @@ function MerchantValuePillars() {
     </section>
   )
 }
-
-function LegacyMerchantValuePillars() {
-  const sectionRef = useRef<HTMLElement>(null)
-  const [bentoConverted, setBentoConverted] = useState(false)
-
-  useEffect(() => {
-    if (!sectionRef.current) return
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        ".bento-card",
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.6, stagger: 0.1, ease: "power2.out" }
-      )
-    }, sectionRef)
-    return () => ctx.revert()
-  }, [])
-
-  return (
-    <section className="value-pillars-section section-shell" id="features" ref={sectionRef}>
-      <div className="section-header-block">
-        <p className="eyebrow">Core Capabilities</p>
-        <h2>Everything you need to sell, fulfill, and deliver.</h2>
-        <p className="section-lede">
-          No third-party plugin bloat. Every essential commerce workflow is built directly into your store from day one.
-        </p>
-      </div>
-
-      <div className="bento-grid">
-        {/* Bento 1: Social Order Handoff (Span 2) */}
-        <article className="bento-card bento-span-2">
-          <div className="bento-content-wrap">
-            <div className="bento-icon-tag-row">
-              <div className="bento-icon-frame">
-                <MessageSquareQuote size={20} />
-              </div>
-              <span className="bento-tag">Social Order Handoff</span>
-            </div>
-            <h3>Turn WhatsApp & Instagram chats into confirmed orders.</h3>
-            <p>
-              When customers message you on WhatsApp or Instagram, Vendryx formats the inquiry and adds a draft order directly to your queue in one click.
-            </p>
-          </div>
-          <div className="bento-preview-box">
-            <div className="social-chat-card">
-              <div className="chat-card-top">
-                <span className="chat-platform-badge">
-                  <WhatsAppIcon size={14} />
-                  WhatsApp Direct Order
-                </span>
-                <span className="chat-time-tag">Just now</span>
-              </div>
-              <div className="chat-bubble-preview">
-                <p>&quot;I would like 1x Fluted Serving Bowl. Delivery to Gulshan.&quot;</p>
-                <div className="chat-meta-bar">
-                  <span>Customer: Sabrina H.</span>
-                  <strong>৳1,850 · COD</strong>
-                </div>
-              </div>
-              <button
-                type="button"
-                className={`bento-interactive-btn ${bentoConverted ? "is-converted" : ""}`}
-                onClick={() => setBentoConverted(true)}
-              >
-                {bentoConverted ? <Check size={14} /> : <Zap size={14} />}
-                <span>{bentoConverted ? "Order #ORD-78204 Created in Fulfillment Queue" : "1-Click Create Order"}</span>
-              </button>
-            </div>
-          </div>
-        </article>
-
-        {/* Bento 2: Guest Checkout */}
-        <article className="bento-card">
-          <div className="bento-icon-tag-row">
-            <div className="bento-icon-frame">
-              <ShoppingBag size={20} />
-            </div>
-            <span className="bento-tag">Guest Checkout</span>
-          </div>
-          <h3>Frictionless checkout that customers actually finish.</h3>
-          <p>
-            Buyers complete purchases without forced passwords or account walls. Repeat customers are recognised automatically by phone number.
-          </p>
-          <div className="bento-mini-stat-card">
-            <div className="stat-card-row">
-              <span>Checkout Flow</span>
-              <strong className="text-emerald-600">Guest Mode</strong>
-            </div>
-            <div className="stat-card-row">
-              <span>Payment Options</span>
-              <span>bKash · COD · Card</span>
-            </div>
-            <div className="stat-card-progress">
-              <div className="stat-progress-bar" style={{ width: "94%" }} />
-            </div>
-            <small>94% completion rate vs 62% on account-walled carts</small>
-          </div>
-        </article>
-
-        {/* Bento 3: Exact Decimal Math & Accounting */}
-        <article className="bento-card">
-          <div className="bento-icon-tag-row">
-            <div className="bento-icon-frame">
-              <ShieldCheck size={20} />
-            </div>
-            <span className="bento-tag">Exact Accounting</span>
-          </div>
-          <h3>Exact numbers on every receipt, discount, and invoice.</h3>
-          <p>
-            Every line item, tax rate, and courier charge uses strict fixed decimal calculations. Your receipts, order records, and bank settlements match down to the paisa.
-          </p>
-          <div className="bento-code-snippet-box">
-            <div className="code-snippet-header">
-              <Terminal size={13} />
-              <span>stheno-core/accounting.rs</span>
-            </div>
-            <pre>
-              <code>{`let price = Money::new(
-  dec!(1850.00), 
-  Currency::BDT
-);
-// Exact allocation, 0 drift`}</code>
-            </pre>
-          </div>
-        </article>
-
-        {/* Bento 4: Automated Courier & Consignment Logistics (Span 2) */}
-        <article className="bento-card bento-span-2">
-          <div className="bento-content-wrap">
-            <div className="bento-icon-tag-row">
-              <div className="bento-icon-frame">
-                <CreditCard size={20} />
-              </div>
-              <span className="bento-tag">Courier Dispatch</span>
-            </div>
-            <h3>One-click courier dispatch with printable barcodes.</h3>
-            <p>
-              Dispatch orders directly to Pathao, Steadfast, and RedX. Print consignment slips and track delivery status automatically in one place.
-            </p>
-          </div>
-          <div className="bento-preview-box">
-            <div className="courier-slip-card">
-              <div className="slip-top-row">
-                <span className="slip-brand">VENDRYX CONSIGNMENT</span>
-                <span className="slip-barcode">||| | |||| || |||</span>
-              </div>
-              <div className="slip-body">
-                <div className="slip-col">
-                  <small>Tracking Number</small>
-                  <strong>PTH-984210-BD</strong>
-                </div>
-                <div className="slip-col">
-                  <small>COD Collection</small>
-                  <strong className="text-accent">৳2,700</strong>
-                </div>
-              </div>
-              <div className="slip-status-pill">
-                <CheckCircle2 size={13} className="text-emerald-500" />
-                <span>Consignment Dispatched to Courier Hub</span>
-              </div>
-            </div>
-          </div>
-        </article>
-      </div>
-    </section>
-  )
-}
-
-/* ==========================================================================
-   INTERACTIVE LIVE DEMO INVITATION CALLOUT
-   ========================================================================== */
 
 function DemoTeaserCallout() {
   const { navigate } = useMarketing()
@@ -919,106 +614,6 @@ function MerchantJourney() {
    MERCHANT STORIES & VERIFIED REVIEWS
    ========================================================================== */
 
-function MerchantReviews() {
-  const [activeStory, setActiveStory] = useState(0)
-
-  const stories = [
-    {
-      brand: "Nodi Studio",
-      craft: "Handcrafted Canvas & Leatherwork",
-      quote:
-        "Converting WhatsApp customer chats directly into fulfillment orders removed hours of manual tracking every evening. Our customer response time dropped from 40 minutes to under 2.",
-      founder: "Ayesha Rahman, Founder",
-      metric: "+34% Order Velocity",
-      highlight: "Direct Social-to-Order Conversion",
-      tag: "DTC Craft",
-      rating: 5,
-    },
-    {
-      brand: "Bengal Clayworks",
-      craft: "Studio Stoneware & Living",
-      quote:
-        "With legacy platforms, plugin costs kept eating our margins every month. Vendryx gave us a clean, fast storefront with zero add-on taxes and instant inventory synchronization.",
-      founder: "Tanvir Hasan, Lead Potter",
-      metric: "BDT 210,000 Saved / yr",
-      highlight: "Zero App Subscriptions",
-      tag: "Artisan Ceramics",
-      rating: 5,
-    },
-    {
-      brand: "Dacca Loom",
-      craft: "Heritage Jamdani & Silk Textiles",
-      quote:
-        "Our team manages custom weaving orders and immediate store inventory from one calm dashboard. It has eliminated duplicate orders and stock discrepancies completely.",
-      founder: "Farhana Islam, Creative Director",
-      metric: "100% Inventory Accuracy",
-      highlight: "Unified Multi-Channel Queue",
-      tag: "Heritage Textiles",
-      rating: 5,
-    },
-  ]
-
-  return (
-    <section className="merchant-stories-section section-shell" id="who-its-for">
-      <div className="section-header-block">
-        <p className="eyebrow">Merchant Stories & Verified Feedback</p>
-        <h2>Trusted by independent merchants who value craft and operational calm.</h2>
-      </div>
-
-      <div className="stories-grid">
-        <div className="story-nav-list" role="tablist">
-          {stories.map((story, index) => (
-            <button
-              key={story.brand}
-              type="button"
-              role="tab"
-              aria-selected={activeStory === index}
-              className={`story-nav-item ${activeStory === index ? "is-active" : ""}`}
-              onClick={() => setActiveStory(index)}
-            >
-              <div className="story-nav-header">
-                <strong>{story.brand}</strong>
-                <span className="story-tag-pill">{story.tag}</span>
-              </div>
-              <span className="story-craft-label">{story.craft}</span>
-              <span className="story-metric-badge">{story.metric}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="story-feature-card">
-          <div className="story-card-top-row">
-            <Quote size={32} className="quote-icon text-accent" />
-            <div className="story-star-rating">
-              {Array.from({ length: stories[activeStory].rating }).map((_, i) => (
-                <Star key={i} size={15} className="star-fill fill-amber-400 text-amber-400" />
-              ))}
-              <span className="rating-verified-text">5.0 · Verified Merchant</span>
-            </div>
-          </div>
-          <p className="story-quote-text">"{stories[activeStory].quote}"</p>
-          <div className="story-card-footer">
-            <div>
-              <strong>{stories[activeStory].founder}</strong>
-              <span>
-                {stories[activeStory].brand} · {stories[activeStory].craft}
-              </span>
-            </div>
-            <div className="story-highlight-pill">
-              <Sparkles size={14} />
-              <span>{stories[activeStory].highlight}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* ==========================================================================
-   PRICING & ROI CALCULATOR
-   ========================================================================== */
-
 function MarketingFaq() {
   const faqs = [
     ["What is Vendryx?", "Vendryx is a commerce operations system for independent merchants. It connects storefront presentation with catalogue, inventory, guest checkout, orders, and staff operations."],
@@ -1027,7 +622,7 @@ function MarketingFaq() {
     ["How do social orders work?", "WhatsApp can open with a pre-filled order message. Messenger and Instagram use a copy-then-open handoff. The handoff creates a draft order for staff to review before confirmation."],
     ["Can I move my catalogue to Vendryx?", "Yes. The catalogue import flow is designed for spreadsheet data: map headers, review the result, discard unmapped columns, and continue with the imported product information."],
     ["What happens after the 14-day trial?", "The store moves to the Free plan. Existing products, staff records, and order data are not deleted or hidden. Free limits apply to new creation until you upgrade or reduce usage."],
-    ["What does Pro add?", "Pro adds the paid operational capabilities specified in your service order, including full analytics history, custom domain, bespoke storefront service, payment gateway, courier dispatch, and fraud or risk tooling where available."],
+    ["What does Pro add?", "Pro is $20/month with a 1-month minimum and a 10% discount at 12+ months. It adds full analytics history, bespoke storefront service, payment gateway, courier dispatch, fraud or risk tooling where available, and mapping for a merchant-owned domain."],
     ["Is Vendryx a marketplace or the seller of my goods?", "No. You remain responsible for your products, prices, fulfilment, customer communications, and the taxes on your own sales. Vendryx provides the commerce system that supports your operation."],
   ] as const
 
@@ -1047,31 +642,6 @@ function MarketingFaq() {
   )
 }
 
-function CustomerReviews() {
-  const approvedReviews: Array<{ quote: string; name: string; role: string; company: string }> = []
-
-  return (
-    <section className="customer-reviews-section section-shell" id="reviews" aria-labelledby="reviews-heading">
-      <p className="eyebrow">Customer reviews</p>
-      <h2 id="reviews-heading">Merchant feedback should be real, specific, and approved for publication.</h2>
-      {approvedReviews.length > 0 ? (
-        <div className="customer-review-grid">
-          {approvedReviews.map((review) => (
-            <Card className="customer-review-card" key={`${review.name}-${review.company}`}>
-              <CardContent><p>{review.quote}</p></CardContent>
-              <CardFooter><strong>{review.name}</strong><span>{review.role}, {review.company}</span></CardFooter>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <Card className="customer-review-empty">
-          <CardHeader><Badge variant="outline">Review publication standard</Badge><CardTitle>Reviews will appear here after merchant approval.</CardTitle></CardHeader>
-          <CardContent><p>Vendryx does not publish invented testimonials, star ratings, or savings claims. Each published review will identify the merchant, its role, the approved comment, and permission to share it.</p></CardContent>
-        </Card>
-      )}
-    </section>
-  )
-}
 
 /* ==========================================================================
    WHO IT'S FOR: AUDIENCE & STAKEHOLDERS (STORE OWNERS, BRANDS, INVESTORS)
@@ -1087,7 +657,7 @@ function AudienceStakeholderSection() {
     },
     {
       title: "Ecommerce builders",
-      body: "Use Vendryx as the commerce core behind a supported storefront today, then move to a custom domain and bespoke frontend through Pro.",
+      body: "Use Vendryx as the commerce core behind a supported storefront today, then map a merchant-owned domain and add a bespoke frontend through Pro.",
       action: "See plan details",
       to: "#pricing",
     },
@@ -1113,126 +683,6 @@ function AudienceStakeholderSection() {
             <CardFooter><Link className="button button-outline button-full" to={audience.to}>{audience.action}<ArrowRight size={14} /></Link></CardFooter>
           </Card>
         ))}
-      </div>
-    </section>
-  )
-}
-
-function LegacyAudienceStakeholderSection() {
-  const reduceMotion = useReducedMotion()
-  const { navigate } = useMarketing()
-
-  const audiences = [
-    {
-      badge: "Store Owners & DTC Founders",
-      icon: Store,
-      headline: "Run your entire store from one screen. Stop paying for 10 separate apps.",
-      reality:
-        "Most ecommerce platforms charge $39/month for a basic storefront, then another $150/month for inventory plugins, WhatsApp order tools, and invoice generators. Vendryx includes all of them natively with zero add-on fees.",
-      points: [
-        "Manage products, incoming chats, and orders in one screen",
-        "0% platform sales tax or GMV take-rate fees",
-        "Import your product catalog in 15 seconds",
-      ],
-      ctaText: "Start 14-day free trial",
-      ctaLink: "/signup",
-    },
-    {
-      badge: "Growing Retail Brands",
-      icon: TrendingUp,
-      headline: "Capture social buyers and double checkout conversion with guest mode.",
-      reality:
-        "Forcing buyers to create an account before purchase loses up to 35% of carts. Vendryx gives your brand frictionless guest checkout and captures incoming WhatsApp and Instagram messages directly into fulfillment orders.",
-      points: [
-        "94% guest checkout completion vs 62% on account walls",
-        "1-click WhatsApp message to confirmed order converter",
-        "Automated courier labels for Pathao, Steadfast, and RedX",
-      ],
-      ctaText: "Try interactive demo",
-      isDemoTrigger: true,
-    },
-    {
-      badge: "Investors & Strategic Partners",
-      icon: ShieldCheck,
-      headline: "A defensible commerce OS built on merchant retention, not app taxes.",
-      reality:
-        "Legacy commerce software suffers high merchant churn because third-party plugin bloat slows down storefronts and inflates operational costs. Vendryx delivers an integrated operating system with high retention and predictable subscription revenue.",
-      points: [
-        "Replaces fragmented $150+/mo plugin stacks entirely",
-        "Predictable SaaS revenue model with zero take-rate friction",
-        "Sub-40ms global edge response time for peak reliability",
-      ],
-      ctaText: "Explore plan economics",
-      ctaLink: "#pricing",
-    },
-  ]
-
-  return (
-    <section className="audience-section section-shell" id="who-its-for">
-      <div className="section-header-block">
-        <p className="eyebrow">Built for Every Stakeholder</p>
-        <h2>Why store owners, growing brands, and investors choose Vendryx.</h2>
-        <p className="section-lede">
-          We replaced fragmented third-party plugin bloat and percentage sales taxes with one transparent, high-performance commerce system.
-        </p>
-      </div>
-
-      <div className="audience-grid">
-        {audiences.map((item, index) => {
-          const Icon = item.icon
-          return (
-            <motion.article
-              className="audience-card"
-              key={item.badge}
-              initial={reduceMotion ? false : { opacity: 0, y: 18 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.25 }}
-              transition={{ delay: index * 0.1, duration: 0.45 }}
-            >
-              <div className="audience-card-top">
-                <span className="audience-badge">{item.badge}</span>
-                <div className="audience-icon-wrap">
-                  <Icon size={18} />
-                </div>
-              </div>
-
-              <h3>{item.headline}</h3>
-              <p className="audience-reality">{item.reality}</p>
-
-              <div className="audience-divider" />
-
-              <ul className="audience-points-list">
-                {item.points.map((pt) => (
-                  <li key={pt}>
-                    <CheckCircle2 size={15} className="text-accent flex-shrink-0" />
-                    <span>{pt}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="audience-footer">
-                {item.isDemoTrigger ? (
-                  <button
-                    type="button"
-                    className="button button-outline button-full"
-                    onClick={() => {
-                      const session = createDemoSession()
-                      navigate({ kind: "demo", sessionId: session.id })
-                    }}
-                  >
-                    <span>{item.ctaText}</span>
-                    <ArrowRight size={14} />
-                  </button>
-                ) : (
-                  <Link className="button button-outline button-full" to={item.ctaLink || "/signup"}>
-                    <span>{item.ctaText}</span>
-                    <ArrowRight size={14} />
-                  </Link>
-                )}
-              </div>
-            </motion.article>
-          )
-        })}
       </div>
     </section>
   )
@@ -1339,278 +789,6 @@ function PricingSection() {
         </div>
       </section>
       <p className="pricing-disclosure">Paid-plan price, tax, regional availability, and provider-dependent features are confirmed in the service order before a merchant accepts Pro.</p>
-    </section>
-  )
-}
-
-function LegacyPricingSection() {
-  const [commitment, setCommitment] = useState<6 | 12>(12)
-  const [currency, setCurrency] = useState<Currency>("BDT")
-  const [monthlyOrders, setMonthlyOrders] = useState(600)
-  const [aov, setAov] = useState(1200)
-
-  const grossRevenue = monthlyOrders * aov
-  const legacyPluginCost = 14000
-  const legacyTxFee = Math.round(grossRevenue * 0.02)
-  const legacyBaseFee = 4500
-  const totalLegacyMonthly = legacyBaseFee + legacyPluginCost + legacyTxFee
-
-  const vendryxMonthly = commitment === 12 ? 1350 : 1500
-  const monthlySavings = Math.max(0, totalLegacyMonthly - vendryxMonthly)
-  const annualSavings = monthlySavings * 12
-
-  const plans = [
-    {
-      name: "Trial",
-      term: "14 days",
-      price: 0,
-      bestFor: "Evaluate the complete commerce workflow with zero commitment before launching.",
-      highlights: [
-        "Full access during 14-day evaluation",
-        "Unlimited products & collection drafts",
-        "Live WhatsApp & social cart simulation",
-      ],
-      action: "Start 14-day trial",
-    },
-    {
-      name: "Free",
-      term: "Indefinite",
-      price: 0,
-      bestFor: "Run essential boutique commerce operations with zero recurring platform fees.",
-      highlights: [
-        "Up to 100 active catalogue items",
-        "2 team & staff operator seats",
-        "Cash on delivery & 30-day analytics",
-      ],
-      action: "Choose Free",
-    },
-    {
-      name: "Pro",
-      term: commitment === 12 ? "12 months" : "6 months",
-      price: commitment === 12 ? 1350 : 1500,
-      bestFor: "Scale a customized brand storefront with automated payments and courier dispatch.",
-      highlights: [
-        "Unlimited products & operator accounts",
-        "Custom domain mapping (yourbrand.com)",
-        "bKash/Nagad gateways & courier sync",
-      ],
-      action: "Get Pro Access",
-      featured: true,
-    },
-  ]
-
-  const matrixFeatures = [
-    { name: "Brand kit & custom accent styling", free: true, pro: true },
-    { name: "Products & category management", free: "Up to 100 items", pro: "Unlimited" },
-    { name: "Social inbox (WhatsApp & Instagram)", free: true, pro: true },
-    { name: "Staff operator accounts", free: "2 seats", pro: "Up to 10 seats" },
-    { name: "Automated bKash & Nagad gateways", free: false, pro: true },
-    { name: "Pathao, RedX & Steadfast couriers", free: false, pro: true },
-    { name: "Custom domain (yourshop.com)", free: false, pro: true },
-    { name: "Zero transaction platform tax (0%)", free: true, pro: true },
-    { name: "Bespoke storefront developer brief", free: false, pro: true },
-  ]
-
-  return (
-    <section className="pricing-section section-shell" id="pricing" aria-labelledby="pricing-heading">
-      <div className="section-header-block">
-        <p className="eyebrow">Clear, Honest Pricing</p>
-        <h2 id="pricing-heading">Start free. Choose your tier when operations scale.</h2>
-        <p className="section-lede">
-          Every merchant starts with the same robust commerce foundation. Move to Pro when you need custom domains,
-          courier sync, and automated gateways.
-        </p>
-      </div>
-
-      {/* Currency Switcher & Commitment Switcher */}
-      <div className="pricing-switcher-wrap">
-        <div className="currency-selector-row">
-          <span className="curr-label">Display Currency:</span>
-          {(["BDT", "USD", "EUR"] as Currency[]).map((c) => (
-            <button
-              key={c}
-              type="button"
-              className={`curr-btn ${currency === c ? "is-active" : ""}`}
-              onClick={() => setCurrency(c)}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-
-        <div className="pricing-switcher">
-          <button
-            type="button"
-            className={commitment === 6 ? "is-active" : ""}
-            onClick={() => setCommitment(6)}
-          >
-            6-Month Commitment
-          </button>
-          <button
-            type="button"
-            className={commitment === 12 ? "is-active" : ""}
-            onClick={() => setCommitment(12)}
-          >
-            12-Month Commitment
-            <span className="savings-pill">Save {formatMoney(1800, currency)}/yr</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="pricing-grid">
-        {plans.map((plan) => (
-          <article className={`price-card ${plan.featured ? "is-featured" : ""}`} key={plan.name}>
-            <div className="price-card-header">
-              <div className="plan-name-wrap">
-                <span className="plan-name">{plan.name} Tier</span>
-                {plan.featured && (
-                  <span className="plan-tag">
-                    <Sparkles size={12} /> Recommended
-                  </span>
-                )}
-              </div>
-              <div className="price-display-wrap">
-                <span className="price-amount">{formatMoney(plan.price, currency)}</span>
-                <span className="price-unit">/ month</span>
-              </div>
-              <p className="plan-best-for">{plan.bestFor}</p>
-            </div>
-
-            <div className="price-card-divider" />
-
-            <div className="price-card-features">
-              <span className="features-label">Included Capabilities</span>
-              <ul className="plan-features-list">
-                {plan.highlights.map((h) => (
-                  <li key={h}>
-                    <CheckCircle2 size={16} className="text-accent flex-shrink-0" />
-                    <span>{h}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="price-card-footer">
-              <Link
-                className={`button button-full ${plan.featured ? "button-primary" : "button-outline"}`}
-                to="/signup"
-              >
-                <span>{plan.action}</span>
-                <ArrowRight size={15} />
-              </Link>
-            </div>
-          </article>
-        ))}
-      </div>
-
-      {/* Interactive ROI & Savings Calculator */}
-      <div className="roi-calculator-shell">
-        <div className="roi-header">
-          <Calculator size={24} className="roi-icon text-accent" />
-          <div>
-            <h2>Independent Merchant Cost Comparison</h2>
-            <p>See what you save annually by eliminating legacy app subscription bloat and 2% platform cuts.</p>
-          </div>
-        </div>
-
-        <div className="roi-sliders-grid">
-          <div className="roi-slider-group">
-            <div className="slider-label-row">
-              <span>Monthly Order Volume</span>
-              <strong>{monthlyOrders.toLocaleString("en-BD")} orders</strong>
-            </div>
-            <input
-              type="range"
-              min="100"
-              max="3000"
-              step="50"
-              value={monthlyOrders}
-              onChange={(e) => setMonthlyOrders(Number(e.target.value))}
-              aria-label="Monthly order volume slider"
-            />
-          </div>
-
-          <div className="roi-slider-group">
-            <div className="slider-label-row">
-              <span>Average Basket Size</span>
-              <strong>{formatMoney(aov, currency)}</strong>
-            </div>
-            <input
-              type="range"
-              min="400"
-              max="3500"
-              step="50"
-              value={aov}
-              onChange={(e) => setAov(Number(e.target.value))}
-              aria-label="Average basket size slider"
-            />
-          </div>
-        </div>
-
-        <div className="roi-comparison-cards">
-          <div className="roi-card legacy">
-            <span className="roi-card-tag">Legacy Platforms (Shopify + Apps)</span>
-            <strong className="roi-price">{formatMoney(totalLegacyMonthly, currency)}/mo</strong>
-            <small>Includes $39 base + 2% tx cuts ({formatMoney(legacyTxFee, currency)}) + app bloat</small>
-          </div>
-
-          <div className="roi-card stheno vendryx">
-            <span className="roi-card-tag">Vendryx Pro Tier</span>
-            <strong className="roi-price">{formatMoney(vendryxMonthly, currency)}/mo</strong>
-            <small>All features built-in · 0% transaction penalty · 0 app taxes</small>
-          </div>
-
-          <div className="roi-savings-callout">
-            <span>Estimated Annual Savings</span>
-            <strong>{formatMoney(annualSavings, currency)} / year</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* Side-by-Side Plan Matrix Table */}
-      <div className="plan-matrix-shell">
-        <h2>Detailed Plan Feature Matrix</h2>
-        <div className="matrix-table-wrap">
-          <table className="matrix-table">
-            <thead>
-              <tr>
-                <th>Feature Capability</th>
-                <th>Free Tier (Trial)</th>
-                <th>Pro Tier</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matrixFeatures.map((row) => (
-                <tr key={row.name}>
-                  <td>{row.name}</td>
-                  <td>
-                    {typeof row.free === "boolean" ? (
-                      row.free ? (
-                        <Check size={16} className="matrix-check" />
-                      ) : (
-                        <span className="matrix-dash">−</span>
-                      )
-                    ) : (
-                      <span>{row.free}</span>
-                    )}
-                  </td>
-                  <td>
-                    {typeof row.pro === "boolean" ? (
-                      row.pro ? (
-                        <Check size={16} className="matrix-check" />
-                      ) : (
-                        <span className="matrix-dash">−</span>
-                      )
-                    ) : (
-                      <span className="pro-highlight">{row.pro}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </section>
   )
 }
@@ -1749,7 +927,8 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
             <h4>Merchants</h4>
             <ul>
               <li><Link to="/signup">Start Free Trial</Link></li>
-              <li><Link to="/login">Merchant Workspace Login</Link></li>
+              <li><a href={ADMIN_URL}>Launch Admin Dashboard</a></li>
+              <li><a href={ADMIN_LOGIN_URL}>Merchant Workspace Login</a></li>
               <li><Link to="#pricing">Plan comparison</Link></li>
               <li><Link to="#reviews">Customer reviews</Link></li>
               <li><Link to="#how-it-works">How Vendryx Works</Link></li>
@@ -3699,23 +2878,10 @@ function readDraft() {
 
 function Signup() {
   const { navigate } = useMarketing()
-  const existing = readDraft()
-  const [details, setDetails] = useState(existing)
-  const [notice, setNotice] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-
-  const passwordLength = details.password?.length ?? 0
-  const passwordStrength =
-    passwordLength === 0 ? "none" : passwordLength < 8 ? "weak" : passwordLength < 12 ? "good" : "strong"
-
-  function persist() {
-    localStorage.setItem(accountDraftKey, JSON.stringify(details))
-    setNotice("Draft saved. You can complete these details after account creation.")
-  }
+  const [details, setDetails] = useState<{ email?: string; businessName?: string; whatsapp?: string; category?: string; plan?: string }>({})
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    persist()
     localStorage.setItem("stheno-account-created", "true")
     navigate("/welcome")
   }
@@ -3724,7 +2890,7 @@ function Signup() {
     <AuthShell
       eyebrow="Create Merchant Account"
       title="Make space for the store you want to run."
-      intro="Start with email or Google. Optional business details can be filled now or saved as a draft."
+      intro="Start with email or Google. Optional business details can be filled now or saved for later."
     >
       <form className="auth-form" onSubmit={submit}>
         <button type="button" className="google-button">
@@ -3744,42 +2910,6 @@ function Signup() {
             value={details.email ?? ""}
             onChange={(e) => setDetails({ ...details, email: e.target.value })}
           />
-        </label>
-        <label>
-          Password
-          <div className="password-input-wrap">
-            <input
-              required
-              minLength={8}
-              type={showPassword ? "text" : "password"}
-              autoComplete="new-password"
-              placeholder="At least 8 characters"
-              value={details.password ?? ""}
-              onChange={(e) => setDetails({ ...details, password: e.target.value })}
-            />
-            <button
-              type="button"
-              className="password-toggle-btn"
-              onClick={() => setShowPassword((p) => !p)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-            >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-          {passwordLength > 0 && (
-            <div className={`password-meter ${passwordStrength}`}>
-              <div className="meter-track">
-                <div className="meter-bar" />
-              </div>
-              <span className="meter-label">
-                {passwordStrength === "weak"
-                  ? "Too short (min 8 chars)"
-                  : passwordStrength === "good"
-                    ? "Good password"
-                    : "Strong password"}
-              </span>
-            </div>
-          )}
         </label>
         <fieldset>
           <legend>Optional business details</legend>
@@ -3821,17 +2951,9 @@ function Signup() {
             </select>
           </label>
         </fieldset>
-        {notice && (
-          <p className="form-notice" role="status">
-            {notice}
-          </p>
-        )}
         <button className="button button-primary button-full" type="submit">
           <span>Create account</span>
           <ArrowRight size={15} />
-        </button>
-        <button className="save-draft" type="button" onClick={persist}>
-          Save draft and finish later
         </button>
         <p className="form-meta">
           Already have an account? <Link to="/login">Log in</Link>
@@ -3842,7 +2964,6 @@ function Signup() {
 }
 
 function Login() {
-  const { navigate } = useMarketing()
   const [showPassword, setShowPassword] = useState(false)
 
   return (
@@ -3851,11 +2972,21 @@ function Login() {
       title="Welcome back to your workspace."
       intro="Access your active merchant dashboard and ongoing operations."
     >
+      <div style={{ marginBottom: "16px" }}>
+        <a
+          href={ADMIN_LOGIN_URL}
+          className="button button-primary button-full flex items-center justify-center gap-2"
+          style={{ textDecoration: "none", marginBottom: "12px" }}
+        >
+          <span>Sign In with Clerk to Admin Dashboard</span>
+          <ArrowUpRight size={16} />
+        </a>
+      </div>
       <form
         className="auth-form"
         onSubmit={(e) => {
           e.preventDefault()
-          navigate("/welcome")
+          window.location.href = ADMIN_LOGIN_URL
         }}
       >
         <button type="button" className="google-button">
@@ -3943,189 +3074,49 @@ function ForgotPassword() {
 }
 
 function Welcome() {
-  const { navigate } = useMarketing()
-  const saved = readDraft()
-  const [created, setCreated] = useState(Boolean(localStorage.getItem(launchDraftKey)))
-  const [request, setRequest] = useState({
-    name: saved.businessName ?? "",
-    subdomain: "",
-    accent: "#FF6B00",
-    icon: "rise",
-    plan: saved.plan ?? "free",
-    buyerAccounts: false,
-  })
-  const [submitted, setSubmitted] = useState(false)
-  const [provisionStep, setProvisionStep] = useState(1)
-
-  useEffect(() => {
-    if (submitted) {
-      const t1 = setTimeout(() => setProvisionStep(2), 1500)
-      const t2 = setTimeout(() => setProvisionStep(3), 3500)
-      const t3 = setTimeout(() => setProvisionStep(4), 5500)
-      return () => {
-        clearTimeout(t1)
-        clearTimeout(t2)
-        clearTimeout(t3)
-      }
-    }
-  }, [submitted])
-
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    localStorage.setItem(launchDraftKey, JSON.stringify(request))
-    setCreated(true)
-    setSubmitted(true)
-  }
-
-  if (submitted) {
-    const steps = [
-      { num: 1, title: "Submission Verified", desc: "Store parameters validated against schema." },
-      { num: 2, title: "DNS & Route Binding", desc: `${request.subdomain || "store"}.vendryx.com DNS record mapped.` },
-      { num: 3, title: "Tenant Database Schema", desc: "Postgres isolated tenant schema provisioned." },
-      { num: 4, title: "Workspace Activated", desc: "Merchant Dashboard & Admin live for operations." },
-    ]
-
-    return (
-      <section className="welcome-page section-shell">
-        <div className="status-panel">
-          <div className="provision-live-indicator">
-            <span className={`status-indicator ${provisionStep === 4 ? "live" : "in-packing"}`} />
-            <span>{provisionStep === 4 ? "Tenant Environment Online" : "Provisioning Tenant..."}</span>
-          </div>
-
-          <CheckCircle2 size={44} className="status-success-icon text-accent" />
-          <p className="eyebrow">Real-Time Provisioning Pipeline</p>
-          <h1>{request.name || "Your Store"} is taking shape.</h1>
-          <p>
-            Your 14-day trial has begun. Watch the deployment pipeline configure your isolated tenant environment below.
-          </p>
-
-          <div className="provision-steps-tracker">
-            {steps.map((s) => (
-              <div
-                className={`tracker-step ${provisionStep >= s.num ? "is-done" : ""} ${
-                  provisionStep === s.num ? "is-active" : ""
-                }`}
-                key={s.num}
-              >
-                <div className="tracker-circle">
-                  {provisionStep > s.num ? <Check size={14} /> : s.num}
-                </div>
-                <div className="tracker-text">
-                  <strong>{s.title}</strong>
-                  <span>{s.desc}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="provision-actions">
-            <button className="button button-primary" onClick={() => navigate("/")}>
-              <span>Return to Vendryx Home</span>
-              <ArrowRight size={15} />
-            </button>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
   return (
     <section className="welcome-page section-shell">
-      <div className="welcome-intro">
-        <p className="eyebrow">Your Launch Workspace</p>
-        <h1>{created ? "Your saved store draft is ready." : "Configure the store your customers will recognize."}</h1>
-        <p>
-          Submit your store parameters below. Our provisioning pipeline will configure your tenant environment and
-          activate your merchant dashboard.
+      <div className="status-panel">
+        <div className="provision-live-indicator">
+          <span className="status-indicator live" />
+          <span>Tenant Environment Online</span>
+        </div>
+        <h1>Store provisioning complete.</h1>
+        <p className="welcome-lede">
+          Your workspace is live. Operations can now be managed from the merchant dashboard.
         </p>
       </div>
-      <form className="store-form" onSubmit={submit}>
-        <div className="form-heading">
-          <Store size={24} className="text-accent" />
-          <div>
-            <h2>Store Setup</h2>
-            <p>These parameters initialize your merchant environment and customer domain.</p>
+
+      <div className="next-steps-grid">
+        <div className="next-step-card">
+          <div className="step-icon">
+            <ClipboardList size={20} />
           </div>
+          <h3>Populate the catalogue</h3>
+          <p>Add products, variants, and stock counts to prepare the storefront.</p>
         </div>
-        <div className="form-pair">
-          <label>
-            Store name
-            <input
-              required
-              value={request.name}
-              onChange={(e) => setRequest({ ...request, name: e.target.value })}
-              placeholder="e.g. Nodi Studio"
-            />
-          </label>
-          <label>
-            Subdomain
-            <div className="subdomain-input-wrap">
-              <input
-                required
-                pattern="[a-z0-9-]+"
-                value={request.subdomain}
-                onChange={(e) => setRequest({ ...request, subdomain: e.target.value.toLowerCase() })}
-                placeholder="nodi-studio"
-              />
-              <span className="domain-suffix">.vendryx.com</span>
-            </div>
-          </label>
-        </div>
-        <div className="form-pair">
-          <label>
-            Brand logo
-            <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
-          </label>
-          <label>
-            Approved store mark
-            <select value={request.icon} onChange={(e) => setRequest({ ...request, icon: e.target.value })}>
-              <option value="rise">Rising mark</option>
-              <option value="dot">Solid dot</option>
-              <option value="arc">Open arc</option>
-            </select>
-          </label>
-        </div>
-        <label>
-          Accent colour
-          <input
-            className="color-input"
-            type="color"
-            value={request.accent}
-            onChange={(e) => setRequest({ ...request, accent: e.target.value })}
-          />
-        </label>
-        <label>
-          Buyer account policy
-          <select
-            value={request.buyerAccounts ? "yes" : "no"}
-            onChange={(e) => setRequest({ ...request, buyerAccounts: e.target.value === "yes" })}
-          >
-            <option value="no">Guest checkout (Fastest checkout, repeat buyers recognized by phone)</option>
-            <option value="yes">Mandatory accounts (Buyers retain saved addresses and order history)</option>
-          </select>
-        </label>
-        <label>
-          Selected plan
-          <select
-            value={request.plan}
-            onChange={(e) => setRequest({ ...request, plan: e.target.value as Plan })}
-          >
-            <option value="free">Free Tier (with 14-day trial)</option>
-            <option value="pro">Pro Tier (price confirmed in service order)</option>
-          </select>
-        </label>
-        {request.plan === "pro" && (
-          <div className="pro-note">
-            <CreditCard size={18} />
-            <span>Pro gateway and custom domain features enter provisioning upon payment verification.</span>
+        <div className="next-step-card">
+          <div className="step-icon">
+            <CreditCard size={20} />
           </div>
-        )}
-        <button className="button button-primary button-full" type="submit">
-          <span>Submit store request</span>
-          <ArrowRight size={15} />
-        </button>
-      </form>
+          <h3>Confirm settlement details</h3>
+          <p>Add bank or bKash details so COD collections and card sales can be routed to your account.</p>
+        </div>
+        <div className="next-step-card">
+          <div className="step-icon">
+            <Building2 size={20} />
+          </div>
+          <h3>Review store settings</h3>
+          <p>Ensure the support number, currency, and dispatch addresses are correct.</p>
+        </div>
+      </div>
+
+      <div className="welcome-actions">
+        <a className="button button-primary" href={ADMIN_URL}>
+          <span>Open Merchant Dashboard</span>
+          <ArrowUpRight size={15} />
+        </a>
+      </div>
     </section>
   )
 }
@@ -4139,7 +3130,7 @@ function OnePageMarketingSite({ onOpenEngineersTalk }: { onOpenEngineersTalk: ()
       <DemoTeaserCallout />
       <AudienceStakeholderSection />
       <PricingSection />
-      <CustomerReviews />
+
       <MarketingFaq />
       <LaunchChapter />
       <Closing />
@@ -4148,7 +3139,6 @@ function OnePageMarketingSite({ onOpenEngineersTalk }: { onOpenEngineersTalk: ()
   )
 }
 
-void [LegacyHeroPreview, LegacyMerchantValuePillars, MerchantReviews, LegacyAudienceStakeholderSection, LegacyPricingSection]
 
 export default function App() {
   const { page, navigate } = usePage()
