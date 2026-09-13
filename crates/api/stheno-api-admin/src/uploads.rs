@@ -64,6 +64,7 @@ pub async fn create_upload(
                 content_type: payload.content_type,
                 bytes,
                 metadata: payload.metadata,
+                is_private: false,
             })
             .await
             .map_err(|e| {
@@ -93,6 +94,7 @@ pub async fn create_upload(
                     .content_type
                     .unwrap_or_else(|| "application/octet-stream".to_string()),
                 expires_in_seconds: Some(3600),
+                is_private: false,
             })
             .await
             .map_err(|e| {
@@ -162,6 +164,7 @@ pub async fn create_presigned_url(
                 .content_type
                 .unwrap_or_else(|| "application/octet-stream".to_string()),
             expires_in_seconds: Some(3600),
+            is_private: false,
         })
         .await
         .map_err(|e| {
