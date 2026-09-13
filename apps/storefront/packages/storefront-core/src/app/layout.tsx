@@ -46,11 +46,10 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
           }}
         />
       </head>
-      <body data-theme={themeName} className="bg-brand-background text-brand-text" style={{ fontFamily: "var(--brand-font-family)" }}>
+      <body data-theme={themeName} className="group bg-brand-background text-brand-text" style={{ fontFamily: "var(--brand-font-family)" }}>
         <main className="relative">{props.children}</main>
         {process.env.NODE_ENV === "development" && <DevThemeSwitcher />}
       </body>
     </html>
   )
 }
-
