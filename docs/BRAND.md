@@ -89,9 +89,9 @@ Source-of-truth brand assets reside in `brand/vendryx/`:
 
 | File | Purpose | Variant |
 |---|---|---|
-| `vendryx-logo.svg` | Primary wordmark with mark | Light backgrounds (`#FCFBF9`, `#FFFFFF`) |
-| `vendryx-logo-dark.svg` | Wordmark with mark | Dark / monochrome backgrounds |
-| `vendryx-mark.svg` | Square icon / mark alone | Favicon, app icons, compact headers |
+| `vendryx-logo.png` | Primary wordmark with mark | Light backgrounds (`#FCFBF9`, `#FFFFFF`) |
+| `vendryx-logo-dark.png` | Wordmark with mark | Dark / monochrome backgrounds |
+| `vendryx-mark.png` | Square icon / mark alone | Favicon, app icons, compact headers |
 | `favicon.ico` | Multi-size ICO (16x16, 32x32, 48x48) | Browser tab icon |
 | `favicon.png` | 512x512 PNG | PWA, Apple touch icon, high-res web apps |
 | `brand.json` | Machine-readable manifest | Single source of truth for sync scripts |
