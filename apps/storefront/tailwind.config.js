@@ -184,5 +184,12 @@ module.exports = {
       },
     },
   },
-  plugins: [require("tailwindcss-radix")()],
+  plugins: [
+    require("tailwindcss-radix")(),
+    require("tailwindcss/plugin")(function({ addVariant }) {
+      addVariant("mahal", ':is([data-theme="mahal"]) &');
+      addVariant("lustre", ':is([data-theme="lustre"]) &');
+      addVariant("matrix", ':is([data-theme="matrix"]) &');
+    })
+  ],
 }

@@ -8,9 +8,9 @@ export default function Hero() {
       {/* -------------------------------------------------------------------------- */}
       <section className="theme-hero theme-hero-default
         flex flex-col space-y-4 sm:space-y-6
-        group-data-[theme=mahal]:hidden group-data-[theme=lustre]:hidden group-data-[theme=matrix]:hidden
+        group-mahal:hidden group-lustre:hidden group-matrix:hidden
       ">
-        <div className="relative w-full overflow-hidden rounded-card sm:rounded-3xl bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 text-brand-text border border-brand-hairline shadow-sm min-h-[380px] sm:min-h-[460px] lg:min-h-[520px] flex items-center">
+        <div className="relative w-full overflow-hidden rounded-card sm:rounded-3xl bg-gray-100 text-brand-text border border-brand-hairline shadow-sm min-h-[380px] sm:min-h-[460px] lg:min-h-[520px] flex items-center">
           <div className="content-container relative z-10 py-10 sm:py-16 grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
             <div className="md:col-span-6 lg:col-span-7 flex flex-col items-start space-y-4 sm:space-y-5">
               <span className="text-xs uppercase tracking-[0.25em] text-gray-500 font-medium">
@@ -50,7 +50,7 @@ export default function Hero() {
       {/* MAHAL THEME HERO                                                           */}
       {/* -------------------------------------------------------------------------- */}
       <section className="theme-hero theme-hero-mahal
-        hidden group-data-[theme=mahal]:flex
+        hidden group-mahal:flex
         relative w-full overflow-hidden rounded-[24px] bg-brand-primary border-[4px] border-brand-accent/20 min-h-[600px] lg:min-h-[700px] items-center justify-center
       ">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10 mix-blend-overlay"></div>
@@ -64,7 +64,7 @@ export default function Hero() {
             </p>
             <LocalizedClientLink
               href="/store"
-              className="px-10 py-4 bg-gradient-to-r from-brand-accent to-yellow-600 text-brand-primary rounded-full font-bold uppercase tracking-widest hover:shadow-lg hover:shadow-brand-accent/20 transition-all duration-300 hover:-translate-y-1"
+              className="px-10 py-4 bg-brand-accent text-brand-primary rounded-full font-bold uppercase tracking-widest hover:shadow-lg hover:shadow-brand-accent/20 transition-all duration-300 hover:-translate-y-1"
             >
               Discover The Royal Edit
             </LocalizedClientLink>
@@ -83,7 +83,7 @@ export default function Hero() {
       {/* LUSTRE THEME HERO                                                          */}
       {/* -------------------------------------------------------------------------- */}
       <section className="theme-hero theme-hero-lustre
-        hidden group-data-[theme=lustre]:block
+        hidden group-lustre:block
         relative w-full h-[85vh] min-h-[600px] bg-brand-primary overflow-hidden
       ">
         <div className="absolute inset-0">
@@ -123,7 +123,7 @@ export default function Hero() {
       {/* MATRIX THEME HERO                                                          */}
       {/* -------------------------------------------------------------------------- */}
       <section className="theme-hero theme-hero-matrix
-        hidden group-data-[theme=matrix]:flex
+        hidden group-matrix:flex
         relative w-full h-[90vh] min-h-[600px] bg-brand-background overflow-hidden border border-brand-primary items-center justify-center font-mono
       ">
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=2000&auto=format&fit=crop')] opacity-20 bg-cover bg-center mix-blend-screen"></div>
