@@ -115,7 +115,7 @@ const Header = () => {
         >
           {fallback ? (
             <div className="size-7 rounded-lg bg-ui-bg-subtle border border-ui-border-base flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
-              <Avatar variant="squared" size="xsmall" src="/brand/vendryx/vendryx-mark.svg" fallback={fallback} />
+              <Avatar variant="squared" size="xsmall" src="/brand/vendryx/vendryx-mark.png" fallback={fallback} />
             </div>
           ) : (
             <Skeleton className="h-7 w-7 rounded-lg shrink-0" />
@@ -153,7 +153,7 @@ const Header = () => {
           <DropdownMenu.Content className="w-[244px] rounded-xl p-1.5 shadow-2xl border border-ui-border-base bg-ui-bg-base/95 backdrop-blur-xl">
             <div className="flex items-center gap-x-3 px-2.5 py-2">
               <div className="size-8 rounded-lg bg-ui-bg-subtle border border-ui-border-base flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
-                <Avatar variant="squared" size="small" src="/brand/vendryx/vendryx-mark.svg" fallback={fallback} />
+                <Avatar variant="squared" size="small" src="/brand/vendryx/vendryx-mark.png" fallback={fallback} />
               </div>
               <div className="flex flex-col overflow-hidden min-w-0">
                 <Text

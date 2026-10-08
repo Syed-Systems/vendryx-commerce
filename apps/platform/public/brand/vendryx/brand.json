@@ -20,9 +20,9 @@
     "linkedin": "syedsystems"
   },
   "assetPaths": {
-    "logoLight": "brand/vendryx/vendryx-logo.svg",
-    "logoDark": "brand/vendryx/vendryx-logo-dark.svg",
-    "mark": "brand/vendryx/vendryx-mark.svg",
+    "logoLight": "brand/vendryx/vendryx-logo.png",
+    "logoDark": "brand/vendryx/vendryx-logo-dark.png",
+    "mark": "brand/vendryx/vendryx-mark.png",
     "favicon": "brand/vendryx/favicon.ico",
     "faviconPng": "brand/vendryx/favicon.png"
   },
