@@ -14,6 +14,7 @@ export const VendryxLogo: React.FC<VendryxLogoProps> = ({
   ...props
 }) => {
   const isDark = variant === "dark";
+  const logoColor = "var(--accent)";
 
   if (markOnly) {
     return (
@@ -26,33 +27,18 @@ export const VendryxLogo: React.FC<VendryxLogoProps> = ({
           xmlns="http://www.w3.org/2000/svg"
         >
           <title>Vendryx Mark</title>
-          <defs>
-            <linearGradient id="vxG1" x1="20" y1="20" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#FB923C" />
-              <stop offset="60%" stopColor="#EA580C" />
-              <stop offset="100%" stopColor="#C2410C" />
-            </linearGradient>
-            <linearGradient id="vxG2" x1="90" y1="25" x2="45" y2="95" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#EA580C" />
-              <stop offset="100%" stopColor="#9A3412" />
-            </linearGradient>
-            <linearGradient id="vxG3" x1="45" y1="28" x2="75" y2="72" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#FFF7ED" />
-              <stop offset="100%" stopColor="#FED7AA" />
-            </linearGradient>
-          </defs>
           <rect width="120" height="120" rx="28" fill={isDark ? "#27272A" : "#18181B"} />
-          <path d="M26 28 H46 L60 68 L44 68 Z" fill="url(#vxG1)" />
-          <path d="M74 28 H94 L68 96 H50 Z" fill="url(#vxG2)" />
-          <path d="M46 28 L60 68 L74 28 Z" fill="url(#vxG3)" opacity="0.9" />
-          <circle cx="60" cy="80" r="3.5" fill="#FB923C" />
+          <path d="M26 28 H46 L60 68 L44 68 Z" fill={logoColor} />
+          <path d="M74 28 H94 L68 96 H50 Z" fill={logoColor} />
+          <path d="M46 28 L60 68 L74 28 Z" fill={logoColor} opacity="0.9" />
+          <circle cx="60" cy="80" r="3.5" fill={logoColor} />
         </svg>
       </div>
     );
   }
 
   return (
-    <div className={`inline-flex items-center gap-3 ${className}`} {...props}>
+    <div className={`inline-flex items-center gap-2.5 ${className}`} {...props}>
       <svg
         viewBox="0 0 320 80"
         style={{ height, width: "auto" }}
@@ -61,22 +47,6 @@ export const VendryxLogo: React.FC<VendryxLogoProps> = ({
         xmlns="http://www.w3.org/2000/svg"
       >
         <title>Vendryx Logo</title>
-        <defs>
-          <linearGradient id="vxLogoG1" x1="10" y1="10" x2="70" y2="70" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FB923C" />
-            <stop offset="60%" stopColor="#EA580C" />
-            <stop offset="100%" stopColor="#C2410C" />
-          </linearGradient>
-          <linearGradient id="vxLogoG2" x1="65" y1="15" x2="35" y2="65" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#EA580C" />
-            <stop offset="100%" stopColor="#9A3412" />
-          </linearGradient>
-          <linearGradient id="vxLogoG3" x1="35" y1="18" x2="55" y2="52" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FFF7ED" />
-            <stop offset="100%" stopColor="#FED7AA" />
-          </linearGradient>
-        </defs>
-
         <g transform="translate(10, 10) scale(0.5)">
           <rect
             width="120"
@@ -86,10 +56,10 @@ export const VendryxLogo: React.FC<VendryxLogoProps> = ({
             stroke={isDark ? "#3F3F46" : "none"}
             strokeWidth="2"
           />
-          <path d="M26 28 H46 L60 68 L44 68 Z" fill="url(#vxLogoG1)" />
-          <path d="M74 28 H94 L68 96 H50 Z" fill="url(#vxLogoG2)" />
-          <path d="M46 28 L60 68 L74 28 Z" fill="url(#vxLogoG3)" opacity="0.9" />
-          <circle cx="60" cy="80" r="3.5" fill="#FB923C" />
+          <path d="M26 28 H46 L60 68 L44 68 Z" fill={logoColor} />
+          <path d="M74 28 H94 L68 96 H50 Z" fill={logoColor} />
+          <path d="M46 28 L60 68 L74 28 Z" fill={logoColor} opacity="0.9" />
+          <circle cx="60" cy="80" r="3.5" fill={logoColor} />
         </g>
 
         <text

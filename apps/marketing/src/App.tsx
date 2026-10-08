@@ -36,7 +36,6 @@ import {
   QrCode,
   X,
 } from "lucide-react"
-import { /* gsap */ } from "/* gsap */"
 import { AnimatePresence, motion, /* useReducedMotion */ } from "motion/react"
 import {
   Fragment,
@@ -301,7 +300,7 @@ function NotFoundPage() {
 function Mark() {
   return (
     <span className="brand-logo-frame" aria-hidden="true">
-      <VendryxLogo height={32} />
+      <VendryxLogo height={64} />
     </span>
   )
 }
