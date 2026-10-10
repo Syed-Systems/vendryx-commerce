@@ -2,14 +2,14 @@
 
 **Date:** 2026-08-21 · **Revised:** 2026-09-02 · **Plan:** [PHASE3_PLAN.md](PHASE3_PLAN.md) · **Tasks:** [PHASE3_TASKS.md](PHASE3_TASKS.md)
 
-> **Current status source:** [STATUS.md](STATUS.md). This file is retained as Phase 3 evidence
+> **Current status source:** [STATUS.md](../STATUS.md). This file is retained as Phase 3 evidence
 > and historical context only. Do not use it as the live project dashboard.
 
 > **Currency.** The Phase 3 tracks below (P21–P28) are unchanged and still accurate: none has
 > been picked up. The **control-plane** paragraphs in §2b were overtaken within days — corrected
 > inline. For the control plane's real position see
-> [CONTROL_PLANE.md §3](CONTROL_PLANE.md#3-scorecard) and
-> [PLATFORM_COMPLETION_TASKS.md](PLATFORM_COMPLETION_TASKS.md).
+> [CONTROL_PLANE.md §3](../CONTROL_PLANE.md#3-scorecard) and
+> [PLATFORM_COMPLETION_TASKS.md](../PLATFORM_COMPLETION_TASKS.md).
 
 [PHASE3_TASKS.md](PHASE3_TASKS.md) is the task list and does not change. This document is the
 *state* of that list, plus the work discovered since it was written that is not in it.
@@ -43,7 +43,7 @@ Repairs to Phase 2 foundations, found while reading the code Phase 3 builds on:
   forever. This is the difference between timeout-safety and crash-safety.
 - **`fulfillment.fulfillment_provider_request`** — couriers had no outbound ledger at all, so a
   timed-out consignment could be retried into a duplicate parcel and a duplicate COD collection.
-- **Gateway documentation** captured as contracts in [providers/](providers/).
+- **Gateway documentation** captured as contracts in [providers/](../providers/).
 - Housekeeping: 383 leaked test databases dropped (6.1 GB → 116 MB), `next lint` unbroken,
   `@types/node` unpinned from a 2022 release.
 
@@ -52,7 +52,7 @@ Repairs to Phase 2 foundations, found while reading the code Phase 3 builds on:
 ## 2. The admin section — payment providers & logistics
 
 > **Updated 2026-09-08 — Built and verified.** The provider admin surface described below has
-> been implemented across backend and UI (Phases E, F, G in [VENDRYX_ADAPTATION_PLAN.md](archive/VENDRYX_ADAPTATION_PLAN.md)):
+> been implemented across backend and UI (Phases E, F, G in [VENDRYX_ADAPTATION_PLAN.md](VENDRYX_ADAPTATION_PLAN.md)):
 > 
 > - **Credential storage & encryption (P21-12):** `payment.payment_provider_credential` stores credentials encrypted at rest with AES-256-GCM via `stheno-payment`.
 > - **Admin API (P21-11):** `GET /admin/payment-providers`, `POST /admin/payment-providers/:id/credentials`, `POST /admin/regions/:id/payment-providers/:provider_id`, and `DELETE` implemented in `crates/api/stheno-api-admin/src/config.rs`, backed by `stheno-payment` and `stheno-links`.
@@ -71,8 +71,8 @@ Repairs to Phase 2 foundations, found while reading the code Phase 3 builds on:
 6. **Tenant isolation test** — tenant A enabling a provider is invisible to tenant B, asserted by
    query (P21-14).
 
-**The credential shapes are known** ([providers/PAYMENT_GATEWAYS.md](providers/PAYMENT_GATEWAYS.md),
-[providers/COURIERS.md](providers/COURIERS.md)) and two of them break the "paste an API key"
+**The credential shapes are known** ([providers/PAYMENT_GATEWAYS.md](../providers/PAYMENT_GATEWAYS.md),
+[providers/COURIERS.md](../providers/COURIERS.md)) and two of them break the "paste an API key"
 assumption, which changes the UI:
 
 | Provider | Fields |
@@ -99,13 +99,13 @@ There are two operator surfaces and they are not the same product.
 | App | `apps/admin` — `@stheno/dashboard` | `apps/platform` — `@stheno/platform` |
 | Scope | one tenant, through RLS | **every** tenant, mounted outside the tenant layer |
 | Auth | user accounts, RBAC, MFA | one shared `STHENO_PLATFORM_TOKEN` |
-| Name in the docs | the dashboard | **the control plane** ([ADR-016](DECISIONS.md#adr-016), ENTITLEMENTS.md) |
+| Name in the docs | the dashboard | **the control plane** ([ADR-016](../DECISIONS.md#adr-016), ENTITLEMENTS.md) |
 
 The term is already settled: ADR-016 is titled *"Plan definitions are data the control plane
 owns"*, and ENTITLEMENTS.md uses it throughout. Introducing a third word for the same thing now
 would cost more than it buys.
 
-> **Architecture Update (2026-09-08 — [ADR-030](DECISIONS.md#adr-030)):** The company control plane has been
+> **Architecture Update (2026-09-08 — [ADR-030](../DECISIONS.md#adr-030)):** The company control plane has been
 > updated and extracted to **Space** (`D:\Syed Systems\Space`), a separate standalone project in our directory.
 > `apps/platform` remains the transitional in-repo console during migration. Space is the target multi-product
 > console for Vendryx Commerce, ERP, and LMS.
@@ -118,10 +118,10 @@ Authorisation is sound in shape — bearer token, constant-time comparison, moun
 outside the tenant layer with a comment saying why, and **fails closed**: an unset token means
 the control plane is off, never open.
 
-**Items 1–3 below were resolved on 2026-08-21** — see [PHASE4_TASKS.md](PHASE4_TASKS.md) P29.
+**Items 1–3 below were resolved on 2026-08-21** — see [PHASE4_TASKS.md](../PHASE4_TASKS.md) P29.
 The full scope of this surface is now specified separately in
-[CONTROL_PLANE.md](CONTROL_PLANE.md): it is not a tenant admin panel, it is the only place
-the business is operated from. Current completion counts live in [STATUS.md](STATUS.md).
+[CONTROL_PLANE.md](../CONTROL_PLANE.md): it is not a tenant admin panel, it is the only place
+the business is operated from. Current completion counts live in [STATUS.md](../STATUS.md).
 
 1. ~~**No tests.**~~ **Done.** `operator_identity.rs` (6) and `audit_trail.rs` (7) cover the
    surface, on top of the existing `subscription_journey.rs`.
@@ -138,12 +138,12 @@ the business is operated from. Current completion counts live in [STATUS.md](STA
 4. **It does not yet cover what Phase 3 adds** — provider enablement and credential health across
    tenants, settlement and reconciliation oversight, and per-tenant theme assignment (P27-09
    switches a tenant between themes by configuration, which is a control-plane action with no
-   home today). This is [PHASE4_TASKS.md](PHASE4_TASKS.md) P32 and P35, and it is genuinely
+   home today). This is [PHASE4_TASKS.md](../PHASE4_TASKS.md) P32 and P35, and it is genuinely
    blocked on P21–P24 and P27.
 
 **The larger finding**, recorded while doing the above: the business had no way to charge a
-merchant. [ENTITLEMENTS.md §9](ENTITLEMENTS.md) scoped billing out of the engine, correctly,
-and nothing else picked it up. That became [PHASE4_TASKS.md](PHASE4_TASKS.md) P30, 17 tasks.
+merchant. [ENTITLEMENTS.md §9](../ENTITLEMENTS.md) scoped billing out of the engine, correctly,
+and nothing else picked it up. That became [PHASE4_TASKS.md](../PHASE4_TASKS.md) P30, 17 tasks.
 
 > **Corrected 2026-09-02.** Most of P30 has since been built and this paragraph's specifics are
 > no longer true. `migrations/20260821000003_platform_billing` exists; `generate_invoice`, the
@@ -225,7 +225,7 @@ naturally.
 **P26 runs in parallel** and touches no backend provider code.
 
 **P22 and P23 need merchant credentials to verify against a live sandbox**, but not to build:
-both are written against the recorded contracts in [providers/](providers/) with fixtures, per
+both are written against the recorded contracts in [providers/](../providers/) with fixtures, per
 P22-18 and P23-13.
 
 ---

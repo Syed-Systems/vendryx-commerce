@@ -1,6 +1,6 @@
 # Bangladesh Couriers — integration contracts
 
-**Date:** 2026-08-21 · **For:** [P23](../PHASE3_TASKS.md) and [P24](../PHASE3_TASKS.md) · **Governed by:** [ADR-013](../DECISIONS.md#adr-013) decision 6
+**Date:** 2026-08-21 · **For:** [P23](../archive/PHASE3_TASKS.md) and [P24](../archive/PHASE3_TASKS.md) · **Governed by:** [ADR-013](../DECISIONS.md#adr-013) decision 6
 
 Companion to [PAYMENT_GATEWAYS.md](PAYMENT_GATEWAYS.md). Same rule: credentials are tenant
 data, entered in the admin panel and encrypted at rest.

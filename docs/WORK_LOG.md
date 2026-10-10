@@ -5,6 +5,27 @@ synchronizations. Enforced by `python scripts/doc-sync-workflow.py`.
 
 ---
 
+### [v1.0.4] — 2026-10-10 15:35 UTC
+
+**Summary:** Repository declutter, ADR-031 alignment, and developer documentation suite
+
+**Modified Surfaces:**
+- **Documentation**
+- **Storefront**
+- **Admin**
+- **Marketing**
+- **Platform**
+- **Engine**
+
+**Quality Gates Verified:**
+- `doc-sync-workflow check`: PASSED
+- `check-brand-surface`: PASSED
+- `check-no-mock-storage`: PASSED
+- `storefront typecheck`: PASSED
+
+---
+
+
 ### [v2.28.0] — 2026-09-09 01:35 UTC
 
 **Summary:** Formalized and accepted ADR-031 ("Dynamic Multi-Tenant Visual Theming on a Unified Default Storefront Runtime"). Established the single-server Next.js storefront architecture that serves multi-tenant branded storefronts from the battle-tested, mature `frontend-default` DOM foundation without multi-server deployment sprawl. Defined dynamic runtime design token injection (CSS custom properties) for colors, typography, corner radii, and materials in `layout.tsx`, accompanied by component visual variant modifiers (`data-*`) for layout adaptivity. Standardized Apple Human Interface Guidelines (HIG) as the core aesthetic baseline (8pt spatial grid, generous whitespace, tabular pricing numerals, 16px squircles, pill buttons, frosted glass, fluid springs). Updated `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`, and documentation indices.

@@ -33,3 +33,4 @@ __pycache__/
 apps/marketing/*-preview.png
 
 .claude/
+*.log

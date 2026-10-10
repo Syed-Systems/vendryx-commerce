@@ -1,6 +1,7 @@
 # Vendryx Brand Guidelines (Syed Systems)
 
 This document is the **Single Source of Truth** for the core Vendryx and Syed Systems corporate brand identity.
+See [docs/BRAND.md](BRAND.md) for the complete design system specification and dynamic merchant token rules.
 
 **IMPORTANT DISTINCTION:**
 1. **Core Corporate Brand:** The guidelines below govern all internal/corporate products (Admin Dashboards, Marketing Sites, Syed Systems corporate pages, and default Vendryx properties).

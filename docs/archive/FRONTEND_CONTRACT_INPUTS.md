@@ -4,9 +4,9 @@
 **Governed by:** [ADR-013](../DECISIONS.md#adr-013)
 
 This document exists to be argued with, and it must be argued with **before**
-[P25-05](../PHASE3_TASKS.md) freezes the frontend contract.
+[P25-05](PHASE3_TASKS.md) freezes the frontend contract.
 
-[PHASE3_PLAN.md §P27](../PHASE3_PLAN.md) states the risk this list answers:
+[PHASE3_PLAN.md §P27](PHASE3_PLAN.md) states the risk this list answers:
 
 > A second frontend built by the same people who built core will not exercise the contract honestly.
 > They will unconsciously avoid the awkward parts.
@@ -223,7 +223,7 @@ not let it default.**
 
 frontend-default ships 17 icons, three of which are payment-brand marks (`ideal`, `bancontact`,
 `paypal`) rendered by checkout — which is core. Payment-method iconography is arguably core's, and
-it grows with every [P22](../PHASE3_TASKS.md) gateway: bKash, Nagad and SSLCommerz all have brand
+it grows with every [P22](PHASE3_TASKS.md) gateway: bKash, Nagad and SSLCommerz all have brand
 marks with usage rules attached.
 
 ---

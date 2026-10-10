@@ -2,7 +2,7 @@
 
 **~46 engineer-weeks of work · ~26 calendar weeks with three parallel tracks · 10 phases (P11–P20)**
 
-Phase 1 ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)) built the engine's domain logic and
+Phase 1 ([IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md)) built the engine's domain logic and
 stopped short of making it durable. This document covers everything between that and 1.0.
 
 Same staffing assumption: **4–6 engineers** — 3 Rust backend, 1–2 frontend, 1 shared
@@ -52,7 +52,7 @@ testable, **Parallelism**, and **Risk**.
 Two rules carry over, plus one new one:
 
 1. **The load suite runs at every gate.** A phase meeting its functional gate but missing its
-   latency budget ([PRD §7.1](PRD.md)) is not complete.
+   latency budget ([PRD §7.1](../PRD.md)) is not complete.
 2. **The parity suite runs at every gate.** Every endpoint added must pass its recorded Medusa
    fixtures before the phase closes.
 3. **New: no phase may ship a module that passes only against `InMemoryCrudStore`.** From P12
@@ -158,7 +158,7 @@ Execution of the P11 playbook across the read-heavy half of the domain.
 
 1. **Migrated modules** — `product` (finished in P11), `pricing`, `inventory`, `stock-location`,
    `sales-channel`, `tax`, `store`, `region`, `currency`.
-2. **Full migrations per module** — every entity in [DATA_MODEL §2](DATA_MODEL.md), with the
+2. **Full migrations per module** — every entity in [DATA_MODEL §2](../DATA_MODEL.md), with the
    indexes the list endpoints actually need, not just primary keys.
 3. **The pricing hot path** — `sql_query` escape hatch per ADR-004, benchmarked against the
    generic repository, with the decision recorded either way.
@@ -224,7 +224,7 @@ Parallel with P13. Touches none of the transactional machinery.
 
 1. **Migrated modules** — `customer`, `auth`, `user`, `api-key`, `rbac`, `file`, `notification`,
    `search`, `index`, `caching`, `locking`, `translation`, `settings`, `analytics`, `audit`.
-2. **The 22 writable link tables** from [DATA_MODEL §3.1](DATA_MODEL.md), with the unique index on
+2. **The 22 writable link tables** from [DATA_MODEL §3.1](../DATA_MODEL.md), with the unique index on
    each pair. `ALL_LINKS` declares them; no table has ever existed.
 3. **Read-only link traversal** — the 14 declarations in §3.2 wired into the query engine.
 4. **Distributed locking on Postgres advisory locks**, replacing the in-memory lock.
@@ -250,7 +250,7 @@ lifetime, which the pool will fight.
 
 ## P15 — Quota counters and entitlement enforcement (2 weeks)
 
-Small, well specified, and blocked on P14. [ENTITLEMENTS.md §6.2](ENTITLEMENTS.md) already
+Small, well specified, and blocked on P14. [ENTITLEMENTS.md §6.2](../ENTITLEMENTS.md) already
 prescribes the mechanism.
 
 ### Deliverables
@@ -279,7 +279,7 @@ Low. The pattern is the same atomic conditional update as campaign budgets, and 
 
 ## P16 — Reporting module (3 weeks)
 
-[ENTITLEMENTS.md §5c](ENTITLEMENTS.md) names this as **missing entirely** and as the Free-vs-Pro
+[ENTITLEMENTS.md §5c](../ENTITLEMENTS.md) names this as **missing entirely** and as the Free-vs-Pro
 differentiator. Nothing in the tier plan is sellable without it.
 
 ### Deliverables
@@ -287,7 +287,7 @@ differentiator. Nothing in the tier plan is sellable without it.
 1. **`stheno-reporting` module** — revenue over time, orders over time, top products, average
    order value.
 2. **Window-gated queries** — `analytics_window_days` bounds the horizon in SQL, per
-   [ENTITLEMENTS.md §4.2](ENTITLEMENTS.md). Zero branching in domain logic.
+   [ENTITLEMENTS.md §4.2](../ENTITLEMENTS.md). Zero branching in domain logic.
 3. **`GET /admin/reports/*`** in Medusa's envelope shape.
 4. **Materialised daily rollups** with incremental refresh, because scanning the order table per
    dashboard load will not hold the budget.
@@ -313,7 +313,7 @@ first aggregate.
 ## P17 — Admin API completion (8 weeks)
 
 The largest phase by task count and the most mechanical. ~240 routes across the resource groups in
-[API_SPEC §3.2](API_SPEC.md).
+[API_SPEC §3.2](../API_SPEC.md).
 
 ### Deliverables
 

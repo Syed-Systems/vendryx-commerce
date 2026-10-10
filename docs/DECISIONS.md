@@ -858,7 +858,7 @@ ADR-009's model remains valid for self-hosted single-merchant deployments, which
 > **ARCHITECTURE DEPRECATION NOTICE**
 > The core/theme package split defined in this ADR is completely superseded by [ADR-031](#adr-031) (Unified Default Storefront Runtime). The platform no longer supports scaffolding distinct `frontend-*` packages for visual themes. Visual branding is now accomplished strictly via CSS design tokens and component variant modifiers on a single Next.js unified runtime.
 
-**Status:** Superseded by [ADR-031](#adr-031) · **Date:** 2026-08-19 · **Implemented by:** [Phase 3](PHASE3_PLAN.md)
+**Status:** Superseded by [ADR-031](#adr-031) · **Date:** 2026-08-19 · **Implemented by:** [Phase 3](archive/PHASE3_PLAN.md)
 
 ### Context
 
@@ -1318,7 +1318,7 @@ Platform support operators need to assist merchants by inspecting issues within 
 ## ADR-019 — Provider credentials are tenant-owned, encrypted, and resolved through factories
 
 **Status:** Accepted · **Date:** 2026-08-21 · **Refines:** [ADR-001](#adr-001) ·
-[ADR-012](#adr-012) · [ADR-013](#adr-013) · **Tasks:** [PHASE3_TASKS.md](PHASE3_TASKS.md)
+[ADR-012](#adr-012) · [ADR-013](#adr-013) · **Tasks:** [PHASE3_TASKS.md](archive/PHASE3_TASKS.md)
 P21-P24
 
 ### Context
@@ -1468,7 +1468,7 @@ optional contract slot. A theme with no such page exports nothing and the route 
 
 - Keeps ADR-013 decision 4 intact and the boundary gate meaningful.
 - Costs a core minor per *kind* of page. The second design that wants `/lookbook` needs core again,
-  and that is exactly the per-theme core change [P27-07](PHASE3_TASKS.md) budgets against.
+  and that is exactly the per-theme core change [P27-07](archive/PHASE3_TASKS.md) budgets against.
 
 **B. One generic content route.** Core owns `/[countryCode]/[...slug]` backed by merchant-authored
 content, and every design's static pages become data rather than routes.
@@ -1501,7 +1501,7 @@ design does not mean adopting its URL taxonomy.
 ### Cost of the recommendation
 
 Every design with a bespoke page costs a core minor until B lands. That is stated here so the
-count is visible, because [P27-07](PHASE3_TASKS.md) budgets two core changes per theme and this
+count is visible, because [P27-07](archive/PHASE3_TASKS.md) budgets two core changes per theme and this
 would be the third for frontend-matrix.
 
 ---

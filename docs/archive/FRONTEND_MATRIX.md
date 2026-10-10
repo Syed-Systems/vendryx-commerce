@@ -1,6 +1,6 @@
 # frontend-matrix — The Matrix Hours
 
-**Status:** Working · **Date:** 2026-08-22 · **Relates to:** [P27-03..P27-05, P27-08](../PHASE3_TASKS.md) ·
+**Status:** Working · **Date:** 2026-08-22 · **Relates to:** [P27-03..P27-05, P27-08](PHASE3_TASKS.md) ·
 **Governed by:** [ADR-013](../DECISIONS.md#adr-013)
 
 A second storefront frontend, ported from the standalone **The Matrix Hours** shop
