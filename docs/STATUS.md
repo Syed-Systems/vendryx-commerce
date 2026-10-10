@@ -22,8 +22,8 @@ Vendryx Commerce is split into two bodies of work:
 | Phase group | Scope | Status | Evidence document |
 |---|---|---:|---|
 | P0-P10 | Core engine, storefront, admin parity baseline | Historical completed baseline | [TASKS.md](TASKS.md) |
-| P11-P20 | Phase 2 durability, persistence, multi-tenant foundations | Historical completed baseline | [PHASE2_TASKS.md](PHASE2_TASKS.md) |
-| P21-P28 | Providers, BD gateways, couriers, COD settlement, branding, theme packages, GA hardening | **95 / 95 done** | [PHASE3_STATUS.md](PHASE3_STATUS.md) |
+| P11-P20 | Phase 2 durability, persistence, multi-tenant foundations | Historical completed baseline | [PHASE2_TASKS.md](archive/PHASE2_TASKS.md) |
+| P21-P28 | Providers, BD gateways, couriers, COD settlement, branding, theme packages, GA hardening | **95 / 95 done** | [PHASE3_STATUS.md](archive/PHASE3_STATUS.md) |
 | P29 | Control-plane operator identity and audit | **10 / 10 done** | [PHASE4_TASKS.md](PHASE4_TASKS.md) |
 | P30-P36 | Billing, tenant lifecycle, oversight, analytics, support, config, hardening | **Not complete** | [PHASE4_TASKS.md](PHASE4_TASKS.md), [PLATFORM_COMPLETION_TASKS.md](PLATFORM_COMPLETION_TASKS.md) |
 

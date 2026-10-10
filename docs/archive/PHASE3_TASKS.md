@@ -8,14 +8,14 @@ ends in a **command that exits 0** — never a judgement call.
 [PHASE3_PLAN.md](PHASE3_PLAN.md) says what each phase achieves and why. This document is what an
 agent or engineer actually picks up.
 
-Task IDs continue from Phase 2 and never collide with it. [TASKS.md](TASKS.md) P0–P10 and
+Task IDs continue from Phase 2 and never collide with it. [TASKS.md](../TASKS.md) P0–P10 and
 [PHASE2_TASKS.md](PHASE2_TASKS.md) P11–P20 IDs remain valid references.
 
 ---
 
 ## 1. The loop protocol
 
-Unchanged from [TASKS.md §1](TASKS.md). Rules **L1–L8** apply verbatim, including the two that
+Unchanged from [TASKS.md §1](../TASKS.md). Rules **L1–L8** apply verbatim, including the two that
 matter most here:
 
 > **L3 — Never edit the exit command to make it pass.** Changing the gate is a spec change and
@@ -87,7 +87,7 @@ On a `[BP]` task, three rules replace the normal ones:
 3. **Report what you proved, not that it passed.** A `[BP]` task closed with "gate green" and no
    account of the failure mode is not closed. If you took a shortcut, name it.
 
-The ladder in [AGENTS.md §1](../AGENTS.md) still applies to *how much code you write*. It has
+The ladder in [AGENTS.md §1](../../AGENTS.md) still applies to *how much code you write*. It has
 never applied to how much you read, and on these sixteen it does not apply to how much you verify.
 
 ```bash
@@ -104,7 +104,7 @@ grep -nE '^\| P[0-9]+-[0-9a-z]+ \| [*][*]\[BP\]' docs/PHASE3_TASKS.md   # the si
 | P3-00b | **File Nagad merchant sandbox application** | — | Credentials received and recorded in the secrets store |
 | P3-00c | **File SSLCommerz sandbox application** | — | Credentials received and recorded in the secrets store |
 | P3-00d | **Open Pathao, Steadfast, RedX merchant accounts** | — | Credentials received and recorded in the secrets store |
-| P3-00e | **Write and accept [ADR-013](DECISIONS.md#adr-013)** — tiers, checkout-is-core, providers compile-time / enablement as data, redirect-only for PCI | — | ADR-013 merged with status Accepted and an index row |
+| P3-00e | **Write and accept [ADR-013](../DECISIONS.md#adr-013)** — tiers, checkout-is-core, providers compile-time / enablement as data, redirect-only for PCI | — | ADR-013 merged with status Accepted and an index row |
 
 These five are not counted in the 95. **P3-00a–d are started in week 1 regardless of engineering
 readiness** — see the P22 risk. P3-00e blocks P21-01 and P25-01.
@@ -208,7 +208,7 @@ readiness** — see the P22 risk. P3-00e blocks P21-01 and P25-01.
 
 > [!WARNING]
 > **ARCHITECTURE DEPRECATION NOTICE**
-> The P25 frontend extraction tasks are deprecated. The core/theme split and standalone `frontend-*` packages have been superseded by [ADR-031](DECISIONS.md#adr-031) (Unified Default Storefront Runtime). Do not execute these tasks.
+> The P25 frontend extraction tasks are deprecated. The core/theme split and standalone `frontend-*` packages have been superseded by [ADR-031](../DECISIONS.md#adr-031) (Unified Default Storefront Runtime). Do not execute these tasks.
 
 
 | ID | Task | Deps | Exit |
@@ -254,7 +254,7 @@ readiness** — see the P22 risk. P3-00e blocks P21-01 and P25-01.
 
 > [!WARNING]
 > **ARCHITECTURE DEPRECATION NOTICE**
-> The P27 theme conformance tasks are deprecated. Building standalone frontend packages and skinning checkouts has been superseded by [ADR-031](DECISIONS.md#adr-031). Do not execute these tasks.
+> The P27 theme conformance tasks are deprecated. Building standalone frontend packages and skinning checkouts has been superseded by [ADR-031](../DECISIONS.md#adr-031). Do not execute these tasks.
 
 
 | ID | Task | Deps | Exit |

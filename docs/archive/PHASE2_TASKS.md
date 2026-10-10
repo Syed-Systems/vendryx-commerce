@@ -6,14 +6,14 @@ and ends in a **command that exits 0** — never a judgement call.
 [PHASE2_PLAN.md](PHASE2_PLAN.md) says what each phase achieves and why. This document is what an
 agent or engineer actually picks up.
 
-Task IDs continue from Phase 1 and never collide with it. [TASKS.md](TASKS.md) P0–P10 IDs remain
+Task IDs continue from Phase 1 and never collide with it. [TASKS.md](../TASKS.md) P0–P10 IDs remain
 valid references.
 
 ---
 
 ## 1. The loop protocol
 
-Unchanged from [TASKS.md §1](TASKS.md). Rules **L1–L8** apply verbatim, including the one that
+Unchanged from [TASKS.md §1](../TASKS.md). Rules **L1–L8** apply verbatim, including the one that
 matters most:
 
 > **L3 — Never edit the exit command to make it pass.** Changing the gate is a spec change and
@@ -363,7 +363,7 @@ Track C, starting at P11. P11-02 must be `DONE` before anything here begins.
 | P20-18 | `security.txt`, disclosure policy, SBOM regenerated for the release | P20-04 | `./scripts/check-disclosure.sh` |
 
 **Phase gate:** `./scripts/gate-p20.sh`, then the full 1.0 checklist in
-[PARITY_MATRIX §4](PARITY_MATRIX.md).
+[PARITY_MATRIX §4](../PARITY_MATRIX.md).
 
 ---
 

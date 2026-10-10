@@ -18,7 +18,7 @@ dependencies, and ends in a **command that exits 0** — never a judgement call.
 matters. This document is what an agent or engineer actually picks up.
 
 Task IDs continue from Phase 3 and never collide with it. [TASKS.md](TASKS.md) P0–P10,
-[PHASE2_TASKS.md](PHASE2_TASKS.md) P11–P20 and [PHASE3_TASKS.md](PHASE3_TASKS.md) P21–P28
+[PHASE2_TASKS.md](archive/PHASE2_TASKS.md) P11–P20 and [PHASE3_TASKS.md](archive/PHASE3_TASKS.md) P21–P28
 remain valid references.
 
 ---

@@ -1,6 +1,6 @@
 # Bangladesh Payment Gateways — integration contracts
 
-**Date:** 2026-08-21 · **For:** [P22](../PHASE3_TASKS.md) · **Governed by:** [ADR-013](../DECISIONS.md#adr-013) decisions 6 and 7
+**Date:** 2026-08-21 · **For:** [P22](../archive/PHASE3_TASKS.md) · **Governed by:** [ADR-013](../DECISIONS.md#adr-013) decisions 6 and 7
 
 Pulled from vendor documentation so P22 is implementable without anyone re-reading a
 gateway's website. Where a fact could not be confirmed from the vendor's own docs, it is

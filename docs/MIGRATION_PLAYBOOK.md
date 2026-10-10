@@ -4,7 +4,7 @@
 
 Written from the three modules migrated in P11 — `region` (P11-17), `currency` (P11-18) and
 `product` (P11-19, P11-20). P12–P14 follow it **unamended**. If a module needs a step that is
-not here, that is a signal the abstraction is wrong ([PHASE2_PLAN §4.2](PHASE2_PLAN.md)) —
+not here, that is a signal the abstraction is wrong ([PHASE2_PLAN §4.2](archive/PHASE2_PLAN.md)) —
 fix the abstraction and amend this document in the same change, rather than working around it
 in the module.
 
@@ -15,7 +15,7 @@ actually follows the steps below. It is not a reading comprehension test: it che
 
 ## 0. Before you start
 
-A module is migrated when **all** of these hold ([PHASE2_PLAN §6](PHASE2_PLAN.md)):
+A module is migrated when **all** of these hold ([PHASE2_PLAN §6](archive/PHASE2_PLAN.md)):
 
 - no `RwLock<HashMap>` in its `service.rs`;
 - every entity has a migration, a `CrudEntity` impl, and an index for each filterable column;
@@ -172,7 +172,7 @@ working constraint.
 - workflow tests in `crates/flows/*/tests/`.
 
 Each becomes a `TestDb::migrated()` plus a pool. There is no in-memory mode to fall back to,
-by design ([PHASE2_PLAN §1.3](PHASE2_PLAN.md)).
+by design ([PHASE2_PLAN §1.3](archive/PHASE2_PLAN.md)).
 
 ## 6. Declare it migrated
 

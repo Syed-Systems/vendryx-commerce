@@ -255,7 +255,7 @@ affect?* If the answer is "all of them", it is a `[BP]` whether or not the table
   `payment_webhook_route.rs`, `stranded_request_recovery.rs`, `docs/providers/`,
   `migrations/20260821000001_fulfillment_provider_request/`, and edits to
   `stheno-fulfillment` / `stheno-payment` / `stheno-payment-stripe`. It is described in
-  [PHASE3_STATUS.md](PHASE3_STATUS.md) §1. Not written by this session, not verified by it.
+  [PHASE3_STATUS.md](archive/PHASE3_STATUS.md) §1. Not written by this session, not verified by it.
 
 - Two links in `docs/providers/` pointed at `PHASE3_TASKS.md` from the wrong directory.
   Fixed while writing `check-docs-links.sh`, which is how they were found.

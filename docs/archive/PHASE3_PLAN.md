@@ -1,11 +1,11 @@
 # Phase 3 Implementation Plan
 
-**Status:** Final · **Date:** 2026-08-19 · **Governed by:** [ADR-013](DECISIONS.md#adr-013)
+**Status:** Final · **Date:** 2026-08-19 · **Governed by:** [ADR-013](../DECISIONS.md#adr-013)
 
 > [!WARNING]
 > **ARCHITECTURE DEPRECATION NOTICE (v2.28.0)**
 >
-> The frontend extraction and multi-theme architecture described in this plan (specifically the scaffolding of `frontend-<name>` packages in Phases P25–P27) has been **deprecated** by [ADR-031](DECISIONS.md#adr-031). 
+> The frontend extraction and multi-theme architecture described in this plan (specifically the scaffolding of `frontend-<name>` packages in Phases P25–P27) has been **deprecated** by [ADR-031](../DECISIONS.md#adr-031). 
 > 
 > The platform now uses a **Unified Default Storefront Runtime** (`frontend-default`) with dynamic, runtime CSS custom property injection and `data-*` variant modifiers. Agents must NOT scaffold new frontend packages for visual variations.
 
@@ -24,7 +24,7 @@ Phase 3 is the first phase where the frontend track is not support work.
 **Task-level breakdown:** [PHASE3_TASKS.md](PHASE3_TASKS.md) decomposes these phases into 95
 tasks, each ending in a command that exits 0.
 
-**Decision record:** [ADR-013](DECISIONS.md#adr-013) states the modularity contract this phase
+**Decision record:** [ADR-013](../DECISIONS.md#adr-013) states the modularity contract this phase
 implements. It is written **before** P21-01, per rule L8.
 
 ---
@@ -121,7 +121,7 @@ almost everything here already exists and is unwired.
    them.
 2. **Redirect flow modelled, not improvised.** `ProviderCapabilities` gains `redirect: bool`.
    `InitiateOutput.data` gains a documented `redirect_url` convention. The checkout reads it in
-   **one** place in storefront core, because checkout is core ([ADR-013](DECISIONS.md#adr-013)).
+   **one** place in storefront core, because checkout is core ([ADR-013](../DECISIONS.md#adr-013)).
 3. **The provider conformance suite.** A generic harness in `stheno-payment` that any
    `PaymentProvider` impl is run through: session lifecycle, idempotent capture, partial refund
    where declared, webhook replay, and capability honesty — a provider declaring
@@ -134,7 +134,7 @@ almost everything here already exists and is unwired.
    store credentials encrypted at rest.
 6. **The PCI rule made mechanical.** `scripts/check-provider-pci.sh` fails the build if a provider
    crate declares a card-data-accepting flow. Redirect and iframe only, per
-   [PCI_SAQ_A.md](PCI_SAQ_A.md) §1.
+   [PCI_SAQ_A.md](../PCI_SAQ_A.md) §1.
 
 ### Exit gate
 
@@ -170,7 +170,7 @@ Execution of the P21 conformance suite across three real gateways.
    fronts (cards, mobile banking, net banking).
 4. **Sandbox integration tests** for each, recorded as fixtures so CI does not depend on a third
    party being up.
-5. **BDT currency and rounding verified end to end** — decimal per [ADR-006](DECISIONS.md#adr-006),
+5. **BDT currency and rounding verified end to end** — decimal per [ADR-006](../DECISIONS.md#adr-006),
    minor-unit conversion at the provider boundary only.
 
 ### Exit gate
@@ -269,7 +269,7 @@ wrong.
 
 1. **`@stheno/storefront-core`** — `src/lib/data`, `src/lib/context`, `src/lib/hooks`, the
    middleware, and **the `app/` route tree**. Routing, region resolution, SEO, and the entire
-   checkout flow live here and are not theme-editable, per [ADR-013](DECISIONS.md#adr-013).
+   checkout flow live here and are not theme-editable, per [ADR-013](../DECISIONS.md#adr-013).
 2. **`@stheno/frontend-default`** — everything currently in `src/modules`, converted to a theme
    package exporting a typed component map.
 3. **The theme contract** — one typed interface enumerating every component a theme must export and
@@ -297,13 +297,13 @@ that reason.
 
 **Second risk: the route tree is contested.** Putting routes in the theme feels more flexible and
 is wrong — it hands URL structure, region routing and checkout flow to whoever writes the theme.
-[ADR-013](DECISIONS.md#adr-013) settles this; do not relitigate it in code review.
+[ADR-013](../DECISIONS.md#adr-013) settles this; do not relitigate it in code review.
 
 ---
 
 ## P26 — Branding tier, runtime tokens (3 weeks)
 
-The free/base tier from [ADR-013](DECISIONS.md#adr-013): store name, typography, colour. Data, not
+The free/base tier from [ADR-013](../DECISIONS.md#adr-013): store name, typography, colour. Data, not
 code — resolved per request in one shared runtime, no build, no deploy.
 
 ### Deliverables
@@ -324,7 +324,7 @@ code — resolved per request in one shared runtime, no build, no deploy.
   colours.
 - **Branding applies on checkout routes**, not only on catalog pages — and
   `check-checkout-scripts.sh` stays green while it does. Self-hosted fonts only, per
-  [ADR-013](DECISIONS.md#adr-013) decision 2a.
+  [ADR-013](../DECISIONS.md#adr-013) decision 2a.
 - A branding change is visible on the next request with no rebuild and no restart.
 - A tenant with no branding row renders the default theme, not an error.
 - Branding reads are tenant-scoped — verified by an RLS test, not by inspection.
@@ -333,7 +333,7 @@ code — resolved per request in one shared runtime, no build, no deploy.
 
 ### Risk
 
-**This phase assumes [ADR-012](DECISIONS.md#adr-012)'s audit test is green.** Branding is the first
+**This phase assumes [ADR-012](../DECISIONS.md#adr-012)'s audit test is green.** Branding is the first
 feature where one process serves visibly different tenants, so it is where an isolation gap becomes
 a screenshot. Confirm the tenancy audit passes before P26-01, not during.
 
@@ -380,7 +380,7 @@ merged.
 ### Deliverables
 
 1. **SAQ-A re-attestation** covering the three new gateways. Every redirect and iframe origin added
-   to the CSP and to [payment-page-scripts.md](payment-page-scripts.md), with
+   to the CSP and to [payment-page-scripts.md](../payment-page-scripts.md), with
    `check-checkout-scripts.sh` updated and green.
 2. **Provider failure-mode testing** — gateway timeout, gateway 500, callback never arriving,
    courier API down. Each has a defined, tested outcome.
@@ -414,7 +414,7 @@ task and it is the critical path for P22.
 
 ## 4. Sequencing rules
 
-1. **[ADR-013](DECISIONS.md#adr-013) is written and accepted before P21-01 and P25-01.** Both tracks
+1. **[ADR-013](../DECISIONS.md#adr-013) is written and accepted before P21-01 and P25-01.** Both tracks
    depend on the checkout-is-core rule; discovering disagreement in code review costs the
    extraction.
 2. **Sandbox applications are filed before Phase 3 starts.** See P22's risk.
@@ -474,7 +474,7 @@ A theme is shippable when all of these hold:
 ## 8. Breaking points — where the lazy answer is the wrong answer
 
 Most of the 95 tasks in [PHASE3_TASKS.md](PHASE3_TASKS.md) are ordinary. Take the shortest path
-that works, per [AGENTS.md §1](../AGENTS.md), and move on.
+that works, per [AGENTS.md §1](../../AGENTS.md), and move on.
 
 **Thirteen are not.** Each one below shares a signature: **a plausible implementation passes its
 own test and fails in production, silently.** No crash, no red build, no stack trace — a wrong
@@ -538,7 +538,7 @@ a legitimate callback.
 **Required effort:** a **negative test per gateway** — tampered payload, tampered signature, and
 replayed-with-different-amount — each asserting no state change. Never trust an amount or an order
 id from a callback body without verifying it against a provider-side query. This is a trust
-boundary; [AGENTS.md §1](../AGENTS.md) forbids simplifying it.
+boundary; [AGENTS.md §1](../../AGENTS.md) forbids simplifying it.
 
 ---
 
@@ -548,7 +548,7 @@ boundary; [AGENTS.md §1](../AGENTS.md) forbids simplifying it.
 
 **How it fails:** rounding at the wrong boundary loses paisa per transaction. Nothing errors. The
 storefront, the order, and the gateway each show a defensible number, and then P24's reconciliation
-never balances — and the cause is three phases upstream. [ADR-006](DECISIONS.md#adr-006) exists
+never balances — and the cause is three phases upstream. [ADR-006](../DECISIONS.md#adr-006) exists
 because of exactly this.
 
 **Required effort:** conversion happens **only** at the provider boundary, via
@@ -621,12 +621,12 @@ test catches it.
 makes themes feel more powerful.
 
 **How it fails:** it hands URL structure, region resolution, SEO and the checkout flow to whoever
-writes the theme. Every guarantee in [ADR-013](DECISIONS.md#adr-013) evaporates, and it evaporates
+writes the theme. Every guarantee in [ADR-013](../DECISIONS.md#adr-013) evaporates, and it evaporates
 quietly — the build stays green and the consequence arrives when the fourth theme has four URL
 schemes and the sitemap is meaningless.
 
 **Required effort:** none technically — this one costs discipline, not work.
-[ADR-013](DECISIONS.md#adr-013) decision 4 settles it. **Do not relitigate it in code review**, and
+[ADR-013](../DECISIONS.md#adr-013) decision 4 settles it. **Do not relitigate it in code review**, and
 do not accept "just this route" from a theme.
 
 ---
@@ -652,7 +652,7 @@ done, regardless of how much better the new version is.
 **How it fails:** branding is the first feature where one process renders *visibly* different
 tenants. An isolation gap that was previously an abstract risk becomes a screenshot of another
 merchant's logo on a customer's checkout page. That is not a bug report, it is a breach
-disclosure — see [ADR-012](DECISIONS.md#adr-012)'s "company-ending" note.
+disclosure — see [ADR-012](../DECISIONS.md#adr-012)'s "company-ending" note.
 
 **Required effort:** run the audit and read the result before P26-02. Not "it passed last month" —
 run it. Every branding read is tenant-scoped and proven by an RLS test, never by inspection.
@@ -687,9 +687,9 @@ production for real customers. Widen the CSP to a wildcard and SAQ-A eligibility
 `check-pci-saq-a.sh` may still pass while the attestation it represents has become false.
 
 **Required effort:** each gateway's redirect and iframe origins are added **explicitly and
-individually** to the CSP and to [payment-page-scripts.md](payment-page-scripts.md). A wildcard on
+individually** to the CSP and to [payment-page-scripts.md](../payment-page-scripts.md). A wildcard on
 a checkout route is a rejected change, not a temporary unblock. Per
-[ADR-013](DECISIONS.md#adr-013) decision 3, this is a compliance boundary, not a configuration
+[ADR-013](../DECISIONS.md#adr-013) decision 3, this is a compliance boundary, not a configuration
 preference.
 
 ---
