@@ -1,0 +1,1310 @@
+{
+  "product": "Vendryx",
+  "version": "1.0",
+  "selected_concept": "Concept C: connected channel cart",
+  "assets_by_directory": {
+    ".": 2,
+    "02_Favicons": 11,
+    "05_Brand_Guidelines": 2,
+    "07_Collateral_Templates": 9,
+    "03_App_Icons": 33,
+    "08_Previews": 1,
+    "04_Social_and_Marketing": 16,
+    "06_Developer_Tokens": 6,
+    "01_Logos/Monochrome": 8,
+    "01_Logos/Primary": 20,
+    "01_Logos/Marks": 30,
+    "01_Logos/Secondary": 12
+  },
+  "total_assets_without_manifest": 150,
+  "guideline_source": "05_Brand_Guidelines/BRAND_GUIDELINES.md",
+  "official_tagline": "Sell More. Worry Less.",
+  "campaign_line": "One cart. Every channel. One commerce OS.",
+  "file_checks": [
+    {
+      "path": "01_Logos/Marks/vendryx-cart-monochrome-1024.png",
+      "bytes": 50520,
+      "sha256": "144f0456a40e97161fdf3be0152a5731f82c4f84065f8700503f79c67dc6c7fa",
+      "dimensions_px": [
+        1024,
+        1024
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-monochrome-128.png",
+      "bytes": 5537,
+      "sha256": "adb0d209eddae2a0db93474f446fe84ceb2701e5aa1b2a1a8f52b4d105ba0310",
+      "dimensions_px": [
+        128,
+        128
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-monochrome-2048.png",
+      "bytes": 112692,
+      "sha256": "fe2ec306335399b6185b5cf221ace99e4b21851751b8e040240b7012e324e2b4",
+      "dimensions_px": [
+        2048,
+        2048
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-monochrome-256.png",
+      "bytes": 11254,
+      "sha256": "a857a336cb8fca6fcfb9e92780914ee7708f837aedfabc379e61a765962714ce",
+      "dimensions_px": [
+        256,
+        256
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-monochrome-512.png",
+      "bytes": 23560,
+      "sha256": "a0bf89f808a9b47848cbbd20283fa7a1b61590554cfc2002006d1fb9c34b2be7",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-monochrome.svg",
+      "bytes": 1826,
+      "sha256": "789be7f68b2083de86ee2e5bc761a51fe4168c46b9b05b05bc3a6c9a8507b548"
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-white-1024.png",
+      "bytes": 39928,
+      "sha256": "bca1a5fa7a47c022fc0ad2f3dddb1f05ff70d09fd377431e59f16775a84cddce",
+      "dimensions_px": [
+        1024,
+        1024
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-white-128.png",
+      "bytes": 3498,
+      "sha256": "76f99077babdce2227cce6dfe2c07560d805d43642d6b115fbbf6b9f2b688da6",
+      "dimensions_px": [
+        128,
+        128
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-white-2048.png",
+      "bytes": 90268,
+      "sha256": "9be31f2e9a1c29fcadcb1cfd6d7654ddd39b6afe8fa570173c3b0111ebe983c1",
+      "dimensions_px": [
+        2048,
+        2048
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-white-256.png",
+      "bytes": 7845,
+      "sha256": "bd9f9eb2b4fe20b11367a71b28376578c8fdf1eabd0285a54840974ebbbc7870",
+      "dimensions_px": [
+        256,
+        256
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-white-512.png",
+      "bytes": 17744,
+      "sha256": "66ccff389e9cf9e7cc8ab5d3cf7868bd66609d21145ce77e386299551ed6ca16",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-white.svg",
+      "bytes": 1826,
+      "sha256": "73f528a48b41b80012f74164039f42c617c0034fa66ddc0d90600ceb65a51bec"
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-with-channels-1024.png",
+      "bytes": 95835,
+      "sha256": "6d493b5de41ca23da7aa59668cf4854b5331e5b28c9dd8fdf9d6122b8f3a817b",
+      "dimensions_px": [
+        1024,
+        1024
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-with-channels-128.png",
+      "bytes": 9804,
+      "sha256": "e3a63523fe072af570b8acecd5899cc299d2c76847e7e0e7a9fc43a3204013fc",
+      "dimensions_px": [
+        128,
+        128
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-with-channels-2048.png",
+      "bytes": 220745,
+      "sha256": "bd74b16d37a21e78f8249a5836e8f1f46516979dc7482eca10b83d3818f04b9f",
+      "dimensions_px": [
+        2048,
+        2048
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-with-channels-256.png",
+      "bytes": 20695,
+      "sha256": "de8c411b48afe51b181aaa0dd7d9928fbcd67857b12c7ac6112c50f9fb31cccb",
+      "dimensions_px": [
+        256,
+        256
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-with-channels-512.png",
+      "bytes": 44346,
+      "sha256": "75f6ac0bba2b1dc25f262289b90bd0e414bd0207773902449b77992a7b6aab50",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-cart-with-channels.svg",
+      "bytes": 2874,
+      "sha256": "223febd57064a88e7a9adae46774f7acf4dcc70bb970496dff665bbd662e2139"
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-1024.png",
+      "bytes": 68308,
+      "sha256": "ceae1677286ed412deb5e5b2adec21da1d4e3b67a650aaa1edfc2ba20b08bb13",
+      "dimensions_px": [
+        1024,
+        1024
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-128.png",
+      "bytes": 6863,
+      "sha256": "fd1d53fe7c4a11bea64d6c1c433a9f59de8aef77d065807b298e3770b871ed1f",
+      "dimensions_px": [
+        128,
+        128
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-2048.png",
+      "bytes": 162421,
+      "sha256": "a1027da9540a8288f73581d489b8891d0c8696fc888035c198294a0220663ecc",
+      "dimensions_px": [
+        2048,
+        2048
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-256.png",
+      "bytes": 14348,
+      "sha256": "8b46d9fbdb7a7e51da69341f483876c5f8ce32d1fbe4bada23d9dd947563013c",
+      "dimensions_px": [
+        256,
+        256
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-512.png",
+      "bytes": 30884,
+      "sha256": "57ff87e48aa15cea7c16a32490d19ce492f6aed4e3b59120e9dfe1ce644f70f9",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-micro-1024.png",
+      "bytes": 27275,
+      "sha256": "a02cd391a916e38f599fd058bc7f82e48857973537434e8477879df3b4ef5dde",
+      "dimensions_px": [
+        1024,
+        1024
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-micro-128.png",
+      "bytes": 2906,
+      "sha256": "53c8b91540dbaa8492886aa82f3ee95404602b6cc1df1fe743dbd1e4ec687b29",
+      "dimensions_px": [
+        128,
+        128
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-micro-2048.png",
+      "bytes": 63256,
+      "sha256": "a9be917834e6d3a7793e4f209fe7631a17b0dbeddfdaca961b658db3f50b2805",
+      "dimensions_px": [
+        2048,
+        2048
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-micro-256.png",
+      "bytes": 5562,
+      "sha256": "d7044c41db96081d09edb1eb3d8491299e6b0885f6282507fe5895177f7ccf2e",
+      "dimensions_px": [
+        256,
+        256
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-micro-512.png",
+      "bytes": 12457,
+      "sha256": "65f47c916cd0ad28730294d7e3a50254d3315be90a2dd2127a46fc4da47911ae",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart-micro.svg",
+      "bytes": 1155,
+      "sha256": "e159e5575f779ab3938a0ba5b124722f86e769ce0b1888225f1ee2a3030d6915"
+    },
+    {
+      "path": "01_Logos/Marks/vendryx-connected-cart.svg",
+      "bytes": 1864,
+      "sha256": "7623c9ca8edf7b9095f7f24a0690d099ef08b1e925921e74cbca912a038e225b"
+    },
+    {
+      "path": "01_Logos/Monochrome/vendryx-black-1200w.png",
+      "bytes": 33642,
+      "sha256": "820ed76138fb55755b5c3c8efe5948d0dd9cae7b8a05f1596997c09694261aaf",
+      "dimensions_px": [
+        1200,
+        320
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Monochrome/vendryx-black-2400w.png",
+      "bytes": 72053,
+      "sha256": "b73ce1fa3b394195bd3ae7547eb487a687655e00846304703719d09cada40aa9",
+      "dimensions_px": [
+        2400,
+        640
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Monochrome/vendryx-black-600w.png",
+      "bytes": 16263,
+      "sha256": "20b4c3a07d3e5a8c7360de7c97d89316cb5fa031b950f95d449d2dcc44242983",
+      "dimensions_px": [
+        600,
+        160
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Monochrome/vendryx-black.svg",
+      "bytes": 15557,
+      "sha256": "c98443f49bd210e0b8bc50cbb8dde9ce5bf808f550347af6c11b01b709266168"
+    },
+    {
+      "path": "01_Logos/Monochrome/vendryx-white-1200w.png",
+      "bytes": 26702,
+      "sha256": "405dcab607aaa99ae8393a16243d3b9d031b7a7ea339d469055669482f2fe830",
+      "dimensions_px": [
+        1200,
+        320
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Monochrome/vendryx-white-2400w.png",
+      "bytes": 58863,
+      "sha256": "a9327bfc7f65e7910e58638376bd6f5c86d636785a68347413dd0f73c6bfc915",
+      "dimensions_px": [
+        2400,
+        640
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Monochrome/vendryx-white-600w.png",
+      "bytes": 12009,
+      "sha256": "86ed55402c777394fce9930c9fc3daa439ea02af58d90741b7d436c35156be64",
+      "dimensions_px": [
+        600,
+        160
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Monochrome/vendryx-white.svg",
+      "bytes": 15557,
+      "sha256": "5918dc7b4dcd73b9cb9d8ce2614c3fbbe16dfbeb20e04bb1b214e35c31dab006"
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-channel-edition-dark-1200w.png",
+      "bytes": 44378,
+      "sha256": "8ccdef630eb3eaecbb7459f2b120a9b6bc8310cdd986da5a40b0ca323780b61c",
+      "dimensions_px": [
+        1200,
+        320
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-channel-edition-dark-2400w.png",
+      "bytes": 94008,
+      "sha256": "7824c4e2aa64d3a904af149c3365d30475c6d7718a5155d303d657f31d1e7131",
+      "dimensions_px": [
+        2400,
+        640
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-channel-edition-dark-3600w.png",
+      "bytes": 148941,
+      "sha256": "cd72c5ae616cf04df1df44c2fb1eb7f816c9c7472bee345a3be1162f06301c9c",
+      "dimensions_px": [
+        3600,
+        960
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-channel-edition-dark-600w.png",
+      "bytes": 20427,
+      "sha256": "294414a4d00531ff03aaf5ca8bbae26ada2d626b87d7d956f695554caca1a39c",
+      "dimensions_px": [
+        600,
+        160
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-channel-edition-dark.svg",
+      "bytes": 16605,
+      "sha256": "3fba35db91acfb7aa6ff497fbe4bfd847679dfeb1cc00a9d6e90ae6250fd32d2"
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-channel-edition-light-1200w.png",
+      "bytes": 47838,
+      "sha256": "b32933b92752f8a38463fc8d50faa9cfbcc0da4ed4ad2b56ef1f6a822b61006d",
+      "dimensions_px": [
+        1200,
+        320
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-channel-edition-light-2400w.png",
+      "bytes": 101351,
+      "sha256": "880977fa8d813a8744d7da3ffeb5471f0655a7f454a22831c8861cc4fd3c5b6e",
+      "dimensions_px": [
+        2400,
+        640
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-channel-edition-light-3600w.png",
+      "bytes": 158831,
+      "sha256": "8b144a6c51daccc84e0c26ff5ce8f5c6ea358b9819c7c3887aba533558861716",
+      "dimensions_px": [
+        3600,
+        960
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-channel-edition-light-600w.png",
+      "bytes": 22053,
+      "sha256": "7f1cea0b800a5ebf8f1ffee450010099039313d19f237d5d66f891e47d7fa040",
+      "dimensions_px": [
+        600,
+        160
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-channel-edition-light.svg",
+      "bytes": 16605,
+      "sha256": "34f4a43e16285c81e960f16951a5bd9a50eb5116d58ff386c912a8b9dda5a0dc"
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-primary-dark-1200w.png",
+      "bytes": 35592,
+      "sha256": "0967c2377042b46fff0b59c49d06b080a66980b8ef39dfcbf38c5381ff17b7b6",
+      "dimensions_px": [
+        1200,
+        320
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-primary-dark-2400w.png",
+      "bytes": 76430,
+      "sha256": "b3f0b9efd91506bafdb65e288a8037cbf27a6f73e9ad3949cb1f29efd94f9822",
+      "dimensions_px": [
+        2400,
+        640
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-primary-dark-3600w.png",
+      "bytes": 121695,
+      "sha256": "907be8afd98977f9a688d0770ce9416c3225cf6d5725c380a2d48353b8f3da3d",
+      "dimensions_px": [
+        3600,
+        960
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-primary-dark-600w.png",
+      "bytes": 16548,
+      "sha256": "5f6926a3274ddd38f8ec329e18ca583838ba359b082dd9777c20b4c588f5c900",
+      "dimensions_px": [
+        600,
+        160
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-primary-dark.svg",
+      "bytes": 15595,
+      "sha256": "03f4daf3d1ef0714b665c5f24c33400ba4147a1c396be21ce890bd5025873025"
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-primary-light-1200w.png",
+      "bytes": 38981,
+      "sha256": "91320962b7d138cb104ec86a5a90f7f3b41091a30db43ee33f8d86a8c5dbc4ad",
+      "dimensions_px": [
+        1200,
+        320
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-primary-light-2400w.png",
+      "bytes": 83504,
+      "sha256": "22933d325ddb4a87576bce4a9c61d844540acc2b8ab571c12241d0ca89f9fb86",
+      "dimensions_px": [
+        2400,
+        640
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-primary-light-3600w.png",
+      "bytes": 131711,
+      "sha256": "149068adcdf3bde8867fb90feb93f4ece47a03dc5ce066c6101430acc76418b5",
+      "dimensions_px": [
+        3600,
+        960
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-primary-light-600w.png",
+      "bytes": 18239,
+      "sha256": "4207d5e4c464081142605f6a9a46675d2b709c245536e1c45357a332c916ae93",
+      "dimensions_px": [
+        600,
+        160
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Primary/vendryx-primary-light.svg",
+      "bytes": 15595,
+      "sha256": "6d2a571ab38079c239ed92d401cc00372a0b1bbdea183f5c5cc8ce80d275ca0a"
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-stacked-dark-1600w.png",
+      "bytes": 72481,
+      "sha256": "30588bcc80ac6076f925d9e7068f4d4d17193a5965e5bf753c4ac4d5df1ff037",
+      "dimensions_px": [
+        1600,
+        1022
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-stacked-dark-2400w.png",
+      "bytes": 119337,
+      "sha256": "6e58fa63f320dfb6e9bffc9f07f079020b8a3607c9a2aaa051e5adf2b0223b3b",
+      "dimensions_px": [
+        2400,
+        1532
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-stacked-dark-800w.png",
+      "bytes": 32723,
+      "sha256": "3bb48a59ea9e20bab5a7a3eef7d94480c981b5c5710c5eb768b95f8f69c551a6",
+      "dimensions_px": [
+        800,
+        511
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-stacked-dark.svg",
+      "bytes": 14239,
+      "sha256": "04aff53e1f6a9bdd03686e78e4fa163587fc70124c8b00d7b0a127076dbd8f0e"
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-stacked-light-1600w.png",
+      "bytes": 77435,
+      "sha256": "6766fecbe054ae42694b345fd46e712f8aad0dd375d20c4bea86e2057991c632",
+      "dimensions_px": [
+        1600,
+        1022
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-stacked-light-2400w.png",
+      "bytes": 127118,
+      "sha256": "b967d9ca3d61f9621390d55b07ba17b6989610ddcf764d77d4044e56627bd3f8",
+      "dimensions_px": [
+        2400,
+        1532
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-stacked-light-800w.png",
+      "bytes": 35579,
+      "sha256": "38b5c4981e91ee2f1c626089d6a31c44d9213efa5a01ed21c9e5a708afe80280",
+      "dimensions_px": [
+        800,
+        511
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-stacked-light.svg",
+      "bytes": 14239,
+      "sha256": "1b1ae93c3eb6d7262ade42b9d2503e1d88a2e4f31c4ba01f51d6dd083a21f11c"
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-with-tagline-1600w.png",
+      "bytes": 67390,
+      "sha256": "e67846b2ba673fa9303bf1094316d4b9c87064116b80eb5c073b8d7320c48c75",
+      "dimensions_px": [
+        1600,
+        427
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-with-tagline-2400w.png",
+      "bytes": 104020,
+      "sha256": "cd1716796eaef865c6213b687aef89d8269849d95eb0395a678d0a7ac0c0e51f",
+      "dimensions_px": [
+        2400,
+        640
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-with-tagline-800w.png",
+      "bytes": 31075,
+      "sha256": "6eed0250c834c186f1cba2a012210d0069697c8393ce5a115d236ed740c90670",
+      "dimensions_px": [
+        800,
+        213
+      ],
+      "alpha": true
+    },
+    {
+      "path": "01_Logos/Secondary/vendryx-with-tagline.svg",
+      "bytes": 41373,
+      "sha256": "00ffffef676e8467eea1c542398c3d180b0cbe2addebdf1f98750fd66337fb84"
+    },
+    {
+      "path": "02_Favicons/favicon-128x128.png",
+      "bytes": 2906,
+      "sha256": "53c8b91540dbaa8492886aa82f3ee95404602b6cc1df1fe743dbd1e4ec687b29",
+      "dimensions_px": [
+        128,
+        128
+      ],
+      "alpha": true
+    },
+    {
+      "path": "02_Favicons/favicon-16x16.png",
+      "bytes": 449,
+      "sha256": "46c7121a2515bcc48ac50bb9b163a0b0637f0c985d54f338e5e6f3378b790cce",
+      "dimensions_px": [
+        16,
+        16
+      ],
+      "alpha": true
+    },
+    {
+      "path": "02_Favicons/favicon-24x24.png",
+      "bytes": 637,
+      "sha256": "f5735de1fa7577ab53948a50c7c09967fab9e9767c5705632504fcd7950c0f83",
+      "dimensions_px": [
+        24,
+        24
+      ],
+      "alpha": true
+    },
+    {
+      "path": "02_Favicons/favicon-256x256.png",
+      "bytes": 5562,
+      "sha256": "d7044c41db96081d09edb1eb3d8491299e6b0885f6282507fe5895177f7ccf2e",
+      "dimensions_px": [
+        256,
+        256
+      ],
+      "alpha": true
+    },
+    {
+      "path": "02_Favicons/favicon-32x32.png",
+      "bytes": 815,
+      "sha256": "d954626ea491c996195011f38543aaad095edcce72d4575f83bf71ca7750a3b3",
+      "dimensions_px": [
+        32,
+        32
+      ],
+      "alpha": true
+    },
+    {
+      "path": "02_Favicons/favicon-48x48.png",
+      "bytes": 1221,
+      "sha256": "2ca15d8e0007a09473a41f02f21a3afe5787c2dd760d546a39d7ff45df07cb2a",
+      "dimensions_px": [
+        48,
+        48
+      ],
+      "alpha": true
+    },
+    {
+      "path": "02_Favicons/favicon-512x512.png",
+      "bytes": 12457,
+      "sha256": "65f47c916cd0ad28730294d7e3a50254d3315be90a2dd2127a46fc4da47911ae",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": true
+    },
+    {
+      "path": "02_Favicons/favicon-64x64.png",
+      "bytes": 1537,
+      "sha256": "e306b87ed1aadef558e782218f82a549f56767d36e11026cd94a771f42d3822b",
+      "dimensions_px": [
+        64,
+        64
+      ],
+      "alpha": true
+    },
+    {
+      "path": "02_Favicons/favicon-96x96.png",
+      "bytes": 2190,
+      "sha256": "808398d5c74671aafabb505e76bc3b0eba74d67c4191e9a6df01bca810f131f7",
+      "dimensions_px": [
+        96,
+        96
+      ],
+      "alpha": true
+    },
+    {
+      "path": "02_Favicons/favicon.ico",
+      "bytes": 18757,
+      "sha256": "efbe372b0bd0c30264fa17b65eff5f72c0483758add6c930c8d0a4aaa6aa1d87"
+    },
+    {
+      "path": "02_Favicons/favicon.svg",
+      "bytes": 1180,
+      "sha256": "621ca89e7a8fd4c64fd89578e9e879b2b706ab5fb7f8666b29b6743ad12bad5d"
+    },
+    {
+      "path": "03_App_Icons/android-chrome-192x192.png",
+      "bytes": 4977,
+      "sha256": "a914aafdf9efb54ed532b6b5d547598e06b4227455530955de5ce2a67a08c5f0",
+      "dimensions_px": [
+        192,
+        192
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/android-chrome-512x512.png",
+      "bytes": 14375,
+      "sha256": "df537226374d46c3618ff27c2ce543db6fa1664cdd59dba1e2845e0c6d431e16",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-1024x1024.png",
+      "bytes": 31599,
+      "sha256": "9b51c7a386660e152b710e9adbf7874b4c8e3e20d62e7f5aed1a5e928c615c07",
+      "dimensions_px": [
+        1024,
+        1024
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-120x120.png",
+      "bytes": 3160,
+      "sha256": "6bf8e2d0e5076a8968d71a1ec3cb1ee2d354a66658dc0adb5781e9633b03b7ca",
+      "dimensions_px": [
+        120,
+        120
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-128x128.png",
+      "bytes": 3308,
+      "sha256": "55d4758be1b90985bb1d8efe6deba3d12c3a3c6b4ae385ecc61ac271d9c9226d",
+      "dimensions_px": [
+        128,
+        128
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-144x144.png",
+      "bytes": 3755,
+      "sha256": "312bee12ac05a00eda420fcfa23e87139896e1152f807265cbaf9e7f387a18ed",
+      "dimensions_px": [
+        144,
+        144
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-152x152.png",
+      "bytes": 3934,
+      "sha256": "a8414380cab8d4e0e758e302f2a20c582d76bd166877b7b7a9819edc60fa9c4e",
+      "dimensions_px": [
+        152,
+        152
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-167x167.png",
+      "bytes": 4285,
+      "sha256": "58431896a04a630764e713021af6af21b6616433a28cd64f92f4b93f2619e9e7",
+      "dimensions_px": [
+        167,
+        167
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-180x180.png",
+      "bytes": 4681,
+      "sha256": "d968cf779d41a97260031c21212c807311bcedcc66cf9eefbeef02b54c6dab9a",
+      "dimensions_px": [
+        180,
+        180
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-192x192.png",
+      "bytes": 4977,
+      "sha256": "a914aafdf9efb54ed532b6b5d547598e06b4227455530955de5ce2a67a08c5f0",
+      "dimensions_px": [
+        192,
+        192
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-256x256.png",
+      "bytes": 6652,
+      "sha256": "e5ff8b2b598517e402f84bd3e09a2eec457094536e100e7651af36f27096450f",
+      "dimensions_px": [
+        256,
+        256
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-32x32.png",
+      "bytes": 890,
+      "sha256": "27413cd0528886bf4a2df52bcab7f7028e2329fa9627e17fcb182a0fafeb4720",
+      "dimensions_px": [
+        32,
+        32
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-384x384.png",
+      "bytes": 10453,
+      "sha256": "4427834cc369de8a6ba21421254d574510d0cef5ded74133c218476b613ce518",
+      "dimensions_px": [
+        384,
+        384
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-48x48.png",
+      "bytes": 1343,
+      "sha256": "be2b1e443f64034818248d9d95337316450f037b7fe043328227902e24ee2642",
+      "dimensions_px": [
+        48,
+        48
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-512x512.png",
+      "bytes": 14375,
+      "sha256": "df537226374d46c3618ff27c2ce543db6fa1664cdd59dba1e2845e0c6d431e16",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-64x64.png",
+      "bytes": 1715,
+      "sha256": "5a4276d463e59a11863f0fb5d0836a858dcce06432955055483c73f212a34717",
+      "dimensions_px": [
+        64,
+        64
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-72x72.png",
+      "bytes": 1920,
+      "sha256": "64eb3710cc0315218f6b0d604b3c44722fd012df6e6215e9c28f390b570fd031",
+      "dimensions_px": [
+        72,
+        72
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-96x96.png",
+      "bytes": 2522,
+      "sha256": "f073ada0352c05d0b0623229cf25cb702da1d3782f2db24e5d41e7f4ab69351f",
+      "dimensions_px": [
+        96,
+        96
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-light-180x180.png",
+      "bytes": 4332,
+      "sha256": "86158d913142313401b1b111d176d95770b951a46ad635daf5231c729553889f",
+      "dimensions_px": [
+        180,
+        180
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-light-192x192.png",
+      "bytes": 4581,
+      "sha256": "9035f800ea5719e8b60be8e0c491285ae9376219c44f291cfa6a5d4b936302a6",
+      "dimensions_px": [
+        192,
+        192
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-light-512x512.png",
+      "bytes": 13317,
+      "sha256": "d545951c765cbc232012752949c31d3d89d14bbe7a2093ab6e2d740a17eae6d9",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/app-icon-light.svg",
+      "bytes": 1284,
+      "sha256": "c43a1db72fbd19c6a6e49bc271d8d2ea06df19084a3d085225e73cfd2e9fcafb"
+    },
+    {
+      "path": "03_App_Icons/app-icon.svg",
+      "bytes": 1284,
+      "sha256": "db97627a0871562f86932691cde53d52eccdabe4967d06bbf02a5d60cecef5a6"
+    },
+    {
+      "path": "03_App_Icons/apple-touch-icon.png",
+      "bytes": 4681,
+      "sha256": "d968cf779d41a97260031c21212c807311bcedcc66cf9eefbeef02b54c6dab9a",
+      "dimensions_px": [
+        180,
+        180
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/maskable-icon-1024x1024.png",
+      "bytes": 14036,
+      "sha256": "61579766514196be2dac8677989763a22dc5e6d258e738788f430c132dc431c6",
+      "dimensions_px": [
+        1024,
+        1024
+      ],
+      "alpha": false
+    },
+    {
+      "path": "03_App_Icons/maskable-icon-192x192.png",
+      "bytes": 2312,
+      "sha256": "9a70e8c63496dd47aba145ecedd786c40bcc870ec2ce98835e494b93022ef87d",
+      "dimensions_px": [
+        192,
+        192
+      ],
+      "alpha": false
+    },
+    {
+      "path": "03_App_Icons/maskable-icon-512x512.png",
+      "bytes": 6342,
+      "sha256": "da88bd03b41c5c592b8647229f7a2015c726ac6a5b5ce9ff582be8ceb2aee106",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": false
+    },
+    {
+      "path": "03_App_Icons/maskable-icon.svg",
+      "bytes": 1276,
+      "sha256": "ef8aa3232cba5fdd0dd1d651bc70999c61c42138c9efa2fd47c02c2f03d0ae23"
+    },
+    {
+      "path": "03_App_Icons/social-avatar-1024x1024.png",
+      "bytes": 43575,
+      "sha256": "2cc90aa0fad17a51c1b805464a825c9c0c3653876968e08b222b45a0a05fddfa",
+      "dimensions_px": [
+        1024,
+        1024
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/social-avatar-128x128.png",
+      "bytes": 4752,
+      "sha256": "43411572125d8a4ea7a0015d075b524b5ccfcf4c7584ada0116978dfde1bfe4f",
+      "dimensions_px": [
+        128,
+        128
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/social-avatar-256x256.png",
+      "bytes": 9557,
+      "sha256": "345877babb2ec15f37d47801d9726cb6013c5fa097af198c30b2ed31bb512763",
+      "dimensions_px": [
+        256,
+        256
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/social-avatar-512x512.png",
+      "bytes": 20385,
+      "sha256": "efd58d525bd8ea5088ca26b638f69b333e67a0bdbcaaade11140a532252446e7",
+      "dimensions_px": [
+        512,
+        512
+      ],
+      "alpha": true
+    },
+    {
+      "path": "03_App_Icons/social-avatar-800x800.png",
+      "bytes": 33128,
+      "sha256": "7f793ac7ab1f34d0ea71f43ff8d6a34aa2e34dc320ffa5770569b4e07967eaa6",
+      "dimensions_px": [
+        800,
+        800
+      ],
+      "alpha": true
+    },
+    {
+      "path": "04_Social_and_Marketing/email-header-1200x400.png",
+      "bytes": 53113,
+      "sha256": "44adaa874facca5e6f7dd0ad9790b800ce94781c9ff7a7e9e0d86b219f2f915d",
+      "dimensions_px": [
+        1200,
+        400
+      ],
+      "alpha": false
+    },
+    {
+      "path": "04_Social_and_Marketing/email-header-1200x400.svg",
+      "bytes": 69432,
+      "sha256": "7d7ce511754ef4834df5855e2f95e0e56937cabf27dbfe985168678f4257c2f9"
+    },
+    {
+      "path": "04_Social_and_Marketing/facebook-cover-1640x624.png",
+      "bytes": 73870,
+      "sha256": "7f10b4986bda276441163948114dcb68dfefad33920937a320572a14837bd20b",
+      "dimensions_px": [
+        1640,
+        624
+      ],
+      "alpha": false
+    },
+    {
+      "path": "04_Social_and_Marketing/facebook-cover-1640x624.svg",
+      "bytes": 61671,
+      "sha256": "df889a536e8bd0c467189c00b3a53e3d06eeb5085a57a896e2f62a4c558f0338"
+    },
+    {
+      "path": "04_Social_and_Marketing/linkedin-cover-1584x396.png",
+      "bytes": 46215,
+      "sha256": "41e99c44f45a641740b564e22c418d8ad54582c766413c626267f17fd87afb3c",
+      "dimensions_px": [
+        1584,
+        396
+      ],
+      "alpha": false
+    },
+    {
+      "path": "04_Social_and_Marketing/linkedin-cover-1584x396.svg",
+      "bytes": 73690,
+      "sha256": "00dd1500767556aa93fa03060aefca32e08cfa9b5f65bf8ea194c4f4f9d147b2"
+    },
+    {
+      "path": "04_Social_and_Marketing/linkedin-post-1200x1200.png",
+      "bytes": 72360,
+      "sha256": "352383238ccc5afb21fe5bae96b43bf536949c3c3cad0b20178033375870151b",
+      "dimensions_px": [
+        1200,
+        1200
+      ],
+      "alpha": false
+    },
+    {
+      "path": "04_Social_and_Marketing/linkedin-post-1200x1200.svg",
+      "bytes": 65275,
+      "sha256": "21c3eaede794f46b0ea661808d660672d0ebf3e3354dbbd78a0c94ac52460208"
+    },
+    {
+      "path": "04_Social_and_Marketing/open-graph-1200x630.png",
+      "bytes": 72595,
+      "sha256": "114e515bf699027173f0214196ab3fba44b03759cb0a00c1558ab6bdb659c23e",
+      "dimensions_px": [
+        1200,
+        630
+      ],
+      "alpha": false
+    },
+    {
+      "path": "04_Social_and_Marketing/open-graph-1200x630.svg",
+      "bytes": 62719,
+      "sha256": "5e25f75554443cea63984cdc030ccf05ebc2ce9377ae390bdb8336e29bc94237"
+    },
+    {
+      "path": "04_Social_and_Marketing/producthunt-banner-1270x760.png",
+      "bytes": 70092,
+      "sha256": "e850202666cd07269b57bd973ac37b2a326b58c57c62b28df440a0d77e1822bb",
+      "dimensions_px": [
+        1270,
+        760
+      ],
+      "alpha": false
+    },
+    {
+      "path": "04_Social_and_Marketing/producthunt-banner-1270x760.svg",
+      "bytes": 61015,
+      "sha256": "ae3b44bb50ebef54f187fafea28a87453bc6f93a840c411009fb2e4a915c8560"
+    },
+    {
+      "path": "04_Social_and_Marketing/x-twitter-card-1200x675.png",
+      "bytes": 73522,
+      "sha256": "544eac4f054d9f749ea40745682d07b7e50eef68f5e113ee25f4ae450a072750",
+      "dimensions_px": [
+        1200,
+        675
+      ],
+      "alpha": false
+    },
+    {
+      "path": "04_Social_and_Marketing/x-twitter-card-1200x675.svg",
+      "bytes": 62752,
+      "sha256": "2d71873217b5b594f16703c1d16413ac42daad6e5d03e1c43216685850d2f868"
+    },
+    {
+      "path": "04_Social_and_Marketing/youtube-banner-2560x1440.png",
+      "bytes": 100628,
+      "sha256": "b8a5a76c1547341274fdbcfe0ff4e9d8f1a04d095497f5b371bc8b75e28bd71b",
+      "dimensions_px": [
+        2560,
+        1440
+      ],
+      "alpha": false
+    },
+    {
+      "path": "04_Social_and_Marketing/youtube-banner-2560x1440.svg",
+      "bytes": 58105,
+      "sha256": "3cdcff06084e9d1d1022761ec48f24cdd449306103bf2f00709054e46c3889b0"
+    },
+    {
+      "path": "05_Brand_Guidelines/BRAND_GUIDELINES.md",
+      "bytes": 9164,
+      "sha256": "be367f8044d1eb2dfbcbb1c558dece6ac885c5de762657eca705c05bb63ef1f8"
+    },
+    {
+      "path": "05_Brand_Guidelines/VENDRYX-BRAND-GUIDELINES-v1.pdf",
+      "bytes": 177730,
+      "sha256": "b08aeb754ab39362cd55680c7c695db535d5b65d3cd9f272d57edd37206e4799"
+    },
+    {
+      "path": "06_Developer_Tokens/INTEGRATION_MAP.md",
+      "bytes": 1546,
+      "sha256": "cde403ce57c2b813c20fce2758795d2c3a6abba181746451f438314d05d85d69"
+    },
+    {
+      "path": "06_Developer_Tokens/branding-integration.html",
+      "bytes": 602,
+      "sha256": "a79bacd836e6d0899ff38aaaa6570bda480b13075bc1dd2a00d58144940bd2fc"
+    },
+    {
+      "path": "06_Developer_Tokens/email-signature-template.html",
+      "bytes": 717,
+      "sha256": "3989dabde319bdf84fa725474577a2f8e2e0d3397f71ce5d12619f1d05636fb2"
+    },
+    {
+      "path": "06_Developer_Tokens/site.webmanifest",
+      "bytes": 688,
+      "sha256": "6c09cd1952878aaf5d8736acb7e387cee460597d5f8f7d9705fa4662dc9b8191"
+    },
+    {
+      "path": "06_Developer_Tokens/vendryx-tokens.css",
+      "bytes": 756,
+      "sha256": "7fe2b5ebd1ccc2455809cf7c289257dd3fbcdeff8bc5501a2bb566a334c02756"
+    },
+    {
+      "path": "06_Developer_Tokens/vendryx-tokens.json",
+      "bytes": 690,
+      "sha256": "f79cbd827b2497051cd67f90f7a557a59a68523cd7bb9e868a43ec9c6e419d50"
+    },
+    {
+      "path": "07_Collateral_Templates/business-card-back-preview.png",
+      "bytes": 40079,
+      "sha256": "9bb03f1d0b7eb82d021c1500c7deccf59d04da1c22365a22bc9a2c25d232fce3",
+      "dimensions_px": [
+        1050,
+        600
+      ],
+      "alpha": false
+    },
+    {
+      "path": "07_Collateral_Templates/business-card-back.pdf",
+      "bytes": 37813,
+      "sha256": "817d7e56921d63818f706442e3783d792c7475968038b7d6bee2e0b7ad20da74"
+    },
+    {
+      "path": "07_Collateral_Templates/business-card-back.svg",
+      "bytes": 17941,
+      "sha256": "252edc9f2a23353f1fbe9dced3e2f08966d109a07f009e4958828704f778463f"
+    },
+    {
+      "path": "07_Collateral_Templates/business-card-front-preview.png",
+      "bytes": 45430,
+      "sha256": "cdcbec4d28f046aa70a5937afad8ca7f2b1751b47e6ebbdb7245d10c2ba2b463",
+      "dimensions_px": [
+        1050,
+        600
+      ],
+      "alpha": false
+    },
+    {
+      "path": "07_Collateral_Templates/business-card-front.pdf",
+      "bytes": 41175,
+      "sha256": "a2d12da0695208dbb047643b9e49a9e1f645c41da8b3c055b61a53aa2193d7c1"
+    },
+    {
+      "path": "07_Collateral_Templates/business-card-front.svg",
+      "bytes": 49057,
+      "sha256": "45ad551fa9b0e18c4f95597d17a0eebc30724ca4109e80c7a71843da69139905"
+    },
+    {
+      "path": "07_Collateral_Templates/letterhead-A4-preview.png",
+      "bytes": 28532,
+      "sha256": "c5cd3116ab70512d6b3ebfe298d784154c4e071d6c978dbe5519f18a8c92c102",
+      "dimensions_px": [
+        595,
+        842
+      ],
+      "alpha": false
+    },
+    {
+      "path": "07_Collateral_Templates/letterhead-A4.pdf",
+      "bytes": 25549,
+      "sha256": "80d390ce8b328eb6dddfdb1683ea945a890c002aff805e230dbcd8c1fc417ae9"
+    },
+    {
+      "path": "07_Collateral_Templates/letterhead-A4.svg",
+      "bytes": 70241,
+      "sha256": "c79c4bdc45a00bcc7a4244b11f690c5d591b4eda78de62a3fdcff0d2d472698d"
+    },
+    {
+      "path": "08_Previews/quality-contact-sheet.png",
+      "bytes": 151417,
+      "sha256": "1d07fd5ab43e37056a31c12baa35214dcd36e39e9312b4ebc1775c3218e42dc5",
+      "dimensions_px": [
+        1350,
+        1770
+      ],
+      "alpha": false
+    },
+    {
+      "path": "README.md",
+      "bytes": 3867,
+      "sha256": "c111ef5ff47f56fa432b6e72d61d509f7c47451912a075f47890995995d3cd12"
+    },
+    {
+      "path": "asset-manifest.json",
+      "bytes": 35896,
+      "sha256": "3b84542d08be414f39b2dcd495ae6e8acae287ffa989bb1aed578456b9f433a1"
+    }
+  ]
+}

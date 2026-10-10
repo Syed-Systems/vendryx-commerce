@@ -57,7 +57,7 @@ export const LogoBox = ({
         </motion.div>
       )}
       <img
-        src="/brand/vendryx/vendryx-logo.png"
+        src="/brand/vendryx/vendryx-primary-light.svg"
         alt="Vendryx by Syed Systems"
         className="h-12 w-auto max-w-[200px] object-contain"
       />

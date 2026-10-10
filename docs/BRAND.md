@@ -96,18 +96,24 @@ Status colors remain semantic and must never be overridden by brand accents:
 
 ---
 
-## 6. Official Brand Assets (`brand/vendryx/`)
+## 6. Official Brand Assets (`brand/vendryx/` & `brand/kit/`)
 
-Source assets are maintained in [`brand/vendryx/`](../brand/vendryx/):
+Source assets are maintained in [`brand/vendryx/`](../brand/vendryx/) and the complete Brand Kit bundle in [`brand/kit/`](../brand/kit/):
 
 | Asset File | Format | Purpose |
 |---|---|---|
-| `vendryx-logo.png` | PNG (High-Res) | Primary corporate wordmark with folded-layer bag mark |
-| `vendryx-logo-dark.png` | PNG (High-Res) | Wordmark for dark mode / contrasting backgrounds |
-| `vendryx-mark.png` | PNG (Square) | App icon, favicons, compact navigation headers |
-| `favicon.ico` | Multi-size ICO | Browser tab icon |
-| `favicon.png` | 512×512 PNG | PWA manifest, Apple touch icon, high-density mobile |
+| `vendryx-primary-light.svg` | SVG | Authoritative corporate wordmark + connected cart mark for light surfaces |
+| `vendryx-primary-dark.svg` | SVG | Reverse horizontal wordmark for dark / navy surfaces |
+| `vendryx-channel-edition-light.svg` | SVG | Multi-channel edition logo for marketing hero artwork |
+| `vendryx-stacked-light.svg` | SVG | Vertical stacked lockup for constrained widths |
+| `vendryx-with-tagline.svg` | SVG | Full campaign proposition lockup ("One cart. Every channel. One commerce OS.") |
+| `vendryx-connected-cart.svg` | SVG | Standalone connected cart mark (5 channels) |
+| `vendryx-connected-cart-micro.svg` | SVG | Micro connected cart mark optimized for 16px–32px favicons (3 channels) |
+| `favicon.ico` / `favicon.svg` | ICO / SVG | Multi-resolution tab icons |
+| `site.webmanifest` | JSON | PWA manifest and browser icon associations |
+| `vendryx-tokens.css` / `.json` | CSS / JSON | Corporate design tokens (Plus Jakarta Sans, HIG baseline, no UI gradients) |
 | `brand.json` | JSON | Machine-readable manifest for asset synchronization |
+| `vendryx-logo.png` / `vendryx-mark.png` | PNG | High-res raster compatibility fallbacks |
 
 ---
 

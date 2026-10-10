@@ -3,6 +3,8 @@
   "legalName": "Vendryx by Syed Systems",
   "companyName": "Syed Systems",
   "shortDescription": "Modern commerce operating system for merchants",
+  "tagline": "SELL MORE. WORRY LESS.",
+  "proposition": "One cart. Every channel. One commerce OS.",
   "canonicalDomain": "vendryx.com",
   "allowedDomains": [
     "vendryx.com",
@@ -22,23 +24,37 @@
   "assetPaths": {
     "logoLight": "brand/vendryx/vendryx-logo.png",
     "logoDark": "brand/vendryx/vendryx-logo-dark.png",
+    "logoLightSvg": "brand/vendryx/vendryx-primary-light.svg",
+    "logoDarkSvg": "brand/vendryx/vendryx-primary-dark.svg",
+    "logoStackedLightSvg": "brand/vendryx/vendryx-stacked-light.svg",
+    "logoStackedDarkSvg": "brand/vendryx/vendryx-stacked-dark.svg",
+    "logoWithTaglineSvg": "brand/vendryx/vendryx-with-tagline.svg",
     "mark": "brand/vendryx/vendryx-mark.png",
+    "markSvg": "brand/vendryx/vendryx-connected-cart.svg",
+    "markMicroSvg": "brand/vendryx/vendryx-connected-cart-micro.svg",
     "favicon": "brand/vendryx/favicon.ico",
-    "faviconPng": "brand/vendryx/favicon.png"
+    "faviconSvg": "brand/vendryx/favicon.svg",
+    "faviconPng": "brand/vendryx/favicon.png",
+    "appleTouchIcon": "brand/vendryx/apple-touch-icon.png",
+    "webmanifest": "brand/vendryx/site.webmanifest"
   },
   "tokens": {
-    "brandDisplay": "#EA580C",
-    "brandAction": "#C2410C",
-    "brandHover": "#9A3412",
-    "brandTint": "#FFF7ED",
+    "brandDisplay": "#4F46E5",
+    "brandAction": "#4F46E5",
+    "brandHover": "#5B21B6",
+    "brandBright": "#3B82F6",
+    "brandTint": "#F8FAFC",
     "bgCanvas": "#FCFBF9",
-    "bgSidebar": "#F7F3ED",
+    "bgSidebar": "#FCFBF9",
     "bgSurface": "#FFFFFF",
-    "bgSubtle": "#F6F5F3",
-    "fgPrimary": "#18181B",
-    "fgSecondary": "#5F6368",
-    "fgMuted": "#7C818A",
-    "border": "#E6E0D8",
-    "borderStrong": "#D8CFC4"
+    "bgSubtle": "#F8FAFC",
+    "fgPrimary": "#0F172A",
+    "fgSecondary": "#1E293B",
+    "fgMuted": "#64748B",
+    "border": "#E2E8F0",
+    "borderStrong": "#CBD5E1",
+    "stateSuccess": "#16A34A",
+    "stateWarning": "#D97706",
+    "stateDanger": "#DC2626"
   }
 }
