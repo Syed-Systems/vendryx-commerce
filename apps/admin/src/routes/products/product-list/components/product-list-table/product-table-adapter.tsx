@@ -73,11 +73,21 @@ export function createProductTableAdapter({
         "variants.id",
       ]
 
+      // Default visibility. The backend ships Product, Status and Actions
+      // visible and hides the rest, so a fresh Products page shows two columns
+      // and a merchant cannot tell price, stock or collection at a glance. The
+      // reference dashboards (Ghost, Linear) lead with the densest table that
+      // still reads, so the two highest-value hidden columns come forward.
+      // Sales Channels stays hidden: most Vendryx merchants run one channel, and
+      // surfacing it by default adds a column to every screen.
+      const DEFAULT_VISIBLE = new Set(["product", "collection", "variants", "status"])
+
       return columns.map((column) => {
         const isFilterDisabled = !ALLOWED_FILTERS.includes(column.field)
 
         return {
           ...column,
+          default_visible: DEFAULT_VISIBLE.has(column.field),
           filter: isFilterDisabled
             ? { ...column.filter, enabled: false }
             : column.filter,
