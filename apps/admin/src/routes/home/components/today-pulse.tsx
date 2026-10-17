@@ -41,6 +41,15 @@ interface StatCardProps {
    * pastels competing in the first thing an operator sees.
    */
   iconBg?: string
+  /**
+   * Marks the card that leads the row.
+   *
+   * Four identical cards give an operator nothing to look at first. The lead
+   * takes more width and a larger value; the rest keep their size rather than
+   * shrinking, so the hierarchy comes from the lead rising instead of the
+   * others being demoted. One decisive move, quiet around it.
+   */
+  lead?: boolean
   label: string
   value: string | number
   subtext: string
@@ -54,6 +63,7 @@ interface StatCardProps {
 const StatCard = ({
   icon,
   iconBg = "bg-ui-bg-component border border-ui-border-base",
+  lead = false,
   label,
   value,
   subtext,
@@ -61,22 +71,32 @@ const StatCard = ({
   badge,
 }: StatCardProps) => {
   const content = (
-    <Container className="flex flex-col justify-between p-5 border border-ui-border-base rounded-xl bg-ui-bg-base transition-all hover:border-ui-border-strong hover:shadow-elevation-card-hover group">
+    <Container
+      className={`flex h-full flex-col justify-between border border-ui-border-base rounded-xl bg-ui-bg-base transition-all hover:border-ui-border-strong hover:shadow-elevation-card-hover group ${
+        lead ? "p-6" : "p-5"
+      }`}
+    >
       <div>
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2.5">
             <div
-              className={`flex items-center justify-center w-8 h-8 rounded-lg ${iconBg} shadow-sm shrink-0`}
+              className={`flex items-center justify-center rounded-lg ${iconBg} shadow-sm shrink-0 ${
+                lead ? "w-9 h-9" : "w-8 h-8"
+              }`}
             >
               {icon}
             </div>
-            <Text size="small" weight="plus" className="text-ui-fg-subtle group-hover:text-ui-fg-base transition-colors">
+            <Text
+              size={lead ? "base" : "small"}
+              weight="plus"
+              className="text-ui-fg-subtle group-hover:text-ui-fg-base transition-colors"
+            >
               {label}
             </Text>
           </div>
           {badge && (
             <span
-              className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${
+              className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
                 badge.variant === "green"
                   ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                   : badge.variant === "amber"
@@ -93,13 +113,21 @@ const StatCard = ({
 
         <Heading
           level="h2"
-          className="text-2xl font-bold tracking-tight text-ui-fg-base tabular-nums mb-1"
+          className={`font-bold tracking-tight text-ui-fg-base tabular-nums mb-1 ${
+            lead ? "text-4xl" : "text-2xl"
+          }`}
         >
           {value}
         </Heading>
       </div>
 
-      <Text size="xsmall" className="text-ui-fg-muted mt-2 truncate">
+      {/* Two lines, not `truncate`. The lead takes two columns, which narrowed
+          these three, and truncation then cut real information off the end
+          ("Awaiting first customer check..."). Wrapping keeps the sentence. */}
+      <Text
+        size={lead ? "small" : "xsmall"}
+        className="text-ui-fg-muted mt-2 line-clamp-2"
+      >
         {subtext}
       </Text>
     </Container>
@@ -107,7 +135,7 @@ const StatCard = ({
 
   if (href) {
     return (
-      <Link to={href} className="no-underline block">
+      <Link to={href} className="no-underline block h-full">
         {content}
       </Link>
     )
@@ -135,9 +163,14 @@ export const TodayPulseCard = ({
 }) => {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {[0, 1, 2, 3].map((i) => (
-          <Container key={i} className="p-5 animate-pulse border border-ui-border-base rounded-xl">
+          <Container
+            key={i}
+            className={`p-5 animate-pulse border border-ui-border-base rounded-xl ${
+              i === 0 ? "sm:col-span-2 lg:col-span-2" : ""
+            }`}
+          >
             <div className="h-8 w-8 bg-ui-bg-component rounded-lg mb-3" />
             <div className="h-7 bg-ui-bg-component rounded w-24 mb-2" />
             <div className="h-3 bg-ui-bg-component rounded w-32" />
@@ -152,15 +185,21 @@ export const TodayPulseCard = ({
   const urgentCount = pendingOrdersCount + lowStockCount
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* 1. Revenue */}
-      <StatCard
-        icon={<CurrencyDollar className="w-4 h-4 text-ui-fg-subtle" />}
-        label="Today's Revenue"
-        value={revenueVal}
-        subtext={ordersToday > 0 ? `${ordersToday} orders today` : "Live store revenue stream"}
-        badge={{ text: "Today", variant: "green" }}
-      />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* 1. Revenue — the lead. This is the number a store owner opens the app
+          for, and it was the same size and weight as "Active Products: 2". It
+          now takes two columns and a larger value; the other three keep their
+          size, so the row has a first thing to read. */}
+      <div className="sm:col-span-2 lg:col-span-2">
+        <StatCard
+          lead
+          icon={<CurrencyDollar className="w-4 h-4 text-ui-fg-subtle" />}
+          label="Today's Revenue"
+          value={revenueVal}
+          subtext={ordersToday > 0 ? `${ordersToday} orders today` : "Live store revenue stream"}
+          badge={{ text: "Today", variant: "green" }}
+        />
+      </div>
 
       {/* 2. Orders */}
       <StatCard

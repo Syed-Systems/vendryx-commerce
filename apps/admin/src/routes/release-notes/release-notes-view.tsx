@@ -151,7 +151,7 @@ export const ReleaseNotesView = () => {
                       className="rounded-lg border border-ui-border-base bg-ui-bg-subtle/40 p-4"
                     >
                       <div className="flex items-center gap-x-2 mb-1.5">
-                        <Badge size="2xsmall" color="blue" className="uppercase text-[10px]">
+                        <Badge size="2xsmall" color="blue" className="uppercase text-xs">
                           {item.category}
                         </Badge>
                         <Text size="small" weight="plus" className="text-ui-fg-base">

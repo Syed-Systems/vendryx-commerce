@@ -114,7 +114,7 @@ export const ReconciliationBucketsView: React.FC<ReconciliationBucketsProps> = (
                 <Table.Cell className="font-mono text-xs">
                   <div>{item.consignmentId}</div>
                   {item.trackingCode && (
-                    <div className="text-ui-fg-subtle text-[11px]">{item.trackingCode}</div>
+                    <div className="text-ui-fg-subtle text-xs">{item.trackingCode}</div>
                   )}
                 </Table.Cell>
                 <Table.Cell className="text-xs">

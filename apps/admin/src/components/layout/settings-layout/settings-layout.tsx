@@ -303,7 +303,7 @@ const Header = () => {
           <Text leading="compact" weight="plus" size="small" className="text-[13px] font-semibold text-ui-fg-base">
             {t("app.nav.settings.header", "Settings")}
           </Text>
-          <Text size="xsmall" leading="compact" className="text-[11px] text-ui-fg-muted">
+          <Text size="xsmall" leading="compact" className="text-xs text-ui-fg-muted">
             {t("app.nav.settings.return", "Back to store")}
           </Text>
         </div>

@@ -137,13 +137,13 @@ const Header = () => {
             </div>
             <div className="flex items-center gap-x-1.5 mt-0.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-              <Text size="xsmall" leading="compact" className="text-ui-fg-muted text-[11px] truncate font-normal">
+              <Text size="xsmall" leading="compact" className="text-ui-fg-muted text-xs truncate font-normal">
                 Active Store
               </Text>
             </div>
           </div>
           <div className="flex items-center gap-x-1 shrink-0 ps-1">
-            <span className="font-semibold text-[10px] px-1.5 py-0.5 uppercase tracking-wide rounded-full bg-ui-bg-base border border-ui-border-base text-ui-fg-subtle">
+            <span className="font-semibold text-xs px-1.5 py-0.5 uppercase tracking-wide rounded-full bg-ui-bg-base border border-ui-border-base text-ui-fg-subtle">
               {tier}
             </span>
             <EllipsisHorizontal className="text-ui-fg-muted size-3.5" />
@@ -169,7 +169,7 @@ const Header = () => {
                   <Text
                     size="xsmall"
                     leading="compact"
-                    className="text-ui-fg-muted text-[11px]"
+                    className="text-ui-fg-muted text-xs"
                   >
                     Merchant Admin · Active
                   </Text>
@@ -190,7 +190,7 @@ const Header = () => {
               </Link>
             </DropdownMenu.Item>
             <DropdownMenu.Separator className="my-1 border-ui-border-base/60" />
-            <div className="px-2.5 py-1 text-[10px] font-semibold uppercase text-ui-fg-muted tracking-wider">
+            <div className="px-2.5 py-1 text-xs font-semibold uppercase text-ui-fg-muted tracking-wider">
               Switch Store Dashboard
             </div>
             {AVAILABLE_TENANTS.map((tenant) => {
@@ -213,7 +213,7 @@ const Header = () => {
                     <BuildingStorefront className="text-ui-fg-muted size-3.5 shrink-0" />
                     <span className="truncate">{tenant.name}</span>
                   </div>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-ui-border-base text-ui-fg-subtle shrink-0">
+                  <span className="text-xs px-1.5 py-0.5 rounded-full border border-ui-border-base text-ui-fg-subtle shrink-0">
                     {tenant.genre} · {tenant.tier}
                   </span>
                 </DropdownMenu.Item>
@@ -387,7 +387,7 @@ const Searchbar = () => {
         <span className="flex-1 text-start text-[12px] font-normal text-ui-fg-muted">
           {t("app.search.label", "Search...")}
         </span>
-        <Kbd className="text-[10px] px-1.5 py-0.5 text-ui-fg-muted bg-ui-bg-subtle border-ui-border-base shadow-2xs font-mono">
+        <Kbd className="text-xs px-1.5 py-0.5 text-ui-fg-muted bg-ui-bg-subtle border-ui-border-base shadow-2xs font-mono">
           ⌘K
         </Kbd>
       </button>
@@ -438,7 +438,7 @@ const SidebarRoutes = () => {
                 {sections.map((section) => (
                   <div key={section.id} className="space-y-0.5">
                     {section.title && (
-                      <div className="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold tracking-wider text-ui-fg-muted/70 uppercase select-none">
+                      <div className="px-2.5 pt-2 pb-0.5 text-xs font-semibold tracking-wider text-ui-fg-muted/70 uppercase select-none">
                         {section.title}
                       </div>
                     )}
@@ -452,7 +452,7 @@ const SidebarRoutes = () => {
 
                 {extensionItems.length > 0 && (
                   <div className="space-y-0.5">
-                    <div className="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold tracking-wider text-ui-fg-muted/70 uppercase select-none">
+                    <div className="px-2.5 pt-2 pb-0.5 text-xs font-semibold tracking-wider text-ui-fg-muted/70 uppercase select-none">
                       Extensions
                     </div>
                     {extensionItems.map((item) => (

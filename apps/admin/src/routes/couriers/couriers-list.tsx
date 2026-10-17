@@ -210,7 +210,7 @@ export const CouriersList = () => {
                         <button
                           type="button"
                           onClick={() => handleCopyWebhook(c.webhookUrl)}
-                          className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover font-medium text-[11px] flex items-center gap-x-0.5"
+                          className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover font-medium text-xs flex items-center gap-x-0.5"
                           title="Copy webhook URL"
                         >
                           <DocumentText className="h-3 w-3" />

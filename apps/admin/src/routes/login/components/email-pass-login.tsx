@@ -97,7 +97,7 @@ export const EmailPassLogin = ({ onMfaChallenge }: EmailPassLoginProps) => {
     <Form {...form}>
       <form onSubmit={handleSubmit} className="flex w-full flex-col gap-y-4">
         <div className="flex flex-col gap-y-1.5 rounded-lg border border-ui-border-base/70 bg-ui-bg-subtle/50 p-2.5">
-          <span className="text-[11px] font-medium text-ui-fg-muted">
+          <span className="text-xs font-medium text-ui-fg-muted">
             Select store dashboard:
           </span>
           <div className="grid grid-cols-3 gap-1.5">
@@ -125,7 +125,7 @@ export const EmailPassLogin = ({ onMfaChallenge }: EmailPassLoginProps) => {
                       ? "Clothing"
                       : "Tech"}
                   </span>
-                  <span className="text-[10px] text-ui-fg-muted truncate">
+                  <span className="text-xs text-ui-fg-muted truncate">
                     {tenant.tierLabel}
                   </span>
                 </button>

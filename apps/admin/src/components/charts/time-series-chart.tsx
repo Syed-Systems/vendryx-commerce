@@ -182,7 +182,7 @@ export const TimeSeriesChart = ({
                 x={PAD.left - 10}
                 y={y + 4}
                 textAnchor="end"
-                className="fill-ui-fg-muted text-[11px] tabular-nums"
+                className="fill-ui-fg-muted text-xs tabular-nums"
               >
                 {formatTick(value)}
               </text>
@@ -237,7 +237,7 @@ export const TimeSeriesChart = ({
           x={PAD.left}
           y={height - 8}
           textAnchor="start"
-          className="fill-ui-fg-muted text-[11px]"
+          className="fill-ui-fg-muted text-xs"
         >
           {formatDate(data[0].date)}
         </text>
@@ -245,7 +245,7 @@ export const TimeSeriesChart = ({
           x={width - PAD.right}
           y={height - 8}
           textAnchor="end"
-          className="fill-ui-fg-muted text-[11px]"
+          className="fill-ui-fg-muted text-xs"
         >
           {formatDate(data[data.length - 1].date)}
         </text>

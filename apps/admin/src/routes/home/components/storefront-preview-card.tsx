@@ -49,7 +49,7 @@ export const StorefrontPreviewCard: React.FC = () => {
                 <Heading level="h3" className="text-sm font-semibold text-ui-fg-base">
                   Storefront Live Studio
                 </Heading>
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Live · Port 8000
                 </span>
@@ -93,7 +93,7 @@ export const StorefrontPreviewCard: React.FC = () => {
               control and the device toggle. */}
 
           {/* Browser Address Bar */}
-          <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-ui-bg-base border border-ui-border-base text-ui-fg-muted font-mono text-[11px] max-w-[420px] w-full mr-4 shadow-sm">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-ui-bg-base border border-ui-border-base text-ui-fg-muted font-mono text-xs max-w-[420px] w-full mr-4 shadow-sm">
             <LockClosedSolid className="w-3 h-3 text-emerald-600 shrink-0" />
             <span className="truncate flex-1 text-ui-fg-base">{STHENO_STOREFRONT_URL}</span>
             <button
@@ -192,7 +192,7 @@ export const StorefrontPreviewCard: React.FC = () => {
                   className="w-2.5 h-2.5 rounded-full border border-black/10"
                   style={{ backgroundColor: primaryColor }}
                 />
-                <span className="font-mono text-[10px] text-ui-fg-subtle uppercase">
+                <span className="font-mono text-xs text-ui-fg-subtle uppercase">
                   {primaryColor}
                 </span>
               </div>
@@ -204,7 +204,7 @@ export const StorefrontPreviewCard: React.FC = () => {
                   className="w-2.5 h-2.5 rounded-full border border-black/10"
                   style={{ backgroundColor: accentColor }}
                 />
-                <span className="font-mono text-[10px] text-ui-fg-subtle uppercase">
+                <span className="font-mono text-xs text-ui-fg-subtle uppercase">
                   {accentColor}
                 </span>
               </div>
@@ -216,7 +216,7 @@ export const StorefrontPreviewCard: React.FC = () => {
                   className="w-2.5 h-2.5 rounded-full border border-black/10"
                   style={{ backgroundColor: backgroundColor }}
                 />
-                <span className="font-mono text-[10px] text-ui-fg-subtle uppercase">
+                <span className="font-mono text-xs text-ui-fg-subtle uppercase">
                   {backgroundColor}
                 </span>
               </div>

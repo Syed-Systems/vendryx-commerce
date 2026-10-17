@@ -156,7 +156,7 @@ const UserBadge = () => {
             <Text
               size="xsmall"
               leading="compact"
-              className="truncate text-[11px] text-ui-fg-muted font-normal mt-0.5"
+              className="truncate text-xs text-ui-fg-muted font-normal mt-0.5"
             >
               {email}
             </Text>
