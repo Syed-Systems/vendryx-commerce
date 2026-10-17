@@ -9,35 +9,47 @@ export interface TenantDefinition {
   description: string
 }
 
+/**
+ * The three tenants `scripts/dev-tenants.sh` creates.
+ *
+ * `id` and `host` must match that script exactly — it registers
+ * ten_trial/trial.localhost, ten_free/free.localhost and ten_pro/pro.localhost,
+ * and registers each owner as `owner@<host>`. These entries previously carried
+ * invented hosts (trial-appliance.localhost, expired-clothing.localhost,
+ * pro-tech.localhost) that exist in no tenant table, so the picker pre-filled an
+ * email that no owner had and the sign-in returned "Invalid credentials" against
+ * a tenant that was never there. The genre, name and tier labels below are
+ * display-only and stay as they are.
+ */
 export const AVAILABLE_TENANTS: TenantDefinition[] = [
   {
-    id: "ten_trial_appliance",
+    id: "ten_trial",
     name: "Vendryx Appliances",
     genre: "appliance",
     tier: "trial",
     tierLabel: "14-Day Free Trial",
-    host: "trial-appliance.localhost",
-    defaultEmail: "owner@trial-appliance.localhost",
+    host: "trial.localhost",
+    defaultEmail: "owner@trial.localhost",
     description: "Industrial luxury appliances, active trial lifecycle",
   },
   {
-    id: "ten_expired_clothing",
+    id: "ten_free",
     name: "Vendryx Fashion & Clothing",
     genre: "clothing",
     tier: "free",
     tierLabel: "Trial Expired (Free)",
-    host: "expired-clothing.localhost",
-    defaultEmail: "owner@expired-clothing.localhost",
+    host: "free.localhost",
+    defaultEmail: "owner@free.localhost",
     description: "Couture & bridal collection, free tier limits",
   },
   {
-    id: "ten_pro_tech",
+    id: "ten_pro",
     name: "Vendryx Pro Tech",
     genre: "tech",
     tier: "pro",
     tierLabel: "Pro Active",
-    host: "pro-tech.localhost",
-    defaultEmail: "owner@pro-tech.localhost",
+    host: "pro.localhost",
+    defaultEmail: "owner@pro.localhost",
     description: "High performance tech store, unmetered pro tier",
   },
 ]
@@ -77,12 +89,24 @@ export function setActiveTenantHost(host: string): void {
 export function resolveTenantHostFromEmail(email: string): string {
   const normalized = email.toLowerCase().trim()
 
+  // An exact domain match wins outright. That is the path the picker takes and
+  // the only one that cannot be wrong, so it is checked before any keyword
+  // guessing below.
+  const exact = AVAILABLE_TENANTS.find((t) =>
+    normalized.endsWith(`@${t.host}`)
+  )
+  if (exact) {
+    return exact.host
+  }
+
+  // Keyword fallback for a hand-typed address. These map to the same three
+  // hosts dev-tenants.sh creates.
   if (
     normalized.includes("appliance") ||
     normalized.includes("trial") ||
     normalized.includes("ten_trial")
   ) {
-    return "trial-appliance.localhost"
+    return "trial.localhost"
   }
 
   if (
@@ -92,7 +116,7 @@ export function resolveTenantHostFromEmail(email: string): string {
     normalized.includes("free") ||
     normalized.includes("ten_expired")
   ) {
-    return "expired-clothing.localhost"
+    return "free.localhost"
   }
 
   if (
@@ -100,7 +124,7 @@ export function resolveTenantHostFromEmail(email: string): string {
     normalized.includes("pro") ||
     normalized.includes("ten_pro")
   ) {
-    return "pro-tech.localhost"
+    return "pro.localhost"
   }
 
   // Default to the first available tenant

@@ -37,7 +37,17 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "")
 
   const BASE = env.VITE_STHENO_BASE || "/"
-  const BACKEND_URL = env.VITE_STHENO_BACKEND_URL || "http://localhost:9000"
+  // Defaults to "" so the Medusa SDK issues same-origin requests and the proxy
+  // below forwards them. That is load-bearing, not cosmetic: the engine resolves
+  // the merchant from the Host header, and the proxy rewrites it from the
+  // `stheno_tenant_host` cookie that the tenant picker sets. Calling the engine
+  // directly meant every request arrived as Host: 127.0.0.1 -- always ten_pro --
+  // so choosing Trial or Free signed in against the wrong tenant and returned
+  // "Invalid credentials". Same-origin also removes the cross-origin dependency,
+  // so the engine's CORS allowlist need not know this app's port.
+  //
+  // Empty rather than "/" on purpose: baseUrl "/" would join as "//auth/...".
+  const BACKEND_URL = env.VITE_STHENO_BACKEND_URL ?? ""
   const STOREFRONT_URL = env.VITE_STHENO_STOREFRONT_URL || "http://localhost:8000"
 
   return {
