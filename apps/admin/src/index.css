@@ -38,40 +38,24 @@
   }
 
   :root {
-    --vx-brand-display: #EA580C;
-    --vx-brand-action: #C2410C;
-    --vx-brand-hover: #9A3412;
-    --vx-brand-tint: #FFF7ED;
+    /* Only the three tokens that are actually consumed (shell.tsx). The rest of
+       the --vx-* block that used to sit here was dead: defined, never
+       referenced, and not mapped by tailwind.config.cjs. Keeping fifteen unused
+       declarations made the palette look like it had a system when it did not.
+       Renamed to the ui-* tokens would be a larger change for no gain, since
+       shell.tsx reads these through var(--vx-...). */
     --vx-bg-canvas: #FCFBF9;
     --vx-bg-sidebar: #F7F3ED;
     --vx-bg-surface: #FFFFFF;
-    --vx-bg-card: #FFFFFF;
-    --vx-bg-subtle: #F6F5F3;
-    --vx-fg-primary: #18181B;
-    --vx-fg-secondary: #5F6368;
-    --vx-fg-muted: #7C818A;
-    --vx-border: #E6E0D8;
-    --vx-border-strong: #D8CFC4;
 
     @apply bg-ui-bg-subtle text-ui-fg-base antialiased;
     text-rendering: optimizeLegibility;
   }
 
   .dark {
-    --vx-brand-display: #FB923C;
-    --vx-brand-action: #EA580C;
-    --vx-brand-hover: #C2410C;
-    --vx-brand-tint: rgba(234, 88, 12, 0.15);
     --vx-bg-canvas: #09090B;
     --vx-bg-sidebar: #141416;
     --vx-bg-surface: #18181B;
-    --vx-bg-card: #18181B;
-    --vx-bg-subtle: #121214;
-    --vx-fg-primary: #FAFAFA;
-    --vx-fg-secondary: #A1A1AA;
-    --vx-fg-muted: #71717A;
-    --vx-border: #27272A;
-    --vx-border-strong: #3F3F46;
   }
 }
 
