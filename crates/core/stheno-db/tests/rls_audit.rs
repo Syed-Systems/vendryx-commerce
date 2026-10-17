@@ -16,6 +16,8 @@ const UNSCOPED: &[&str] = &[
     // merchant *uses* is the tenant-scoped link table, not this row.
     "fulfillment.fulfillment_provider",
     "public.__diesel_schema_migrations", // migration bookkeeping
+    "platform.platform_tenant",          // registry of tenants themselves
+    "platform.fx_rate",                  // foreign-exchange reference data
 ];
 
 /// If the connection is a superuser, Postgres skips RLS entirely and every other
@@ -70,7 +72,7 @@ async fn every_table_is_scoped_and_forced() {
                  FROM pg_class c
                  JOIN pg_namespace n ON n.oid = c.relnamespace
                 WHERE c.relkind = 'r'
-                  AND n.nspname NOT IN ('pg_catalog','information_schema','platform')
+                  AND n.nspname NOT IN ('pg_catalog','information_schema')
                   AND n.nspname NOT LIKE 'pg_%'
                   AND NOT (
                         EXISTS (SELECT 1 FROM pg_attribute a

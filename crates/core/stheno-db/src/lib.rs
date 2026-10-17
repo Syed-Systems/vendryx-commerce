@@ -15,6 +15,9 @@ pub mod transaction;
 pub use diesel;
 pub use diesel_async;
 pub use filter::{FilterOp, FilterSpec, OrderBy, OrderDirection};
+// The page ceiling. Re-exported because services clamp against it when a caller chooses
+// the page size, and every one of them had been reaching past this module instead.
+pub use filter::{DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT};
 pub use pg_repository::PgCrudRepository;
 pub use pool::{create_pool, DbConnection, DbPool};
 pub use quota::{QuotaCounter, UsageRow};
