@@ -35,7 +35,12 @@ function formatCurrency(value: string | null | number, currencyCode: string = "U
 
 interface StatCardProps {
   icon: React.ReactNode
-  iconBg: string
+  /**
+   * Only pass this when the colour carries meaning. Left off, the card uses the
+   * neutral surface token, so the row reads as one system instead of four
+   * pastels competing in the first thing an operator sees.
+   */
+  iconBg?: string
   label: string
   value: string | number
   subtext: string
@@ -48,7 +53,7 @@ interface StatCardProps {
 
 const StatCard = ({
   icon,
-  iconBg,
+  iconBg = "bg-ui-bg-component border border-ui-border-base",
   label,
   value,
   subtext,
@@ -150,8 +155,7 @@ export const TodayPulseCard = ({
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {/* 1. Revenue */}
       <StatCard
-        icon={<CurrencyDollar className="w-4 h-4 text-emerald-600" />}
-        iconBg="bg-emerald-500/10 border border-emerald-500/20"
+        icon={<CurrencyDollar className="w-4 h-4 text-ui-fg-subtle" />}
         label="Today's Revenue"
         value={revenueVal}
         subtext={ordersToday > 0 ? `${ordersToday} orders today` : "Live store revenue stream"}
@@ -160,8 +164,7 @@ export const TodayPulseCard = ({
 
       {/* 2. Orders */}
       <StatCard
-        icon={<ShoppingCart className="w-4 h-4 text-blue-600" />}
-        iconBg="bg-blue-500/10 border border-blue-500/20"
+        icon={<ShoppingCart className="w-4 h-4 text-ui-fg-subtle" />}
         label="Orders"
         value={totalOrders.toLocaleString()}
         subtext={
@@ -177,8 +180,7 @@ export const TodayPulseCard = ({
 
       {/* 3. Catalog Products */}
       <StatCard
-        icon={<Tag className="w-4 h-4 text-purple-600" />}
-        iconBg="bg-purple-500/10 border border-purple-500/20"
+        icon={<Tag className="w-4 h-4 text-ui-fg-subtle" />}
         label="Active Products"
         value={productsCount.toLocaleString()}
         subtext={productsCount === 0 ? "Add your first product to start selling" : "Published in catalog"}
@@ -204,7 +206,10 @@ export const TodayPulseCard = ({
         subtext={
           urgentCount > 0
             ? `${pendingOrdersCount} pending · ${lowStockCount} low stock`
-            : "0 operational bottlenecks"
+            : // Was "0 operational bottlenecks", which asserted a count of
+              // something never enumerated -- it counts pending orders and low
+              // stock, and called the total "bottlenecks". Name what is measured.
+              "No orders or stock needing attention"
         }
         href={urgentCount > 0 ? "/orders" : undefined}
         badge={{

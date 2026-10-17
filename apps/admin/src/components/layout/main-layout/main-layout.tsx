@@ -416,7 +416,7 @@ const SidebarRoutes = () => {
   const extensionItems = menuItems.filter((item) => !item.nested)
 
   return (
-    <nav className="py-1.5">
+    <nav className="py-1.5" aria-label="Main">
       <div className="px-3">
         <LayoutComposer
           widgetsZonePrefix="sidebar"

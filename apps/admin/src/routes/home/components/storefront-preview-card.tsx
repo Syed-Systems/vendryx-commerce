@@ -86,15 +86,14 @@ export const StorefrontPreviewCard: React.FC = () => {
 
         {/* Browser Mockup Chrome */}
         <div className="flex items-center justify-between px-4 py-2 bg-ui-bg-subtle/80 border-b border-ui-border-base text-xs text-ui-fg-subtle">
-          {/* macOS window control simulation */}
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-400/80 border border-rose-500/30" />
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 border border-amber-500/30" />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80 border border-emerald-500/30" />
-          </div>
+          {/* The three macOS traffic-light dots that used to sit here are gone.
+              They were decoration on a live <iframe>, not a screenshot, and
+              re-drawing window chrome is a tell that reads as a mockup. The
+              address bar below stays: it carries the real URL, the refresh
+              control and the device toggle. */}
 
           {/* Browser Address Bar */}
-          <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-ui-bg-base border border-ui-border-base text-ui-fg-muted font-mono text-[11px] max-w-[420px] w-full mx-4 shadow-sm">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-ui-bg-base border border-ui-border-base text-ui-fg-muted font-mono text-[11px] max-w-[420px] w-full mr-4 shadow-sm">
             <LockClosedSolid className="w-3 h-3 text-emerald-600 shrink-0" />
             <span className="truncate flex-1 text-ui-fg-base">{STHENO_STOREFRONT_URL}</span>
             <button
