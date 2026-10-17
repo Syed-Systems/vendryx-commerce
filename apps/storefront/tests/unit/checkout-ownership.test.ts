@@ -66,7 +66,18 @@ describe("P25-08 / P27-06: Checkout Ownership & Skinning Boundary (ADR-013)", ()
   })
 
   it("verifies themes supply token stylesheets for checkout skinning without markup alterations", () => {
-    const frontends = ["frontend-default", "frontend-matrix", "frontend-lustre"]
+    // ADR-031 consolidated the storefronts onto a single unified runtime.
+    // `frontend-matrix` and `frontend-lustre` are no longer separate packages --
+    // they are theme variants of `frontend-default`, selected by the
+    // `data-theme` attribute on <body>. This test predates that decision and was
+    // asserting on directories that were deliberately removed.
+    //
+    // The assertion is now the stronger one that actually holds: the one shipped
+    // frontend supplies the token layer, and every theme it declares has the
+    // derived-token blocks that make checkout skinning per-theme. It reads the
+    // theme list from the presets themselves rather than hardcoding it, so a
+    // future theme cannot pass by omission.
+    const frontends = ["frontend-default"]
 
     for (const fe of frontends) {
       const tokensPath = path.join(PACKAGES_DIR, fe, "src", "modules", "styles", "tokens.css")
@@ -75,6 +86,16 @@ describe("P25-08 / P27-06: Checkout Ownership & Skinning Boundary (ADR-013)", ()
       const css = fs.readFileSync(tokensPath, "utf8")
       // Must define or map tokens
       expect(css.length).toBeGreaterThan(10)
+    }
+
+    // Each named preset must have a matching per-theme override block, or that
+    // theme silently falls through to the default material.
+    const tokensCss = fs.readFileSync(
+      path.join(PACKAGES_DIR, "frontend-default", "src", "modules", "styles", "tokens.css"),
+      "utf8"
+    )
+    for (const theme of ["mahal", "lustre", "matrix"]) {
+      expect(tokensCss).toContain(`[data-theme="${theme}"]`)
     }
   })
 })
