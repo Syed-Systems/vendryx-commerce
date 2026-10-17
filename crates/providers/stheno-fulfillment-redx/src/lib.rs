@@ -188,23 +188,39 @@ impl FulfillmentProvider for RedxFulfillmentProvider {
             .send()
             .await;
 
+        // No invented tracking id. A number RedX never issued would leave the order marked
+        // dispatched with a dead tracking link while the parcel sits in the warehouse.
         let (tracking_id, parcel_id) = match resp {
             Ok(r) if r.status().is_success() => {
-                let json: serde_json::Value = r.json().await.unwrap_or_default();
+                let json: serde_json::Value = r.json().await.map_err(|e| Error::ProviderFailed {
+                    provider: "redx".to_string(),
+                    source: format!("RedX returned a non-JSON response: {e}").into(),
+                })?;
                 let tid = json
                     .get("tracking_id")
                     .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("REDX-{}", invoice_id));
+                    .ok_or_else(|| Error::ProviderFailed {
+                        provider: "redx".to_string(),
+                        source: "RedX response carried no tracking_id".into(),
+                    })?
+                    .to_string();
                 let pid = json
                     .get("parcel_id")
                     .map(|v| v.to_string())
                     .unwrap_or_else(|| tid.clone());
                 (tid, pid)
             }
-            _ => {
-                let tid = format!("REDX-{}", invoice_id);
-                (tid.clone(), tid)
+            Ok(r) => {
+                return Err(Error::ProviderFailed {
+                    provider: "redx".to_string(),
+                    source: format!("RedX dispatch failed with HTTP {}", r.status()).into(),
+                })
+            }
+            Err(e) => {
+                return Err(Error::ProviderFailed {
+                    provider: "redx".to_string(),
+                    source: format!("RedX dispatch request failed: {e}").into(),
+                })
             }
         };
 
