@@ -7,8 +7,8 @@ export default function CheckoutLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="w-full bg-white relative small:min-h-screen">
-      <div className="h-16 bg-white border-b ">
+    <div className="w-full bg-[color:var(--brand-surface)] relative small:min-h-screen">
+      <div className="h-16 bg-[color:var(--brand-surface)] border-b ">
         <nav className="flex h-full items-center content-container justify-between">
           <LocalizedClientLink
             href="/cart"
@@ -31,10 +31,10 @@ export default function CheckoutLayout({
             className="flex flex-col items-center group py-1"
             data-testid="store-link"
           >
-            <span className="text-lg sm:text-xl font-serif tracking-[0.25em] uppercase font-bold text-zinc-950 group-hover:opacity-80 transition-opacity">
+            <span className="text-lg sm:text-xl font-heading tracking-[0.25em] uppercase font-bold text-[color:var(--ink)] group-hover:opacity-80 transition-opacity">
               STHENO
             </span>
-            <span className="text-[9px] tracking-[0.35em] text-zinc-500 uppercase -mt-1 font-sans">
+            <span className="text-[9px] tracking-[0.35em] text-[color:var(--ink-faint)] uppercase -mt-1 font-sans">
               Atelier • Edition
             </span>
           </LocalizedClientLink>
