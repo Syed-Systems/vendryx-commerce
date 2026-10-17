@@ -1,2 +1,17 @@
-[build]
-target-dir = "C:/Users/Mahi/rust-target"
+# This used to pin the build directory to an absolute path belonging to one developer's
+# machine:
+#
+#     [build]
+#     target-dir = "C:/Users/Mahi/rust-target"
+#
+# That breaks the build for everyone else in two ways. Where the path is not writable,
+# cargo fails outright; and where it *is* writable, every crate lands in a directory no
+# `.gitignore` covers, so a plain `git add -A` can stage tens of gigabytes of build output.
+#
+# Deleted rather than repointed. With no `target-dir`, cargo uses `target/` beside the
+# workspace manifest, which is already ignored by the `/target/` rule in .gitignore and
+# works identically on every machine.
+#
+# If you need the build somewhere else - a different drive, or off a slow disk - set
+# CARGO_TARGET_DIR in your shell instead. It stays a local decision rather than something
+# the repository imposes on everyone.
