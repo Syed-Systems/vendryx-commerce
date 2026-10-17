@@ -80,9 +80,11 @@ const CartDropdown = ({
       onMouseLeave={close}
     >
       <Popover className="relative h-full">
-        <PopoverButton className="h-full">
+        <PopoverButton className="h-full flex items-center">
+          {/* `hover:text-ui-fg-base` on its own rendered this at 21px tall — a
+              cart is the most-tapped control in the header. */}
           <LocalizedClientLink
-            className="hover:text-ui-fg-base"
+            className="tap label-nav whitespace-nowrap text-[color:var(--chrome-fg-muted)] hover:text-[color:var(--chrome-fg)] transition-colors"
             href="/cart"
             data-testid="nav-cart-link"
           >{`Cart (${totalItems})`}</LocalizedClientLink>
@@ -99,7 +101,7 @@ const CartDropdown = ({
         >
           <PopoverPanel
             static
-            className="hidden small:block absolute top-[calc(100%+1px)] right-0 bg-white border-x border-b border-gray-200 w-[420px] text-ui-fg-base"
+            className="glass hidden small:block absolute top-[calc(100%+1px)] right-0 w-[420px] rounded-b-2xl text-ui-fg-base"
             data-testid="nav-cart-dropdown"
           >
             <div className="p-4 flex items-center justify-center">
@@ -128,6 +130,7 @@ const CartDropdown = ({
                             thumbnail={item.thumbnail}
                             images={item.variant?.product?.images}
                             size="square"
+                            alt={item.title}
                           />
                         </LocalizedClientLink>
                         <div className="flex flex-col justify-between flex-1">
@@ -206,7 +209,7 @@ const CartDropdown = ({
             ) : (
               <div>
                 <div className="flex py-16 flex-col gap-y-4 items-center justify-center">
-                  <div className="bg-gray-900 text-small-regular flex items-center justify-center w-6 h-6 rounded-full text-white">
+                  <div className="bg-[color:var(--band-dark)] text-small-regular flex items-center justify-center w-6 h-6 rounded-full text-[color:var(--on-dark)]">
                     <span>0</span>
                   </div>
                   <span>Your shopping bag is empty.</span>
