@@ -3,28 +3,38 @@
 @tailwind utilities;
 
 @layer base {
+  /* WOFF2, subset to Latin. These were 781 KB of uncompressed TTF, of which
+     the browser needed a fraction; subsetting to the range this admin actually
+     renders (Latin plus the punctuation and currency glyphs it formats money
+     with) took the four faces to 79 KB. `font-display: swap` is the other half:
+     without it the browser hides text until the font lands, so a slow font
+     reads as a blank page. */
   @font-face {
     font-family: "Inter";
     font-weight: 400;
-    src: url("./assets/fonts/Inter-Regular.ttf") format("truetype");
+    font-display: swap;
+    src: url("./assets/fonts/Inter-Regular.woff2") format("woff2");
   }
 
   @font-face {
     font-family: "Inter";
     font-weight: 500;
-    src: url("./assets/fonts/Inter-Medium.ttf") format("truetype");
+    font-display: swap;
+    src: url("./assets/fonts/Inter-Medium.woff2") format("woff2");
   }
 
   @font-face {
     font-family: "Roboto Mono";
     font-weight: 400;
-    src: url("./assets/fonts/RobotoMono-Regular.ttf") format("truetype");
+    font-display: swap;
+    src: url("./assets/fonts/RobotoMono-Regular.woff2") format("woff2");
   }
 
   @font-face {
     font-family: "Roboto Mono";
     font-weight: 500;
-    src: url("./assets/fonts/RobotoMono-Medium.ttf") format("truetype");
+    font-display: swap;
+    src: url("./assets/fonts/RobotoMono-Medium.woff2") format("woff2");
   }
 
   :root {
@@ -65,20 +75,6 @@
   }
 }
 
-@layer components {
-  .worfklow-grid {
-    background-image: radial-gradient(black 1px, transparent 0);
-    background-size: 40px 40px;
-    background: repeat;
-  }
-}
-
-.worfklow-grid {
-  background-image: radial-gradient(black 1px, transparent 0);
-  background-size: 40px 40px;
-  background: repeat;
-}
-
 /* ==========================================================================
    Elevation & Stacking Context Architecture
    Ensures modals, drawers, overlays, and poppers sit cleanly above all
@@ -99,4 +95,34 @@
 
 [data-radix-popper-content-wrapper] {
   z-index: 70 !important;
+}
+
+/* ==========================================================================
+   Reduced motion.
+
+   There were no `prefers-reduced-motion` guards anywhere in this app while 28
+   transitions and 36 animated utilities ran unconditionally, so a user who has
+   asked the OS for less motion got all of it. That is a WCAG 2.3.3 failure, not
+   a polish nit.
+
+   Durations collapse rather than the rules being deleted, so state changes
+   still happen -- colour, opacity, focus rings, and every hover/active
+   acknowledgement survive. What goes is the movement: nothing slides, scales,
+   or fades over time. `animation-iteration-count: 1` also stops the infinite
+   loops (the pulsing "Live" dot) instead of letting them run at 0.01ms
+   forever, which would still repaint every frame.
+
+   Deliberately global. The alternative is auditing 28 call sites, and the one
+   that gets missed is the one that hurts someone.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
 }
