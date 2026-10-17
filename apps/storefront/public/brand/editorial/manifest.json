@@ -1,0 +1,56 @@
+{
+  "menswear": [
+    "/brand/editorial/menswear-1.jpg",
+    "/brand/editorial/menswear-2.jpg",
+    "/brand/editorial/menswear-3.jpg"
+  ],
+  "sherwani": [
+    "/brand/editorial/sherwani-1.jpg",
+    "/brand/editorial/sherwani-2.jpg",
+    "/brand/editorial/sherwani-3.jpg"
+  ],
+  "editorial": [
+    "/brand/editorial/editorial-1.jpg",
+    "/brand/editorial/editorial-2.jpg",
+    "/brand/editorial/editorial-3.jpg"
+  ],
+  "atelier": [
+    "/brand/editorial/atelier-1.jpg",
+    "/brand/editorial/atelier-2.jpg"
+  ],
+  "bridal-lehenga": [
+    "/brand/editorial/bridal-lehenga-1.jpg",
+    "/brand/editorial/bridal-lehenga-2.jpg",
+    "/brand/editorial/bridal-lehenga-3.jpg"
+  ],
+  "redcarpet": [
+    "/brand/editorial/redcarpet-1.jpg",
+    "/brand/editorial/redcarpet-2.jpg",
+    "/brand/editorial/redcarpet-3.jpg"
+  ],
+  "anarkali": [
+    "/brand/editorial/anarkali-1.jpg",
+    "/brand/editorial/anarkali-2.jpg"
+  ],
+  "hero-bridal": [
+    "/brand/editorial/hero-bridal-1.jpg",
+    "/brand/editorial/hero-bridal-2.jpg",
+    "/brand/editorial/hero-bridal-3.jpg"
+  ],
+  "saree": [
+    "/brand/editorial/saree-1.jpg",
+    "/brand/editorial/saree-2.jpg"
+  ],
+  "jewellery": [
+    "/brand/editorial/jewellery-1.jpg",
+    "/brand/editorial/jewellery-2.jpg",
+    "/brand/editorial/jewellery-3.jpg",
+    "/brand/editorial/jewellery-4.jpg"
+  ],
+  "accessories": [
+    "/brand/editorial/accessories-1.jpg",
+    "/brand/editorial/accessories-2.jpg",
+    "/brand/editorial/accessories-3.jpg",
+    "/brand/editorial/accessories-4.jpg"
+  ]
+}
