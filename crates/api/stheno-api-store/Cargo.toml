@@ -46,6 +46,9 @@ utoipa = { workspace = true }
 
 [dev-dependencies]
 stheno-db = { workspace = true, features = ["testing"] }
+# The cart tests build a CompleteCartWorkflowEngine directly, which now takes the
+# durable WorkflowStore rather than keeping its state in a HashMap.
+stheno-workflow = { workspace = true }
 stheno-payment-offline = { workspace = true }
 stheno-payment-stripe = { workspace = true }
 rust_decimal_macros = { workspace = true }

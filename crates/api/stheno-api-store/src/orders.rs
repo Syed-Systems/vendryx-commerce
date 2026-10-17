@@ -32,6 +32,69 @@ fn unauthorized(message: &str) -> Response {
         .into_response()
 }
 
+fn not_found(message: &str) -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        Json(serde_json::json!({ "type": "not_found", "message": message })),
+    )
+        .into_response()
+}
+
+/// Resolves the caller's customer id from the bearer token.
+///
+/// Every `/store/orders` handler that touches one specific order goes through this.
+/// `get_order` and the transfer routes previously took a bare `Path(id)` with no token at
+/// all, so anyone holding an order id could read that order or move it to their own
+/// account. `list_orders` was hardened against exactly this and its own doc comment says so;
+/// the single-order routes were missed.
+///
+/// Returns 404 rather than 403 for "exists but is not yours" - 403 confirms the order is
+/// real, which is the existence oracle AGENTS.md 2.10 rules out.
+async fn caller_customer_id(
+    ctx: &StoreOrderContext,
+    headers: &axum::http::HeaderMap,
+) -> Result<String, Response> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| unauthorized("Missing Authorization bearer token"))?;
+
+    let claims = ctx
+        .auth_service
+        .verify_jwt(token)
+        .await
+        .map_err(|_| unauthorized("Invalid or expired token"))?;
+
+    // No actor means the identity exists but no customer was ever created for it. Such a
+    // caller owns nothing, and must not therefore be shown everything.
+    claims
+        .actor_id
+        .ok_or_else(|| unauthorized("Token is not bound to a customer"))
+}
+
+/// Loads an order and asserts the caller owns it, or returns 404.
+async fn owned_order(
+    ctx: &StoreOrderContext,
+    headers: &axum::http::HeaderMap,
+    order_id: &str,
+) -> Result<OrderDTO, Response> {
+    let caller = caller_customer_id(ctx, headers).await?;
+    let order = ctx
+        .order_service
+        .get_order(order_id)
+        .await
+        .map_err(map_error)?;
+
+    // An order with no customer is a guest order. Guests have no token to present, so
+    // nothing can prove ownership of one; treat it as not-yet-claimable rather than
+    // readable by whoever guesses the id.
+    if order.customer_id.as_deref() != Some(caller.as_str()) {
+        return Err(not_found("Order not found"));
+    }
+    Ok(order)
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListOrdersQuery {
     pub display_id: Option<i64>,
@@ -219,23 +282,7 @@ pub async fn list_orders(
     headers: axum::http::HeaderMap,
     Query(query): Query<ListOrdersQuery>,
 ) -> Result<Json<OrderListResponse>, Response> {
-    let token = headers
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or_else(|| unauthorized("Missing Authorization bearer token"))?;
-
-    let claims = ctx
-        .auth_service
-        .verify_jwt(token)
-        .await
-        .map_err(|_| unauthorized("Invalid or expired token"))?;
-
-    // No actor means the identity exists but no customer was ever created for it. Such a
-    // caller owns nothing, and must not therefore be shown everything.
-    let customer_id = claims
-        .actor_id
-        .ok_or_else(|| unauthorized("Token is not bound to a customer"))?;
+    let customer_id = caller_customer_id(&ctx, &headers).await?;
 
     let filter = OrderFilter {
         customer_id: Some(customer_id),
@@ -268,12 +315,13 @@ pub async fn list_orders(
     }))
 }
 
-/// `GET /store/orders/{id}`
+/// `GET /store/orders/{id}` — one order, and only the shopper who owns it.
 pub async fn get_order(
     State(ctx): State<StoreOrderContext>,
     Path(id): Path<String>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<OrderResponse>, Response> {
-    let order = ctx.order_service.get_order(&id).await.map_err(map_error)?;
+    let order = owned_order(&ctx, &headers, &id).await?;
     Ok(Json(OrderResponse {
         order: store_order_expanded(&ctx, order).await,
     }))
@@ -282,8 +330,10 @@ pub async fn get_order(
 /// `POST /store/orders/transfer`
 pub async fn request_transfer(
     State(ctx): State<StoreOrderContext>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<RequestTransferRequest>,
 ) -> Result<Json<TransferResponse>, Response> {
+    transfer_party_order(&ctx, &headers, &body.order_id).await?;
     let req = ctx
         .order_flows
         .request_order_transfer(&body.order_id, &body.target_customer_id)
@@ -299,8 +349,10 @@ pub async fn request_transfer(
 /// `POST /store/orders/transfer/accept`
 pub async fn accept_transfer(
     State(ctx): State<StoreOrderContext>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<TransferActionRequest>,
 ) -> Result<Json<OrderResponse>, Response> {
+    transfer_party_order(&ctx, &headers, &body.order_id).await?;
     let order = ctx
         .order_flows
         .accept_order_transfer(&body.order_id)
@@ -314,8 +366,10 @@ pub async fn accept_transfer(
 /// `POST /store/orders/transfer/decline`
 pub async fn decline_transfer(
     State(ctx): State<StoreOrderContext>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<TransferActionRequest>,
 ) -> Result<Json<TransferResponse>, Response> {
+    transfer_party_order(&ctx, &headers, &body.order_id).await?;
     let req = ctx
         .order_flows
         .decline_order_transfer(&body.order_id)
@@ -330,8 +384,10 @@ pub async fn decline_transfer(
 /// `POST /store/orders/transfer/cancel`
 pub async fn cancel_transfer(
     State(ctx): State<StoreOrderContext>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<TransferActionRequest>,
 ) -> Result<Json<TransferResponse>, Response> {
+    transfer_party_order(&ctx, &headers, &body.order_id).await?;
     let req = ctx
         .order_flows
         .cancel_order_transfer(&body.order_id)
@@ -361,6 +417,37 @@ fn map_error(e: Error) -> Response {
         .into_response()
 }
 
+/// Loads an order for a transfer action and checks the caller may act on it.
+///
+/// A transfer has two legitimate parties: the order's current owner, who may request,
+/// decline or cancel it, and the pending target, who may accept it. Between request and
+/// accept the order still belongs to the original customer, so an ownership-only check
+/// would lock the target out of the one action they are allowed to take.
+async fn transfer_party_order(
+    ctx: &StoreOrderContext,
+    headers: &axum::http::HeaderMap,
+    order_id: &str,
+) -> Result<OrderDTO, Response> {
+    let caller = caller_customer_id(ctx, headers).await?;
+    let order = ctx
+        .order_service
+        .get_order(order_id)
+        .await
+        .map_err(map_error)?;
+
+    let is_owner = order.customer_id.as_deref() == Some(caller.as_str());
+    let is_target = ctx
+        .order_flows
+        .pending_transfer(order_id)
+        .map(|t| t.target_customer_id == caller)
+        .unwrap_or(false);
+
+    if !is_owner && !is_target {
+        return Err(not_found("Order not found"));
+    }
+    Ok(order)
+}
+
 // ── Nested transfer routes ───────────────────────────────────────────────────
 //
 // `@medusajs/js-sdk` calls `/store/orders/{id}/transfer/{action}` — the order in the path.
@@ -381,8 +468,10 @@ pub struct NestedRequestTransferRequest {
 pub async fn request_transfer_for_order(
     State(ctx): State<StoreOrderContext>,
     Path(order_id): Path<String>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<NestedRequestTransferRequest>,
 ) -> Result<Json<TransferResponse>, Response> {
+    transfer_party_order(&ctx, &headers, &order_id).await?;
     let req = ctx
         .order_flows
         .request_order_transfer(&order_id, &body.target_customer_id)
@@ -398,7 +487,9 @@ pub async fn request_transfer_for_order(
 pub async fn accept_transfer_for_order(
     State(ctx): State<StoreOrderContext>,
     Path(order_id): Path<String>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<OrderResponse>, Response> {
+    transfer_party_order(&ctx, &headers, &order_id).await?;
     let order = ctx
         .order_flows
         .accept_order_transfer(&order_id)
@@ -413,7 +504,9 @@ pub async fn accept_transfer_for_order(
 pub async fn decline_transfer_for_order(
     State(ctx): State<StoreOrderContext>,
     Path(order_id): Path<String>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<TransferResponse>, Response> {
+    transfer_party_order(&ctx, &headers, &order_id).await?;
     let req = ctx
         .order_flows
         .decline_order_transfer(&order_id)
@@ -429,7 +522,9 @@ pub async fn decline_transfer_for_order(
 pub async fn cancel_transfer_for_order(
     State(ctx): State<StoreOrderContext>,
     Path(order_id): Path<String>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<TransferResponse>, Response> {
+    transfer_party_order(&ctx, &headers, &order_id).await?;
     let req = ctx
         .order_flows
         .cancel_order_transfer(&order_id)
