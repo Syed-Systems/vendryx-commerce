@@ -99,9 +99,6 @@ type Page = StaticPage | DemoPage
 
 type Currency = "BDT" | "USD" | "EUR"
 
-const accountDraftKey = "stheno-marketing-account-draft"
-const launchDraftKey = "stheno-marketing-store-draft"
-
 const pageMetadata: Record<StaticPage, { title: string; description: string; indexable?: boolean }> = {
   "/": {
     title: "Vendryx | Commerce Operations Infrastructure for Independent Merchants",
@@ -906,42 +903,16 @@ function Footer({ onOpenEngineersTalk }: { onOpenEngineersTalk: () => void }) {
           </div>
 
           <div className="footer-nav-col">
-            <h4>Architecture</h4>
-            <ul>
-              <li>
-                <button type="button" className="footer-text-btn footer-highlight-link" onClick={onOpenEngineersTalk}>
-                  <Code size={14} />
-                  <span>Architecture Overview</span>
-                </button>
-              </li>
-              <li><button type="button" className="footer-text-btn" onClick={onOpenEngineersTalk}>Rust Core Primitives</button></li>
-              <li><button type="button" className="footer-text-btn" onClick={onOpenEngineersTalk}>Schema Isolation</button></li>
-              <li><button type="button" className="footer-text-btn" onClick={onOpenEngineersTalk}>Idempotent Sagas</button></li>
-              <li><button type="button" className="footer-text-btn" onClick={onOpenEngineersTalk}>Storefront Contract API</button></li>
-              <li><button type="button" className="footer-text-btn" onClick={onOpenEngineersTalk}>REST Endpoints</button></li>
-            </ul>
-          </div>
-
-          <div className="footer-nav-col">
             <h4>Merchants</h4>
             <ul>
               <li><Link to="/signup">Start Free Trial</Link></li>
               <li><a href={ADMIN_URL}>Launch Admin Dashboard</a></li>
               <li><a href={ADMIN_LOGIN_URL}>Merchant Workspace Login</a></li>
               <li><Link to="#pricing">Plan comparison</Link></li>
-              <li><Link to="#reviews">Customer reviews</Link></li>
               <li><Link to="#how-it-works">How Vendryx Works</Link></li>
               <li><Link to="#faq">Merchant FAQ</Link></li>
-            </ul>
-          </div>
-
-          <div className="footer-nav-col">
-            <h4>Trust & Legal</h4>
-            <ul>
               <li><Link to="/privacy">Privacy Notice</Link></li>
               <li><Link to="/terms">Terms of Service</Link></li>
-              <li><a href="#faq">Zero Floating Point Math</a></li>
-              <li><a href="#faq">Data Redaction Policy</a></li>
               <li><a href="mailto:support@syedsystems.com">Merchant Support Desk</a></li>
             </ul>
           </div>
@@ -2248,7 +2219,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                         <span className="stock-tag">{product.stock} in stock</span>
                         <span className="card-star-pill">
                           <Star size={11} className="star-icon fill-amber-400 text-amber-400" />
-                          <span>{avgRating} ({reviews.length > 0 ? reviews.length : 12})</span>
+                          <span>{avgRating} ({reviews.length > 0 ? reviews.length : 0} reviews)</span>
                         </span>
                       </div>
                       <div className="store-card-info">
@@ -2510,9 +2481,11 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                 <div className="product-reviews-block">
                   <div className="reviews-header-row">
                     <strong>Customer Reviews ({(reviewsMap[selectedProduct.id] || []).length})</strong>
-                    <span className="verified-badge">
-                      <ShieldCheck size={14} /> Verified Buyers
-                    </span>
+                    {reviewsMap[selectedProduct.id]?.length ? (
+                      <span className="verified-badge">
+                        <ShieldCheck size={14} /> Verified Buyers
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className="reviews-list-compact">
@@ -2867,14 +2840,6 @@ function AuthShell({
   )
 }
 
-function readDraft() {
-  try {
-    return JSON.parse(localStorage.getItem(accountDraftKey) ?? "{}") as Record<string, string>
-  } catch {
-    return {}
-  }
-}
-
 function Signup() {
   const { navigate } = useMarketing()
   const [details, setDetails] = useState<{ email?: string; businessName?: string; whatsapp?: string; category?: string; plan?: string }>({})
@@ -3212,7 +3177,7 @@ export default function App() {
     )
 
   return (
-    <main className={`marketing-app page-${page.slice(1) || "home"}`}>
+    <main id="main-content" className={`marketing-app page-${page.slice(1) || "home"}`}>
       <Header />
       {content}
       <EngineersTalkModal isOpen={engineersTalkOpen} onClose={() => setEngineersTalkOpen(false)} />

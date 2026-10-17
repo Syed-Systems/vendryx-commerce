@@ -125,6 +125,209 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ==========================================================================
+   Dark theme (default). Same warm near-black as the admin so the two apps
+   read as one product family. The --vx-* tokens drive the body and every
+   component that uses var(--canvas), var(--surface), etc.; the hardcoded
+   colour overrides below handle the rest.
+   ========================================================================== */
+.dark {
+  --vx-bg-canvas: #09090B;
+  --vx-bg-sidebar: #141416;
+  --vx-bg-surface: #18181B;
+  --vx-bg-subtle: #121214;
+  --vx-fg-primary: #FAFAFA;
+  --vx-fg-secondary: #A1A1AA;
+  --vx-fg-muted: #71717A;
+  --vx-border: #27272A;
+  --vx-border-strong: #3F3F46;
+  --vx-brand-600: #FB923C;
+  --vx-brand-700: #EA580C;
+  --vx-brand-800: #C2410C;
+  --vx-brand-50: rgba(234, 88, 12, 0.15);
+  --vx-focus: #EA580C;
+
+  color-scheme: dark;
+}
+
+/* Dark overrides for the component styles that hardcode light colours.
+   These are the classes that use #ffffff, #f8fafc, #f1f5f9 etc. as backgrounds
+   or text. Rather than editing 226 declarations, the overrides live here. */
+.dark .auth-card,
+.dark .auth-form,
+.dark .cmd-palette-card,
+.dark .cmd-palette-trigger,
+.dark .content-card,
+.dark .customer-review-card,
+.dark .feature-brief-card,
+.dark .google-button,
+.dark .invoice-card,
+.dark .invoice-items-table,
+.dark .mobile-nav,
+.dark .mobile-signup-link,
+.dark .password-input-wrap,
+.dark .plan-table,
+.dark .plan-table-wrap,
+.dark .pricing-tier-card,
+.dark .promo-code-box,
+.dark .service-comparison-table-wrap,
+.dark .stheno-faq,
+.dark .subdomain-input-wrap,
+.dark .tracker-step,
+.dark .demo-operator-note,
+.dark .status-badge-btn {
+  background: #18181B !important;
+  border-color: #27272A !important;
+}
+
+.dark .auth-card,
+.dark .auth-form,
+.dark .cmd-palette-card,
+.dark .cmd-palette-trigger,
+.dark .content-card,
+.dark .customer-review-card,
+.dark .feature-brief-card,
+.dark .google-button,
+.dark .invoice-card,
+.dark .invoice-items-table,
+.dark .mobile-nav,
+.dark .mobile-signup-link,
+.dark .password-input-wrap,
+.dark .plan-table,
+.dark .plan-table-wrap,
+.dark .pricing-tier-card,
+.dark .promo-code-box,
+.dark .service-comparison-table-wrap,
+.dark .stheno-faq,
+.dark .subdomain-input-wrap,
+.dark .tracker-step {
+  color: #FAFAFA;
+}
+
+/* The auth form inputs and other white-background inputs */
+.dark .auth-form input,
+.dark .auth-form select,
+.dark .auth-form textarea,
+.dark .store-form input,
+.dark .store-form select,
+.dark .store-form textarea,
+.dark .modal-form input,
+.dark .modal-form select,
+.dark .modal-form textarea,
+.dark .checkout-form input,
+.dark .checkout-form textarea {
+  background: #18181B;
+  border-color: #3F3F46;
+  color: #FAFAFA;
+}
+
+/* White text on dark backgrounds (badges, buttons, etc.) */
+.dark .badge-live-text,
+.dark .badge-tracked-text,
+.dark .badge-neutral-text {
+  color: #FAFAFA;
+}
+
+/* Dark text on light backgrounds (headings, labels, etc.) */
+.dark h1, .dark h2, .dark h3, .dark h4,
+.dark .h1, .dark .h2, .dark .h3, .dark .h4 {
+  color: #FAFAFA;
+}
+
+.dark p, .dark .body-copy, .dark .section-lede, .dark .hero-lede {
+  color: #A1A1AA;
+}
+
+.dark strong, .dark b {
+  color: #FAFAFA;
+}
+
+.dark small {
+  color: #71717A;
+}
+
+/* Auth card and form backgrounds */
+.dark .auth-card,
+.dark .auth-form {
+  background: #18181B !important;
+  border-color: #27272A !important;
+}
+
+/* Card backgrounds */
+.dark .content-card,
+.dark .feature-brief-card,
+.dark .pricing-tier-card,
+.dark .customer-review-card,
+.dark .invoice-card,
+.dark .cmd-palette-card,
+.dark .cmd-palette-trigger,
+.dark .google-button,
+.dark .password-input-wrap,
+.dark .promo-code-box,
+.dark .service-comparison-table-wrap,
+.dark .stheno-faq,
+.dark .subdomain-input-wrap,
+.dark .tracker-step,
+.dark .plan-table,
+.dark .plan-table-wrap,
+.dark .auth-card,
+.dark .auth-form,
+.dark .mobile-nav,
+.dark .mobile-signup-link {
+  background: #18181B !important;
+  border-color: #27272A !important;
+}
+
+/* Subtle backgrounds */
+.dark .auth-form input,
+.dark .auth-form select,
+.dark .auth-form textarea,
+.dark .store-form input,
+.dark .store-form select,
+.dark .store-form textarea,
+.dark .modal-form input,
+.dark .modal-form select,
+.dark .modal-form textarea,
+.dark .checkout-form input,
+.dark .checkout-form textarea {
+  background: #121214 !important;
+  border-color: #3F3F46 !important;
+  color: #FAFAFA;
+}
+
+/* Borders */
+.dark .border-medium,
+.dark .border-strong {
+  border-color: #27272A;
+}
+
+/* Shadows (keep them but make them darker) */
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-lg {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Pricing tier card featured gradient */
+.dark .pricing-tier-card.is-featured {
+  background: linear-gradient(180deg, rgba(234, 88, 12, 0.08), #18181B);
+}
+
+/* Auth error/success messages */
+.dark .form-notice,
+.dark .alert-error {
+  background: #2a1a1a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+.dark .form-notice.is-success,
+.dark .alert-success {
+  background: #1a2a1a;
+  border-color: #166534;
+  color: #86efac;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -141,6 +344,21 @@ body {
   color: var(--text-primary);
   line-height: 1.5;
   font-family: var(--font-sans);
+}
+
+/* Skip link - visually hidden until focused */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  padding: 8px 16px;
+  background: var(--accent);
+  color: #fff;
+  z-index: 100;
+  transition: top 0.2s;
+}
+.skip-link:focus-visible {
+  top: 0;
 }
 
 /* ==========================================================================
@@ -194,7 +412,7 @@ h4, .h4 {
 .meta-eyebrow {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--accent);
   text-transform: uppercase;
@@ -227,9 +445,7 @@ h4, .h4 {
 /* Standard Paragraphs & Reading Text */
 p {
   color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.6;
+  font-size: 16px;
   margin: 0;
 }
 
@@ -3519,7 +3735,7 @@ img {
   transition: all 0.15s ease;
 }
 
-.product-title-input:hover, .product-title-input:focus {
+.product-title-input:hover, .product-title-input:focus-visible {
   background: #f8fafc;
   border-color: var(--border-medium);
 }
@@ -4306,7 +4522,7 @@ img {
 .auth-form { display: grid; gap: 18px; }
 .auth-form label, .store-form label, .modal-form label, .checkout-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-primary); }
 .auth-form input, .auth-form select, .store-form input, .store-form select, .store-form textarea, .modal-form input, .modal-form select, .modal-form textarea, .checkout-form input, .checkout-form textarea { min-height: 44px; width: 100%; border: 1px solid var(--border-medium); border-radius: var(--radius-sm); padding: 0 14px; background: #ffffff; color: var(--text-primary); font-family: inherit; font-size: 13px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
-.auth-form input:focus, .store-form input:focus, .modal-form input:focus, .checkout-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.auth-form input:focus-visible, .store-form input:focus-visible, .modal-form input:focus-visible, .checkout-form input:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .password-input-wrap { display: flex; align-items: center; border: 1px solid var(--border-medium); border-radius: var(--radius-sm); background: #ffffff; overflow: hidden; }
 .password-input-wrap input { border: none !important; background: transparent !important; box-shadow: none !important; flex: 1; }
@@ -4463,7 +4679,7 @@ img {
 /* One-page plan comparison using generated shadcn/ui primitives. */
 .pricing-section-v2 { padding-block: 104px; }
 .feature-brief-header, .audience-header { max-width: 760px; }
-.feature-brief-grid { display: grid; grid-template-columns: 1.2fr 0.9fr 0.9fr; gap: 16px; }
+.feature-brief-grid { display: grid; grid-template-columns: 1.2fr 0.9fr; gap: 16px; }
 .feature-brief-card[data-slot="card"] { border: 1px solid var(--border-medium); border-radius: var(--radius-md); background: #ffffff; box-shadow: var(--shadow-sm); }
 .feature-brief-card [data-slot="card-header"] { padding: 26px 26px 10px; }
 .feature-brief-card [data-slot="card-title"] { color: var(--text-primary); font-size: 1.05rem; }
@@ -5214,8 +5430,8 @@ img {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.auth-form input:focus,
-.auth-form select:focus {
+.auth-form input:focus-visible,
+.auth-form select:focus-visible {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.12);
 }
