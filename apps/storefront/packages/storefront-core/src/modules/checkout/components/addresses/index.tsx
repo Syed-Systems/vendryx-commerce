@@ -40,11 +40,11 @@ const Addresses = ({
   const [message, formAction] = useActionState(setAddresses, null)
 
   return (
-    <div className="bg-white">
+    <div className="bg-[color:var(--brand-surface)]">
       <div className="flex flex-row items-center justify-between mb-6">
         <Heading
           level="h2"
-          className="flex flex-row text-2xl sm:text-3xl font-serif font-bold text-zinc-950 tracking-tight gap-x-2 items-baseline"
+          className="flex flex-row text-2xl sm:text-3xl font-heading font-bold text-[color:var(--ink)] tracking-tight gap-x-2 items-baseline"
         >
           Shipping Address
           {!isOpen && <CheckCircleSolid />}
@@ -75,7 +75,7 @@ const Addresses = ({
               <div>
                 <Heading
                   level="h2"
-                  className="text-2xl sm:text-3xl font-serif font-bold text-zinc-950 tracking-tight gap-x-4 pb-6 pt-8"
+                  className="text-2xl sm:text-3xl font-heading font-bold text-[color:var(--ink)] tracking-tight gap-x-4 pb-6 pt-8"
                 >
                   Billing address
                 </Heading>

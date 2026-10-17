@@ -40,17 +40,17 @@ export default function CategoryTemplate({
   return (
     <div className="w-full">
       {/* Header Banner */}
-      <div className="bg-zinc-900 text-white py-12 sm:py-16 mb-8">
+      <div className="bg-[color:var(--band-dark)] text-[color:var(--on-dark)] py-12 sm:py-16 mb-8">
         <div className="content-container">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-400 mb-2 font-medium">
-            <LocalizedClientLink href="/store" className="hover:text-white transition-colors">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-[color:var(--ink-faint)] mb-2 font-medium">
+            <LocalizedClientLink href="/store" className="hover:text-[color:var(--on-dark)] transition-colors">
               Store
             </LocalizedClientLink>
             {parents.map((parent) => (
               <span key={parent.id} className="flex items-center gap-2">
                 <span>/</span>
                 <LocalizedClientLink
-                  className="hover:text-white transition-colors"
+                  className="hover:text-[color:var(--on-dark)] transition-colors"
                   href={`/categories/${parent.handle}`}
                 >
                   {parent.name}
@@ -60,14 +60,14 @@ export default function CategoryTemplate({
           </div>
 
           <h1
-            className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold tracking-tight text-white"
+            className="text-3xl sm:text-4xl lg:text-5xl font-heading font-bold tracking-tight text-[color:var(--on-dark)]"
             data-testid="category-page-title"
           >
             {category.name}
           </h1>
 
           {category.description && (
-            <p className="text-sm text-zinc-300 font-light max-w-xl mt-3 leading-relaxed">
+            <p className="text-sm text-[color:var(--on-dark-muted)] font-light max-w-xl mt-3 leading-relaxed">
               {category.description}
             </p>
           )}
@@ -78,7 +78,7 @@ export default function CategoryTemplate({
                 <LocalizedClientLink
                   key={c.id}
                   href={`/categories/${c.handle}`}
-                  className="px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-xs font-medium text-white transition-colors"
+                  className="px-4 py-1.5 rounded-[var(--brand-radius-button)] bg-[color:var(--brand-surface)]/10 hover:bg-[color:var(--brand-surface)]/20 text-xs font-medium text-[color:var(--on-dark)] transition-colors"
                 >
                   {c.name}
                 </LocalizedClientLink>

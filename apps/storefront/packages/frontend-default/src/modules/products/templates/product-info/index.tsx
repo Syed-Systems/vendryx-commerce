@@ -9,11 +9,11 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
   return (
     <div id="product-info" className="flex flex-col gap-y-3">
       {/* Category / Collection Breadcrumb Badge */}
-      <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500 font-medium">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-[color:var(--ink-faint)] font-medium">
         {product.collection ? (
           <LocalizedClientLink
             href={`/collections/${product.collection.handle}`}
-            className="hover:text-zinc-950 transition-colors text-amber-800/90 font-semibold"
+            className="hover:text-[color:var(--ink)] transition-colors text-amber-800/90 font-semibold"
           >
             {product.collection.title}
           </LocalizedClientLink>
@@ -26,7 +26,7 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
 
       {/* Product Heading */}
       <h1
-        className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-zinc-950 tracking-tight leading-tight"
+        className="text-2xl sm:text-3xl lg:text-4xl font-heading font-bold text-[color:var(--ink)] tracking-tight leading-tight"
         data-testid="product-title"
       >
         {product.title}
@@ -35,7 +35,7 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
       {/* Description */}
       {product.description && (
         <p
-          className="text-sm text-zinc-600 font-light leading-relaxed whitespace-pre-line pt-1"
+          className="text-sm text-[color:var(--ink-muted)] font-light leading-relaxed whitespace-pre-line pt-1"
           data-testid="product-description"
         >
           {product.description}

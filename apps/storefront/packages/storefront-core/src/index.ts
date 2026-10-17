@@ -33,6 +33,13 @@ export {
   emitBrandingCss,
   DEFAULT_BRANDING,
   FONT_STACKS,
+  // Named brand presets. DEFAULT_BRANDING was already public; these are its siblings and
+  // belong on the same surface, because a frontend that may read the default preset may
+  // read the others. Exporting them is what lets dev-theme-switcher stay on the public
+  // entry point instead of reaching past it into @lib/.
+  MAHAL_BRANDING,
+  LUSTRE_BRANDING,
+  MATRIX_BRANDING,
 } from "./lib/branding"
 export type { TenantBranding, ResolvedBranding } from "./lib/branding"
 

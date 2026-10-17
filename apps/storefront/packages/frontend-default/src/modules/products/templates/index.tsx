@@ -61,7 +61,7 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
             </Suspense>
 
             {/* Accordion Tabs: Specs, Materials, Shipping */}
-            <div className="pt-4 border-t border-zinc-200">
+            <div className="pt-4 border-t border-[color:var(--brand-hairline)]">
               <ProductTabs product={product} />
             </div>
           </div>
@@ -70,14 +70,14 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
 
       {/* Related Products Rail */}
       <div
-        className="content-container my-16 sm:my-28 border-t border-zinc-200 pt-16"
+        className="content-container my-16 sm:my-28 border-t border-[color:var(--brand-hairline)] pt-16"
         data-testid="related-products-container"
       >
         <div className="mb-8">
-          <span className="text-xs uppercase tracking-[0.2em] text-zinc-500 font-semibold block mb-1">
+          <span className="text-xs uppercase tracking-[0.2em] text-[color:var(--ink-faint)] font-semibold block mb-1">
             Complete the Look
           </span>
-          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-zinc-950">
+          <h2 className="text-2xl sm:text-3xl font-heading font-bold text-[color:var(--ink)]">
             You May Also Admire
           </h2>
         </div>

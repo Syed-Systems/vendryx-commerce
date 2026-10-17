@@ -24,11 +24,11 @@ const OptionSelect: React.FC<OptionSelectProps> = ({
   return (
     <div className="flex flex-col gap-y-2.5">
       <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold uppercase tracking-wider text-zinc-900">
-          {title}: <span className="font-normal text-zinc-600">{current || "Select option"}</span>
+        <span className="font-semibold uppercase tracking-wider text-[color:var(--ink)]">
+          {title}: <span className="font-normal text-[color:var(--ink-muted)]">{current || "Select option"}</span>
         </span>
         {title.toLowerCase().includes("size") && (
-          <span className="text-[11px] text-zinc-500 underline cursor-pointer hover:text-zinc-950 transition-colors">
+          <span className="text-[11px] text-[color:var(--ink-faint)] underline cursor-pointer hover:text-[color:var(--ink)] transition-colors">
             Size Guide
           </span>
         )}
@@ -45,10 +45,10 @@ const OptionSelect: React.FC<OptionSelectProps> = ({
               onClick={() => updateOption(option.id, v)}
               key={v}
               className={clx(
-                "min-w-[48px] px-3.5 py-2 text-xs font-medium rounded-xl border transition-all duration-200 focus:outline-none",
+                "min-w-[48px] px-3.5 py-2 text-xs font-medium rounded-[var(--brand-radius-button)] border transition-all duration-200 focus:outline-none",
                 isSelected
-                  ? "bg-zinc-950 text-white border-zinc-950 shadow-sm scale-100 font-semibold"
-                  : "bg-white text-zinc-800 border-zinc-200 hover:border-zinc-400 hover:bg-zinc-50 active:scale-95"
+                  ? "bg-[color:var(--band-dark)] text-[color:var(--on-dark)] border-[color:var(--brand-hairline)] shadow-sm scale-100 font-semibold"
+                  : "bg-[color:var(--brand-surface)] text-[color:var(--ink)] border-[color:var(--brand-hairline)] hover:border-[color:var(--brand-hairline)] hover:bg-[color:var(--brand-surface)] active:scale-95"
               )}
               disabled={disabled}
               data-testid="option-button"
