@@ -1,4 +1,5 @@
 import { HttpTypes } from "@medusajs/types"
+import { TFunction } from "i18next"
 import { useProducts } from "../../../../../hooks/api/products"
 import {
   createTableAdapter,
@@ -8,7 +9,11 @@ import { useMemo } from "react"
 import { ProductActions } from "./product-list-table-actions"
 
 // eslint-disable-next-line max-len
-export function createProductTableAdapter(): TableAdapter<HttpTypes.AdminProduct> {
+export function createProductTableAdapter({
+  t,
+}: {
+  t: TFunction<"translation", undefined>
+}): TableAdapter<HttpTypes.AdminProduct> {
   return createTableAdapter<HttpTypes.AdminProduct>({
     entity: "products",
     queryPrefix: "p",
@@ -38,6 +43,18 @@ export function createProductTableAdapter(): TableAdapter<HttpTypes.AdminProduct
     },
     getRowHref: (row) => `/products/${row.id}`,
     renderRowActions: (row) => <ProductActions product={row} />,
+    emptyState: {
+      empty: {
+        heading: t("products.list.noRecordsMessage"),
+      },
+      // Without this, a search matching nothing showed "Create your first
+      // product to start selling" -- the empty-store message -- instead of
+      // "no results", so a filtered-empty list looked like an empty store.
+      filtered: {
+        heading: t("general.noResultsTitle"),
+        description: t("general.noResultsMessage"),
+      },
+    },
     transformColumns: (columns) => {
       const ALLOWED_FILTERS = [
         "id",
@@ -73,6 +90,10 @@ export function createProductTableAdapter(): TableAdapter<HttpTypes.AdminProduct
 /**
  * Hook to get the product table adapter with filters
  */
-export function useProductTableAdapter(): TableAdapter<HttpTypes.AdminProduct> {
-  return useMemo(() => createProductTableAdapter(), [])
+export function useProductTableAdapter({
+  t,
+}: {
+  t: TFunction<"translation", undefined>
+}): TableAdapter<HttpTypes.AdminProduct> {
+  return useMemo(() => createProductTableAdapter({ t }), [t])
 }

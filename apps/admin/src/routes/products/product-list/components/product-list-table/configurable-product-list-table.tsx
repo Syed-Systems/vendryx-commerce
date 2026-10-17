@@ -7,7 +7,7 @@ import { useProductTableAdapter } from "./product-table-adapter"
 export const ConfigurableProductListTable = () => {
   const { t } = useTranslation()
   const location = useLocation()
-  const adapter = useProductTableAdapter()
+  const adapter = useProductTableAdapter({ t })
 
   return (
     <>
