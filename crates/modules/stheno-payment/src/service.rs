@@ -1705,8 +1705,15 @@ impl PaymentService {
     // ── Card Testing Abuse Limits (P4-27, F10) ────────────────────────────────
 
     pub fn check_ip_session_rate_limit(&self, ip: &str, max_per_minute: usize) -> bool {
-        let mut map = self.ip_session_attempts.write().unwrap();
+        // Poison-safe, and prunes expired keys so the map cannot grow without bound.
+        // See stheno-cart's check_creation_rate_limit for the same reasoning.
+        let mut map = self.ip_session_attempts.write().unwrap_or_else(|e| e.into_inner());
         let one_minute_ago = Utc::now() - Duration::minutes(1);
+        map.retain(|_, ts| {
+            ts.retain(|t| *t > one_minute_ago);
+            !ts.is_empty()
+        });
+
         let timestamps = map.entry(ip.to_string()).or_default();
         timestamps.retain(|t| *t > one_minute_ago);
 

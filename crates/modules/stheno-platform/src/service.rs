@@ -1256,6 +1256,10 @@ impl PlatformService {
         })
     }
 
+    // ADR-006 forbids float arithmetic in money. These are dashboard rates - ratios
+    // of two counts, shown to the operator, never an amount that reaches a ledger -
+    // so f64 is the correct type here. The allow is scoped to this function.
+    #[allow(clippy::float_arithmetic)]
     pub async fn get_funnel_metrics(&self) -> Result<FunnelMetricsDTO> {
         let tenants = self.list_tenants().await.unwrap_or_default();
         let total_signups = tenants.len();
@@ -1286,6 +1290,8 @@ impl PlatformService {
         })
     }
 
+    // Dashboard share-of-tenants, not money. See get_funnel_metrics.
+    #[allow(clippy::float_arithmetic)]
     pub async fn get_plan_distribution(&self) -> Result<Vec<PlanDistributionItemDTO>> {
         let tenants = self.list_tenants().await.unwrap_or_default();
         let subscriptions = self.list_subscriptions().await.unwrap_or_default();
@@ -1342,6 +1348,8 @@ impl PlatformService {
         Ok(result)
     }
 
+    // Dashboard retention percentage, not money. See get_funnel_metrics.
+    #[allow(clippy::float_arithmetic)]
     pub async fn get_churn_cohorts(&self) -> Result<Vec<ChurnCohortDTO>> {
         let tenants = self.list_tenants().await.unwrap_or_default();
         let mut cohorts: HashMap<String, (usize, usize, usize)> = HashMap::new();

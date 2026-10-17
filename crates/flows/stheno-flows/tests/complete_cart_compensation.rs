@@ -90,6 +90,7 @@ async fn test_complete_cart_compensation_and_step_11_no_compensation() {
         payment_service.clone(),
         promotion_service.clone(),
         Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+        Arc::new(stheno_workflow::WorkflowStore::from_pool(pool.clone())),
     );
 
     // 1. Failure at Step 6 (authorize_payment) -> unwinds Step 5 (release_reservations)

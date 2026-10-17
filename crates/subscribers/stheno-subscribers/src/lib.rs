@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use std::sync::Arc;
+use std::time::Duration;
 use stheno_events::{Event, EventBus};
 use stheno_types::Result;
 pub mod identity_subscriber;
@@ -37,7 +38,34 @@ impl SubscriberRegistry {
     pub async fn dispatch(&self, event: &Event) -> Result<()> {
         for sub in &self.subscribers {
             if sub.event_name() == event.name || sub.event_name() == "*" {
-                sub.handle(event).await?;
+                // Retry up to 3 times with a short delay, then log dead-letter 
+                // rather than aborting all subscribers.
+                let mut attempts = 0;
+                loop {
+                    attempts += 1;
+                    match sub.handle(event).await {
+                        Ok(()) => break,
+                        Err(e) if attempts < 3 => {
+                            tracing::warn!(
+                                subscriber = %sub.event_name(),
+                                event = %event.name,
+                                attempt = attempts,
+                                error = %e,
+                                "subscriber failed; retrying"
+                            );
+                            tokio::time::sleep(Duration::from_millis(250)).await;
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                subscriber = %sub.event_name(),
+                                event = %event.name,
+                                error = %e,
+                                "dead-letter: subscriber failed after 3 retries"
+                            );
+                            break;
+                        }
+                    }
+                }
             }
         }
         Ok(())

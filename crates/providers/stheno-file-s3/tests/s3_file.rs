@@ -32,6 +32,9 @@ async fn test_s3_file_provider_upload_and_presigned_urls() {
             content_type: Some("image/webp".to_string()),
             bytes: webp_bytes,
             metadata: None,
+            // Added to the DTO in 9f9cb42; this test was never updated, so
+            // `cargo clippy --workspace --all-targets` has not compiled since.
+            is_private: false,
         })
         .await
         .unwrap();
@@ -49,6 +52,7 @@ async fn test_s3_file_provider_upload_and_presigned_urls() {
             filename: "spec.pdf".to_string(),
             content_type: "application/pdf".to_string(),
             expires_in_seconds: Some(1800),
+            is_private: false,
         })
         .await
         .unwrap();

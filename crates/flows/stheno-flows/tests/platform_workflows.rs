@@ -42,6 +42,8 @@ async fn test_13_platform_workflows_settings_translation_file() {
             bytes: jpeg_bytes,
             content_type: Some("image/jpeg".to_string()),
             metadata: None,
+            // Added to the DTO in 9f9cb42 without updating this test.
+            is_private: false,
         })
         .await
         .unwrap();
@@ -52,6 +54,7 @@ async fn test_13_platform_workflows_settings_translation_file() {
             filename: "banner.png".to_string(),
             content_type: "image/png".to_string(),
             expires_in_seconds: Some(3600),
+            is_private: false,
         })
         .await
         .unwrap();

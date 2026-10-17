@@ -683,14 +683,14 @@ impl LinkStore {
         let left = left_id.into();
         let right = right_id.into();
 
-        let mut fwd = self.forward.write().unwrap();
+        let mut fwd = self.forward.write().unwrap_or_else(|e| e.into_inner());
         fwd.entry(link_name.to_string())
             .or_default()
             .entry(left.clone())
             .or_default()
             .push(right.clone());
 
-        let mut rev = self.reverse.write().unwrap();
+        let mut rev = self.reverse.write().unwrap_or_else(|e| e.into_inner());
         rev.entry(link_name.to_string())
             .or_default()
             .entry(right)
@@ -699,7 +699,7 @@ impl LinkStore {
     }
 
     pub fn get_by_left(&self, link_name: &str, left_id: &str) -> Vec<String> {
-        let fwd = self.forward.read().unwrap();
+        let fwd = self.forward.read().unwrap_or_else(|e| e.into_inner());
         fwd.get(link_name)
             .and_then(|m| m.get(left_id))
             .cloned()
@@ -707,7 +707,7 @@ impl LinkStore {
     }
 
     pub fn get_by_right(&self, link_name: &str, right_id: &str) -> Vec<String> {
-        let rev = self.reverse.read().unwrap();
+        let rev = self.reverse.read().unwrap_or_else(|e| e.into_inner());
         rev.get(link_name)
             .and_then(|m| m.get(right_id))
             .cloned()
@@ -715,8 +715,8 @@ impl LinkStore {
     }
 
     pub fn cascade_delete_left(&self, link_name: &str, left_id: &str) -> Vec<String> {
-        let mut fwd = self.forward.write().unwrap();
-        let mut rev = self.reverse.write().unwrap();
+        let mut fwd = self.forward.write().unwrap_or_else(|e| e.into_inner());
+        let mut rev = self.reverse.write().unwrap_or_else(|e| e.into_inner());
 
         let rights = fwd
             .get_mut(link_name)
@@ -735,14 +735,14 @@ impl LinkStore {
     }
 
     pub fn unlink(&self, link_name: &str, left_id: &str, right_id: &str) {
-        let mut fwd = self.forward.write().unwrap();
+        let mut fwd = self.forward.write().unwrap_or_else(|e| e.into_inner());
         if let Some(map) = fwd.get_mut(link_name) {
             if let Some(list) = map.get_mut(left_id) {
                 list.retain(|r| r != right_id);
             }
         }
 
-        let mut rev = self.reverse.write().unwrap();
+        let mut rev = self.reverse.write().unwrap_or_else(|e| e.into_inner());
         if let Some(map) = rev.get_mut(link_name) {
             if let Some(list) = map.get_mut(right_id) {
                 list.retain(|l| l != left_id);
