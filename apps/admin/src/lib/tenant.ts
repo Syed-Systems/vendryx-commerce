@@ -56,24 +56,54 @@ export const AVAILABLE_TENANTS: TenantDefinition[] = [
 
 const STORAGE_KEY = "stheno_tenant_host"
 
+/** True only for a host this build knows how to talk to. */
+function isKnownTenantHost(host: string | null | undefined): host is string {
+  return !!host && AVAILABLE_TENANTS.some((t) => t.host === host)
+}
+
 export function getActiveTenantHost(): string {
   if (typeof window === "undefined") {
     return AVAILABLE_TENANTS[0].host
   }
 
+  // Every stored value is validated against AVAILABLE_TENANTS before use.
+  //
+  // The cookie carries a one-year expiry, so a browser that picked a dashboard
+  // before the hosts were corrected still holds "trial-appliance.localhost" --
+  // a tenant the engine has never had. Returning it verbatim sent
+  // x-stheno-tenant-host: trial-appliance.localhost on every request and the
+  // engine answered 404, which is the same "Register an auth provider" screen
+  // arriving from a stale cookie rather than a missing provider. A fresh browser
+  // never reproduced it, so the value has to be rejected here rather than
+  // assumed trustworthy.
+
   // 1. Check document.cookie
   const match = document.cookie.match(/stheno_tenant_host=([^;]+)/)
-  if (match && match[1]) {
-    return decodeURIComponent(match[1].trim())
+  const fromCookie = match?.[1] ? decodeURIComponent(match[1].trim()) : null
+  if (isKnownTenantHost(fromCookie)) {
+    return fromCookie
   }
 
   // 2. Check localStorage
-  const saved = localStorage.getItem(STORAGE_KEY)
-  if (saved) {
-    return saved
+  const fromStorage = localStorage.getItem(STORAGE_KEY)
+  if (isKnownTenantHost(fromStorage)) {
+    return fromStorage
+  }
+
+  // 3. Anything stale is cleared, not merely ignored, so the next load does not
+  //    re-read it and the stored state cannot drift from the chosen dashboard.
+  if (fromCookie || fromStorage) {
+    clearActiveTenantHost()
   }
 
   return AVAILABLE_TENANTS[0].host
+}
+
+/** Drops a stored tenant host. Used to evict values this build cannot resolve. */
+function clearActiveTenantHost(): void {
+  if (typeof window === "undefined") return
+  document.cookie = `${STORAGE_KEY}=; path=/; max-age=0; SameSite=Lax`
+  localStorage.removeItem(STORAGE_KEY)
 }
 
 export function setActiveTenantHost(host: string): void {
