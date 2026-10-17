@@ -82,7 +82,7 @@ export const OnboardingSummaryCard = ({
       {/* Progress Bar */}
       <div className="w-full bg-ui-bg-component h-1.5">
         <div
-          className="bg-blue-600 h-1.5 transition-all duration-500 ease-out"
+          className="bg-blue-600 h-1.5 transition-[width] duration-500 ease-out"
           style={{ width: `${percentage}%` }}
         />
       </div>

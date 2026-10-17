@@ -126,3 +126,54 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ==========================================================================
+   Hover affordances on devices that cannot hover.
+
+   There are 167 `hover:` utilities across the admin and not one is guarded.
+   On a touch device `:hover` is unreliable -- it can fire on first tap and
+   stick, so a control shows its hover state instead of acting, or never shows
+   it at all.
+
+   Anything hidden behind `opacity-0 group-hover:opacity-100` is the real
+   hazard: on touch the control is invisible and unreachable. Those are forced
+   visible here. `@media (hover: none)` is the feature query, not a device
+   sniff -- a laptop with a touchscreen reports `hover: hover` and keeps its
+   hover states.
+   ========================================================================== */
+@media (hover: none) {
+  .group .group-hover\:opacity-100,
+  .group .group-hover\:opacity-60,
+  .group .group-hover\:opacity-80 {
+    opacity: 1 !important;
+  }
+
+  /* A hover that only lifts or dims has no touch equivalent; without this the
+     element can be left stuck in its hover transform after a tap. */
+  .group .group-hover\:translate-y-0 {
+    transform: none !important;
+  }
+}
+
+/* ==========================================================================
+   Safe areas.
+
+   viewport-fit=cover is now set on the viewport meta, which lets the app draw
+   under a notch and a home indicator. Without these insets the sidebar's first
+   and last items sit under the system bars in landscape on a notched phone.
+   ========================================================================== */
+:root {
+  --vx-safe-top: env(safe-area-inset-top, 0px);
+  --vx-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --vx-safe-left: env(safe-area-inset-left, 0px);
+  --vx-safe-right: env(safe-area-inset-right, 0px);
+}
+
+body {
+  padding-inline-start: var(--vx-safe-left);
+  padding-inline-end: var(--vx-safe-right);
+}
+
+.safe-bottom {
+  padding-bottom: max(0px, var(--vx-safe-bottom));
+}

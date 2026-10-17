@@ -85,7 +85,7 @@ export const Login = () => {
             <button
               type="button"
               onClick={() => setAuthMode("clerk")}
-              className={`flex-1 rounded-md py-1.5 text-xs font-semibold transition-all ${
+              className={`flex-1 rounded-md py-1.5 text-xs font-semibold transition-[color,background-color,border-color,box-shadow,transform,opacity] ${
                 authMode === "clerk"
                   ? "bg-ui-bg-base-pressed text-ui-fg-base shadow-sm"
                   : "text-ui-fg-subtle hover:text-ui-fg-base"
@@ -96,7 +96,7 @@ export const Login = () => {
             <button
               type="button"
               onClick={() => setAuthMode("email")}
-              className={`flex-1 rounded-md py-1.5 text-xs font-semibold transition-all ${
+              className={`flex-1 rounded-md py-1.5 text-xs font-semibold transition-[color,background-color,border-color,box-shadow,transform,opacity] ${
                 authMode === "email"
                   ? "bg-ui-bg-base-pressed text-ui-fg-base shadow-sm"
                   : "text-ui-fg-subtle hover:text-ui-fg-base"

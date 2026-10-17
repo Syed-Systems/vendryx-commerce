@@ -107,7 +107,7 @@ const Header = () => {
         <DropdownMenu.Trigger
           disabled={!isLoaded}
           className={clx(
-            "bg-transparent transition-all duration-150 grid w-full grid-cols-[28px_1fr_auto] items-center gap-x-2.5 rounded-xl p-1.5 outline-none text-start",
+            "bg-transparent transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 grid w-full grid-cols-[28px_1fr_auto] items-center gap-x-2.5 rounded-xl p-1.5 outline-none text-start",
             "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
             "data-[state=open]:bg-black/[0.05] dark:data-[state=open]:bg-white/[0.08]",
             "focus-visible:shadow-borders-focus"
@@ -379,7 +379,7 @@ const Searchbar = () => {
         type="button"
         className={clx(
           "bg-black/[0.03] dark:bg-white/[0.05] border border-ui-border-base/80 hover:border-ui-border-strong",
-          "text-ui-fg-muted hover:text-ui-fg-subtle flex h-8 w-full items-center gap-x-2 rounded-lg px-2.5 outline-none transition-all duration-150",
+          "text-ui-fg-muted hover:text-ui-fg-subtle flex h-8 w-full items-center gap-x-2 rounded-lg px-2.5 outline-none transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150",
           "focus-visible:shadow-borders-focus cursor-pointer"
         )}
       >

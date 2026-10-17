@@ -789,7 +789,7 @@ export const BrandingView = () => {
                 {/* 2. Simulated Component Preview Canvas */}
                 <div
                   data-testid="branding-preview-frame"
-                  className={`flex-1 rounded-lg border border-ui-border-base overflow-hidden shadow-sm transition-all duration-150 flex flex-col h-full ${
+                  className={`flex-1 rounded-lg border border-ui-border-base overflow-hidden shadow-sm transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 flex flex-col h-full ${
                     previewMode === "component" ? "flex" : "hidden"
                   }`}
                   style={{

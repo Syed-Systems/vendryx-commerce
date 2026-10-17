@@ -112,7 +112,7 @@ export const EmailPassLogin = ({ onMfaChallenge }: EmailPassLoginProps) => {
                     form.setValue("password", "Sup3rSecret!")
                     setActiveTenantHost(tenant.host)
                   }}
-                  className={`flex flex-col p-1.5 rounded-md text-start border transition-all text-xs ${
+                  className={`flex flex-col p-1.5 rounded-md text-start border transition-[color,background-color,border-color,box-shadow,transform,opacity] text-xs ${
                     active
                       ? "border-ui-border-interactive bg-ui-bg-base text-ui-fg-base shadow-xs"
                       : "border-ui-border-base/60 bg-ui-bg-base/50 text-ui-fg-subtle hover:text-ui-fg-base hover:bg-ui-bg-base"

@@ -291,7 +291,7 @@ const Header = () => {
         to={from}
         replace
         className={clx(
-          "group transition-all duration-150 flex items-center gap-x-2.5 rounded-xl p-1.5 outline-none",
+          "group transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 flex items-center gap-x-2.5 rounded-xl p-1.5 outline-none",
           "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
           "focus-visible:shadow-borders-focus"
         )}

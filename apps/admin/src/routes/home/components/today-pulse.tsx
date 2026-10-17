@@ -72,7 +72,7 @@ const StatCard = ({
 }: StatCardProps) => {
   const content = (
     <Container
-      className={`flex h-full flex-col justify-between border border-ui-border-base rounded-xl bg-ui-bg-base transition-all hover:border-ui-border-strong hover:shadow-elevation-card-hover group ${
+      className={`flex h-full flex-col justify-between border border-ui-border-base rounded-xl bg-ui-bg-base transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:border-ui-border-strong hover:shadow-elevation-card-hover group ${
         lead ? "p-6" : "p-5"
       }`}
     >
@@ -113,8 +113,15 @@ const StatCard = ({
 
         <Heading
           level="h2"
-          className={`font-bold tracking-tight text-ui-fg-base tabular-nums mb-1 ${
-            lead ? "text-4xl" : "text-2xl"
+          className={`tracking-tight text-ui-fg-base tabular-nums mb-1 ${
+            // The placeholder for a figure that never loaded. At the lead size
+            // and weight an em-dash renders as a solid bar that reads like a
+            // redaction, so it takes a lighter treatment than a real number.
+            value === "—"
+              ? "text-3xl font-normal text-ui-fg-muted"
+              : lead
+              ? "text-4xl font-bold"
+              : "text-2xl font-bold"
           }`}
         >
           {value}
@@ -152,6 +159,7 @@ export const TodayPulseCard = ({
   lowStockCount = 0,
   currencyCode = "USD",
   isLoading = false,
+  todayUnavailable = false,
 }: {
   today: TodayPulse | null
   totalOrders?: number
@@ -160,6 +168,16 @@ export const TodayPulseCard = ({
   lowStockCount?: number
   currencyCode?: string
   isLoading?: boolean
+  /**
+   * True when `/admin/reports/today` did not answer -- the route is not built on
+   * the engine yet, so it 404s.
+   *
+   * The hook was written for exactly this ("the component simply hides itself.
+   * No invented numbers, no fallbacks"), but the card rendered `$0.00` instead.
+   * A store owner reading `$0.00` cannot tell "no sales today" from "this figure
+   * has never loaded", and one of those is a lie about their business.
+   */
+  todayUnavailable?: boolean
 }) => {
   if (isLoading) {
     return (
@@ -180,7 +198,11 @@ export const TodayPulseCard = ({
     )
   }
 
-  const revenueVal = today?.revenue ? formatCurrency(today.revenue, today.currency_code || currencyCode) : formatCurrency(0, currencyCode)
+  const revenueVal = today?.revenue
+    ? formatCurrency(today.revenue, today.currency_code || currencyCode)
+    : todayUnavailable
+    ? "—"
+    : formatCurrency(0, currencyCode)
   const ordersToday = today?.order_count ?? 0
   const urgentCount = pendingOrdersCount + lowStockCount
 
@@ -196,7 +218,13 @@ export const TodayPulseCard = ({
           icon={<CurrencyDollar className="w-4 h-4 text-ui-fg-subtle" />}
           label="Today's Revenue"
           value={revenueVal}
-          subtext={ordersToday > 0 ? `${ordersToday} orders today` : "Live store revenue stream"}
+          subtext={
+            todayUnavailable
+              ? "Not available yet — reporting is not connected"
+              : ordersToday > 0
+              ? `${ordersToday} orders today`
+              : "Live store revenue stream"
+          }
           badge={{ text: "Today", variant: "green" }}
         />
       </div>

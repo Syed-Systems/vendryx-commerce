@@ -40,7 +40,7 @@ export const Home = () => {
   const { user } = useMe()
   const { summary, isLoading: summaryLoading, isError: summaryError, error: summaryErrorObj } = useHomeSummary()
   const { data: onboarding, isLoading: onboardingLoading } = useOnboarding()
-  const { today, isLoading: todayLoading } = useTodayPulse()
+  const { today, isLoading: todayLoading, isError: todayError } = useTodayPulse()
   const { orders: recentOrders, totalCount: totalOrderCount, isLoading: ordersLoading } = useRecentOrders()
   const { count: productsCount, isLoading: productsLoading } = useProducts({ limit: 0 })
   const { store } = useStore()
@@ -100,6 +100,7 @@ export const Home = () => {
         lowStockCount={lowStockCount}
         currencyCode={currencyCode}
         isLoading={isFirstLoad || todayLoading || productsLoading}
+        todayUnavailable={todayError}
       />
 
       {/* ── 3. Operational Attention Alerts (only if bottlenecks exist) ─── */}

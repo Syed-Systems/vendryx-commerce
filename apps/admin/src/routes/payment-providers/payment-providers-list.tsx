@@ -155,7 +155,7 @@ export const PaymentProvidersList = () => {
                   return (
                     <div
                       key={p.id}
-                      className="flex flex-col justify-between rounded-xl border border-ui-border-base bg-ui-bg-subtle/30 dark:bg-ui-bg-base p-5 shadow-2xs transition-all hover:border-ui-border-interactive/60 hover:shadow-xs"
+                      className="flex flex-col justify-between rounded-xl border border-ui-border-base bg-ui-bg-subtle/30 dark:bg-ui-bg-base p-5 shadow-2xs transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:border-ui-border-interactive/60 hover:shadow-xs"
                     >
                       {/* Top identity bar */}
                       <div className="flex flex-col gap-y-3.5">

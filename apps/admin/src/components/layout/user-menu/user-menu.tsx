@@ -126,7 +126,7 @@ const UserBadge = () => {
       <DropdownMenu.Trigger
         disabled={!user}
         className={clx(
-          "bg-transparent grid w-full cursor-pointer grid-cols-[28px_1fr_auto] items-center gap-2.5 rounded-xl px-2 py-1.5 outline-none text-start transition-all duration-150",
+          "bg-transparent grid w-full cursor-pointer grid-cols-[28px_1fr_auto] items-center gap-2.5 rounded-xl px-2 py-1.5 outline-none text-start transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150",
           "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
           "data-[state=open]:bg-black/[0.05] dark:data-[state=open]:bg-white/[0.08]",
           "focus-visible:shadow-borders-focus"
