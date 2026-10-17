@@ -23,6 +23,12 @@
     src: url("./assets/fonts/Inter-Medium.woff2") format("woff2");
   }
 
+  /* Inter is flagged by the impeccable detector as an "overused font", and
+     that warning is correct for a marketing surface. It is the wrong call
+     here: this is an Operate-mode dashboard where stability, scanability and
+     a fixed role scale matter more than distinctiveness, and Inter's x-height
+     and numerals are tuned for exactly that. The delivery was fixed instead
+     (subset to Latin, woff2, font-display: swap). Deliberate exception. */
   @font-face {
     font-family: "Roboto Mono";
     font-weight: 400;
