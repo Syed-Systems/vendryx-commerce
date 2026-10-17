@@ -21,7 +21,16 @@ setlocal
 cd /d "%~dp0"
 
 REM Set before the stop check - "stop" needs the port numbers too.
-set "ADMIN_PORT=6000"
+REM    1. Port numbers. Windows reserves TCP 5429-5528 (contains Postgres 5432)
+REM       and TCP 5141-5240 (contains vite's 5173/5174/5175). Both fail with
+REM       EACCES / "access to the socket is forbidden".
+REM
+REM       The admin port is 6100, not 6000. Chromium refuses to navigate to 6000
+REM       at all: it is on the browser's restricted-port list (X11 territory), so
+REM       the dashboard died with ERR_UNSAFE_PORT and the server never received
+REM       the request. Verified with Playwright against every candidate. 6100 is
+REM       not restricted and is outside both Windows-reserved ranges.
+set "ADMIN_PORT=6100"
 set "PLAT_PORT=6001"
 set "MKT_PORT=6002"
 set "STORE_PORT=8000"
@@ -113,6 +122,29 @@ start "Vendryx Admin :%ADMIN_PORT%"      /D "%CD%\apps\admin"      cmd /k npm ru
 start "Vendryx Marketing :%MKT_PORT%"    /D "%CD%\apps\marketing"  cmd /k npm run dev -- --port %MKT_PORT% --strictPort
 start "Vendryx Platform :%PLAT_PORT%"    /D "%CD%\apps\platform"   cmd /k npm run dev -- --port %PLAT_PORT% --strictPort
 
+REM `start` returns as soon as the window is created, not when the app is ready,
+REM so the banner below used to print "Up" unconditionally -- including when a
+REM frontend died on boot and bound nothing. Poll each port until it accepts a
+REM connection or the timeout expires, then name the ones that never came up.
+REM First run pays a full Vite cold build, hence the generous budget.
+REM
+REM Deliberately one PowerShell process for all four ports rather than a batch
+REM loop: `setlocal` here has no EnableDelayedExpansion, so `!errorlevel!` would
+REM not expand, and adding it would change how every other %VAR% in this file
+REM resolves. A single script block sidesteps that entirely.
+powershell -NoProfile -Command ^
+  "$ports = @(%STORE_PORT%,%ADMIN_PORT%,%MKT_PORT%,%PLAT_PORT%);" ^
+  "  $deadline = (Get-Date).AddSeconds(180);" ^
+  "  $up = @{};" ^
+  "  foreach ($p in $ports) {" ^
+  "    while ((Get-Date) -lt $deadline -and -not $up[$p]) {" ^
+  "      if (Test-NetConnection -ComputerName 127.0.0.1 -Port $p -InformationLevel Quiet -WarningAction SilentlyContinue) { $up[$p] = $true }" ^
+  "      elseif ((Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }" ^
+  "    }" ^
+  "  };" ^
+  "  $dead = $ports | Where-Object { -not $up[$_] };" ^
+  "  if ($dead) { Write-Host ''; Write-Host ('   WARNING: nothing is listening on: ' + ($dead -join ', ')); Write-Host '   Check that window''s output. A Vite app fails here when its' ; Write-Host '   port is taken or when NODE_OPTIONS carries a flag its toolchain rejects.' }"
+
 echo.
 echo ============================================================
 echo  Up.
@@ -121,6 +153,9 @@ echo   Storefront    http://localhost:%STORE_PORT%
 echo   Admin         http://127.0.0.1:%ADMIN_PORT%
 echo   Platform      http://127.0.0.1:%PLAT_PORT%
 echo   Marketing     http://127.0.0.1:%MKT_PORT%
+echo.
+echo   NOTE: the admin port is 6100 deliberately. Chromium blocks 6000 as an
+echo   unsafe port (ERR_UNSAFE_PORT), so the dashboard will not load there.
 echo.
 echo   Engine        http://127.0.0.1:9000/health
 echo   Merchants are told apart by the Host header:

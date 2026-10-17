@@ -117,13 +117,22 @@ fn cors_layer() -> CorsLayer {
         })
         .collect();
 
+    // Dev origins for this machine. These are NOT Vite's defaults: Windows
+    // reserves 5141-5240, so every app is pinned to a port outside it, and the
+    // admin is on 6100 because Chromium refuses to navigate to 6000 at all
+    // (ERR_UNSAFE_PORT). Matching the defaults here meant the admin's
+    // preflight failed, `list_providers` came back empty, and the panel
+    // reported "Register an auth provider in your Vendryx config" while the
+    // engine had emailpass registered the whole time.
     for dev_origin in [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
+        "http://localhost:6100",
+        "http://127.0.0.1:6100",
+        "http://localhost:6001",
+        "http://127.0.0.1:6001",
+        "http://localhost:6002",
+        "http://127.0.0.1:6002",
     ] {
         if let Ok(hv) = HeaderValue::from_str(dev_origin) {
             if !origins.contains(&hv) {
