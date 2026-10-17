@@ -127,17 +127,20 @@ export const Home = () => {
           />
         </div>
 
-        {/* Right Column (5 cols): Store Management Shortcuts & Live Studio */}
+        {/* Right Column (5 cols): Quick Operations Shortcuts */}
         <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-y-6">
           {/* Quick Operations Panel */}
           <QuickOperationsCard />
-
-          {/* Storefront Live Studio Preview */}
-          <div className="flex flex-col gap-2">
-            <StorefrontPreviewCard />
-          </div>
         </div>
       </div>
+
+      {/* ── 5. Storefront Live Studio — full width row ─────────────────── */}
+      {/*
+        Full-width row, not a sidebar card. A 5-column sidebar preview was
+        380px wide and cropped the storefront hero to its top third; the whole
+        point of a preview is to see the page, so it takes the row.
+      */}
+      <StorefrontPreviewCard />
     </div>
   )
 }
