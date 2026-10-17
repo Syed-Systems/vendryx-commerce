@@ -17,7 +17,10 @@ async fn test_auth_api_endpoints_parity() {
     let pool = create_pool(&db.url, 5).expect("pool");
     let auth_service = Arc::new(AuthService::new(pool, None));
     let auth_flows = Arc::new(AuthWorkflows::new(auth_service));
-    let app = auth_routes(AuthApiContext { auth_flows });
+    let app = auth_routes(AuthApiContext {
+        auth_flows,
+        login_limiter: Arc::new(stheno_http::rate_limit::RateLimiter::new(10, 60)),
+    });
 
     // 1. POST /auth/customer/emailpass/register
     let reg_req = Request::builder()
