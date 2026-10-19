@@ -49,8 +49,8 @@ Verified by running them. Each costs an afternoon if rediscovered.
 | Node `25.x` | every storefront page 500s: `localStorage.getItem is not a function` | Node 25 exposes a global `localStorage` that throws without `--localstorage-file`. Needs `NODE_OPTIONS=--no-experimental-webstorage` (set by the launcher). **Real fix is Node 22; CI pins 20.** |
 | `.cargo/config.toml` | — | **Fixed.** It pinned `target-dir` to `C:/Users/Mahi/rust-target`. Builds now go to the repo-local `target/`, which `.gitignore` already covers. Set `CARGO_TARGET_DIR` in your shell if you want them elsewhere. |
 
-Live ports: engine `9000`, storefront `8000`, admin `6000`, platform `6001`, marketing `6002`,
-Postgres `5900`, Redis `6379`.
+Live ports: engine `9000`, storefront `8000`, admin `6000` (local) / `6100` (Docker), platform `6001` / `6201` (Docker), marketing `6002` / `6202` (Docker),
+Postgres `5900`, Redis `6379`. Use Docker ports if Windows blocks the local ones.
 
 ### The build tree is large, and that is not the project's size
 
