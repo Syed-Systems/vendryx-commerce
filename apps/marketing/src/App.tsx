@@ -2,12 +2,17 @@ import {
   ArrowRight,
   ArrowDown,
   ArrowUpRight,
+  Sun,
+  Moon,
   MessageSquareQuote,
   TrendingUp,
   ClipboardList,
   Building2,
   Check,
   CheckCircle2,
+  Play,
+  LayoutDashboard,
+  LogIn,
   Code,
   Copy,
   CreditCard,
@@ -36,11 +41,13 @@ import {
   QrCode,
   X,
 } from "lucide-react"
-import { AnimatePresence, motion, /* useReducedMotion */ } from "motion/react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import {
   Fragment,
   useEffect,
+  useRef,
   useState,
+  useCallback,
   type AnchorHTMLAttributes,
   type CSSProperties,
   type FormEvent,
@@ -194,6 +201,26 @@ function useMarketing() {
   return { navigate: marketingNavigate }
 }
 
+function useTheme() {
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "light"
+    const stored = localStorage.getItem("vendryx-theme")
+    if (stored === "light" || stored === "dark") return stored
+    return "light"
+  })
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.toggle("dark", theme === "dark")
+    localStorage.setItem("vendryx-theme", theme)
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute("content", theme === "dark" ? "#0a0a0a" : "#FCFBF9")
+  }, [theme])
+
+  const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"))
+  return { theme, toggle }
+}
+
 function Link({
   to,
   children,
@@ -295,16 +322,71 @@ function NotFoundPage() {
 }
 
 function Mark() {
+  const { theme } = useTheme()
   return (
     <span className="brand-logo-frame" aria-hidden="true">
-      <VendryxLogo height={64} />
+      <VendryxLogo height={64} variant={theme === "dark" ? "dark" : "light"} />
     </span>
   )
 }
 
 function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const headerRef = useRef<HTMLElement | null>(null)
+  const glass = useRef<{ supported: boolean; refresh: () => void; destroy: () => void } | null>(null)
   const { navigate } = useMarketing()
+  const { theme, toggle: toggleTheme } = useTheme()
+
+  useEffect(() => {
+    const node = sentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setScrolled(!entry.isIntersecting),
+      { threshold: 0 }
+    )
+    observer.observe(node)
+    setScrolled(window.scrollY > 120)
+    return () => observer.disconnect()
+  }, [])
+
+  // Attach liquid-glass refraction once the header becomes the floating pill.
+  useEffect(() => {
+    if (!scrolled || glass.current) return
+    const el = headerRef.current
+    if (!el) return
+
+    let disposed = false
+    void import("./liquid-glass").then(() => {
+      if (disposed || !window.liquidGlass) return
+      glass.current = window.liquidGlass(el, {
+        scale: -96,
+        chroma: 6,
+        border: 0.055,
+        mapBlur: 14,
+        blur: 2,
+        saturate: 1.6,
+        fallbackBlur: 18,
+      })
+    })
+
+    return () => {
+      disposed = true
+    }
+  }, [scrolled])
+
+  useEffect(
+    () => () => {
+      glass.current?.destroy()
+      glass.current = null
+    },
+    []
+  )
+
+  const onTransitionEnd = useCallback(() => {
+    glass.current?.refresh()
+  }, [])
 
   const startDemo = () => {
     const session = createDemoSession()
@@ -312,7 +394,20 @@ function Header() {
   }
 
   return (
-    <header className="site-header">
+    <>
+      <div
+        ref={sentinelRef}
+        aria-hidden="true"
+        className="pointer-events-none h-8 w-px"
+        style={{ marginTop: 32 }}
+      />
+      <div className="glass-nav-shell group">
+        <header
+          ref={headerRef}
+          className="site-header glass-nav-header"
+          data-scrolled={scrolled}
+          onTransitionEnd={onTransitionEnd}
+        >
       <Link className="brand" to="/" onClick={() => setMenuOpen(false)} aria-label="Vendryx home">
         <Mark />
         <span className="sr-only">Vendryx</span>
@@ -325,20 +420,32 @@ function Header() {
         <a href="#faq">FAQ</a>
       </nav>
       <div className="nav-actions">
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          aria-pressed={theme === "dark"}
+        >
+          <Sun size={16} className="theme-icon theme-icon-sun" />
+          <Moon size={16} className="theme-icon theme-icon-moon" />
+        </button>
         <button type="button" className="button button-outline button-sm" onClick={startDemo}>
-          <Sparkles size={14} />
+          <Play size={13} />
           <span>Explore demo</span>
         </button>
-        <a className="button button-outline button-sm nav-admin-btn" href={ADMIN_URL} title="Open Merchant Admin Dashboard">
+        <a className="button button-outline button-sm" href={ADMIN_URL} title="Open Merchant Admin Dashboard">
+          <LayoutDashboard size={13} />
           <span>Admin</span>
-          <ArrowUpRight size={14} />
         </a>
         <a className="nav-login" href={ADMIN_LOGIN_URL}>
-          Log in
+          <LogIn size={13} />
+          <span>Log in</span>
         </a>
         <Link className="button button-primary nav-cta" to="/signup">
           <span>Sign up</span>
-          <ArrowUpRight size={15} />
+          <ArrowUpRight size={14} />
         </Link>
       </div>
       <button
@@ -377,6 +484,18 @@ function Header() {
             </a>
             <button
               type="button"
+              className="theme-toggle theme-toggle-mobile"
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-pressed={theme === "dark"}
+            >
+              <Sun size={16} className="theme-icon theme-icon-sun" />
+              <Moon size={16} className="theme-icon theme-icon-moon" />
+              <span className="theme-toggle-label">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+            </button>
+            <button
+              type="button"
               className="button button-outline button-sm"
               onClick={() => {
                 setMenuOpen(false)
@@ -399,7 +518,9 @@ function Header() {
           </motion.nav>
         )}
       </AnimatePresence>
-    </header>
+        </header>
+      </div>
+    </>
   )
 }
 
@@ -422,16 +543,18 @@ function StartDemoButton({ className = "button button-outline" }: { className?: 
 }
 
 function Hero() {
+  const ease = [0.25, 0.46, 0.45, 0.94] as const
+  const reduceMotion = useReducedMotion()
   return (
     <section className="hero collective-hero section-shell">
       <div className="hero-split-grid">
         <div className="hero-left-column">
-          <p className="eyebrow">Commerce operations by Syed Systems</p>
-          <h1>One commerce workspace for the store you run.</h1>
-          <p className="hero-lede">
+          <motion.p className="eyebrow" initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: reduceMotion ? 0 : 0, ease }}>Commerce operations by Syed Systems</motion.p>
+          <motion.h1 initial={reduceMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: reduceMotion ? 0 : 0.1, ease }}>One commerce workspace for the store you run.</motion.h1>
+          <motion.p className="hero-lede" initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: reduceMotion ? 0 : 0.2, ease }}>
             Vendryx brings catalogue, inventory, guest checkout, social-order handoff, and day-to-day order work into one connected system.
-          </p>
-          <div className="hero-actions">
+          </motion.p>
+          <motion.div className="hero-actions" initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: reduceMotion ? 0 : 0.3, ease }}>
             <Link className="button button-primary" to="/signup">
               <span>Start your 14-day trial</span>
               <ArrowRight size={16} />
@@ -441,23 +564,24 @@ function Hero() {
               <span>Open Admin</span>
               <ArrowUpRight size={16} />
             </a>
-          </div>
-          <ul className="hero-foundation-list" aria-label="Core Vendryx capabilities">
+          </motion.div>
+          <motion.ul className="hero-foundation-list" aria-label="Core Vendryx capabilities" initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: reduceMotion ? 0 : 0.4, ease }}>
             <li>Catalogue and inventory management</li>
             <li>Guest checkout and cash on delivery</li>
             <li>Staff-reviewed social-order handoff</li>
-          </ul>
+          </motion.ul>
         </div>
-        <figure className="hero-image-panel">
+        <motion.figure className="hero-image-panel" initial={reduceMotion ? false : { opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.7, delay: reduceMotion ? 0 : 0.2, ease }}>
           <img src="/art/merchant-workflow-v2.png" alt="A merchant preparing products alongside a commerce workflow." />
           <figcaption>A practical operating system for the work behind an online store.</figcaption>
-        </figure>
+        </motion.figure>
       </div>
     </section>
   )
 }
 
 function MerchantValuePillars() {
+  const reduceMotion = useReducedMotion()
   const capabilities = [
     {
       icon: MessageSquareQuote,
@@ -477,33 +601,36 @@ function MerchantValuePillars() {
   ]
 
   return (
-    <section className="value-pillars-section section-shell" id="features" aria-labelledby="features-heading">
+    <motion.section className="value-pillars-section section-shell" id="features" aria-labelledby="features-heading" initial={reduceMotion ? false : { opacity: 0, y: 24 }} whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}>
       <div className="section-header-block feature-brief-header">
         <h2 id="features-heading">Commerce operations that stay connected as your store changes.</h2>
         <p className="section-lede">Use one operational foundation for your storefront, catalogue, orders, and the work your staff performs each day.</p>
       </div>
       <div className="feature-brief-grid">
-        {capabilities.map((capability) => {
+        {capabilities.map((capability, i) => {
           const Icon = capability.icon
           return (
-            <Card className="feature-brief-card" key={capability.title}>
-              <CardHeader>
-                <span className="feature-brief-icon"><Icon size={20} /></span>
-                <CardTitle>{capability.title}</CardTitle>
-              </CardHeader>
-              <CardContent><p>{capability.body}</p></CardContent>
-            </Card>
+            <motion.div key={capability.title} initial={reduceMotion ? false : { opacity: 0, y: 20 }} whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.5, delay: reduceMotion ? 0 : i * 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}>
+              <Card className="feature-brief-card">
+                <CardHeader>
+                  <span className="feature-brief-icon"><Icon size={20} /></span>
+                  <CardTitle>{capability.title}</CardTitle>
+                </CardHeader>
+                <CardContent><p>{capability.body}</p></CardContent>
+              </Card>
+            </motion.div>
           )
         })}
       </div>
-    </section>
+    </motion.section>
   )
 }
 
 function DemoTeaserCallout() {
+  const reduceMotion = useReducedMotion()
   const { navigate } = useMarketing()
   return (
-    <section className="demo-teaser-section section-shell">
+    <motion.section className="demo-teaser-section section-shell" initial={reduceMotion ? false : { opacity: 0, y: 24 }} whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}>
       <div className="demo-teaser-card">
         <div className="teaser-left">
           <span className="teaser-badge">
@@ -532,7 +659,7 @@ function DemoTeaserCallout() {
           <img src="/art/stheno-merchant-launch-v3.png" alt="A merchant preparing products and orders at a workbench." />
         </figure>
       </div>
-    </section>
+    </motion.section>
   )
 }
 
@@ -541,6 +668,7 @@ function DemoTeaserCallout() {
    ========================================================================== */
 
 function MerchantJourney() {
+  const reduceMotion = useReducedMotion()
   const steps = [
     {
       icon: Key,
@@ -569,7 +697,7 @@ function MerchantJourney() {
   ]
 
   return (
-    <section className="merchant-journey section-shell" id="how-it-works">
+    <motion.section className="merchant-journey section-shell" id="how-it-works" initial={reduceMotion ? false : { opacity: 0, y: 24 }} whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}>
       <div className="journey-heading">
         <p className="eyebrow">How Vendryx works</p>
         <h2>From initial setup to active order fulfillment in 3 steps.</h2>
@@ -577,13 +705,20 @@ function MerchantJourney() {
           Start with the core workflow, then choose the plan and integrations that fit the operation you run.
         </p>
       </div>
-      <div className="journey-grid-cards">
-        {steps.map((item) => {
+      <div className="journey-grid-cards" style={{ position: "relative" }}>
+        <svg className="journey-connector" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+          <motion.line x1="16" y1="4" x2="84" y2="4" stroke="var(--border-medium)" strokeWidth="0.5" strokeDasharray="2 2" initial={reduceMotion ? false : { pathLength: 0 }} whileInView={reduceMotion ? undefined : { pathLength: 1 }} viewport={{ once: true }} transition={{ duration: 1.2, delay: reduceMotion ? 0 : 0.3, ease: "easeInOut" }} />
+        </svg>
+        {steps.map((item, i) => {
           const Icon = item.icon
           return (
-            <article
+            <motion.article
               className="journey-step-card"
               key={item.title}
+              initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+              whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.5, delay: reduceMotion ? 0 : i * 0.12, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
               <div className="journey-card-topbar">
                 <div className="journey-num-badge">{item.step}</div>
@@ -598,11 +733,11 @@ function MerchantJourney() {
                 <CheckCircle2 size={13} className="text-accent" />
                 <span>{item.artifact}</span>
               </div>
-            </article>
+            </motion.article>
           )
         })}
       </div>
-    </section>
+    </motion.section>
   )
 }
 
@@ -611,19 +746,17 @@ function MerchantJourney() {
    ========================================================================== */
 
 function MarketingFaq() {
+  const reduceMotion = useReducedMotion()
   const faqs = [
-    ["What is Vendryx?", "Vendryx is a commerce operations system for independent merchants. It connects storefront presentation with catalogue, inventory, guest checkout, orders, and staff operations."],
-    ["Who is Vendryx for?", "It is for store owners who need practical day-to-day operations, ecommerce builders who need a dependable commerce core behind a custom storefront, and developers who need explicit APIs and workflow boundaries."],
-    ["Do buyers need to create an account?", "No. Vendryx is designed around guest checkout. Merchants can still recognise repeat buyers through the buyer information collected for an order."],
-    ["How do social orders work?", "WhatsApp can open with a pre-filled order message. Messenger and Instagram use a copy-then-open handoff. The handoff creates a draft order for staff to review before confirmation."],
-    ["Can I move my catalogue to Vendryx?", "Yes. The catalogue import flow is designed for spreadsheet data: map headers, review the result, discard unmapped columns, and continue with the imported product information."],
-    ["What happens after the 14-day trial?", "The store moves to the Free plan. Existing products, staff records, and order data are not deleted or hidden. Free limits apply to new creation until you upgrade or reduce usage."],
-    ["What does Pro add?", "Pro is $20/month with a 1-month minimum and a 10% discount at 12+ months. It adds full analytics history, bespoke storefront service, payment gateway, courier dispatch, fraud or risk tooling where available, and mapping for a merchant-owned domain."],
-    ["Is Vendryx a marketplace or the seller of my goods?", "No. You remain responsible for your products, prices, fulfilment, customer communications, and the taxes on your own sales. Vendryx provides the commerce system that supports your operation."],
+    ["What is Vendryx?", "A commerce operations system for independent merchants. It connects your storefront with catalogue, inventory, guest checkout, orders, and staff work."],
+    ["Do buyers need to create an account?", "No. Vendryx is built around guest checkout. You can still recognize repeat buyers from the details collected with each order."],
+    ["How do social orders work?", "WhatsApp opens with a pre-filled order message. Messenger and Instagram use a copy-then-open handoff. Each creates a draft order for staff to review before it goes live."],
+    ["What happens after the 14-day trial?", "Your store moves to the Free plan. Products, staff records, and order data stay intact. Free limits apply to new creation until you upgrade or reduce usage."],
+    ["What does Pro add?", "Full analytics history, a bespoke storefront service, payment gateway, courier dispatch, and risk tooling where supported. Plus mapping for your own domain. $20/month, 1-month minimum."],
   ] as const
 
   return (
-    <section className="faq-section section-shell" id="faq" aria-labelledby="faq-heading">
+    <motion.section className="faq-section section-shell" id="faq" aria-labelledby="faq-heading" initial={reduceMotion ? false : { opacity: 0, y: 24 }} whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}>
       <p className="eyebrow">Questions before you start</p>
       <h2 id="faq-heading">Clear answers for merchants, builders, and developers.</h2>
       <Accordion className="faq-list vendryx-faq" type="single" collapsible defaultValue="faq-0">
@@ -634,7 +767,7 @@ function MarketingFaq() {
           </AccordionItem>
         ))}
       </Accordion>
-    </section>
+    </motion.section>
   )
 }
 
@@ -643,48 +776,10 @@ function MarketingFaq() {
    WHO IT'S FOR: AUDIENCE & STAKEHOLDERS (STORE OWNERS, BRANDS, INVESTORS)
    ========================================================================== */
 
-function AudienceStakeholderSection() {
-  const audiences = [
-    {
-      title: "Store owners",
-      body: "Manage products, stock, guest checkout, cash-on-delivery orders, and staff work from one operational workspace.",
-      action: "Start a trial",
-      to: "/signup",
-    },
-    {
-      title: "Ecommerce builders",
-      body: "Use Vendryx as the commerce core behind a supported storefront today, then map a merchant-owned domain and add a bespoke frontend through Pro.",
-      action: "See plan details",
-      to: "#pricing",
-    },
-    {
-      title: "Developers",
-      body: "Build around explicit commerce workflows while the platform keeps catalogue, checkout, and operations connected.",
-      action: "Explore the demo",
-      to: "/demo",
-    },
-  ]
 
-  return (
-    <section className="audience-section section-shell" id="who-its-for" aria-labelledby="audience-heading">
-      <div className="section-header-block audience-header">
-        <h2 id="audience-heading">Built for the people who run, build, and extend a store.</h2>
-        <p className="section-lede">Vendryx is a commerce system, not a marketplace or a generic page builder.</p>
-      </div>
-      <div className="audience-grid">
-        {audiences.map((audience) => (
-          <Card className="audience-card" key={audience.title}>
-            <CardHeader><CardTitle>{audience.title}</CardTitle></CardHeader>
-            <CardContent><p className="audience-reality">{audience.body}</p></CardContent>
-            <CardFooter><Link className="button button-outline button-full" to={audience.to}>{audience.action}<ArrowRight size={14} /></Link></CardFooter>
-          </Card>
-        ))}
-      </div>
-    </section>
-  )
-}
 
 function PricingSection() {
+  const reduceMotion = useReducedMotion()
   const plans = [
     {
       name: "Trial",
@@ -745,14 +840,16 @@ function PricingSection() {
   ] as const
 
   return (
-    <section className="pricing-section section-shell pricing-section-v2" id="pricing" aria-labelledby="pricing-heading">
+    <motion.section className="pricing-section section-shell pricing-section-v2" id="pricing" aria-labelledby="pricing-heading" initial={reduceMotion ? false : { opacity: 0, y: 24 }} whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}>
       <div className="section-header-block pricing-header">
         <h2 id="pricing-heading">Start with a clear path. Move to Pro when your operation needs more.</h2>
         <p className="section-lede">Every merchant starts with the same commerce foundation. The difference is the capacity, customisation, and integration support the store needs.</p>
       </div>
       <div className="pricing-tier-grid">
-        {plans.map((plan) => (
-          <Card className={`pricing-tier-card ${plan.featured ? "is-featured" : ""}`} key={plan.name}>
+        {plans.map((plan, i) => (
+          <motion.div key={plan.name} initial={reduceMotion ? false : { opacity: 0, y: 20 }} whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.5, delay: reduceMotion ? 0 : i * 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}>
+            <Card className={`pricing-tier-card ${plan.featured ? "is-featured" : ""}`}>
+
             <CardHeader>
               <div className="pricing-tier-topline"><CardTitle>{plan.name}</CardTitle>{plan.featured && <Badge>For growing operations</Badge>}</div>
               <p className="pricing-tier-term">{plan.term}</p>
@@ -763,6 +860,7 @@ function PricingSection() {
             </CardContent>
             <CardFooter><Link className={`button button-full ${plan.featured ? "button-primary" : "button-outline"}`} to="/signup">{plan.action}<ArrowRight size={15} /></Link></CardFooter>
           </Card>
+          </motion.div>
         ))}
       </div>
       <section className="service-comparison" aria-labelledby="service-comparison-heading">
@@ -785,59 +883,31 @@ function PricingSection() {
         </div>
       </section>
       <p className="pricing-disclosure">Paid-plan price, tax, regional availability, and provider-dependent features are confirmed in the service order before a merchant accepts Pro.</p>
-    </section>
+    </motion.section>
   )
 }
 
-function LaunchChapter() {
-  const statuses = [
-    { label: "Submitted", desc: "Your store request has reached Vendryx." },
-    { label: "In review", desc: "The submitted store details are checked before provisioning." },
-    { label: "Provisioning", desc: "Your merchant environment is being configured." },
-    { label: "Ready", desc: "Your merchant workspace is ready for you and your staff." },
-  ]
-  return (
-    <section className="workflow-chapter collective-launch section-shell" id="launch">
-      <div className="workflow-copy">
-        <p className="eyebrow">A clear launch path</p>
-        <h2>Know what happens from store request to launch.</h2>
-        <p>
-          Your welcome workspace shows the current stage, the next action, and any information needed before the store
-          is ready to operate.
-        </p>
-        <Link className="button button-primary" to="/signup">
-          <span>Start your launch</span>
-          <ArrowRight size={16} />
-        </Link>
-      </div>
-      <ol className="launch-states" aria-label="Possible store launch statuses">
-        {statuses.map((item, index) => (
-          <li className={index === 0 ? "is-current" : ""} key={item.label}>
-            <div className="launch-step-dot" />
-            <div className="launch-step-info">
-              <strong>{item.label}</strong>
-              <p>{item.desc}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </section>
-  )
-}
+
 
 function Closing() {
+  const reduceMotion = useReducedMotion()
   return (
-    <section className="closing section-shell">
+    <motion.section className="closing section-shell" initial={reduceMotion ? false : { opacity: 0, y: 24 }} whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}>
       <Building2 size={28} className="text-accent" />
-      <h2>Run your store with a system built around the work behind every order.</h2>
+      <h2>Start a trial and see how orders flow from cart to fulfillment.</h2>
+      <p className="section-lede">Built for store owners, ecommerce builders, and developers. Your welcome workspace tracks every launch stage and what to do next.</p>
       <div className="closing-actions">
         <Link className="button button-primary" to="/signup">
-          <span>Create your merchant account</span>
+          <span>Start your 14-day trial</span>
           <ArrowRight size={16} />
+        </Link>
+        <Link className="button button-outline" to="#pricing">
+          <span>See plan details</span>
+          <ArrowRight size={14} />
         </Link>
         <StartDemoButton />
       </div>
-    </section>
+    </motion.section>
   )
 }
 
@@ -1512,7 +1582,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
 
           <a href="#live-storefront" className="button button-outline button-xs">
             <Store size={14} />
-            <span>Jump to Storefront Preview ↓</span>
+            <span>Jump to Storefront Preview <ArrowDown size={14} /></span>
           </a>
 
           <button
@@ -2321,7 +2391,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                             Apply
                           </button>
                         </form>
-                        {promoApplied && <span className="promo-success-tag">✓ VENDRYX10 applied: 10% discount</span>}
+                        {promoApplied && <span className="promo-success-tag"><Check size={12} /> VENDRYX10 applied: 10% discount</span>}
 
                         <div className="drawer-summary">
                           <div className="summary-line">
@@ -3092,11 +3162,9 @@ function OnePageMarketingSite({ onOpenEngineersTalk }: { onOpenEngineersTalk: ()
       <MerchantJourney />
       <MerchantValuePillars />
       <DemoTeaserCallout />
-      <AudienceStakeholderSection />
       <PricingSection />
 
       <MarketingFaq />
-      <LaunchChapter />
       <Closing />
       <Footer onOpenEngineersTalk={onOpenEngineersTalk} />
     </>
