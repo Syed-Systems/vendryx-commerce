@@ -110,37 +110,26 @@ export const Home = () => {
         lowStockThreshold={lowStockThreshold}
       />
 
-      {/* ── 4. Main 2-Column Command Cockpit ────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (7 cols): Setup Roadmap & Orders Workstream */}
-        <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-y-6">
-          {/* Setup Roadmap (active until completed or dismissed) */}
-          <OnboardingSummaryCard
-            onboarding={onboarding}
-            isLoading={onboardingLoading}
-          />
+      {/* ── 4. Main Command Cockpit ─────────────────────────────────────── */}
+      <div className="flex flex-col gap-y-6">
+        {/* Setup Roadmap (active until completed or dismissed) */}
+        <OnboardingSummaryCard
+          onboarding={onboarding}
+          isLoading={onboardingLoading}
+        />
 
-          {/* Orders Workstream / First Sale Launchpad */}
-          <RecentOrdersCard
-            orders={recentOrders}
-            isLoading={ordersLoading}
-          />
-        </div>
+        {/* Orders Workstream / First Sale Launchpad */}
+        <RecentOrdersCard
+          orders={recentOrders}
+          isLoading={ordersLoading}
+        />
 
-        {/* Right Column (5 cols): Quick Operations Shortcuts */}
-        <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-y-6">
-          {/* Quick Operations Panel */}
-          <QuickOperationsCard />
-        </div>
+        {/* Quick Operations — full-width strip */}
+        <QuickOperationsCard />
+
+        {/* Storefront Live Studio — full width row */}
+        <StorefrontPreviewCard />
       </div>
-
-      {/* ── 5. Storefront Live Studio — full width row ─────────────────── */}
-      {/*
-        Full-width row, not a sidebar card. A 5-column sidebar preview was
-        380px wide and cropped the storefront hero to its top third; the whole
-        point of a preview is to see the page, so it takes the row.
-      */}
-      <StorefrontPreviewCard />
     </div>
   )
 }

@@ -212,21 +212,26 @@ export const StorefrontPreviewCard: React.FC = () => {
                 </div>
               ) : (
                 <div
-                  className="relative overflow-hidden shadow-2xl"
-                  style={{ width: 375, height: 780, transform: "scale(0.5)", transformOrigin: "top center" }}
+                  className="relative w-full bg-ui-bg-subtle/40 p-4 flex items-center justify-center overflow-hidden"
+                  style={{ minHeight: 780 * 0.85 + 32 }}
                 >
-                  <div className="absolute inset-0 rounded-[2.5rem] border-[10px] border-zinc-800 bg-zinc-800 overflow-hidden">
-                    {/* Notch — part of the frame, not an overlay on the iframe */}
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-6 bg-zinc-800 rounded-b-2xl z-10" />
-                    <iframe
-                      key={`${url}-${iframeKey}`}
-                      src={url}
-                      title="Storefront Mobile Preview"
-                      className="w-full h-full border-none pt-5"
-                      loading="lazy"
-                      onLoad={() => setLoaded(true)}
-                      onError={() => setFailed(true)}
-                    />
+                  <div
+                    className="relative shadow-2xl"
+                    style={{ width: 375, height: 780, transform: "scale(0.85)", transformOrigin: "top center" }}
+                  >
+                    <div className="absolute inset-0 rounded-[2.5rem] border-[10px] border-zinc-800 bg-zinc-800 overflow-hidden">
+                      {/* Notch — part of the frame, not an overlay on the iframe */}
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-6 bg-zinc-800 rounded-b-2xl z-10" />
+                      <iframe
+                        key={`${url}-${iframeKey}`}
+                        src={url}
+                        title="Storefront Mobile Preview"
+                        className="w-full h-full border-none pt-5"
+                        loading="lazy"
+                        onLoad={() => setLoaded(true)}
+                        onError={() => setFailed(true)}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
