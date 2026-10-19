@@ -154,6 +154,8 @@ const pageMetadata: Record<StaticPage, { title: string; description: string; ind
   },
 }
 
+const CURRENCY_SYMBOLS: Record<Currency, string> = { BDT: "৳", USD: "$", EUR: "€" }
+
 function formatMoney(bdtAmount: number, currency: Currency): string {
   if (currency === "USD") {
     const usd = bdtAmount / 120
@@ -163,7 +165,7 @@ function formatMoney(bdtAmount: number, currency: Currency): string {
     const eur = bdtAmount / 130
     return `€${eur.toFixed(2)}`
   }
-  return `BDT ${bdtAmount.toLocaleString("en-BD")}`
+  return `৳${bdtAmount.toLocaleString("en-BD")}`
 }
 
 function getPage(): Page {
@@ -415,8 +417,7 @@ function Header() {
       <nav className="desktop-nav" aria-label="Primary navigation">
         <a href="#how-it-works">How It Works</a>
         <Link to="#features">Features</Link>
-        <Link to="#pricing">Plans</Link>
-        <a href="#who-its-for">Who it is for</a>
+        <Link to="#pricing">Pricing</Link>
         <a href="#faq">FAQ</a>
       </nav>
       <div className="nav-actions">
@@ -475,10 +476,7 @@ function Header() {
             <Link to="#features" onClick={() => setMenuOpen(false)}>
               Features
             </Link>
-            <Link to="#pricing" onClick={() => setMenuOpen(false)}>Plans</Link>
-            <a href="#who-its-for" onClick={() => setMenuOpen(false)}>
-              Who it is for
-            </a>
+            <Link to="#pricing" onClick={() => setMenuOpen(false)}>Pricing</Link>
             <a href="#faq" onClick={() => setMenuOpen(false)}>
               FAQ
             </a>
@@ -542,6 +540,74 @@ function StartDemoButton({ className = "button button-outline" }: { className?: 
   )
 }
 
+function TaglineReveal() {
+  const reduceMotion = useReducedMotion()
+  const words = "One connected system for every order your store takes.".split(" ")
+  return (
+    <motion.section
+      className="tagline-reveal-section section-shell"
+      initial={reduceMotion ? false : { opacity: 0 }}
+      whileInView={reduceMotion ? undefined : { opacity: 1 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+    >
+      <h2 className="tagline-reveal-text">
+        {words.map((word, i) => (
+          <motion.span
+            key={i}
+            className="tagline-word"
+            initial={reduceMotion ? false : { opacity: 0.3, filter: "blur(4px)" }}
+            whileInView={reduceMotion ? undefined : { opacity: 1, filter: "blur(0px)" }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.5, delay: reduceMotion ? 0 : i * 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
+          >
+            {word}{" "}
+          </motion.span>
+        ))}
+      </h2>
+    </motion.section>
+  )
+}
+
+function SocialProof() {
+  const reduceMotion = useReducedMotion()
+  const testimonials = [
+    { quote: "Switched from spreadsheets to Vendryx in one afternoon. Orders stopped falling through the cracks.", author: "Tahsin A.", role: "Store owner, Dhaka" },
+    { quote: "The social order handoff saved us hours every week. Staff review drafts before anything goes live.", author: "Sabrina H.", role: "Operations lead" },
+  ]
+  return (
+    <motion.section
+      className="social-proof-section section-shell"
+      initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+    >
+      <div className="section-header-block">
+        <h2>Merchants who made the switch.</h2>
+      </div>
+      <div className="social-proof-grid">
+        {testimonials.map((t, i) => (
+          <motion.div
+            key={t.author}
+            className="social-proof-card"
+            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+            whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.5, delay: reduceMotion ? 0 : i * 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
+          >
+            <p className="social-proof-quote">"{t.quote}"</p>
+            <div className="social-proof-author">
+              <strong>{t.author}</strong>
+              <span>{t.role}</span>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.section>
+  )
+}
+
 function Hero() {
   const ease = [0.25, 0.46, 0.45, 0.94] as const
   const reduceMotion = useReducedMotion()
@@ -550,7 +616,13 @@ function Hero() {
       <div className="hero-split-grid">
         <div className="hero-left-column">
           <motion.p className="eyebrow" initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: reduceMotion ? 0 : 0, ease }}>Commerce operations by Syed Systems</motion.p>
-          <motion.h1 initial={reduceMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: reduceMotion ? 0 : 0.1, ease }}>One commerce workspace for the store you run.</motion.h1>
+          <motion.h1 initial={reduceMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: reduceMotion ? 0 : 0.1, ease }}>
+            {"One commerce workspace for the store you run.".split(" ").map((word, i) => (
+              <motion.span key={i} className="inline-block" initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: reduceMotion ? 0 : 0.1 + i * 0.06, ease }}>
+                {word}{" "}
+              </motion.span>
+            ))}
+          </motion.h1>
           <motion.p className="hero-lede" initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: reduceMotion ? 0 : 0.2, ease }}>
             Vendryx brings catalogue, inventory, guest checkout, social-order handoff, and day-to-day order work into one connected system.
           </motion.p>
@@ -572,7 +644,7 @@ function Hero() {
           </motion.ul>
         </div>
         <motion.figure className="hero-image-panel" initial={reduceMotion ? false : { opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.7, delay: reduceMotion ? 0 : 0.2, ease }}>
-          <img src="/art/merchant-workflow-v2.png" alt="A merchant preparing products alongside a commerce workflow." />
+          <img src="/art/merchant-workflow-v2.png" alt="A merchant preparing products alongside a commerce workflow." loading="eager" decoding="async" />
           <figcaption>A practical operating system for the work behind an online store.</figcaption>
         </motion.figure>
       </div>
@@ -650,13 +722,13 @@ function DemoTeaserCallout() {
                 navigate({ kind: "demo", sessionId: session.id })
               }}
             >
-              <span>Explore the interactive demo</span>
+              <span>Explore demo</span>
               <ArrowUpRight size={16} />
             </button>
           </div>
         </div>
         <figure className="teaser-image-panel">
-          <img src="/art/stheno-merchant-launch-v3.png" alt="A merchant preparing products and orders at a workbench." />
+          <img src="/art/stheno-merchant-launch-v3.png" alt="A merchant preparing products and orders at a workbench." loading="lazy" decoding="async" />
         </figure>
       </div>
     </motion.section>
@@ -753,6 +825,8 @@ function MarketingFaq() {
     ["How do social orders work?", "WhatsApp opens with a pre-filled order message. Messenger and Instagram use a copy-then-open handoff. Each creates a draft order for staff to review before it goes live."],
     ["What happens after the 14-day trial?", "Your store moves to the Free plan. Products, staff records, and order data stay intact. Free limits apply to new creation until you upgrade or reduce usage."],
     ["What does Pro add?", "Full analytics history, a bespoke storefront service, payment gateway, courier dispatch, and risk tooling where supported. Plus mapping for your own domain. $20/month, 1-month minimum."],
+    ["Can I cancel anytime?", "Yes. No long-term contracts. Cancel from your workspace settings and your data stays available for 30 days after cancellation."],
+    ["Do you offer support?", "Yes. Email support@syedsystems.com for merchant questions. Pro merchants get priority response within 24 hours."],
   ] as const
 
   return (
@@ -895,7 +969,7 @@ function Closing() {
     <motion.section className="closing section-shell" initial={reduceMotion ? false : { opacity: 0, y: 24 }} whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}>
       <Building2 size={28} className="text-accent" />
       <h2>Start a trial and see how orders flow from cart to fulfillment.</h2>
-      <p className="section-lede">Built for store owners, ecommerce builders, and developers. Your welcome workspace tracks every launch stage and what to do next.</p>
+      <p className="section-lede">Built for store owners, ecommerce builders, and developers. 14-day trial, no credit card required, cancel anytime.</p>
       <div className="closing-actions">
         <Link className="button button-primary" to="/signup">
           <span>Start your 14-day trial</span>
@@ -1391,7 +1465,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
   const handleExportCSV = () => {
     const csvContent =
       "data:text/csv;charset=utf-8," +
-      "ID,Title,Category,Price_BDT,Stock,Status\n" +
+      "ID,Title,Category,Price,Stock,Status\n" +
       session.products.map((p) => `"${p.id}","${p.title}","${p.category}",${p.price},${p.stock},"${p.status}"`).join("\n")
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
@@ -1539,6 +1613,8 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
         {toastMessage && (
           <motion.div
             className="floating-toast"
+            role="status"
+            aria-live="polite"
             initial={{ opacity: 0, y: 15, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 15, scale: 0.95 }}
@@ -1560,7 +1636,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
           <span className="demo-store-name-tag">{session.storeName} Sandbox</span>
         </div>
         <div className="demo-topbar-center">
-          <button type="button" className="cmd-palette-trigger" onClick={() => setCmdPaletteOpen(true)}>
+          <button type="button" className="cmd-palette-trigger" aria-haspopup="dialog" aria-expanded={cmdPaletteOpen} onClick={() => setCmdPaletteOpen(true)}>
             <Search size={16} />
             <span>Quick search...</span>
             <kbd>⌘K</kbd>
@@ -1572,10 +1648,12 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
               <button
                 key={c}
                 type="button"
+                aria-label={`Switch currency to ${c}`}
+                aria-pressed={currency === c}
                 className={`curr-btn ${currency === c ? "is-active" : ""}`}
                 onClick={() => setCurrency(c)}
               >
-                {c}
+                {CURRENCY_SYMBOLS[c]}
               </button>
             ))}
           </div>
@@ -1618,6 +1696,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
             <button
               className={activeTab === "dashboard" ? "is-active" : ""}
               type="button"
+              aria-selected={activeTab === "dashboard"}
               onClick={() => setActiveTab("dashboard")}
             >
               <TrendingUp size={17} />
@@ -1626,6 +1705,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
             <button
               className={activeTab === "social" ? "is-active" : ""}
               type="button"
+              aria-selected={activeTab === "social"}
               onClick={() => setActiveTab("social")}
             >
               <MessageSquareQuote size={17} />
@@ -1635,6 +1715,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
             <button
               className={activeTab === "products" ? "is-active" : ""}
               type="button"
+              aria-selected={activeTab === "products"}
               onClick={() => setActiveTab("products")}
             >
               <Package size={17} />
@@ -1643,6 +1724,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
             <button
               className={activeTab === "orders" ? "is-active" : ""}
               type="button"
+              aria-selected={activeTab === "orders"}
               onClick={() => setActiveTab("orders")}
             >
               <ClipboardList size={17} />
@@ -1651,6 +1733,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
             <button
               className={activeTab === "brand" ? "is-active" : ""}
               type="button"
+              aria-selected={activeTab === "brand"}
               onClick={() => setActiveTab("brand")}
             >
               <Paintbrush size={17} />
@@ -2281,6 +2364,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                       <div
                         className="store-card-art"
                         onClick={() => setSelectedProduct(product)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedProduct(product) } }}
                         role="button"
                         tabIndex={0}
                         aria-label={`View ${product.title} details`}
@@ -2428,6 +2512,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                       Full Name
                       <input
                         required
+                        autoComplete="name"
                         placeholder="Nusrat Jahan"
                         value={customerInfo.name}
                         onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })}
@@ -2438,6 +2523,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                       <input
                         required
                         type="tel"
+                        autoComplete="tel"
                         placeholder="+880 1700-000000"
                         value={customerInfo.phone}
                         onChange={(e) => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
@@ -2447,6 +2533,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                       Email Address
                       <input
                         type="email"
+                        autoComplete="email"
                         placeholder="nusrat@example.com"
                         value={customerInfo.email}
                         onChange={(e) => setCustomerInfo({ ...customerInfo, email: e.target.value })}
@@ -2457,6 +2544,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                       <textarea
                         required
                         rows={2}
+                        autoComplete="street-address"
                         placeholder="House, Road, Area, Dhaka"
                         value={customerInfo.address}
                         onChange={(e) => setCustomerInfo({ ...customerInfo, address: e.target.value })}
@@ -2819,7 +2907,7 @@ function DedicatedDemoPage({ sessionId }: { sessionId: string }) {
                 </label>
                 <div className="form-pair">
                   <label>
-                    Price (BDT)
+                    Price (৳)
                     <input
                       required
                       type="number"
@@ -3159,9 +3247,11 @@ function OnePageMarketingSite({ onOpenEngineersTalk }: { onOpenEngineersTalk: ()
   return (
     <>
       <Hero />
+      <TaglineReveal />
       <MerchantJourney />
       <MerchantValuePillars />
       <DemoTeaserCallout />
+      <SocialProof />
       <PricingSection />
 
       <MarketingFaq />

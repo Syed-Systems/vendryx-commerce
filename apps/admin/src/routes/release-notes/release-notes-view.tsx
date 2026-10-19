@@ -1,4 +1,4 @@
-import { Badge, Container, Heading, Text } from "@medusajs/ui"
+﻿import { Badge, Container, Heading, Text } from "@medusajs/ui"
 import { SingleColumnPage } from "../../components/layout/pages"
 
 interface ReleaseEntry {
@@ -66,7 +66,7 @@ const RELEASES: ReleaseEntry[] = [
       },
       {
         category: "Localization",
-        title: "Bangladeshi Taka (BDT ৳) Native Engine",
+        title: "Bangladeshi Taka (৳) Native Engine",
         description:
           "Full localization for Bangladeshi commerce: decimal-accurate pricing, divisional addresses, and English/Bengali UI support.",
       },

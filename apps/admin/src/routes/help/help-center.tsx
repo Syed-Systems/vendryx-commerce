@@ -39,7 +39,7 @@ const ARTICLES: HelpArticle[] = [
     title: "Configuring Cash on Delivery (COD) Rules",
     summary: "Set maximum order thresholds, restrict to Dhaka Metro, and enforce phone verification.",
     content:
-      "Vendryx provides dedicated Cash on Delivery rules to minimize fake orders and returns: 1) Go to Settings > Payment Providers. 2) Under the COD Rules card, specify the Maximum Order Amount (e.g. ৳25,000 BDT). 3) Toggle 'Restrict to Dhaka Metro' if you only offer COD within the capital. 4) Enable 'Phone verification required' to mandate OTP or operator confirmation before courier dispatch.",
+      "Vendryx provides dedicated Cash on Delivery rules to minimize fake orders and returns: 1) Go to Settings > Payment Providers. 2) Under the COD Rules card, specify the Maximum Order Amount (e.g. ৳25,000). 3) Toggle 'Restrict to Dhaka Metro' if you only offer COD within the capital. 4) Enable 'Phone verification required' to mandate OTP or operator confirmation before courier dispatch.",
   },
   {
     id: "pathao-logistics",
