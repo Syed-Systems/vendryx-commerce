@@ -45,6 +45,8 @@ async fn test_local_file_provider_upload_and_presigned() {
             content_type: Some("image/png".to_string()),
             bytes: png_bytes,
             metadata: None,
+            // Added to the DTO in 9f9cb42 without updating this test.
+            is_private: false,
         })
         .await
         .unwrap();
@@ -64,6 +66,7 @@ async fn test_local_file_provider_upload_and_presigned() {
             filename: "document.pdf".to_string(),
             content_type: "application/pdf".to_string(),
             expires_in_seconds: Some(3600),
+            is_private: false,
         })
         .await
         .unwrap();

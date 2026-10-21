@@ -1,0 +1,13 @@
+# Local-only override. Not committed - it exists because this machine cannot
+# bind the default Postgres port.
+#
+# Windows reserves TCP 5429-5528, which contains Postgres' default 5432, so
+# Docker fails with "access to the socket is forbidden". Host port 5900 is
+# outside every reserved range on this box. Postgres still listens on 5432
+# inside the container; only the published host port moves.
+#
+# Delete this file, or change 5900, on a machine where 5432 is free.
+services:
+  postgres:
+    ports: !override
+      - "5900:5432"

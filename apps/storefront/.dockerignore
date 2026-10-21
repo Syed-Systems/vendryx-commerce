@@ -1,0 +1,17 @@
+# Build context hygiene: without this, COPY . . would overwrite the Linux
+# node_modules installed in the image with the host's (Windows) binaries.
+node_modules/
+.next/
+.next-*/
+dist/
+coverage/
+*.log
+
+# Local env files must not enter the build context. apps/storefront/.env.local
+# points STHENO_BACKEND_URL at http://127.0.0.1:9000 for run-dev.bat, and Next
+# loads .env.local ahead of the Dockerfile's ARG/ENV — so prerender fetched the
+# container's own loopback and died with ECONNREFUSED 127.0.0.1:9000. Values come
+# from the build args instead (see the Dockerfile ARG block).
+.env
+.env.*
+!.env.template

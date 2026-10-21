@@ -1039,6 +1039,10 @@ pub fn admin_reports_routes(reporting_service: Arc<stheno_reporting::ReportingSe
             "/admin/reports/average-order-value",
             get(reports::average_order_value_handler),
         )
+        .route(
+            "/admin/reports/today",
+            get(reports::today_handler),
+        )
         .with_state(ctx)
 }
 

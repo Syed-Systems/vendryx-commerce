@@ -55,7 +55,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
   }
 
   return (
-    <div className="w-full bg-white flex flex-col">
+    <div className="w-full bg-[color:var(--brand-surface)] flex flex-col">
       <div className="txt-medium">
         <form action={(a) => addPromotionCode(a)} className="w-full mb-5">
           <Label className="flex gap-x-1 my-2 items-center">
@@ -63,7 +63,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
               onClick={() => setIsOpen(!isOpen)}
               type="button"
               // The palette has no blue in it; `text-ui-fg-interactive` is the template's.
-              className="txt-medium text-zinc-700 underline underline-offset-4 hover:text-zinc-950 transition-colors"
+              className="txt-medium text-[color:var(--ink-muted)] underline underline-offset-4 hover:text-[color:var(--ink)] transition-colors"
               data-testid="add-discount-button"
             >
               Add Promotion Code(s)
@@ -142,7 +142,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
                         )
                         {/* {promotion.is_automatic && (
                           <Tooltip content="This promotion is automatically applied">
-                            <InformationCircleSolid className="inline text-zinc-400" />
+                            <InformationCircleSolid className="inline text-[color:var(--ink-faint)]" />
                           </Tooltip>
                         )} */}
                       </span>

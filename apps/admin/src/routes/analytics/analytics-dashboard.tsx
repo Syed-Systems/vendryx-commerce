@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react"
 import { TimeSeriesChart } from "../../components/charts/time-series-chart"
 import { SingleColumnPage } from "../../components/layout/pages"
 import { useCurrencies } from "../../hooks/api/currencies"
+import { getCurrencySymbol } from "../../lib/data/currencies"
 import { useStore } from "../../hooks/api/store"
 import { sdk } from "../../lib/client"
 
@@ -97,9 +98,9 @@ export const AnalyticsDashboard = () => {
     }
 
     const defaults = [
-      { code: "BDT", label: "BDT (৳)" },
-      { code: "USD", label: "USD ($)" },
-      { code: "EUR", label: "EUR (€)" },
+      { code: "BDT", label: "৳" },
+      { code: "USD", label: "$" },
+      { code: "EUR", label: "€" },
       { code: "GBP", label: "GBP (£)" },
     ]
     for (const d of defaults) {
@@ -193,12 +194,13 @@ export const AnalyticsDashboard = () => {
     URL.revokeObjectURL(url)
   }
 
+  const currencySymbol = getCurrencySymbol(currency)
   const currencyFormat = new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
+    style: "decimal",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
+  const formatCurrency = (value: number) => `${currencySymbol}${currencyFormat.format(value)}`
 
   // These series have been in the API response since the reporting module landed;
   // the screen only ever rendered the totals and threw the rest away.
@@ -295,7 +297,7 @@ export const AnalyticsDashboard = () => {
             </div>
             <div className="mt-3 flex items-baseline gap-x-2">
               <Text size="xlarge" weight="plus" className="text-ui-fg-base">
-                {currencyFormat.format(totalRevenue)}
+                {formatCurrency(totalRevenue)}
               </Text>
               <Badge size="xsmall" color="blue">Last {windowDays}d</Badge>
             </div>
@@ -335,7 +337,7 @@ export const AnalyticsDashboard = () => {
             </div>
             <div className="mt-3 flex items-baseline gap-x-2">
               <Text size="xlarge" weight="plus" className="text-ui-fg-base">
-                {currencyFormat.format(aovValue)}
+                {formatCurrency(aovValue)}
               </Text>
               <Badge size="xsmall" color="blue">Per basket</Badge>
             </div>
@@ -383,14 +385,14 @@ export const AnalyticsDashboard = () => {
                 Revenue over time
               </Heading>
               <Text size="small" className="text-ui-fg-subtle">
-                Gross revenue per day in {currency}.
+                Gross revenue per day in {currency === "BDT" ? "৳" : currency === "USD" ? "$" : "€"}.
               </Text>
             </div>
             <div className="px-4 pb-4 pt-6">
               <TimeSeriesChart
                 data={revenueSeries}
-                label={`Revenue per day in ${currency}`}
-                format={(value) => currencyFormat.format(value)}
+                label={`Revenue per day in ${currency === "BDT" ? "৳" : currency === "USD" ? "$" : "€"}`}
+                format={(value) => formatCurrency(value)}
               />
             </div>
           </Container>
@@ -483,7 +485,7 @@ export const AnalyticsDashboard = () => {
                           />
                         </div>
                         <span className="text-ui-fg-base w-24 text-right font-mono font-semibold tabular-nums">
-                          {currencyFormat.format(parseFloat(p.total_revenue || "0"))}
+                          {formatCurrency(parseFloat(p.total_revenue || "0"))}
                         </span>
                       </div>
                     </Table.Cell>
@@ -502,3 +504,5 @@ export const AnalyticsDashboard = () => {
     </SingleColumnPage>
   )
 }
+
+

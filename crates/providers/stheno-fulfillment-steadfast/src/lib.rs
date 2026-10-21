@@ -217,14 +217,22 @@ impl FulfillmentProvider for SteadfastFulfillmentProvider {
             .send()
             .await;
 
+        // No invented consignment id. A number Steadfast never issued would leave the order
+        // marked dispatched with a dead tracking link while the parcel sits in the warehouse.
         let (cid_str, tracking_code) = match resp {
             Ok(r) if r.status().is_success() => {
-                let json: serde_json::Value = r.json().await.unwrap_or_default();
+                let json: serde_json::Value = r.json().await.map_err(|e| Error::ProviderFailed {
+                    provider: "steadfast".to_string(),
+                    source: format!("Steadfast returned a non-JSON response: {e}").into(),
+                })?;
                 let cid = json
                     .get("consignment")
                     .and_then(|c| c.get("consignment_id"))
                     .map(|v| v.to_string())
-                    .unwrap_or_else(|| format!("STDF-CNS-{}", invoice));
+                    .ok_or_else(|| Error::ProviderFailed {
+                        provider: "steadfast".to_string(),
+                        source: "Steadfast response carried no consignment_id".into(),
+                    })?;
                 let track = json
                     .get("consignment")
                     .and_then(|c| c.get("tracking_code"))
@@ -233,10 +241,17 @@ impl FulfillmentProvider for SteadfastFulfillmentProvider {
                     .unwrap_or_else(|| cid.clone());
                 (cid, track)
             }
-            _ => {
-                let cid = format!("STDF-CNS-{}", invoice);
-                let track = format!("STDF-TRK-{}", invoice);
-                (cid, track)
+            Ok(r) => {
+                return Err(Error::ProviderFailed {
+                    provider: "steadfast".to_string(),
+                    source: format!("Steadfast dispatch failed with HTTP {}", r.status()).into(),
+                })
+            }
+            Err(e) => {
+                return Err(Error::ProviderFailed {
+                    provider: "steadfast".to_string(),
+                    source: format!("Steadfast dispatch request failed: {e}").into(),
+                })
             }
         };
 

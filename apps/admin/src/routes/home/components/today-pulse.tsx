@@ -35,7 +35,21 @@ function formatCurrency(value: string | null | number, currencyCode: string = "U
 
 interface StatCardProps {
   icon: React.ReactNode
-  iconBg: string
+  /**
+   * Only pass this when the colour carries meaning. Left off, the card uses the
+   * neutral surface token, so the row reads as one system instead of four
+   * pastels competing in the first thing an operator sees.
+   */
+  iconBg?: string
+  /**
+   * Marks the card that leads the row.
+   *
+   * Four identical cards give an operator nothing to look at first. The lead
+   * takes more width and a larger value; the rest keep their size rather than
+   * shrinking, so the hierarchy comes from the lead rising instead of the
+   * others being demoted. One decisive move, quiet around it.
+   */
+  lead?: boolean
   label: string
   value: string | number
   subtext: string
@@ -48,7 +62,8 @@ interface StatCardProps {
 
 const StatCard = ({
   icon,
-  iconBg,
+  iconBg = "bg-ui-bg-component border border-ui-border-base",
+  lead = false,
   label,
   value,
   subtext,
@@ -56,22 +71,32 @@ const StatCard = ({
   badge,
 }: StatCardProps) => {
   const content = (
-    <Container className="flex flex-col justify-between p-5 border border-ui-border-base rounded-xl bg-ui-bg-base transition-all hover:border-ui-border-strong hover:shadow-elevation-card-hover group">
+    <Container
+      className={`flex h-full flex-col justify-between border border-ui-border-base rounded-xl bg-ui-bg-base transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:border-ui-border-strong hover:shadow-elevation-card-hover group ${
+        lead ? "p-6" : "p-5"
+      }`}
+    >
       <div>
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2.5">
             <div
-              className={`flex items-center justify-center w-8 h-8 rounded-lg ${iconBg} shadow-sm shrink-0`}
+              className={`flex items-center justify-center rounded-lg ${iconBg} shadow-sm shrink-0 ${
+                lead ? "w-9 h-9" : "w-8 h-8"
+              }`}
             >
               {icon}
             </div>
-            <Text size="small" weight="plus" className="text-ui-fg-subtle group-hover:text-ui-fg-base transition-colors">
+            <Text
+              size={lead ? "base" : "small"}
+              weight="plus"
+              className="text-ui-fg-subtle group-hover:text-ui-fg-base transition-colors"
+            >
               {label}
             </Text>
           </div>
           {badge && (
             <span
-              className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${
+              className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
                 badge.variant === "green"
                   ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                   : badge.variant === "amber"
@@ -88,13 +113,28 @@ const StatCard = ({
 
         <Heading
           level="h2"
-          className="text-2xl font-bold tracking-tight text-ui-fg-base tabular-nums mb-1"
+          className={`tracking-tight text-ui-fg-base tabular-nums mb-1 ${
+            // The placeholder for a figure that never loaded. At the lead size
+            // and weight an em-dash renders as a solid bar that reads like a
+            // redaction, so it takes a lighter treatment than a real number.
+            value === "—"
+              ? "text-3xl font-normal text-ui-fg-muted"
+              : lead
+              ? "text-4xl font-bold"
+              : "text-2xl font-bold"
+          }`}
         >
           {value}
         </Heading>
       </div>
 
-      <Text size="xsmall" className="text-ui-fg-muted mt-2 truncate">
+      {/* Two lines, not `truncate`. The lead takes two columns, which narrowed
+          these three, and truncation then cut real information off the end
+          ("Awaiting first customer check..."). Wrapping keeps the sentence. */}
+      <Text
+        size={lead ? "small" : "xsmall"}
+        className="text-ui-fg-muted mt-2 line-clamp-2"
+      >
         {subtext}
       </Text>
     </Container>
@@ -102,7 +142,7 @@ const StatCard = ({
 
   if (href) {
     return (
-      <Link to={href} className="no-underline block">
+      <Link to={href} className="no-underline block h-full">
         {content}
       </Link>
     )
@@ -119,6 +159,7 @@ export const TodayPulseCard = ({
   lowStockCount = 0,
   currencyCode = "USD",
   isLoading = false,
+  todayUnavailable = false,
 }: {
   today: TodayPulse | null
   totalOrders?: number
@@ -127,12 +168,27 @@ export const TodayPulseCard = ({
   lowStockCount?: number
   currencyCode?: string
   isLoading?: boolean
+  /**
+   * True when `/admin/reports/today` did not answer -- the route is not built on
+   * the engine yet, so it 404s.
+   *
+   * The hook was written for exactly this ("the component simply hides itself.
+   * No invented numbers, no fallbacks"), but the card rendered `$0.00` instead.
+   * A store owner reading `$0.00` cannot tell "no sales today" from "this figure
+   * has never loaded", and one of those is a lie about their business.
+   */
+  todayUnavailable?: boolean
 }) => {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {[0, 1, 2, 3].map((i) => (
-          <Container key={i} className="p-5 animate-pulse border border-ui-border-base rounded-xl">
+          <Container
+            key={i}
+            className={`p-5 animate-pulse border border-ui-border-base rounded-xl ${
+              i === 0 ? "sm:col-span-2 lg:col-span-2" : ""
+            }`}
+          >
             <div className="h-8 w-8 bg-ui-bg-component rounded-lg mb-3" />
             <div className="h-7 bg-ui-bg-component rounded w-24 mb-2" />
             <div className="h-3 bg-ui-bg-component rounded w-32" />
@@ -142,26 +198,40 @@ export const TodayPulseCard = ({
     )
   }
 
-  const revenueVal = today?.revenue ? formatCurrency(today.revenue, today.currency_code || currencyCode) : formatCurrency(0, currencyCode)
+  const revenueVal = today?.revenue
+    ? formatCurrency(today.revenue, today.currency_code || currencyCode)
+    : todayUnavailable
+    ? "—"
+    : formatCurrency(0, currencyCode)
   const ordersToday = today?.order_count ?? 0
   const urgentCount = pendingOrdersCount + lowStockCount
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* 1. Revenue */}
-      <StatCard
-        icon={<CurrencyDollar className="w-4 h-4 text-emerald-600" />}
-        iconBg="bg-emerald-500/10 border border-emerald-500/20"
-        label="Today's Revenue"
-        value={revenueVal}
-        subtext={ordersToday > 0 ? `${ordersToday} orders today` : "Live store revenue stream"}
-        badge={{ text: "Today", variant: "green" }}
-      />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* 1. Revenue — the lead. This is the number a store owner opens the app
+          for, and it was the same size and weight as "Active Products: 2". It
+          now takes two columns and a larger value; the other three keep their
+          size, so the row has a first thing to read. */}
+      <div className="sm:col-span-2 lg:col-span-2">
+        <StatCard
+          lead
+          icon={<CurrencyDollar className="w-4 h-4 text-ui-fg-subtle" />}
+          label="Today's Revenue"
+          value={revenueVal}
+          subtext={
+            todayUnavailable
+              ? "Not available yet — reporting is not connected"
+              : ordersToday > 0
+              ? `${ordersToday} orders today`
+              : "Live store revenue stream"
+          }
+          badge={{ text: "Today", variant: "green" }}
+        />
+      </div>
 
       {/* 2. Orders */}
       <StatCard
-        icon={<ShoppingCart className="w-4 h-4 text-blue-600" />}
-        iconBg="bg-blue-500/10 border border-blue-500/20"
+        icon={<ShoppingCart className="w-4 h-4 text-ui-fg-subtle" />}
         label="Orders"
         value={totalOrders.toLocaleString()}
         subtext={
@@ -177,8 +247,7 @@ export const TodayPulseCard = ({
 
       {/* 3. Catalog Products */}
       <StatCard
-        icon={<Tag className="w-4 h-4 text-purple-600" />}
-        iconBg="bg-purple-500/10 border border-purple-500/20"
+        icon={<Tag className="w-4 h-4 text-ui-fg-subtle" />}
         label="Active Products"
         value={productsCount.toLocaleString()}
         subtext={productsCount === 0 ? "Add your first product to start selling" : "Published in catalog"}
@@ -204,7 +273,10 @@ export const TodayPulseCard = ({
         subtext={
           urgentCount > 0
             ? `${pendingOrdersCount} pending · ${lowStockCount} low stock`
-            : "0 operational bottlenecks"
+            : // Was "0 operational bottlenecks", which asserted a count of
+              // something never enumerated -- it counts pending orders and low
+              // stock, and called the total "bottlenecks". Name what is measured.
+              "No orders or stock needing attention"
         }
         href={urgentCount > 0 ? "/orders" : undefined}
         badge={{

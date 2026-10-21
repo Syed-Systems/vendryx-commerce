@@ -4,6 +4,7 @@ import "@fontsource-variable/geist/wght.css"
 
 import App from "./App"
 import "./styles.css"
+import "./demo.css"
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

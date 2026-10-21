@@ -1,4 +1,4 @@
-import { ArrowDownTray, ArrowPath, CheckCircle, CreditCard, Sparkles, XCircle } from "@medusajs/icons"
+﻿import { ArrowDownTray, ArrowPath, CheckCircle, CreditCard, Sparkles, XCircle } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Table, Text, toast } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
@@ -119,9 +119,9 @@ export const EntitlementsDetail = () => {
   const invoices = billingInvoices?.invoices || []
   const tierPrice =
     tier === "pro"
-      ? "৳1,500.00 BDT / month"
+      ? "৳1,500.00 / month"
       : tier === "free"
-      ? "৳0.00 BDT / month"
+      ? "৳0.00 / month"
       : "14-day trial"
 
   const handleDownloadInvoice = (invoiceId: string) => {
@@ -665,3 +665,4 @@ export const EntitlementsDetail = () => {
     </SingleColumnPage>
   )
 }
+

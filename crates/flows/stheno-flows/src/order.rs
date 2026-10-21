@@ -56,6 +56,19 @@ impl OrderWorkflowEngine {
 
     // ── Order Transfer Workflows (P5-21) ────────────────────────────────────
 
+    /// The customer a pending transfer is aimed at, if one is pending.
+    ///
+    /// The store handlers use this to decide who may act on a transfer. A transfer moves
+    /// an order from the current owner to a target, so between `request` and `accept` the
+    /// order still belongs to the original customer while the only other party with any
+    /// business touching it is the target.
+    pub fn pending_transfer(&self, order_id: &str) -> Option<OrderTransferRequest> {
+        self.transfers
+            .read()
+            .ok()
+            .and_then(|m| m.get(order_id).cloned())
+    }
+
     pub async fn request_order_transfer(
         &self,
         order_id: &str,

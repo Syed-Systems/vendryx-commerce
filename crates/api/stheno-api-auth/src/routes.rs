@@ -1,8 +1,8 @@
 //! Medusa v2 wire-compatible Auth API handlers and route definitions (P7-22).
 
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::IntoResponse;
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
@@ -13,11 +13,26 @@ use stheno_auth::{
     UpdatePasswordInput,
 };
 use stheno_flows::AuthWorkflows;
+use stheno_http::rate_limit::RateLimiter;
 use stheno_http::HttpError;
+
+/// Login attempts allowed per account per window.
+///
+/// Credential stuffing against merchant logins is the threat this closes. The key is the
+/// submitted account, not the source address: `axum::serve` is called without
+/// `into_make_service_with_connect_info`, so no handler can see a peer IP, and adding that
+/// plumbing would change the serve signature. Keying on the account still stops the common
+/// case of grinding one account, which is what account takeover actually looks like.
+///
+/// The counter is per-process; see `stheno_http::rate_limit` for what that costs once a
+/// second replica exists.
+pub const LOGIN_MAX_ATTEMPTS: usize = 10;
+pub const LOGIN_WINDOW_SECS: u64 = 60;
 
 #[derive(Clone)]
 pub struct AuthApiContext {
     pub auth_flows: Arc<AuthWorkflows>,
+    pub login_limiter: Arc<RateLimiter>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,8 +57,27 @@ pub async fn authenticate(
     State(ctx): State<AuthApiContext>,
     Path((actor_type, provider_id)): Path<(String, String)>,
     Json(payload): Json<AuthPayload>,
-) -> Result<impl IntoResponse, HttpError> {
+) -> Result<Response, HttpError> {
     let email = payload.email.unwrap_or_default();
+
+    // Throttle before doing any password work, so a grinding attempt costs a hash-map
+    // probe rather than an Argon2 verification.
+    let limit_key = format!("login:{provider_id}:{}", email.to_lowercase());
+    if ctx.login_limiter.check(&limit_key).is_err() {
+        // 429 with Retry-After, not the 404 that Error::Forbidden maps to. A throttle
+        // says nothing about whether the account exists, so it needs no such disguise.
+        return Ok((
+            StatusCode::TOO_MANY_REQUESTS,
+            [(header::RETRY_AFTER, LOGIN_WINDOW_SECS.to_string())],
+            Json(json!({
+                "type": "rate_limited",
+                "code": "too_many_attempts",
+                "message": "Too many authentication attempts. Try again later.",
+            })),
+        )
+            .into_response());
+    }
+
     let (_, tokens) = ctx
         .auth_flows
         .authenticate(AuthenticateInput {
@@ -53,6 +87,10 @@ pub async fn authenticate(
         })
         .await?;
 
+    // A success means the previous failures were a typo, not an attack, so do not leave
+    // the caller throttled for the rest of the window.
+    ctx.login_limiter.reset(&limit_key);
+
     Ok((
         StatusCode::OK,
         Json(json!({
@@ -60,7 +98,8 @@ pub async fn authenticate(
             "refresh_token": tokens.refresh_token,
             "actor_type": actor_type,
         })),
-    ))
+    )
+        .into_response())
 }
 
 /// POST /auth/{actor_type}/{provider_id}/register
@@ -341,7 +380,7 @@ pub async fn authenticate_user(
     State(ctx): State<AuthApiContext>,
     Path(provider_id): Path<String>,
     Json(payload): Json<AuthPayload>,
-) -> Result<impl IntoResponse, HttpError> {
+) -> Result<Response, HttpError> {
     authenticate(
         State(ctx),
         Path(("user".to_string(), provider_id)),

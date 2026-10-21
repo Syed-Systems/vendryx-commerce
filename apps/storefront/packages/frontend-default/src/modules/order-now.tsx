@@ -54,7 +54,7 @@ export const OrderNow: React.FC<OrderNowProps> = ({
   };
 
   return (
-    <div className="order-now-container p-6 bg-white rounded-lg border">
+    <div className="order-now-container p-6 bg-[color:var(--brand-surface)] rounded-[var(--brand-radius-card)] border">
       <h2 className="text-xl font-bold mb-4">Fast Order / Cash on Delivery</h2>
       {orderId ? (
         <div className="text-green-600 font-semibold">
@@ -123,7 +123,7 @@ export const OrderNow: React.FC<OrderNowProps> = ({
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-emerald-600 text-white font-bold py-3 rounded hover:bg-emerald-700"
+            className="w-full bg-emerald-600 text-[color:var(--on-dark)] font-bold py-3 rounded hover:bg-emerald-700"
           >
             {loading ? 'Placing Order...' : `Order Now • ${(unitPriceMinor / 100).toFixed(2)} ${currencyCode.toUpperCase()}`}
           </button>

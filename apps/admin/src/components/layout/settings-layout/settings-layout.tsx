@@ -291,7 +291,7 @@ const Header = () => {
         to={from}
         replace
         className={clx(
-          "group transition-all duration-150 flex items-center gap-x-2.5 rounded-xl p-1.5 outline-none",
+          "group transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 flex items-center gap-x-2.5 rounded-xl p-1.5 outline-none",
           "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
           "focus-visible:shadow-borders-focus"
         )}
@@ -303,7 +303,7 @@ const Header = () => {
           <Text leading="compact" weight="plus" size="small" className="text-[13px] font-semibold text-ui-fg-base">
             {t("app.nav.settings.header", "Settings")}
           </Text>
-          <Text size="xsmall" leading="compact" className="text-[11px] text-ui-fg-muted">
+          <Text size="xsmall" leading="compact" className="text-xs text-ui-fg-muted">
             {t("app.nav.settings.return", "Back to store")}
           </Text>
         </div>

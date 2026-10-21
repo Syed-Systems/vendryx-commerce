@@ -288,7 +288,7 @@ export const BrandingView = () => {
                       <button
                         type="button"
                         onClick={() => setFormState((p) => ({ ...p, logo_url: "" }))}
-                        className="text-[11px] text-rose-600 hover:underline flex items-center gap-1"
+                        className="text-xs text-rose-600 hover:underline flex items-center gap-1"
                       >
                         <Trash className="w-3 h-3" />
                         Remove Logo
@@ -349,7 +349,7 @@ export const BrandingView = () => {
 
                   {/* Optional Direct URL field */}
                   <div className="flex items-center gap-2 pt-1">
-                    <span className="text-[11px] text-ui-fg-muted shrink-0">Or Image URL:</span>
+                    <span className="text-xs text-ui-fg-muted shrink-0">Or Image URL:</span>
                     <Input
                       name="logo_url"
                       aria-label="Logo URL"
@@ -372,7 +372,7 @@ export const BrandingView = () => {
                       <button
                         type="button"
                         onClick={() => setFormState((p) => ({ ...p, favicon_url: "" }))}
-                        className="text-[11px] text-rose-600 hover:underline flex items-center gap-1"
+                        className="text-xs text-rose-600 hover:underline flex items-center gap-1"
                       >
                         <Trash className="w-3 h-3" />
                         Remove Favicon
@@ -432,7 +432,7 @@ export const BrandingView = () => {
                   />
 
                   <div className="flex items-center gap-2 pt-1">
-                    <span className="text-[11px] text-ui-fg-muted shrink-0">Or Favicon URL:</span>
+                    <span className="text-xs text-ui-fg-muted shrink-0">Or Favicon URL:</span>
                     <Input
                       name="favicon_url"
                       aria-label="Favicon URL"
@@ -601,12 +601,12 @@ export const BrandingView = () => {
                       <Heading level="h2" className="text-sm font-semibold text-ui-fg-base">
                         Live Storefront Preview
                       </Heading>
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         Live · Port 8000
                       </span>
                     </div>
-                    <Text className="text-[11px] text-ui-fg-muted font-mono">
+                    <Text className="text-xs text-ui-fg-muted font-mono">
                       Font: {selectedFont.label.split(" ")[0]}
                     </Text>
                   </div>
@@ -649,7 +649,7 @@ export const BrandingView = () => {
                 </div>
 
                 {/* Address Bar with Favicon */}
-                <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-ui-bg-base border border-ui-border-base text-ui-fg-muted font-mono text-[11px] max-w-[320px] w-full mx-2 shadow-sm">
+                <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-ui-bg-base border border-ui-border-base text-ui-fg-muted font-mono text-xs max-w-[320px] w-full mx-2 shadow-sm">
                   {formState.favicon_url ? (
                     <img
                       src={formState.favicon_url}
@@ -789,7 +789,7 @@ export const BrandingView = () => {
                 {/* 2. Simulated Component Preview Canvas */}
                 <div
                   data-testid="branding-preview-frame"
-                  className={`flex-1 rounded-lg border border-ui-border-base overflow-hidden shadow-sm transition-all duration-150 flex flex-col h-full ${
+                  className={`flex-1 rounded-lg border border-ui-border-base overflow-hidden shadow-sm transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 flex flex-col h-full ${
                     previewMode === "component" ? "flex" : "hidden"
                   }`}
                   style={{
@@ -877,7 +877,7 @@ export const BrandingView = () => {
 
                   {/* Palette Swatches Bar */}
                   <div
-                    className="p-3 border-t grid grid-cols-6 gap-2 text-center text-[10px]"
+                    className="p-3 border-t grid grid-cols-6 gap-2 text-center text-xs"
                     style={{
                       backgroundColor: formState.color_surface,
                       borderColor: `${formState.color_secondary}33`,

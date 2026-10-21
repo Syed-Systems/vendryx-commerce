@@ -1,4 +1,5 @@
 import React from "react"
+import { getCurrencySymbol } from "../../../lib/data/currencies"
 import { Badge, Container, Heading, Text } from "@medusajs/ui"
 
 export interface DiscrepancyAlertItem {
@@ -58,7 +59,7 @@ export const DiscrepancyAlertsBanner: React.FC<DiscrepancyAlertsBannerProps> = (
             </div>
             <div className="flex items-center gap-4 shrink-0">
               <span className="text-ui-fg-error font-medium">
-                Unremitted: {currency} {alert.unremittedAmount.toFixed(2)}
+                Unremitted: {getCurrencySymbol(currency)} {alert.unremittedAmount.toFixed(2)}
               </span>
               <Badge color="orange">{alert.ageDays} days overdue</Badge>
             </div>

@@ -40,12 +40,12 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
         type="button"
         onClick={openMenu}
         data-testid="nav-menu-button"
-        className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-zinc-800 hover:text-zinc-950 transition-colors focus:outline-none py-2 px-1 cursor-pointer"
+        className="tap flex items-center gap-2 label-nav text-[color:var(--chrome-fg-muted)] hover:text-[color:var(--chrome-fg)] transition-colors ps-1 pe-3 cursor-pointer"
       >
         <span className="flex flex-col gap-1 w-4">
-          <span className="h-0.5 w-4 bg-zinc-900 rounded-full" />
-          <span className="h-0.5 w-3 bg-zinc-900 rounded-full" />
-          <span className="h-0.5 w-4 bg-zinc-900 rounded-full" />
+          <span className="h-0.5 w-4 bg-[color:var(--band-dark)] rounded-full" />
+          <span className="h-0.5 w-3 bg-[color:var(--band-dark)] rounded-full" />
+          <span className="h-0.5 w-4 bg-[color:var(--band-dark)] rounded-full" />
         </span>
         <span>Menu</span>
       </button>
@@ -64,7 +64,7 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
             leaveTo="opacity-0"
           >
             <div
-              className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+              className="fixed inset-0 bg-[color:var(--band-dark)]/75 backdrop-blur-sm"
               data-testid="side-menu-backdrop"
             />
           </TransitionChild>
@@ -82,16 +82,16 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                   leaveTo="-translate-x-full"
                 >
                   <DialogPanel
-                    className="pointer-events-auto w-screen max-w-sm sm:max-w-md bg-zinc-950 text-white shadow-2xl flex flex-col justify-between p-6 sm:p-10 overflow-y-auto no-scrollbar"
+                    className="pointer-events-auto w-screen max-w-sm sm:max-w-md bg-[color:var(--band-dark)] text-[color:var(--on-dark)] shadow-2xl flex flex-col justify-between p-6 sm:p-10 overflow-y-auto no-scrollbar"
                     data-testid="nav-menu-popup"
                   >
                     {/* Header */}
-                    <div className="flex items-center justify-between pb-6 border-b border-zinc-800">
+                    <div className="flex items-center justify-between pb-6 border-b text-[color:var(--on-dark-muted)]">
                       <div className="flex flex-col">
-                        <span className="text-xl sm:text-2xl font-serif tracking-[0.25em] uppercase font-bold text-white leading-tight">
+                        <span className="text-xl sm:text-2xl font-heading tracking-[0.25em] uppercase font-bold text-[color:var(--on-dark)] leading-tight">
                           STHENO
                         </span>
-                        <span className="text-[10px] tracking-[0.35em] text-zinc-400 uppercase font-sans mt-1">
+                        <span className="text-[10px] tracking-[0.35em] text-[color:var(--on-dark-muted)] uppercase font-sans mt-1">
                           Atelier • Edition
                         </span>
                       </div>
@@ -99,7 +99,7 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                         type="button"
                         data-testid="close-menu-button"
                         onClick={closeMenu}
-                        className="p-2.5 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors focus:outline-none cursor-pointer"
+                        className="p-2.5 rounded-full bg-[color:var(--band-dark)] hover:bg-[color:var(--band-dark)] text-[color:var(--on-dark)] hover:text-[color:var(--on-dark)] transition-colors focus:outline-none cursor-pointer"
                       >
                         <XMark className="w-5 h-5" />
                       </button>
@@ -112,7 +112,7 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                           <li key={item.name}>
                             <LocalizedClientLink
                               href={item.href}
-                              className="text-2xl sm:text-3xl font-serif font-bold text-zinc-200 hover:text-white hover:translate-x-2 transition-all block"
+                              className="text-2xl sm:text-3xl font-heading font-bold text-[color:var(--on-dark)] hover:text-[color:var(--on-dark)] hover:translate-x-2 transition-all block"
                               onClick={closeMenu}
                               data-testid={`${item.name.toLowerCase().replace(/\s+/g, "-")}-link`}
                             >
@@ -124,10 +124,10 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                     </nav>
 
                     {/* Footer / Locale / Currency */}
-                    <div className="flex flex-col gap-y-4 pt-6 border-t border-zinc-800 text-xs">
+                    <div className="flex flex-col gap-y-4 pt-6 border-t text-[color:var(--on-dark-muted)] text-xs">
                       {!!locales?.length && (
                         <div
-                          className="flex justify-between items-center py-2.5 px-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800"
+                          className="flex justify-between items-center py-2.5 px-3.5 rounded-[var(--brand-radius-card)] bg-[color:var(--band-dark)]/80 border text-[color:var(--on-dark-muted)]"
                           onMouseEnter={languageToggleState.open}
                           onMouseLeave={languageToggleState.close}
                         >
@@ -138,7 +138,7 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                           />
                           <ArrowRightMini
                             className={clx(
-                              "transition-transform duration-150 text-zinc-400",
+                              "transition-transform duration-150 text-[color:var(--on-dark-muted)]",
                               languageToggleState.state ? "-rotate-90" : ""
                             )}
                           />
@@ -146,7 +146,7 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                       )}
 
                       <div
-                        className="flex justify-between items-center py-2.5 px-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800"
+                        className="flex justify-between items-center py-2.5 px-3.5 rounded-[var(--brand-radius-card)] bg-[color:var(--band-dark)]/80 border text-[color:var(--on-dark-muted)]"
                         onMouseEnter={countryToggleState.open}
                         onMouseLeave={countryToggleState.close}
                       >
@@ -158,13 +158,13 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                         )}
                         <ArrowRightMini
                           className={clx(
-                            "transition-transform duration-150 text-zinc-400",
+                            "transition-transform duration-150 text-[color:var(--on-dark-muted)]",
                             countryToggleState.state ? "-rotate-90" : ""
                           )}
                         />
                       </div>
 
-                      <div className="pt-2 text-zinc-500 text-[11px] flex items-center justify-between font-light">
+                      <div className="pt-2 text-[color:var(--on-dark-muted)] text-[11px] flex items-center justify-between font-light">
                         <span>© {new Date().getFullYear()} STHENO Atelier.</span>
                         <span>All rights reserved.</span>
                       </div>

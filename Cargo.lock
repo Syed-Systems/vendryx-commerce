@@ -3051,6 +3051,7 @@ dependencies = [
  "stheno-store",
  "stheno-translation",
  "stheno-types",
+ "stheno-workflow",
  "tokio",
  "tower 0.4.13",
  "tracing",

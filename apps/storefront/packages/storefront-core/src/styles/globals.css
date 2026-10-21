@@ -121,4 +121,141 @@
   .text-3xl-semi {
     @apply text-[32px] leading-[44px] font-semibold;
   }
+
+  /* ── Named type scale ──────────────────────────────────────────────────────
+     The storefront was mixing ad-hoc sizes (`text-[10px]`, `text-[11px]`,
+     `text-xs`, `text-sm`) with no meaning attached. These steps are the scale;
+     arbitrary sizes are the exception, not the rule. `display-*` carries the
+     loud-couture voice, `body-*` is reading copy, `label-*` is micro-caps that
+     stays legible at small sizes. */
+
+  .display-hero {
+    @apply text-[2.75rem] leading-[0.95] sm:text-6xl sm:leading-[0.95] lg:text-8xl lg:leading-[0.9];
+  }
+
+  .display-section {
+    @apply text-4xl leading-[0.95] sm:text-6xl sm:leading-[0.95] lg:text-7xl lg:leading-[0.9];
+  }
+
+  /* 13px, not 12. `text-xs` body copy was the single most common readability
+     defect on the homepage. */
+  .body-copy {
+    @apply text-[0.8125rem] leading-[1.65] sm:text-sm sm:leading-[1.7];
+  }
+
+  .body-copy-lg {
+    @apply text-base leading-[1.7] sm:text-lg sm:leading-[1.65];
+  }
+
+  /* Micro-caps labels. 11px floor — 10px was used for eyebrows throughout and
+     fails legibility on non-retina mobile. */
+  .label-eyebrow {
+    @apply text-[0.6875rem] leading-4 font-semibold uppercase tracking-[0.22em] indent-[0.22em];
+  }
+
+  /* `indent-*` cancels the trailing letter-space.
+
+     `letter-spacing` adds its value after the LAST glyph as well as between
+     glyphs, so a tracked string is one tracking-width wider than its ink. In a
+     centered box that pushes the text left by half the tracking; in a row it
+     eats the gap before the next item and makes the spacing look uneven. The
+     indent adds exactly one tracking-width back to the first line, so the ink
+     lands optically centered and the gaps read even. It has to match the
+     tracking value or it over- or under-corrects.
+
+     Named `indent-*`, not `text-indent-*`: this is Tailwind v3, where the
+     text-indent utility is still `indent`. The v4 spelling fails the build
+     with "class does not exist". */
+  .label-nav {
+    @apply text-xs font-medium uppercase tracking-[0.14em] indent-[0.14em];
+  }
+
+  /* ── Measure ───────────────────────────────────────────────────────────────
+     Long-form paragraphs cap at 65ch. `max-w-md` (28rem) was doing the job
+     unevenly across sections. */
+  .measure {
+    @apply max-w-[65ch];
+  }
+
+  .measure-tight {
+    @apply max-w-[46ch];
+  }
+
+  /* ── Tap targets ───────────────────────────────────────────────────────────
+     44px minimum. Nav and footer links were `text-xs` with no vertical padding
+     and landed around 18px tall. */
+  .tap {
+    @apply relative inline-flex items-center min-h-[44px];
+  }
+
+  /* Touch devices get no :hover, so any hover-only affordance must resolve to
+     visible instead of being unreachable. */
+  @media (hover: none) {
+    .hover-reveal {
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+  }
+
+  /* ── Safe areas ────────────────────────────────────────────────────────────
+     The sticky header sits under a notch on iOS in landscape without this. */
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* ── Focus ────────────────────────────────────────────────────────────────
+   frontend-default had zero `focus-visible` rules, so keyboard users got no
+   focus indication anywhere on the site — on a store where the only other
+   affordance cue is a mouse hover. This is the single largest accessibility
+   defect found in the audit and it is fixed globally rather than per component.
+
+   Two rings: a light halo so it survives on dark sections, and a dark core so
+   it survives on white. Both sit outside the box so they never affect layout. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-primary, #1c1917);
+  outline-offset: 2px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.9);
+}
+
+/* Keyboard focus must win over the hover treatment, or the two fight. */
+:where(a, button):focus-visible {
+  transition: none;
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────────
+   The audit found `prefers-reduced-motion` honoured in exactly one place (the
+   nav shell). Every `group-hover:scale-105 transition-transform duration-700` in
+   the codebase animated unconditionally. This kills transforms and long
+   transitions site-wide while keeping opacity fades, which carry no vestibular
+   risk. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transform: none !important;
+  }
+}
+
+/* Display headings were wrapping mid-phrase at every width. */
+.display-hero,
+.display-section,
+h1,
+h2 {
+  text-wrap: balance;
 }

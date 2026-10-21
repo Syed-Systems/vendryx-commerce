@@ -12,7 +12,7 @@ export default async function PreviewPrice({ price }: { price: VariantPrice }) {
     <div className="flex items-center gap-2 text-xs">
       {isSale && (
         <span
-          className="line-through text-zinc-400 font-light"
+          className="line-through text-[color:var(--ink-faint)] font-light"
           data-testid="original-price"
         >
           {price.original_price}
@@ -21,7 +21,7 @@ export default async function PreviewPrice({ price }: { price: VariantPrice }) {
       <span
         className={clx("font-semibold", {
           "text-rose-600": isSale,
-          "text-zinc-900": !isSale,
+          "text-[color:var(--ink)]": !isSale,
         })}
         data-testid="price"
       >

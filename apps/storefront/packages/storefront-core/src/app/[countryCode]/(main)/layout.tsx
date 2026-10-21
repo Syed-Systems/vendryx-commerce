@@ -1,4 +1,5 @@
 import { Metadata } from "next"
+import { headers } from "next/headers"
 
 import { listCartOptions, retrieveCart } from "@lib/data/cart"
 import { listCategories } from "@lib/data/categories"
@@ -8,6 +9,7 @@ import { listLocales } from "@lib/data/locales"
 import { listRegions } from "@lib/data/regions"
 import CartButtonLoader from "@core/loaders/cart-button"
 import { retrieveCustomer } from "@lib/data/customer"
+import { resolveThemeByHost, resolveBrandingTokens } from "@lib/branding"
 import { getBaseURL } from "@lib/util/env"
 import { StoreCartShippingOption, StoreRegion } from "@medusajs/types"
 import CartMismatchBanner from "@frontend/layout/components/cart-mismatch-banner"
@@ -31,6 +33,15 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
   const productCategories = await listCategories()
   let shippingOptions: StoreCartShippingOption[] = []
 
+  // The wordmark belongs to the tenant, not the frontend. `STHENO` was baked into
+  // the footer (and the nav), so every themed store — Mahal, Lustre, Matrix —
+  // still branded itself Stheno at the bottom of the page. Core already resolves
+  // branding per request from the Host header; this hands the resolved name down
+  // rather than letting the frontend hardcode a second, wrong one.
+  const storeName = resolveBrandingTokens(
+    resolveThemeByHost((await headers()).get("host"))
+  ).store_name
+
   if (cart) {
     const { shipping_options } = await listCartOptions()
 
@@ -47,6 +58,7 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
         categories={productCategories}
         enableCustomerAccounts={false}
         customer={customer}
+        storeName={storeName}
       />
       {customer && cart && (
         <CartMismatchBanner customer={customer} cart={cart} />
@@ -64,6 +76,7 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
         collections={collections}
         productCategories={productCategories}
         enableCustomerAccounts={false}
+        storeName={storeName}
       />
     </>
   )

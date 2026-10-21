@@ -141,7 +141,7 @@ export default function ProductActions({
     <>
       <div className="flex flex-col gap-y-4" ref={actionsRef}>
         {/* Product Price */}
-        <div className="py-2 border-y border-zinc-200/80">
+        <div className="py-2 border-y border-[color:var(--brand-hairline)]/80">
           <ProductPrice product={product} variant={selectedVariant} />
         </div>
 
@@ -177,12 +177,12 @@ export default function ProductActions({
               isAdding ||
               !isValidVariant
             }
-            className="w-full py-3.5 px-6 rounded-full bg-zinc-950 text-white font-semibold text-xs uppercase tracking-widest hover:bg-zinc-800 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
+            className="w-full py-3.5 px-6 rounded-[var(--brand-radius-button)] bg-[color:var(--band-dark)] text-[color:var(--on-dark)] font-semibold text-xs uppercase tracking-widest hover:bg-[color:var(--band-dark)] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
             data-testid="add-product-button"
           >
             {isAdding ? (
               <span className="inline-flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
+                <svg className="animate-spin h-4 w-4 text-[color:var(--on-dark)]" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
@@ -240,7 +240,7 @@ export default function ProductActions({
           ) : null}
 
           {/* Value Perks Mini Bar */}
-          <div className="flex items-center justify-between text-[11px] text-zinc-500 font-light px-2 pt-2">
+          <div className="flex items-center justify-between text-[11px] text-[color:var(--ink-faint)] font-light px-2 pt-2">
             <span className="flex items-center gap-1">
               <span>✓</span> Free Express Shipping
             </span>

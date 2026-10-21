@@ -643,7 +643,7 @@ pub async fn upload_payment_proof(
     axum::extract::Path(invoice_id): axum::extract::Path<String>,
     Json(input): Json<stheno_platform::dto::UploadPaymentProofInput>,
 ) -> Result<impl IntoResponse, Response> {
-    let tenant_id = stheno_db::tenant::current().map_err(|e| {
+    let tenant_id = stheno_db::tenant::current().map_err(|_| {
         (
             StatusCode::UNAUTHORIZED,
             Json(json!({ "message": "unauthorized" })),

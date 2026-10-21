@@ -12,9 +12,9 @@ use stheno_types::{Error, Result};
 use crate::dto::{
     AverageOrderValueReport, OrdersOverTimeItem, OrdersOverTimeReport, RecordOrderDeltaInput,
     RecordOrderPlacedInput, RevenueOverTimeItem, RevenueOverTimeReport, TopProductItem,
-    TopProductsReport,
+    TopProductsReport, TodayReport,
 };
-use crate::models::{OrdersSeriesRow, RevenueSeriesRow, TopProductRow, TotalAovRow};
+use crate::models::{DailyRollup, OrdersSeriesRow, RevenueSeriesRow, TopProductRow, TotalAovRow};
 
 #[derive(Clone)]
 pub struct ReportingService {
@@ -277,6 +277,49 @@ impl ReportingService {
 
                 Ok(TopProductsReport { top_products })
 
+            })
+        })
+        .await
+    }
+
+    /// Today's totals for the cockpit's pulse card (P16).
+    ///
+    /// Sums the daily rollup rows dated today. Returns zeros with a "USD"
+    /// currency when nothing has been recorded yet, so the caller never has to
+    /// special-case an empty day.
+    pub async fn get_today(&self) -> Result<TodayReport> {
+        let today = Utc::now().date_naive();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let rows: Vec<DailyRollup> = diesel::sql_query(
+                    "SELECT date, currency, order_count, total_revenue, units_sold, created_at, updated_at, deleted_at \
+                     FROM reporting.daily_rollup \
+                     WHERE date = $1 AND deleted_at IS NULL;",
+                )
+                .bind::<Date, _>(today)
+                .load(conn)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+
+                let mut revenue = dec!(0);
+                let mut order_count = 0i64;
+                let mut items_sold = 0i64;
+                let mut currency = "USD".to_string();
+                for (i, r) in rows.iter().enumerate() {
+                    revenue += r.total_revenue;
+                    order_count += r.order_count;
+                    items_sold += r.units_sold;
+                    if i == 0 {
+                        currency = r.currency.clone();
+                    }
+                }
+
+                Ok(TodayReport {
+                    revenue: revenue.round_dp(2),
+                    currency,
+                    order_count,
+                    items_sold,
+                })
             })
         })
         .await

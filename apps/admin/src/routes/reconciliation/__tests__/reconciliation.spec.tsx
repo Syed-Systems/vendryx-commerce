@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+﻿import { describe, expect, it, vi } from "vitest"
 
 vi.hoisted(() => {
   const g = global as any
@@ -30,9 +30,9 @@ describe("P24-11: Admin Reconciliation UI", () => {
       )
 
       expect(screen.getByText("pathao Settlement Cycle")).not.toBeNull()
-      expect(screen.getByText("BDT 15000.00")).not.toBeNull()
-      expect(screen.getByText("- BDT 950.00")).not.toBeNull()
-      expect(screen.getByText("BDT 14050.00")).not.toBeNull()
+      expect(screen.getByText("৳ 15000.00")).not.toBeNull()
+      expect(screen.getByText("- ৳ 950.00")).not.toBeNull()
+      expect(screen.getByText("৳ 14050.00")).not.toBeNull()
       expect(screen.getByText("BALANCED")).not.toBeNull()
     })
 
@@ -158,7 +158,7 @@ describe("P24-11: Admin Reconciliation UI", () => {
 
       expect(screen.getByText("cons_alert_999")).not.toBeNull()
       expect(screen.getByText("12 days overdue")).not.toBeNull()
-      expect(screen.getByText("Unremitted: BDT 1500.00")).not.toBeNull()
+      expect(screen.getByText("Unremitted: ৳ 1500.00")).not.toBeNull()
     })
   })
 

@@ -55,27 +55,25 @@ export const QuickOperationsCard = () => {
         </Text>
       </div>
 
-      <div className="p-3 divide-y divide-ui-border-base">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-ui-border-base">
         {SHORTCUTS.map((item) => (
           <Link
             key={item.title}
             to={item.href}
-            className="flex items-center justify-between p-3 rounded-lg hover:bg-ui-bg-subtle/40 transition-colors group no-underline"
+            className="flex items-center gap-3 p-4 bg-ui-bg-base hover:bg-ui-bg-subtle/40 transition-colors group no-underline"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="p-2 rounded-lg bg-ui-bg-component border border-ui-border-base shrink-0 group-hover:scale-105 transition-transform">
-                {item.icon}
-              </div>
-              <div className="flex flex-col min-w-0">
-                <Text size="small" weight="plus" className="text-ui-fg-base group-hover:text-ui-fg-interactive transition-colors truncate">
-                  {item.title}
-                </Text>
-                <Text size="xsmall" className="text-ui-fg-subtle truncate">
-                  {item.description}
-                </Text>
-              </div>
+            <div className="p-2 rounded-lg bg-ui-bg-component border border-ui-border-base shrink-0 group-hover:scale-105 transition-transform">
+              {item.icon}
             </div>
-            <ArrowRight className="w-4 h-4 text-ui-fg-muted group-hover:text-ui-fg-base transition-colors shrink-0 ml-2" />
+            <div className="flex flex-col min-w-0">
+              <Text size="small" weight="plus" className="text-ui-fg-base group-hover:text-ui-fg-interactive transition-colors truncate">
+                {item.title}
+              </Text>
+              <Text size="xsmall" className="text-ui-fg-subtle truncate">
+                {item.description}
+              </Text>
+            </div>
+            <ArrowRight className="w-4 h-4 text-ui-fg-muted group-hover:text-ui-fg-base transition-colors shrink-0 ml-auto" />
           </Link>
         ))}
       </div>

@@ -155,7 +155,7 @@ export const PaymentProvidersList = () => {
                   return (
                     <div
                       key={p.id}
-                      className="flex flex-col justify-between rounded-xl border border-ui-border-base bg-ui-bg-subtle/30 dark:bg-ui-bg-base p-5 shadow-2xs transition-all hover:border-ui-border-interactive/60 hover:shadow-xs"
+                      className="flex flex-col justify-between rounded-xl border border-ui-border-base bg-ui-bg-subtle/30 dark:bg-ui-bg-base p-5 shadow-2xs transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:border-ui-border-interactive/60 hover:shadow-xs"
                     >
                       {/* Top identity bar */}
                       <div className="flex flex-col gap-y-3.5">
@@ -166,7 +166,7 @@ export const PaymentProvidersList = () => {
                               <Text size="small" weight="plus" className="text-ui-fg-base font-semibold">
                                 {formatProviderTitle(p.id, p.name)}
                               </Text>
-                              <code className="text-[11px] text-ui-fg-muted font-mono">
+                              <code className="text-xs text-ui-fg-muted font-mono">
                                 {p.id}
                               </code>
                             </div>
@@ -184,13 +184,13 @@ export const PaymentProvidersList = () => {
 
                         {/* Webhook Callback box */}
                         <div className="flex items-center justify-between rounded-lg border bg-ui-bg-subtle/40 px-3 py-1.5 text-xs">
-                          <span className="text-[11px] text-ui-fg-muted font-medium truncate mr-2">
+                          <span className="text-xs text-ui-fg-muted font-medium truncate mr-2">
                             Webhook: <span className="font-mono text-ui-fg-subtle">{callbackUrl}</span>
                           </span>
                           <button
                             type="button"
                             onClick={() => handleCopyWebhook(callbackUrl)}
-                            className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover shrink-0 font-medium text-[11px] flex items-center gap-x-1"
+                            className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover shrink-0 font-medium text-xs flex items-center gap-x-1"
                             title="Copy webhook callback URL"
                           >
                             <DocumentText className="h-3 w-3" />

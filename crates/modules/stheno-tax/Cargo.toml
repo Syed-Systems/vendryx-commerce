@@ -22,3 +22,8 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 stheno-db = { workspace = true, features = ["testing"] }
+
+# ADR-006: no floating-point arithmetic in money paths. Analytics percentages in
+# this crate are the deliberate exception and carry a local allow.
+[lints]
+workspace = true

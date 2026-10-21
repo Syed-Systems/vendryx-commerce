@@ -65,9 +65,13 @@ export const AttentionStrip = ({
     return null
   }
 
+  // Urgency reads from the icon and the tinted surface. The 4px left border
+  // that used to sit here was a third, redundant cue for the same meaning --
+  // and a thick coloured side-border is the single most recognisable tell of a
+  // generated UI, so it was costing more than it said.
   const borderStyles = {
-    amber: "border-l-4 border-l-amber-500 bg-amber-500/5",
-    red: "border-l-4 border-l-rose-500 bg-rose-500/5",
+    amber: "bg-amber-500/[0.07]",
+    red: "bg-rose-500/[0.07]",
   }
 
   return (
@@ -86,7 +90,7 @@ export const AttentionStrip = ({
             className="group no-underline block"
           >
             <Container
-              className={`flex items-center justify-between p-4 border border-ui-border-base rounded-xl transition-all hover:shadow-elevation-card-hover ${borderStyles[item.color]}`}
+              className={`flex items-center justify-between p-4 border border-ui-border-base rounded-xl transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:shadow-elevation-card-hover ${borderStyles[item.color]}`}
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="p-2 rounded-lg bg-ui-bg-base border border-ui-border-base shadow-sm shrink-0">

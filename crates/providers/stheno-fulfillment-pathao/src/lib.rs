@@ -103,23 +103,33 @@ impl PathaoFulfillmentProvider {
 
         match resp {
             Ok(r) if r.status().is_success() => {
-                let body: serde_json::Value = r.json().await.unwrap_or_default();
+                // A 2xx with a body that is not the JSON we asked for is a failure, not a
+                // token. Parsing errors used to collapse to an empty object, which then
+                // yielded a hardcoded sandbox token and reported success.
+                let body: serde_json::Value = r.json().await.map_err(|e| Error::ProviderFailed {
+                    provider: "pathao".to_string(),
+                    source: format!("Pathao returned a non-JSON token response: {e}").into(),
+                })?;
                 let token = body
                     .get("access_token")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("sandbox_pathao_token")
+                    .ok_or_else(|| Error::ProviderFailed {
+                        provider: "pathao".to_string(),
+                        source: "Pathao response carried no access_token".into(),
+                    })?
                     .to_string();
                 let mut guard = self.access_token.write().await;
                 *guard = Some(token.clone());
                 Ok(token)
             }
-            _ => {
-                // Fallback token for offline / sandbox mode
-                let token = "fallback_pathao_token".to_string();
-                let mut guard = self.access_token.write().await;
-                *guard = Some(token.clone());
-                Ok(token)
-            }
+            Ok(r) => Err(Error::ProviderFailed {
+                provider: "pathao".to_string(),
+                source: format!("Pathao auth failed with HTTP {}", r.status()).into(),
+            }),
+            Err(e) => Err(Error::ProviderFailed {
+                provider: "pathao".to_string(),
+                source: format!("Pathao auth request failed: {e}").into(),
+            }),
         }
     }
 
@@ -459,21 +469,36 @@ impl FulfillmentProvider for PathaoFulfillmentProvider {
 
         let (consignment_id, tracking_url) = match resp {
             Ok(r) if r.status().is_success() => {
-                let json: serde_json::Value = r.json().await.unwrap_or_default();
+                let json: serde_json::Value = r.json().await.map_err(|e| Error::ProviderFailed {
+                    provider: "pathao".to_string(),
+                    source: format!("Pathao returned a non-JSON response: {e}").into(),
+                })?;
+                // No inventing an id. A consignment number Pathao never issued is worse
+                // than a failed dispatch: the order is marked sent, the customer gets a
+                // dead tracking link, and the parcel does not exist.
                 let cid = json
                     .get("data")
                     .and_then(|d| d.get("consignment_id"))
                     .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("PT-{}", merchant_ref));
+                    .ok_or_else(|| Error::ProviderFailed {
+                        provider: "pathao".to_string(),
+                        source: "Pathao response carried no consignment_id".into(),
+                    })?
+                    .to_string();
                 let track = format!("https://courier.pathao.com/tracking?consignment_id={cid}");
                 (cid, track)
             }
-            _ => {
-                // Fallback deterministic consignment for sandbox / wiremock
-                let cid = format!("PT-{}", merchant_ref);
-                let track = format!("https://courier.pathao.com/tracking?consignment_id={cid}");
-                (cid, track)
+            Ok(r) => {
+                return Err(Error::ProviderFailed {
+                    provider: "pathao".to_string(),
+                    source: format!("Pathao dispatch failed with HTTP {}", r.status()).into(),
+                })
+            }
+            Err(e) => {
+                return Err(Error::ProviderFailed {
+                    provider: "pathao".to_string(),
+                    source: format!("Pathao dispatch request failed: {e}").into(),
+                })
             }
         };
 

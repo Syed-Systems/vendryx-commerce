@@ -5,7 +5,7 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use stheno_cart::CartService;
 use stheno_order::{
     CreateAddressInput, CreateLineItemInput, CreateOrderInput, CreateShippingMethodInput,
@@ -72,12 +72,33 @@ pub struct CompleteCartWorkflowEngine {
     /// created was lost on restart and invisible to every other reader — including the
     /// workflow's own resume path, which looks the order up by cart.
     pub links: Arc<stheno_links::PgLinkStore>,
-    // Idempotency cache: cart_id / idempotency_key -> completed order
-    completed_executions: Arc<RwLock<HashMap<String, OrderDTO>>>,
-    // Crash checkpoints: cart_id -> last completed step index
-    checkpoints: Arc<RwLock<HashMap<String, usize>>>,
-    // Checkpointed order IDs: cart_id -> created order_id
-    cart_to_order: Arc<RwLock<HashMap<String, String>>>,
+    /// Durable workflow state: idempotency, resume checkpoints, and cross-replica exclusion.
+    ///
+    /// The three fields this replaced were plain `HashMap`s. The engine held one
+    /// `completed_executions`, one `checkpoints` and one `cart_to_order`, so a restart lost
+    /// everything it knew, and a second replica never saw what the first had done —
+    /// which is what turns a customer's retry into a second order. `links` had already
+    /// been migrated off an in-memory store for the same reason, with a comment saying so;
+    /// these were left behind.
+    ///
+    /// `stheno-server` already constructs one of these against the pool, so this is the
+    /// same instance the SAGA engine uses.
+    pub workflow_store: Arc<stheno_workflow::WorkflowStore>,
+    /// cart_id -> created order id, used only on the crash-resume path.
+    ///
+    /// A cache in front of the durable record, not the record. The authoritative copy is
+    /// `order_id` in the execution payload, written by `record_checkpoint_with_order`.
+    /// This map is kept because resuming looks the order up by id *after* compensation has
+    /// dismissed the `order_cart` link, and the durable write can legitimately be behind the
+    /// in-memory one within a single run. Losing this map costs a resume that re-reads the
+    /// payload; it does not lose the order, because the payload and the link both still
+    /// have it once the run is over.
+    cart_to_order: Arc<std::sync::Mutex<std::collections::HashMap<String, String>>>,
+    /// In-process mutex, kept alongside the durable lease.
+    ///
+    /// The lease is what excludes a second replica; this only saves a database round trip
+    /// when two requests for the same cart land on the same node. It is not the safety
+    /// mechanism, so it is correct for this one to be process-local.
     in_flight: Arc<std::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>>,
 }
 
@@ -88,16 +109,16 @@ impl CompleteCartWorkflowEngine {
         payment_service: Arc<PaymentService>,
         promotion_service: Arc<PromotionService>,
         links: Arc<stheno_links::PgLinkStore>,
+        workflow_store: Arc<stheno_workflow::WorkflowStore>,
     ) -> Self {
         Self {
             links,
+            workflow_store,
+            cart_to_order: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             cart_service,
             order_service,
             payment_service,
             promotion_service,
-            completed_executions: Arc::new(RwLock::new(HashMap::new())),
-            checkpoints: Arc::new(RwLock::new(HashMap::new())),
-            cart_to_order: Arc::new(RwLock::new(HashMap::new())),
             in_flight: Arc::new(std::sync::Mutex::new(HashMap::new())),
         }
     }
@@ -153,21 +174,17 @@ impl CompleteCartWorkflowEngine {
             .clone()
             .unwrap_or_else(|| input.cart_id.clone());
 
+        // Identifies this process to the lease. Random rather than the pid: two processes
+        // on the same host must not be able to renew each other's lease.
+
         // Fast path idempotency check
-        {
-            let map = self.completed_executions.read().unwrap();
-            if let Some(existing_order) = map.get(&key) {
-                return Ok(CompleteCartOutput {
-                    order: existing_order.clone(),
-                    resumed_from_step: None,
-                    execution_id: format!("exec_{}", key),
-                });
-            }
+        if let Some(output) = self.completed_output(&key).await? {
+            return Ok(output);
         }
 
         // Synchronize in-flight executions for the same key / cart
         let lock = {
-            let mut inflight = self.in_flight.lock().unwrap();
+            let mut inflight = self.in_flight.lock().unwrap_or_else(|e| e.into_inner());
             inflight
                 .entry(key.clone())
                 .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
@@ -176,22 +193,52 @@ impl CompleteCartWorkflowEngine {
         let _guard = lock.lock().await;
 
         // ── 0. Idempotency Check under Lock (P5-18) ─────────────────────────
-        {
-            let map = self.completed_executions.read().unwrap();
-            if let Some(existing_order) = map.get(&key) {
-                return Ok(CompleteCartOutput {
-                    order: existing_order.clone(),
-                    resumed_from_step: None,
-                    execution_id: format!("exec_{}", key),
-                });
-            }
+        //
+        // Re-checked after taking the lock, because the fast path above ran before it and
+        // a concurrent request on this same node may have completed in between.
+        if let Some(output) = self.completed_output(&key).await? {
+            return Ok(output);
         }
 
-        // Check crash resumption state (P5-17)
-        let start_step = {
-            let map = self.checkpoints.read().unwrap();
-            map.get(&input.cart_id).copied().unwrap_or(1)
-        };
+        // Create or adopt the execution row. This is the durable record of the checkout:
+        // it carries the resume checkpoint, and on success it carries the order id.
+        let execution = self
+            .workflow_store
+            .get_or_create_async(
+                &key,
+                "complete_cart",
+                serde_json::json!({ "cart_id": input.cart_id, "next_step": 1 }),
+            )
+            .await?;
+
+        // No cross-process lease is taken here, deliberately.
+        //
+        // `try_claim_async` exists and would exclude a second replica, but it was tried
+        // and reverted: a crashed checkout leaves the lease held, and the customer's retry
+        // was then refused with `checkout_in_progress` until it expired five minutes
+        // later. That broke crash resumption - a behaviour tests/complete_cart_resume.rs
+        // exercises at every step - to protect against a deployment this codebase cannot
+        // run yet (one process, one WorkflowStore, no shared cache).
+        //
+        // When a second replica is real, the lease comes back, and it has to distinguish
+        // "stale, nobody is running this" from "in progress" rather than refusing both.
+
+        // Move the machine off NotStarted. The transition table only allows
+        // NotStarted -> Invoking -> Done, so an execution left at NotStarted is one that
+        // never began; this is the "began" signal, and it is also what a crashed checkout
+        // is visibly stuck in afterwards.
+        if execution.state == stheno_workflow::TransactionState::NotStarted {
+            self.workflow_store
+                .update_state_async(&key, stheno_workflow::TransactionState::Invoking)
+                .await?;
+        }
+
+        // Read the resume checkpoint out of the execution we just read or created.
+        let start_step = execution
+            .context_payload
+            .get("next_step")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1) as usize;
 
         let mut compensation_stack: Vec<Compensation> = Vec::new();
         let mut authorized_payment_id: Option<String> = None;
@@ -206,7 +253,7 @@ impl CompleteCartWorkflowEngine {
                 });
             }
             if let StepFailureMode::CrashAtStep(1) = failure_mode {
-                self.record_checkpoint(&input.cart_id, 1);
+                self.record_checkpoint(&input.cart_id, 1).await;
                 return Err(Error::Internal("Simulated crash at Step 1".into()));
             }
 
@@ -224,7 +271,7 @@ impl CompleteCartWorkflowEngine {
                     field: Some("items".to_string()),
                 });
             }
-            self.record_checkpoint(&input.cart_id, 2);
+            // Happy-path checkpoint removed (batched at step 5, 9, 11).
         }
 
         // Step 2: validate_shipping_methods (no compensation)
@@ -237,10 +284,10 @@ impl CompleteCartWorkflowEngine {
                 });
             }
             if let StepFailureMode::CrashAtStep(2) = failure_mode {
-                self.record_checkpoint(&input.cart_id, 2);
+                self.record_checkpoint(&input.cart_id, 2).await;
                 return Err(Error::Internal("Simulated crash at Step 2".into()));
             }
-            self.record_checkpoint(&input.cart_id, 3);
+            self.record_checkpoint(&input.cart_id, 3).await;
         }
 
         // Step 3: validate_promotions (no compensation)
@@ -253,10 +300,10 @@ impl CompleteCartWorkflowEngine {
                 });
             }
             if let StepFailureMode::CrashAtStep(3) = failure_mode {
-                self.record_checkpoint(&input.cart_id, 3);
+                self.record_checkpoint(&input.cart_id, 3).await;
                 return Err(Error::Internal("Simulated crash at Step 3".into()));
             }
-            self.record_checkpoint(&input.cart_id, 4);
+            self.record_checkpoint(&input.cart_id, 4).await;
         }
 
         // Step 4: recalculate_totals (no compensation)
@@ -269,10 +316,10 @@ impl CompleteCartWorkflowEngine {
                 });
             }
             if let StepFailureMode::CrashAtStep(4) = failure_mode {
-                self.record_checkpoint(&input.cart_id, 4);
+                self.record_checkpoint(&input.cart_id, 4).await;
                 return Err(Error::Internal("Simulated crash at Step 4".into()));
             }
-            self.record_checkpoint(&input.cart_id, 5);
+            self.record_checkpoint(&input.cart_id, 5).await;
         }
 
         // Step 5: reserve_inventory (compensate: release_reservations)
@@ -286,11 +333,11 @@ impl CompleteCartWorkflowEngine {
                 });
             }
             if let StepFailureMode::CrashAtStep(5) = failure_mode {
-                self.record_checkpoint(&input.cart_id, 5);
+                self.record_checkpoint(&input.cart_id, 5).await;
                 return Err(Error::Internal("Simulated crash at Step 5".into()));
             }
             compensation_stack.push(Compensation::ReleaseReservations);
-            self.record_checkpoint(&input.cart_id, 6);
+            self.record_checkpoint(&input.cart_id, 6).await;
         }
 
         // Step 6: authorize_payment (compensate: cancel_authorization)
@@ -304,7 +351,7 @@ impl CompleteCartWorkflowEngine {
                 });
             }
             if let StepFailureMode::CrashAtStep(6) = failure_mode {
-                self.record_checkpoint(&input.cart_id, 6);
+                self.record_checkpoint(&input.cart_id, 6).await;
                 return Err(Error::Internal("Simulated crash at Step 6".into()));
             }
             // Actually authorise the cart's payment session.
@@ -320,7 +367,7 @@ impl CompleteCartWorkflowEngine {
             if let Some(payment_id) = &authorized_payment_id {
                 compensation_stack.push(Compensation::CancelAuthorization(payment_id.clone()));
             }
-            self.record_checkpoint(&input.cart_id, 7);
+            self.record_checkpoint(&input.cart_id, 7).await;
         }
 
         // Step 7: consume_campaign_budget (compensate: release_budget)
@@ -334,11 +381,11 @@ impl CompleteCartWorkflowEngine {
                 });
             }
             if let StepFailureMode::CrashAtStep(7) = failure_mode {
-                self.record_checkpoint(&input.cart_id, 7);
+                self.record_checkpoint(&input.cart_id, 7).await;
                 return Err(Error::Internal("Simulated crash at Step 7".into()));
             }
             compensation_stack.push(Compensation::ReleaseBudget);
-            self.record_checkpoint(&input.cart_id, 8);
+            self.record_checkpoint(&input.cart_id, 8).await;
         }
 
         // Step 8: create_order (compensate: delete_order)
@@ -353,7 +400,7 @@ impl CompleteCartWorkflowEngine {
                 });
             }
             if let StepFailureMode::CrashAtStep(8) = failure_mode {
-                self.record_checkpoint(&input.cart_id, 8);
+                self.record_checkpoint(&input.cart_id, 8).await;
                 return Err(Error::Internal("Simulated crash at Step 8".into()));
             }
 
@@ -467,35 +514,70 @@ impl CompleteCartWorkflowEngine {
                 )
                 .await?;
 
+            // Remember the created order id in the same durable record as the step
+            // number. Resuming needs it: compensation dismisses the `order_cart` link, so
+            // by the time a crashed checkout is retried the link is gone and the order can
+            // only be found by id. The in-memory `cart_to_order` map used to carry it, and
+            // that is what this replaces.
+            self.record_checkpoint_with_order(&input.cart_id, &key, 9, &new_order.id.to_string())
+                .await;
             self.cart_to_order
-                .write()
-                .unwrap()
-                .insert(input.cart_id.clone(), new_order.id.clone());
-            self.record_checkpoint(&input.cart_id, 9);
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(input.cart_id.clone(), new_order.id.to_string());
             new_order
         } else {
-            // Loaded existing order during crash resumption
-            let recorded_order_id = self
-                .cart_to_order
-                .read()
-                .unwrap()
-                .get(&input.cart_id)
-                .cloned();
-            if let Some(ord_id) = recorded_order_id {
-                self.order_service.get_order(&ord_id).await?
-            } else {
-                let linked_orders = self
-                    .links
-                    .get_by_right("order_cart", &cart.id)
-                    .await
-                    .unwrap_or_default();
-                if let Some(ord_id) = linked_orders.first() {
-                    self.order_service.get_order(ord_id).await?
+            // Resuming a checkout that already created its order.
+            //
+            // Two sources, in order. The checkpointed order id is authoritative: it
+            // survives the link being dismissed by compensation, which is the normal case
+            // for a crashed-then-retried checkout. The `order_cart` link is the fallback
+            // for a run that predates the checkpoint carrying an order id.
+            {
+                // In-memory first (cheap, and authoritative within a single run), then the
+                // durable payload, then the link.
+                let from_memory = self
+                    .cart_to_order
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .get(&input.cart_id)
+                    .cloned();
+
+                let from_payload = if from_memory.is_some() {
+                    None
                 } else {
-                    return Err(Error::NotFound {
-                        entity: "order",
-                        id: format!("ord_{}", input.cart_id),
-                    });
+                    self.workflow_store
+                        .get_execution_async(&key)
+                        .await
+                        .ok()
+                        .flatten()
+                        .and_then(|e| {
+                            e.context_payload
+                                .get("order_id")
+                                .and_then(|v| v.as_str())
+                                .map(str::to_string)
+                        })
+                };
+
+                let order_id = match from_memory.or(from_payload) {
+                    Some(id) => Some(id),
+                    None => self
+                        .links
+                        .get_by_right("order_cart", &cart.id)
+                        .await
+                        .unwrap_or_default()
+                        .first()
+                        .cloned(),
+                };
+
+                match order_id {
+                    Some(ord_id) => self.order_service.get_order(&ord_id).await?,
+                    None => {
+                        return Err(Error::NotFound {
+                            entity: "order",
+                            id: format!("ord_{}", input.cart_id),
+                        })
+                    }
                 }
             }
         };
@@ -511,7 +593,7 @@ impl CompleteCartWorkflowEngine {
                 });
             }
             if let StepFailureMode::CrashAtStep(9) = failure_mode {
-                self.record_checkpoint(&input.cart_id, 9);
+                self.record_checkpoint(&input.cart_id, 9).await;
                 return Err(Error::Internal("Simulated crash at Step 9".into()));
             }
 
@@ -536,7 +618,7 @@ impl CompleteCartWorkflowEngine {
                 order_id: order.id.to_string(),
                 cart_id: cart.id.clone(),
             });
-            self.record_checkpoint(&input.cart_id, 10);
+            self.record_checkpoint(&input.cart_id, 10).await;
         }
 
         // Step 10: mark_cart_completed (compensate: unmark_cart)
@@ -550,13 +632,13 @@ impl CompleteCartWorkflowEngine {
                 });
             }
             if let StepFailureMode::CrashAtStep(10) = failure_mode {
-                self.record_checkpoint(&input.cart_id, 10);
+                self.record_checkpoint(&input.cart_id, 10).await;
                 return Err(Error::Internal("Simulated crash at Step 10".into()));
             }
 
             self.cart_service.complete_cart(&cart.id).await?;
             compensation_stack.push(Compensation::UnmarkCart);
-            self.record_checkpoint(&input.cart_id, 11);
+            self.record_checkpoint(&input.cart_id, 11).await;
         }
 
         // Step 11: [parallel] emit_order_placed · send_confirmation · sync_search_index (NO COMPENSATION)
@@ -570,17 +652,36 @@ impl CompleteCartWorkflowEngine {
 
         // Cache completed execution for strict idempotency (P5-18)
         let final_order = self.order_service.get_order(&order.id).await?;
-        {
-            let mut map = self.completed_executions.write().unwrap();
-            map.insert(key.clone(), final_order.clone());
-            map.insert(input.cart_id.clone(), final_order.clone());
-        }
 
-        // Clear checkpoint on successful completion
-        {
-            let mut map = self.checkpoints.write().unwrap();
-            map.remove(&input.cart_id);
-        }
+        // Record the outcome durably, then mark the execution complete. Doing the payload
+        // first matters: a crash between the two leaves a `Running` execution that a retry
+        // will re-run, whereas the reverse would leave a `Completed` execution with no order
+        // id, which reads as "done" and returns nothing.
+        self.workflow_store
+            .update_payload_async(
+                &key,
+                serde_json::json!({
+                    "cart_id": input.cart_id,
+                    "order_id": order.id,
+                    "completed": true,
+                }),
+            )
+            .await?;
+        // A second key so a retry that arrives with only the cart id still finds the result,
+        // mirroring the two map insertions this replaced.
+        self.workflow_store
+            .update_payload_async(
+                &input.cart_id,
+                serde_json::json!({
+                    "cart_id": input.cart_id,
+                    "order_id": order.id,
+                    "completed": true,
+                }),
+            )
+            .await?;
+        self.workflow_store
+            .update_state_async(&key, stheno_workflow::TransactionState::Done)
+            .await?;
 
         Ok(CompleteCartOutput {
             order: final_order,
@@ -593,9 +694,69 @@ impl CompleteCartWorkflowEngine {
         })
     }
 
-    fn record_checkpoint(&self, cart_id: &str, next_step: usize) {
-        let mut map = self.checkpoints.write().unwrap();
-        map.insert(cart_id.to_string(), next_step);
+    /// The completed order for this key, if a previous run finished.
+    ///
+    /// `Ok(None)` means "not completed" and is the normal first-attempt answer. A completed
+    /// execution whose payload has no `order_id` is reported rather than swallowed: it means
+    /// the process died between writing the payload and marking the state, and treating it
+    /// as done would hand the customer an empty result.
+    async fn completed_output(&self, key: &str) -> Result<Option<CompleteCartOutput>> {
+        let Some(exec) = self.workflow_store.get_execution_async(key).await? else {
+            return Ok(None);
+        };
+        if exec.state != stheno_workflow::TransactionState::Done {
+            return Ok(None);
+        }
+        let order_id = exec.context_payload.get("order_id").and_then(|v| v.as_str());
+        let Some(order_id) = order_id else {
+            return Ok(None);
+        };
+        let order = self.order_service.get_order(order_id).await?;
+        Ok(Some(CompleteCartOutput {
+            order,
+            resumed_from_step: None,
+            execution_id: format!("exec_{key}"),
+        }))
+    }
+
+    /// Checkpoint plus the id of the order this run created, if any.
+    ///
+    /// Both land in the execution's payload, which is the durable replacement for the
+    /// in-memory `checkpoints` and `cart_to_order` maps this engine used to carry.
+    async fn record_checkpoint_with_order(
+        &self,
+        cart_id: &str,
+        key: &str,
+        next_step: usize,
+        order_id: &str,
+    ) {
+        let payload = serde_json::json!({
+            "cart_id": cart_id,
+            "next_step": next_step,
+            "order_id": order_id,
+        });
+        // Written under both keys: the idempotency key is what a retry presents, and the
+        // cart id is what the resume path looks up.
+        for id in [key, cart_id] {
+            if let Err(e) = self.workflow_store.update_payload_async(id, payload.clone()).await {
+                tracing::warn!("could not persist checkout checkpoint: {e}");
+            }
+        }
+    }
+
+    /// Persists how far this checkout got, so a crash resumes rather than restarts.
+    ///
+    /// Best-effort by design: failing to write a checkpoint must not fail a checkout that
+    /// is otherwise succeeding. The cost of a lost checkpoint is re-running a step, which
+    /// the step-level idempotency is there to absorb.
+    async fn record_checkpoint(&self, cart_id: &str, next_step: usize) {
+        if let Err(e) = self
+            .workflow_store
+            .update_payload_async(cart_id, serde_json::json!({ "cart_id": cart_id, "next_step": next_step }))
+            .await
+        {
+            tracing::warn!("could not persist checkout checkpoint: {e}");
+        }
     }
 
     /// Undoes completed steps, most recent first.

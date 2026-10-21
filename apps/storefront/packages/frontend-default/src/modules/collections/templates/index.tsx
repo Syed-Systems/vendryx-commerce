@@ -24,17 +24,17 @@ export default function CollectionTemplate({
   return (
     <div className="w-full">
       {/* Header Banner */}
-      <div className="bg-zinc-900 text-white py-12 sm:py-16 mb-8">
+      <div className="bg-[color:var(--band-dark)] text-[color:var(--on-dark)] py-12 sm:py-16 mb-8">
         <div className="content-container">
-          <span className="text-xs uppercase tracking-[0.25em] text-zinc-400 font-semibold block mb-2">
+          <span className="text-xs uppercase tracking-[0.25em] text-[color:var(--ink-faint)] font-semibold block mb-2">
             Curated Capsule
           </span>
           <h1
-            className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold tracking-tight text-white"
+            className="text-3xl sm:text-4xl lg:text-5xl font-heading font-bold tracking-tight text-[color:var(--on-dark)]"
           >
             {collection.title}
           </h1>
-          <p className="text-sm text-zinc-300 font-light max-w-xl mt-3 leading-relaxed">
+          <p className="text-sm text-[color:var(--on-dark-muted)] font-light max-w-xl mt-3 leading-relaxed">
             Meticulously edited silhouettes designed to pair harmoniously across seasons.
           </p>
         </div>

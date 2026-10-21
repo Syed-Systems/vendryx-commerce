@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5175 --host 127.0.0.1",
+    "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "npx tsx tests/demo-session.test.ts"
+    "test": "npx tsx tests/demo-session.test.ts && npx tsx tests/currency-smoke.test.ts"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

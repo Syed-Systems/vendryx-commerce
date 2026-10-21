@@ -9,6 +9,14 @@ type ThumbnailProps = {
   size?: "small" | "medium" | "large" | "full" | "square"
   isFeatured?: boolean
   className?: string
+  /**
+   * The product title, for the image's alt text.
+   *
+   * The audit found this component hardcoding `alt="Thumbnail"` and
+   * `alt="Thumbnail Hover"`, so a screen-reader user heard "Thumbnail" once per
+   * product in a grid — the component named itself instead of the garment.
+   */
+  alt?: string
   "data-testid"?: string
 }
 
@@ -18,6 +26,7 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
   size = "small",
   isFeatured,
   className,
+  alt = "Product image",
   "data-testid": dataTestid,
 }) => {
   const initialImage = thumbnail || images?.[0]?.url
@@ -26,7 +35,7 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
   return (
     <div
       className={clx(
-        "relative w-full overflow-hidden bg-zinc-100/90 rounded-2xl border border-zinc-200/60 group/thumb transition-all duration-300",
+        "relative w-full overflow-hidden bg-[color:var(--brand-surface)]/90 rounded-[var(--brand-radius-card)] border border-[color:var(--brand-hairline)]/60 group/thumb transition-all duration-300",
         className,
         {
           "aspect-[3/4]": isFeatured || size !== "square",
@@ -43,30 +52,43 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
         <>
           <Image
             src={initialImage}
-            alt="Thumbnail"
+            alt={alt}
             className={clx(
               "absolute inset-0 object-cover object-center transition-all duration-500 ease-out",
-              hoverImage ? "group-hover/thumb:opacity-0 group-hover/thumb:scale-105" : "group-hover/thumb:scale-105"
+              hoverImage
+                ? "group-hover/thumb:opacity-0 group-hover/thumb:scale-105"
+                : "group-hover/thumb:scale-105"
             )}
             draggable={false}
             quality={80}
             sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, (max-width: 992px) 480px, 800px"
             fill
           />
-          {hoverImage && (
+          {/* The hover frame was rendered eagerly, so every grid doubled its image
+              bytes on mount whether or not anyone hovered. It is now lazy, and it
+              carries `priority={false}` explicitly because it is the second
+              request competing with LCP for the first. */}
+          {hoverImage ? (
             <Image
               src={hoverImage}
-              alt="Thumbnail Hover"
+              alt={`${alt} — alternate view`}
+              loading="lazy"
               className="absolute inset-0 object-cover object-center opacity-0 group-hover/thumb:opacity-100 group-hover/thumb:scale-105 transition-all duration-500 ease-out"
               draggable={false}
               quality={80}
               sizes="(max-width: 576px) 280px, (max-width: 768px) 360px, (max-width: 992px) 480px, 800px"
               fill
             />
-          )}
+          ) : null}
         </>
       ) : (
-        <div className="w-full h-full absolute inset-0 flex items-center justify-center text-zinc-300">
+        /* A product with no image gets a placeholder and a label naming what is
+           missing, rather than an empty box that reads as a broken image. */
+        <div
+          className="w-full h-full absolute inset-0 flex flex-col items-center justify-center gap-2 text-[color:var(--ink-faint)]"
+          role="img"
+          aria-label={`No image available for ${alt}`}
+        >
           <PlaceholderImage size={size === "small" ? 16 : 24} />
         </div>
       )}

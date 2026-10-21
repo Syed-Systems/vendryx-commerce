@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+import { TFunction } from "i18next"
 import { HttpTypes } from "@medusajs/types"
 import {
   createTableAdapter,
@@ -9,7 +10,11 @@ import { useOrders } from "../../../../../hooks/api/orders"
 /**
  * Create the order table adapter with all order-specific logic
  */
-export function createOrderTableAdapter(): TableAdapter<HttpTypes.AdminOrder> {
+export function createOrderTableAdapter({
+  t,
+}: {
+  t: TFunction<"translation", undefined>
+}): TableAdapter<HttpTypes.AdminOrder> {
   return createTableAdapter<HttpTypes.AdminOrder>({
     entity: "orders",
     queryPrefix: "o",
@@ -86,12 +91,23 @@ export function createOrderTableAdapter(): TableAdapter<HttpTypes.AdminOrder> {
 
     emptyState: {
       empty: {
-        heading: "No orders found",
+        heading: t("orders.list.noRecordsMessage"),
+      },
+      // Without this, a search that matched nothing showed the same
+      // "your orders will show up here" as a store with no orders at all, so a
+      // filtered-empty list looked like an empty store.
+      filtered: {
+        heading: t("general.noResultsTitle"),
+        description: t("general.noResultsMessage"),
       },
     },
   })
 }
 
-export function useOrderTableAdapter(): TableAdapter<HttpTypes.AdminOrder> {
-  return useMemo(() => createOrderTableAdapter(), [])
+export function useOrderTableAdapter({
+  t,
+}: {
+  t: TFunction<"translation", undefined>
+}): TableAdapter<HttpTypes.AdminOrder> {
+  return useMemo(() => createOrderTableAdapter({ t }), [t])
 }

@@ -82,7 +82,7 @@ export const OnboardingSummaryCard = ({
       {/* Progress Bar */}
       <div className="w-full bg-ui-bg-component h-1.5">
         <div
-          className="bg-blue-600 h-1.5 transition-all duration-500 ease-out"
+          className="bg-blue-600 h-1.5 transition-[width] duration-500 ease-out"
           style={{ width: `${percentage}%` }}
         />
       </div>
@@ -140,7 +140,7 @@ export const OnboardingSummaryCard = ({
 
                 <div className="shrink-0 ml-3">
                   {isCompleted ? (
-                    <span className="text-[11px] font-medium text-emerald-600 px-2 py-0.5 rounded-full bg-emerald-500/10">
+                    <span className="text-xs font-medium text-emerald-600 px-2 py-0.5 rounded-full bg-emerald-500/10">
                       Done
                     </span>
                   ) : (

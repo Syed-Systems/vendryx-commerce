@@ -31,7 +31,7 @@ export const ProviderLogo: React.FC<ProviderLogoProps> = ({ id, size = "medium" 
     if (!hasError) {
       return (
         <div
-          className={`${dim} flex items-center justify-center bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-all hover:scale-105 hover:shadow-xs`}
+          className={`${dim} flex items-center justify-center bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:scale-105 hover:shadow-xs`}
           title="bKash Payment Gateway"
         >
           <img
@@ -67,7 +67,7 @@ export const ProviderLogo: React.FC<ProviderLogoProps> = ({ id, size = "medium" 
     if (!hasError) {
       return (
         <div
-          className={`${dim} flex items-center justify-center bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-all hover:scale-105 hover:shadow-xs`}
+          className={`${dim} flex items-center justify-center bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:scale-105 hover:shadow-xs`}
           title="Nagad Mobile Financial Service"
         >
           <img
@@ -105,7 +105,7 @@ export const ProviderLogo: React.FC<ProviderLogoProps> = ({ id, size = "medium" 
     if (!hasError) {
       return (
         <div
-          className={`${dim} flex items-center justify-center bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-all hover:scale-105 hover:shadow-xs`}
+          className={`${dim} flex items-center justify-center bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:scale-105 hover:shadow-xs`}
           title="SSLCommerz Payment Gateway"
         >
           <img
@@ -138,7 +138,7 @@ export const ProviderLogo: React.FC<ProviderLogoProps> = ({ id, size = "medium" 
     if (!hasError) {
       return (
         <div
-          className={`${dim} flex items-center justify-center bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-all hover:scale-105 hover:shadow-xs`}
+          className={`${dim} flex items-center justify-center bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:scale-105 hover:shadow-xs`}
           title="Stripe Global Payment Gateway"
         >
           <img

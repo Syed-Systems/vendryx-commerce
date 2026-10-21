@@ -93,7 +93,9 @@ impl CodAmounts {
         if self.courier_fee > Decimal::ZERO && self.collected_amount == self.remitted_amount {
             return Err(stheno_types::Error::Invalid {
                 code: "cod_amounts_conflated",
-                message: "remitted amount conflated with collected amount despite courier fee deduction".to_string(),
+                message:
+                    "remitted amount conflated with collected amount despite courier fee deduction"
+                        .to_string(),
                 field: Some("remitted_amount".to_string()),
             });
         }

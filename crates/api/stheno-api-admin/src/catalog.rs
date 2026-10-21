@@ -10,7 +10,7 @@ use std::sync::Arc;
 use stheno_api_core::ErrorResponse;
 use stheno_product::{
     CreateCategoryInput, CreateCollectionInput, CreateProductInput, CreateVariantInput,
-    ProductCategoryDTO, ProductCollectionDTO, ProductDTO, ProductService, UpdateProductInput,
+    ProductCategoryDTO, ProductCollectionDTO, ProductService, UpdateProductInput,
 };
 
 #[derive(Debug, Deserialize, Default)]
@@ -59,44 +59,32 @@ pub async fn list_products(
     State(service): State<Arc<ProductService>>,
     Query(query): Query<ListCatalogQuery>,
 ) -> Result<impl IntoResponse, Response> {
-    let all = service.list_products().await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("unexpected_state", &e.to_string())),
-        )
-            .into_response()
-    })?;
-
-    let filtered: Vec<ProductDTO> = all
-        .into_iter()
-        .filter(|p| {
-            if let Some(h) = &query.handle {
-                if &p.handle != h {
-                    return false;
-                }
-            }
-            if let Some(id) = &query.id {
-                let id_str = p.id.to_string();
-                if &id_str != id && !id_str.ends_with(id) {
-                    return false;
-                }
-            }
-            if let Some(q) = &query.q {
-                let q_lower = q.to_lowercase();
-                if !p.title.to_lowercase().contains(&q_lower)
-                    && !p.handle.to_lowercase().contains(&q_lower)
-                {
-                    return false;
-                }
-            }
-            true
-        })
-        .collect();
-
-    let count = filtered.len();
+    // Filtering happens in Postgres, not here.
+    //
+    // This used to call `list_products()` and filter the result in Rust. That list is
+    // capped at MAX_PAGE_LIMIT (100), so a merchant with more than 100 products could
+    // never find the 101st by handle or search - the handler reported "no results" for a
+    // product that plainly existed. It also meant `count` was the size of the capped page
+    // rather than the number of matches.
     let offset = query.offset.unwrap_or(0);
     let limit = query.limit.unwrap_or(50);
-    let page: Vec<ProductDTO> = filtered.into_iter().skip(offset).take(limit).collect();
+
+    let (page, count) = service
+        .query_products_paged(
+            query.handle.as_deref(),
+            query.id.as_deref(),
+            query.q.as_deref(),
+            limit,
+            offset,
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+            )
+                .into_response()
+        })?;
 
     Ok((
         StatusCode::OK,
@@ -848,16 +836,27 @@ type GlobalOption = (String, String, String, Vec<(String, String)>);
 pub async fn list_global_product_options(
     State(service): State<Arc<ProductService>>,
 ) -> Result<impl IntoResponse, Response> {
-    let raw = service.list_all_options().await.unwrap_or_default();
+    // Propagated rather than defaulted: a failed read became an empty option list, which
+    // the merchant sees as "you have no product options" rather than as an error.
+    let raw = service.list_all_options().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+        )
+            .into_response()
+    })?;
     let mut seen: std::collections::HashMap<String, GlobalOption> =
         std::collections::HashMap::new();
 
     for (opt_id, opt_title, prod_id) in raw {
         let key = opt_title.trim().to_lowercase();
-        let vals = service
-            .list_option_values(&opt_id)
-            .await
-            .unwrap_or_default();
+        let vals = service.list_option_values(&opt_id).await.map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+            )
+                .into_response()
+        })?;
 
         let entry = seen.entry(key).or_insert_with(|| {
             (

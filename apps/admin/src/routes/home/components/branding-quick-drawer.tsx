@@ -128,7 +128,7 @@ export const BrandingQuickDrawer: React.FC<BrandingQuickDrawerProps> = ({ open, 
                   <button
                     type="button"
                     onClick={() => setFormState((p) => ({ ...p, logo_url: "" }))}
-                    className="text-[11px] text-rose-600 hover:underline flex items-center gap-1"
+                    className="text-xs text-rose-600 hover:underline flex items-center gap-1"
                   >
                     <Trash className="w-3 h-3" />
                     Remove
@@ -216,7 +216,7 @@ export const BrandingQuickDrawer: React.FC<BrandingQuickDrawerProps> = ({ open, 
               <div className="flex items-center justify-between p-3 rounded-xl border border-ui-border-base bg-ui-bg-subtle/30">
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold text-ui-fg-base">Primary Brand</span>
-                  <span className="text-[11px] text-ui-fg-muted">Headers, main CTA buttons</span>
+                  <span className="text-xs text-ui-fg-muted">Headers, main CTA buttons</span>
                 </div>
                 <div className="flex items-center gap-x-2">
                   <input
@@ -237,7 +237,7 @@ export const BrandingQuickDrawer: React.FC<BrandingQuickDrawerProps> = ({ open, 
               <div className="flex items-center justify-between p-3 rounded-xl border border-ui-border-base bg-ui-bg-subtle/30">
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold text-ui-fg-base">Accent / Highlight</span>
-                  <span className="text-[11px] text-ui-fg-muted">Badges, links, interactive focus</span>
+                  <span className="text-xs text-ui-fg-muted">Badges, links, interactive focus</span>
                 </div>
                 <div className="flex items-center gap-x-2">
                   <input
@@ -258,7 +258,7 @@ export const BrandingQuickDrawer: React.FC<BrandingQuickDrawerProps> = ({ open, 
               <div className="flex items-center justify-between p-3 rounded-xl border border-ui-border-base bg-ui-bg-subtle/30">
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold text-ui-fg-base">Canvas Background</span>
-                  <span className="text-[11px] text-ui-fg-muted">Storefront body background</span>
+                  <span className="text-xs text-ui-fg-muted">Storefront body background</span>
                 </div>
                 <div className="flex items-center gap-x-2">
                   <input
