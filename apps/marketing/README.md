@@ -1,6 +1,6 @@
 # Vendryx Marketing & Interactive Showcase
 
-> Public marketing application and interactive merchant simulator for Vendryx Commerce, built with React 18, Vite, Tailwind CSS 4, Motion, and TypeScript. Governed by [ADR-028](../../docs/DECISIONS.md#adr-028), [docs/BRAND.md](../../docs/BRAND.md), and [docs/DOCS_WORKFLOW.md](../../docs/DOCS_WORKFLOW.md).
+> Public marketing application and interactive merchant simulator for Vendryx Commerce, built with React 18, Vite, Tailwind CSS 4, Motion, and TypeScript. The marketing identity uses the approved orange/charcoal assets and tokens in [`Vendryx_Approved_Complete_Brand_Package/Vendryx_Brand_Kit`](../../Vendryx_Approved_Complete_Brand_Package/Vendryx_Brand_Kit). Merchant demos remain local and use sample data.
 
 ---
 
@@ -19,9 +19,9 @@ The Vendryx marketing application provides prospective merchants with an authori
      - **Pro Tier:** USD 20.00 / month (or local BDT equivalent), unlimited products, 10 staff seats, full gateway & courier integrations, and a **10% flat discount** for terms of 12+ months.
 3. **AI Search & Discoverability (`public/llms.txt`):**
    - Exposes structured markdown manifests (`llms.txt` and `llms-full.txt`) for AI crawlers and LLM search agents (ChatGPT, Claude, Perplexity), strictly aligned with platform facts.
-4. **Corporate Brand Compliance ([docs/BRAND.md](../../docs/BRAND.md)):**
-   - Uses the official Vendryx corporate color palette: Indigo (`#4F46E5`), Violet (`#5B21B6`), Bright Blue (`#3B82F6`), and Corporate Navy (`#0F172A`).
-   - Enforces the **NO UI GRADIENTS** rule: Clean, flat, high-contrast layouts powered by generous whitespace and Plus Jakarta Sans typography.
+4. **Premium marketing experience:**
+   - Uses the approved Vendryx orange and charcoal visual identity for the landing page.
+   - Includes interactive, sandboxed product previews, responsive storefront presentation, and configured plan information.
 
 ---
 
@@ -76,6 +76,8 @@ All commands are run from the `apps/marketing/` directory:
 | `npm run build` | Compiles production assets to `dist/` |
 | `npm run typecheck` | Validates TypeScript types (`tsc --noEmit`) |
 | `npm test` | Runs interactive demo session test suite |
+| `npm run storybook` | Starts the component workshop on port 6006 |
+| `npm run build-storybook` | Builds the Storybook static site |
 
 ---
 

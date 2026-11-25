@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="Vendryx logo by Syed Systems"><title>Vendryx logo by Syed Systems</title><defs>
+  <linearGradient id="orange-main" x1="0%" y1="0%" x2="85%" y2="100%"><stop offset="0" stop-color="#FFAF24"/><stop offset="0.48" stop-color="#FF7A00"/><stop offset="1" stop-color="#F45605"/></linearGradient>
+  <linearGradient id="wing-top" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#FFB328"/><stop offset="0.46" stop-color="#FF7A00"/><stop offset="1" stop-color="#F45605"/></linearGradient>
+  <linearGradient id="wing-lower" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#FF7A00"/><stop offset="1" stop-color="#DB4408"/></linearGradient>
+  <linearGradient id="fold" x1="0%" y1="0%" x2="90%" y2="100%"><stop offset="0" stop-color="#CF3B09"/><stop offset="0.58" stop-color="#F45605"/><stop offset="1" stop-color="#FF7A00"/></linearGradient>
+  <linearGradient id="icon-bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#191C22"/><stop offset="0.66" stop-color="#0F1115"/><stop offset="1" stop-color="#080A0C"/></linearGradient>
+  <linearGradient id="cover-glow" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#FFA52C"/><stop offset="1" stop-color="#F05408"/></linearGradient>
+ </defs><rect width="1920" height="1080" fill="#FFFCF8"/><path d="M 1260 -160 L 1770 -160 L 1150 1240 L 670 1240 Z" fill="url(#cover-glow)" opacity=".88"/><path d="M 1650 -140 L 2120 -140 L 1450 1200 L 1170 1200 Z" fill="#F45605" opacity=".42"/></svg>

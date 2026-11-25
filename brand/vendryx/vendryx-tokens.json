@@ -1,33 +1,20 @@
 {
-  "brand": "Vendryx",
-  "version": "1.0",
-  "colors": {
-    "indigo": "#4F46E5",
-    "violet": "#5B21B6",
-    "blue": "#3B82F6",
-    "navy": "#0F172A",
-    "navy2": "#1E293B",
-    "canvas": "#FCFBF9",
-    "white": "#FFFFFF",
-    "muted": "#64748B",
-    "hairline": "#E2E8F0",
-    "success": "#16A34A",
-    "warning": "#D97706",
-    "danger": "#DC2626",
-    "subtle": "#F8FAFC"
+  "brand": {
+    "orange": "#FF7A00",
+    "orangeHover": "#D95700",
+    "orangeLight": "#FFAF24",
+    "orangeDeep": "#F45605"
   },
-  "typography": {
-    "corporate": "Plus Jakarta Sans",
-    "fallback": [
-      "Inter",
-      "system-ui",
-      "sans-serif"
-    ]
+  "neutral": {
+    "charcoal": "#0F1115",
+    "pureBlack": "#080A0C",
+    "warmWhite": "#FFFCF8",
+    "slate": "#64748B",
+    "lightGray": "#E5E7EB",
+    "darkSurface": "#1B1E24"
   },
-  "spacing_base_px": 8,
-  "corner_radii_px": {
-    "input": 10,
-    "card": 16
-  },
-  "guidance": "UI uses solid colors only; gradient is reserved for the logo mark."
+  "type": {
+    "display": "Inter Display",
+    "body": "Inter"
+  }
 }

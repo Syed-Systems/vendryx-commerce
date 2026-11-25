@@ -4,23 +4,23 @@
   "description": "Commerce Operating System by Syed Systems",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FCFBF9",
-  "theme_color": "#4F46E5",
+  "background_color": "#FFFCF8",
+  "theme_color": "#0F1115",
   "icons": [
     {
-      "src": "/brand/vendryx/icons/app-icon-192x192.png",
+      "src": "/brand/vendryx/app-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/brand/vendryx/icons/app-icon-512x512.png",
+      "src": "/brand/vendryx/app-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/brand/vendryx/icons/maskable-icon-512x512.png",
+      "src": "/brand/vendryx/maskable-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

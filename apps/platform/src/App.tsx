@@ -45,19 +45,20 @@ function useTheme() {
 
 function TokenGate({ onAuthenticated }: { onAuthenticated: () => void }) {
   const [value, setValue] = useState("")
+  const isDark = document.documentElement.classList.contains("dark")
 
   return (
     <div className="bg-ui-bg-subtle flex min-h-dvh w-dvw items-center justify-center">
       <Container className="m-4 w-full max-w-[380px] p-6">
         <div className="mb-4">
           <img
-            src="/stheno-logo-transparent.png"
-            alt="Stheno by Syed Systems"
+            src={isDark ? "/brand/vendryx/vendryx-primary-dark.svg" : "/brand/vendryx/vendryx-primary-light.svg"}
+            alt="Vendryx by Syed Systems"
             className="h-8 max-w-full object-contain"
           />
         </div>
         <Heading level="h1" className="mb-1">
-          Stheno Platform
+          Vendryx Platform
         </Heading>
         <Text size="small" className="text-ui-fg-subtle mb-5">
           The control plane for every merchant on this deployment.
@@ -141,8 +142,8 @@ function Dashboard({
         <div className="flex items-center justify-between border-b border-ui-border-base pb-3">
           <div className="flex items-center gap-x-3">
             <img
-              src="/stheno-logo-transparent.png"
-              alt="Stheno by Syed Systems"
+              src={theme === "dark" ? "/brand/vendryx/vendryx-primary-dark.svg" : "/brand/vendryx/vendryx-primary-light.svg"}
+              alt="Vendryx by Syed Systems"
               className="h-7 object-contain"
             />
             <span className="text-ui-border-strong hidden h-4 w-px bg-ui-border-base sm:inline-block" />

@@ -1,22 +1,14 @@
-/* Vendryx corporate tokens, version 1.0. No gradients in UI. */
+/* Vendryx approved third-direction brand identity; v1.0 */
 :root {
-  --vx-brand-primary: #4F46E5;
-  --vx-brand-violet: #5B21B6;
-  --vx-brand-bright: #3B82F6;
-  --vx-fg-primary: #0F172A;
-  --vx-fg-secondary: #1E293B;
-  --vx-fg-muted: #64748B;
-  --vx-border: #E2E8F0;
-  --vx-border-strong: #CBD5E1;
-  --vx-bg-canvas: #FCFBF9;
-  --vx-bg-surface: #FFFFFF;
-  --vx-bg-subtle: #F8FAFC;
-  --vx-state-success: #16A34A;
-  --vx-state-warning: #D97706;
-  --vx-state-danger: #DC2626;
-  --vx-font-sans: "Plus Jakarta Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --vx-radius-input: 10px;
-  --vx-radius-card: 16px;
-  --vx-space-unit: 8px;
+  --vendryx-orange: #FF7A00;
+  --vendryx-orange-hover: #D95700;
+  --vendryx-orange-light: #FFAF24;
+  --vendryx-charcoal: #0F1115;
+  --vendryx-warm-white: #FFFCF8;
+  --vendryx-slate: #64748B;
+  --vendryx-border: #E5E7EB;
+  --vendryx-font-display: 'Inter Display', 'Inter', system-ui, sans-serif;
+  --vendryx-font-body: 'Inter', system-ui, sans-serif;
 }
-/* Never scope or replace tenant storefront design tokens with corporate tokens. */
+[data-theme='dark'] { --vendryx-surface: #0F1115; --vendryx-text: #FFFCF8; }
+[data-theme='light'] { --vendryx-surface: #FFFCF8; --vendryx-text: #0F1115; }
