@@ -329,3 +329,142 @@ Adopted verbatim, because each encodes a failure someone already paid for:
 2. **The free tier makes no external API calls.** This is the line that decides tier questions.
 3. **Move production off trial/student credit the day the first merchant pays.**
 4. Mark deliberate shortcuts with a `ponytail:` comment naming the ceiling and the upgrade path.
+
+---
+
+## 10. Exploration — conversational order intake
+
+**Status: proposal for validation; not approved for implementation.** This explores social inbox
+automation for Facebook Messenger, Instagram inbox, and WhatsApp inbox. Agents answer product
+questions, share links to product pages on the merchant's website, gather order details in the
+social conversation, and create a pending order in the merchant dashboard. The store owner
+verifies and confirms it before normal order processing begins.
+
+The website is a product-information and link destination only. Its existing storefront checkout
+continues to create website orders; the agent does not handle website conversations or replace
+that checkout. This is a candidate Pro capability because social messaging and model calls have
+marginal cost ([ENTITLEMENTS §3](ENTITLEMENTS.md)); the tier decision still needs merchant
+validation under §8.
+
+### 10.1 Product shape
+
+The assistant handles the repetitive intake work. It does not accept an order on the merchant's
+behalf.
+
+```text
+buyer asks about a product or places an order in a connected social inbox
+  → assistant identifies the product and requested options
+  → assistant checks current catalog, price, and available stock through Stheno
+  → assistant answers product questions and may share the matching website product page
+  → assistant asks for missing details (quantity, name, phone, delivery address)
+  → assistant summarizes the request and tells the buyer it is awaiting merchant confirmation
+  → a pending order appears in the dashboard's Social queue with source and conversation reference
+  → store owner verifies, edits, confirms, or rejects it
+  → confirmation uses the normal order processing and inventory workflow
+```
+
+The store owner remains responsible for the final commitment. The first version must require
+human approval for every agent-created order. The assistant may not reserve stock, confirm an
+order, take payment, change a price, or dispatch a courier. Rejection, timeout, or an unavailable
+channel leaves no active order behind. Website checkout remains unchanged and does not require
+agent approval.
+
+### 10.2 Boundaries and sources of truth
+
+| Information or action | Authoritative source / rule |
+|---|---|
+| Product, variant, price, sales channel | Stheno catalog and pricing; the assistant may only choose among returned records |
+| Stock availability | Live inventory query through Stheno; describe it as a check at that moment, not a guarantee |
+| Stock reservation | Existing order workflow, after the owner confirms the pending order |
+| Shipping, returns, store policies, product FAQs | Merchant-approved knowledge sources with source and freshness metadata |
+| Customer/order data | Explicit fields collected for the draft; minimum necessary, with existing retention and erasure rules |
+| Final order status | Existing order lifecycle; never the model's conversational statement |
+
+A retrieval or “knowledge base” service can answer store-policy questions, but must not be the
+source for price, stock, order state, or customer identity. The Google product/vendor is unresolved:
+choose a provider only after it passes data residency, tenant isolation, deletion, source citation,
+freshness, cost, and portability checks. Keep the integration replaceable and do not upload a
+merchant's customer records to a general-purpose knowledge corpus.
+
+### 10.3 Delivery choices to validate
+
+| Choice | Options | Current recommendation | Decision criteria |
+|---|---|---|---|
+| Social channel rollout | Facebook Messenger; Instagram inbox; WhatsApp inbox | Support the three target inboxes, but pilot one connector first and add the others in measured stages. | Merchant demand, official API availability, app review/setup burden, per-conversation cost, webhook reliability, message-window rules |
+| Intake mode | Suggest reply; collect details and draft; auto-confirm | Collect details and create a draft; require merchant approval | Time saved, correction rate, buyer clarity, merchant trust, risk of a false commitment |
+| Knowledge source | Merchant FAQs/policies; catalog feed; external search | Merchant-approved FAQs/policies plus live catalog tools | Answer accuracy, source visibility, freshness, setup effort, tenant isolation |
+| Product match | Exact catalog selection; fuzzy suggestions; free-form item | Exact variant selection or ask a clarifying question; never invent a catalog item | Wrong-item rate, ambiguity rate, catalog quality |
+| Plan packaging | Included in Pro; usage-limited Pro add-on; later tier | Pro feature with a usage limit set after provider-cost measurement | Marginal cost per conversation, support cost, willingness to pay, fair-use experience |
+
+The current manual social flow remains available. A merchant must be able to pause the assistant
+per social channel and take over a conversation without losing the pending order or conversation
+reference. Website checkout remains its own path throughout.
+
+### 10.4 Safety and trust requirements
+
+- Ask for confirmation when the product/variant, quantity, address, or delivery terms are ambiguous.
+- Never infer a price, stock count, delivery window, warranty, discount, or policy answer. If the
+  live source is missing or stale, say that staff will confirm it.
+- Show a clear “automated assistant” identity and a human handoff path. Do not imply a draft is an
+  accepted order.
+- Deduplicate provider webhook retries and repeated buyer submissions. A retry must not create a
+  second draft for the same channel conversation and request.
+- Validate all model output against an allowlisted draft-order DTO. The model cannot call arbitrary
+  URLs, issue database queries, or invoke payment/refund/admin tools.
+- Keep tenant scope on every channel credential, conversation, knowledge source, and draft. Apply
+  existing PII minimization, access control, retention, audit, and erasure requirements
+  ([SECURITY.md](SECURITY.md)). Do not retain raw conversation content longer than the feature
+  needs; define retention before implementation.
+- If the model, channel, catalog, or inventory lookup is unavailable, fall back to the merchant's
+  existing manual inbox workflow. Never fail open into an order confirmation.
+
+### 10.5 Architecture fit if validated
+
+This should compose existing order, inventory, workflow, and entitlement capabilities rather than
+introduce a second commerce path. Social channel adapters normalize inbound messages; a bounded
+assistant orchestration layer may use read-only catalog/inventory queries and a single pending
+order-creation action; the existing dashboard order queue and normal confirmation workflow remain
+responsible for merchant review and order processing. Website checkout stays separate and
+unchanged. The assistant must not write module tables directly or make one module depend on
+another.
+
+Gate the merchant-facing capability at the API/router and provider registration boundary under
+[ENTITLEMENTS §6](ENTITLEMENTS.md). Keep entitlement checks out of domain services. Any mutating
+workflow remains idempotent, and inventory is reserved only by the existing accepted-order path.
+Do not change Store API response shapes to support this; expose a scoped, authenticated admin
+workflow surface if existing APIs are insufficient.
+
+### 10.6 Pilot criteria
+
+Before committing implementation scope, interview pilot merchants and measure:
+
+1. Whether merchants request conversational intake without being prompted, alongside the Pro
+   feature signal in §8.
+2. Conversations that produce a complete, reviewable draft without staff retyping the details.
+3. Merchant edit/reject rate and the reasons for corrections, especially product, variant,
+   quantity, price, and address errors.
+4. Duplicate-draft rate under webhook retries and repeated messages.
+5. Buyer understanding that the order is pending merchant approval.
+6. Per-merchant and per-completed-draft provider cost, including messaging, model, storage, and
+   support; use this to set any Pro usage limit rather than inventing a quota now.
+
+Do not set numeric launch thresholds until a pilot baseline exists. A pilot is successful only if
+it reduces staff re-entry without increasing incorrect orders, oversells, duplicate drafts, or
+buyer confusion.
+
+### 10.7 Suggested rollout
+
+1. **Concierge validation:** staff manually observe a small set of social inbox conversations and
+   record missing fields, catalog ambiguity, and merchant correction reasons. No autonomous
+   customer-facing agent.
+2. **Pending-order pilot:** one social channel, explicit assistant disclosure, live
+   catalog/inventory reads, product-page links, and human verification for every pending order.
+   Measure cost and correction rates.
+3. **Controlled expansion:** add channels only after each connector meets the same privacy,
+   idempotency, handoff, and approval requirements. Consider reducing approval only as a separate
+   product decision backed by evidence.
+
+Open decisions before implementation: which social channel to pilot first; provider and
+data-processing terms; transcript retention; merchant control over FAQs and human escalation;
+usage-limit unit; and whether each channel's setup belongs in self-serve onboarding or assisted
+provisioning. Website ordering is out of scope for this automation.

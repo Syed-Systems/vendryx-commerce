@@ -72,7 +72,8 @@ All runtime configuration is supplied via environment variables. Sensitive value
 | `PORT` | Integer | `9000` | HTTP listen port. |
 | `BIND_ADDRESS` | String | `0.0.0.0` | Bind IP address. |
 | `JWT_SECRET` | String (Hex/Base64) | *Required* | HMAC-SHA256 secret for customer and admin session tokens (min 32 bytes). |
-| `COOKIE_SECRET` | String | *Required* | Secret used to sign session and CSRF cookies. |
+| `COOKIE_SECRET` | String | *Required* | At least 32 bytes; signs session/CSRF cookies and encrypts storefront cart cookies. |
+| `COOKIE_SECRET_PREVIOUS` | String | Optional | Previous cookie key accepted during a rotation window so encrypted active carts remain readable. |
 | `CSRF_PROTECTION_ENABLED` | Boolean | `true` | Enforces double-submit cookie + custom header check on state mutations. |
 | `ENVIRONMENT` | String | `production` | Environment tier (`production`, `staging`, `development`). |
 | `LOG_LEVEL` | String | `info` | Logging verbosity (`error`, `warn`, `info`, `debug`, `trace`). |
@@ -266,3 +267,89 @@ Migrations are applied automatically at startup or via CI pipeline job using `st
 ### Backup Verification Protocol
 - Daily automated restore drill executes against an ephemeral test cluster.
 - Validates cryptographic integrity of database dump and schema consistency.
+
+---
+
+## 8. Cloudflare edge
+
+Cloudflare terminates public TLS and connects through the Tunnel to the origin proxy. The Rust
+engine, storefront SSR process, and admin dashboard remain on the origin. The proxy has no public
+host port; do not publish the engine, storefront, or dashboard services directly. Set
+`STHENO_ADMIN_DOMAIN_SUFFIX` at runtime. The corresponding admin suffix must serve no
+merchant-authored content. See [ADR-037](DECISIONS.md#adr-037).
+
+Complete these steps in order:
+
+1. **Create zones.** Add the default storefront zone, the separate admin-hostname zone, and the
+   media zone. Keep the marketing site's zone separate from tenant storefront content.
+2. **Set TLS mode.** Set each web zone to **Full (strict)**. Keep the origin proxy on HTTP inside
+   the private Tunnel network; Caddy automatic HTTPS is disabled because TLS ends at the edge.
+3. **Add the wildcard store record.** Associate the proxied wildcard record for the configured
+   store subdomains with the Tunnel. Do not add a public A or AAAA record for the origin.
+4. **Configure the admin domain and certificate.** Choose a registrable domain that serves no
+   merchant-authored content, set its suffix as `STHENO_ADMIN_DOMAIN_SUFFIX`, and issue a
+   certificate covering one tenant label beneath that suffix. Verify certificate depth for a
+   name such as `merchant.admin.example.test` before fixing the production suffix.
+5. **Create the Tunnel.** Store its connector token as `CLOUDFLARE_TUNNEL_TOKEN`. Configure the
+   Tunnel's storefront wildcard and admin wildcard public hostnames to target `http://proxy:8080`
+   (in Compose) or the chart's `<release>-proxy:8080` Service. The Tunnel is the only public
+   route to the origin. In Compose, attach the engine, storefront, and admin containers to the
+   external `STHENO_ORIGIN_NETWORK` (default `stheno-origin`) and configure the three upstream
+   service names if they differ from `web`, `storefront`, and `admin`. The root Compose file does
+   not define those application services; create the external network and attach the separately
+   deployed containers to it. The Helm chart creates a ClusterIP service for the proxy and no
+   Ingress resource; point the Tunnel at that service. Preserve the incoming `Host`; the proxy
+   uses it for tenant resolution.
+6. **Add the cache rule.** Use the origin `Cache-Control` when it is present and bypass caching
+   when it is absent. Bypass `/admin/*`, `/auth/*`, `/store/carts*`, `/store/customers*`,
+   `/store/payment-collections*`, `/store/orders/*`, `/*/cart*`, `/*/checkout*`, `/*/account*`,
+   and `/*/order*`.
+   Also bypass `/hooks/*` and `/webhooks/meta/*`. Do not configure an edge TTL override: it could
+   cache a response that the origin did not mark public.
+7. **Create the R2 buckets.** Configure a public product-media bucket with its media hostname
+   and a separate private bucket with no public hostname for payment proofs and other private
+   documents. Configure the S3-compatible endpoint with region `auto`. Do not give private
+   objects a public URL.
+8. **Set the custom-hostname fallback origin.** Space owns custom-hostname registration and
+   certificate status. Point the fallback origin to the Tunnel/proxy route so custom domains
+   still reach the same Host-based tenant resolver; never expose the origin directly.
+9. **Deploy marketing as static content.** Publish `apps/marketing` as static assets only. Do not
+   enable Functions or move application runtime to the edge.
+
+### Edge firewall baseline
+
+Rate-limit the following requests by client address and hostname:
+
+| Purpose | Route patterns read from the current route definitions |
+|---|---|
+| Sign-in | `POST /auth/user/{auth_provider}`; `POST /auth/{actor_type}/{provider_id}` |
+| Password reset | `POST /auth/user/{auth_provider}/reset-password`; `POST /auth/{actor_type}/{provider_id}/reset-password`; `POST /auth/{actor_type}/{provider_id}/confirm-reset-password` |
+| Account creation | `POST /auth/user/{auth_provider}/register`; `POST /auth/{actor_type}/{provider_id}/register`; `POST /store/customers` |
+| Checkout submission | `POST /store/carts/{id}/complete`; `POST /store/payment-collections`; `POST /store/payment-collections/{id}/payment-sessions`; `POST /store/payment-collections/{id}/payment-sessions/{session_id}` |
+| Payment-proof submission | `POST /store/orders/{id}/payment-proof` |
+
+Never apply browser challenges or bot checks to the machine callbacks below. Keep the rate limit
+and the engine's signature verification enabled:
+
+- `/hooks/payment/{provider_id}`
+- `/hooks/fulfillment/{provider_id}`
+- `/webhooks/meta/{webhook_id}`
+
+The paths above come from `crates/api/stheno-api-auth/src/routes.rs`,
+`crates/api/stheno-api-store/src/lib.rs`, `crates/api/stheno-api-store/src/hooks.rs`, and
+`crates/api/stheno-api-store/src/social_webhook.rs`.
+
+### Acceptance checklist from ADR-037
+
+| Check | Result |
+|---|---|
+| Tag and hostname purge availability and rate limits on the selected plan tier | |
+| `Cache-Tag` list format and size limits | |
+| `stale-while-revalidate` behavior | |
+| Custom-hostname pricing | |
+| Wildcard certificate depth for admin hostnames | |
+| Wildcard Tunnel routing preserves `Host` | |
+| `stheno-file-s3` compatibility with R2 | |
+
+The plan tier and production admin suffix are runtime/owner configuration and are not chosen by
+this runbook.

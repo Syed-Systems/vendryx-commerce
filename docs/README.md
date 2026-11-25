@@ -25,13 +25,13 @@ docs/
 │
 ├── 1. Core Architecture & Requirements
 │   ├── ARCHITECTURE.md                       # Master system architecture & two-block topology
-│   ├── DECISIONS.md                          # Architecture Decision Records (ADR-001 through ADR-031)
+│   ├── DECISIONS.md                          # Architecture Decision Records (ADR-001 through ADR-037)
 │   ├── TRD.md                                # Technical Requirements Document & crate graph
 │   ├── PRD.md                                # Product Requirements Document & engine budgets
 │   └── PRODUCT.md                            # Merchant personas, social commerce & workflows
 │
 ├── 2. Domain Models & Wire Contracts
-│   ├── DATA_MODEL.md                         # 127 entities, link tables & schema ownership
+│   ├── DATA_MODEL.md                         # 128 Medusa entities, 166 physical tables & schema ownership
 │   ├── API_SPEC.md                           # Store and Admin API wire shapes (Medusa v2 parity)
 │   ├── WORKFLOWS.md                          # Postgres durable SAGA engine & 249-workflow catalog
 │   ├── PAYMENTS.md                           # Payment traits, idempotency protocols & edge atlas
@@ -71,6 +71,8 @@ docs/
 │       └── stuck-consignment.md              # Stranded parcel resolution
 │
 ├── 6. Active Tasks & Backlog
+│   ├── ADR_IMPLEMENTATION_PLAN.md            # Closure plan & verification evidence for ADR-032 to ADR-036
+│   ├── OKF_PLAN.md                           # AI Social Commerce (OKF) completion plan
 │   ├── PHASE4_TASKS.md                       # Phase 4 platform control plane task order
 │   ├── PLATFORM_COMPLETION_TASKS.md          # 23 transitional platform handler remediation tasks
 │   └── TASKS.md                              # Phase 0-10 historical baseline & §1 Loop Protocol

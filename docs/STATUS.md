@@ -1,6 +1,6 @@
 # Project Status
 
-**Last consolidated:** 2026-09-13  
+**Last consolidated:** 2026-11-25  
 **Authority:** This file is the single source of truth for project completion status. Plans, task lists, handovers, and work logs may contain historical notes, but any current "how much is done" answer should start here.
 
 ---
@@ -81,7 +81,21 @@ Authoritative next-work lists:
 
 ---
 
-## 5. Source-Of-Truth Rules
+## 5. Architecture Decisions & Post-Phase-3 Tracks (ADR-031 – ADR-037)
+
+| Decision | Scope | Current state | Source of truth |
+|---|---|---|---|
+| [ADR-031](DECISIONS.md#adr-031) | Dynamic Multi-Tenant Visual Theming on Unified Storefront | Runtime design token injection and variant modifiers active | [DECISIONS.md](DECISIONS.md#adr-031) |
+| [ADR-032](DECISIONS.md#adr-032) | AI-Powered Social Commerce Automation (OKF) | Phases 32.1–32.6 implemented in local checkout; live courier/provider & OKF human-takeover/transcript work open | [ADR_IMPLEMENTATION_PLAN.md](ADR_IMPLEMENTATION_PLAN.md), [OKF_PLAN.md](OKF_PLAN.md) |
+| [ADR-033](DECISIONS.md#adr-033) | Commercial Entitlements Overhaul (Free & 7-Day Pro Trial) | Quota, trial/grace, warning, and reconciliation flows implemented in local checkout; browser journey open | [ADR_IMPLEMENTATION_PLAN.md](ADR_IMPLEMENTATION_PLAN.md) |
+| [ADR-034](DECISIONS.md#adr-034) | Manual Payment Truth Contract & Email/WhatsApp Pipeline | Payment proof, Stripe refund reconciliation, AES-256-GCM cart cookies, outbox, and Free caps implemented in local checkout; live WABA/template acceptance open | [ADR_IMPLEMENTATION_PLAN.md](ADR_IMPLEMENTATION_PLAN.md) |
+| [ADR-035](DECISIONS.md#adr-035) | Store Intelligence, Search Console & Meta Insights | Persistence, OAuth state, separate Meta credentials, and tenant export/erasure implemented in local checkout; live provider/production acceptance open | [ADR_IMPLEMENTATION_PLAN.md](ADR_IMPLEMENTATION_PLAN.md) |
+| [ADR-036](DECISIONS.md#adr-036) | Dedicated Build Execution & Shared Caches on Space | Affected-package selector and Space build scripts in place; hosted CI remains merge/release authority | [ADR_IMPLEMENTATION_PLAN.md](ADR_IMPLEMENTATION_PLAN.md) |
+| [ADR-037](DECISIONS.md#adr-037) | Cloudflare Edge Layer & Host-Isolated Admin | Static Caddy/Tunnel config, tenant cache tags, `__Host-` admin cookie, R2 S3 signing, and runbook implemented in local checkout; durable purge outbox/worker open | [DECISIONS.md](DECISIONS.md#adr-037), [DEPLOYMENT.md §8](DEPLOYMENT.md#8-cloudflare-edge) |
+
+---
+
+## 6. Source-Of-Truth Rules
 
 1. Update this file whenever a phase, task group, or project-wide completion percentage changes.
 2. Do not repeat live completion percentages in plan documents. Link here instead.

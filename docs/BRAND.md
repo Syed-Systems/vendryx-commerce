@@ -40,9 +40,9 @@
 
 | Token | CSS Variable | Hex Value | Role & Usage |
 |---|---|---|---|
-| Vendryx Indigo | `--brand-vendryx-primary` / `--vx-brand-primary` | `#4F46E5` | Primary brand accent, primary action buttons, active states |
-| Vendryx Violet | `--brand-vendryx-violet` / `--vx-brand-violet` | `#5B21B6` | Deep accents, interactive hover states |
-| Vendryx Bright Blue | `--brand-vendryx-bright` / `--vx-brand-bright` | `#3B82F6` | Informational highlights, secondary focus indicators |
+| Vendryx Orange | `--brand-vendryx-primary` / `--vx-brand-primary` | `#FF7A00` | Brand accent, the mark, highlights. Pair with charcoal text, never small white text |
+| Orange Action | `--brand-vendryx-action` / `--vx-brand-action` | `#C2410C` | Primary action buttons with white text, active states |
+| Orange Hover | `--brand-vendryx-hover` / `--vx-brand-hover` | `#9A3412` | Interactive hover and pressed states |
 
 ### 3.2 Neutral & Surface Backgrounds
 
@@ -96,18 +96,21 @@ Status colors remain semantic and must never be overridden by brand accents:
 
 ---
 
-## 6. Official Brand Assets (`brand/vendryx/`)
+## 6. Official Brand Assets (`brand/vendryx/` & `branding/Vendryx_Brand_Kit/`)
 
-Source assets are maintained in [`brand/vendryx/`](../brand/vendryx/):
+Source assets are maintained in [`brand/vendryx/`](../brand/vendryx/) and the complete, approved Brand Kit bundle in [`branding/Vendryx_Brand_Kit/`](../branding/Vendryx_Brand_Kit/):
 
 | Asset File | Format | Purpose |
 |---|---|---|
-| `vendryx-logo.png` | PNG (High-Res) | Primary corporate wordmark with folded-layer bag mark |
-| `vendryx-logo-dark.png` | PNG (High-Res) | Wordmark for dark mode / contrasting backgrounds |
-| `vendryx-mark.png` | PNG (Square) | App icon, favicons, compact navigation headers |
-| `favicon.ico` | Multi-size ICO | Browser tab icon |
-| `favicon.png` | 512×512 PNG | PWA manifest, Apple touch icon, high-density mobile |
-| `brand.json` | JSON | Machine-readable manifest for asset synchronization |
+| `01_Primary_Logos/vendryx_primary_light_no_tagline.svg` | SVG | Primary logo for light surfaces |
+| `01_Primary_Logos/vendryx_primary_dark_no_tagline.svg` | SVG | Reverse primary logo for dark surfaces |
+| `02_Secondary_Logos/vendryx_stacked_light_no_tagline.svg` | SVG | Vertical lockup for constrained widths |
+| `02_Secondary_Logos/vendryx_stacked_dark_no_tagline.svg` | SVG | Reverse vertical lockup for dark surfaces |
+| `04_Symbol/vendryx_lettermark_flat_orange.svg` | SVG | Standalone orange brand mark |
+| `05_Favicons/favicon.ico` / `favicon.svg` | ICO / SVG | Browser tab icons |
+| `06_App_PWA/` | PNG, SVG, JSON | App, maskable, and PWA icons and manifest |
+| `09_Developer/` | CSS, JSON, examples | Brand tokens and integration examples |
+| `08_Guidelines/` | PDF, Markdown | Brand identity and usage guidance |
 
 ---
 

@@ -46,7 +46,7 @@ flowchart TD
         API_PLATFORM["Platform API (stheno-api-platform)"]
         
         SAGA["Postgres SAGA Engine (stheno-workflow)"]
-        MODULES["33 Leaf Domain Modules (crates/modules/*)"]
+        MODULES["34 Leaf Domain Modules (crates/modules/*)"]
         LINKS["Link Association Engine (stheno-links / stheno-query)"]
         OUTBOX["Transactional Outbox (stheno-events / subscribers)"]
     end
@@ -95,23 +95,26 @@ flowchart TD
 │   ├── marketing/                        # Public marketing site and demo simulator
 │   └── platform/                         # Transitional operator console
 │
-├── crates/                               # Rust modular monolith engine (33 modules, providers)
+├── crates/                               # Rust modular monolith engine (34 modules, 25 providers)
 │   ├── core/                             # Kernel primitives, db pooling, saga workflow engine
-│   ├── modules/                          # 33 leaf domain crates (product, cart, order, etc.)
+│   ├── modules/                          # 34 leaf domain crates (product, cart, order, ai, etc.)
 │   ├── flows/                            # Inter-module SAGA transaction orchestrations
-│   ├── providers/                        # 16 payment, courier, and infrastructure providers
+│   ├── providers/                        # 25 payment, courier, AI, analytics, and CDN providers
 │   ├── api/                              # HTTP API crates (store, admin, platform, router)
 │   ├── stheno-server/                    # Composition root and production server binary
 │   └── stheno-cli/                       # CLI for migrations, OpenAPI sync, and scaffolding
 │
 ├── docs/                                 # Master technical documentation repository
 │   ├── README.md                         # Documentation navigation hub
-│   ├── DECISIONS.md                      # Architecture Decision Records (ADR-001 to ADR-031)
+│   ├── DECISIONS.md                      # Architecture Decision Records (ADR-001 to ADR-037)
+│   ├── ADR_IMPLEMENTATION_PLAN.md        # Phased closure plan & evidence for ADR-032 to ADR-036
+│   ├── OKF_PLAN.md                       # AI Social Commerce (OKF) completion plan
 │   ├── STATUS.md                         # Authoritative project completion ledger
 │   ├── BRAND.md                          # Corporate brand identity and design tokens
 │   └── archive/                          # Historical phase evidence logs and retired plans
 │
-├── brand/                                # Official corporate visual assets and logos
+├── brand/                                # Legacy/compat corporate visual assets
+├── branding/Vendryx_Brand_Kit/           # Approved Vendryx Brand Kit v1.0 (vectors, tokens, guidelines)
 ├── config/                               # Tiers, quotas, and runtime configurations
 ├── deploy/                               # Deployment manifests, Docker Compose, PgBouncer configs
 ├── migrations/                           # Diesel SQL migrations (partitioned per module schema)

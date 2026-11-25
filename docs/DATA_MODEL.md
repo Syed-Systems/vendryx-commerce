@@ -1,6 +1,6 @@
 # Data Model — Stheno Commerce Engine
 
-**127 entities across 25 persisting modules · 22 writable link tables · 14 read-only link definitions · 3 Stheno-only payment-safety tables · 152 physical tables**
+**128 Medusa entities across 26 modules · 22 writable link tables · 14 read-only link definitions · 3 Stheno payment-safety tables + 13 AI tables + 1 notification consent table · 166 physical tables**
 
 Derived from `medusajs/medusa@b733400` by enumerating `packages/modules/*/src/models/` and
 `packages/modules/link-modules/src/definitions/`. This is the target schema, not an approximation.
@@ -67,7 +67,8 @@ Counts are exact. Names map 1:1 to Medusa model files.
 | **currency** | 1 | `currency` |
 | **sales-channel** | 1 | `sales_channel` |
 | **workflow-engine** | 1 | `workflow_execution` |
-| | **127** | |
+| **ai** | 13 | `knowledge_entry` (tenant-owned static merchant policy/FAQ corpus; tenant RLS); `channel_event` (tenant-owned Meta event IDs, hashed conversation key, processing state; tenant RLS); `configuration` (AES-GCM encrypted AI and Meta credentials; redacted status only; tenant RLS); `webhook_registry` (opaque random slug routing metadata only; credentials remain RLS-protected in `configuration`); `channel_conversation` (AES-GCM encrypted bounded recent turns with 24-hour expiry; no plaintext message columns; tenant RLS); `chat_offer` (owner-configured exact per-variant price; tenant RLS); `chat_offer_quote` (short-lived quote bound to tenant conversation, variant, quantity, currency, region, live price, and offer version; tenant RLS); `chat_offer_audit` (owner/admin actor and offer version for create/update/disable actions; tenant RLS); `store_intelligence_review` (tenant-owned current recommendation decisions; tenant RLS); `store_intelligence_review_audit` (append-only actor-attributed decisions; tenant RLS); `store_intelligence_source_observation` (bounded source/account/metric/window observations without buyer identifiers; tenant RLS); `source_connection_audit` (actor/action/source/account only, never credential values; tenant RLS); `search_console_oauth_state` (one-time ten-minute tenant/property/actor-bound nonce; tenant RLS) |
+| | **128** | |
 
 Modules without persistence (10): `analytics`, `cache-inmemory`, `cache-redis`, `caching`,
 `demo` (client sandbox sessions), `event-bus-local`, `event-bus-redis`, `file`, `locking`, `link-modules`. The 16 provider packages
@@ -426,6 +427,15 @@ Beyond primary keys and the `deleted_at IS NULL` partial indexes:
 | `api_key` | unique `(token)` | auth on every request |
 | `payment_provider_request` | unique `(idempotency_key)` | outbound dedupe on every provider call |
 | `payment_webhook_event` | unique `(provider_id, provider_event_id)` | webhook replay guard |
+| `ai.chat_offer` | unique enabled `(tenant_id, variant_id, currency_code)` | unambiguous owner-authorized chat price lookup |
+| `ai.chat_offer_quote` | `(tenant_id, expires_at)`, `(tenant_id, conversation_key, issued_at DESC)`, partial `(tenant_id, claimed_event_id)` | expired-quote cleanup, conversation-bound quote validation, and confirmation-time quote audit |
+| `ai.chat_offer_audit` | `(tenant_id, created_at DESC)` | owner/admin offer change history |
+| `ai.store_intelligence_review` | `(tenant_id, changed_at DESC)` | load latest merchant decisions for the bounded Store Intelligence dashboard |
+| `ai.store_intelligence_review_audit` | `(tenant_id, recommendation_id, created_at DESC)` | recommendation decision history |
+| `ai.store_intelligence_source_observation` | `(tenant_id, source, account_id, ingested_at DESC)` | recent source snapshots for one tenant/account |
+| `ai.source_connection_audit` | `(tenant_id, source, account_id, created_at DESC)` | source connection change audit for one tenant/account |
+| `ai.search_console_oauth_state` | primary key `(tenant_id, nonce)` and `(expires_at)` | consume one callback for the initiating tenant and prune expired OAuth states |
+| `notification.whatsapp_analytics_consent` | partial `(tenant_id, customer_id) WHERE customer_id IS NOT NULL AND consented = true` | withdraw anonymous WhatsApp analytics consent for one customer |
 | `capture`, `refund` | `(payment_id)` | ledger aggregate under lock |
 | `workflow_execution` | `(state, run_at) WHERE state IN ('invoking','compensating')` | the worker claim query |
 | `index_data` | GIN on `data` jsonb | cross-module filtering |

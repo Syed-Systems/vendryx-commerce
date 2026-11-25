@@ -57,7 +57,7 @@ Consequences, stated plainly:
 
 ## 3. The governing rule
 
-> **The free tier does nothing that costs marginal money.**
+> **The free tier does nothing that costs marginal money, except for explicitly capped platform-funded notifications.**
 > **The paid tier is exactly the set of features that cost money to run.**
 
 This is a cost line, not a greed line — which is what lets the free tier stay **indefinite**
@@ -68,7 +68,9 @@ or support, it is Pro.
 Applied consistently it also produces the right *product* answer, not just the right commercial
 one: web push is free because it is a browser standard with no vendor and no per-message cost, and
 analytics history is gated by *window* rather than switched off because storage and query cost
-scale with the window, not with the feature.
+scale with the window, not with the feature. Email and WhatsApp are a bounded exception: Free
+merchants share a hard allowance of 200 emails and 300 WhatsApp messages per UTC day; extra
+outbox messages wait until the next UTC day. The cap is tenant-scoped and atomic across workers.
 
 ---
 
@@ -76,20 +78,24 @@ scale with the window, not with the feature.
 
 **Trial and Free are states of one account, not separate products.** There is no Enterprise tier.
 
-| Capability | Trial (14 days) | Free (after trial) | Pro |
+| Capability | Trial (7 days) | Free (after trial) | Pro |
 |---|---|---|---|
 | Dashboard, order management | Full | Full | Full |
 | Inventory tracking | Full | Full | Full |
 | Products | Unlimited | **100** (existing grandfathered) | Unlimited |
 | Staff seats | 10 | **Owner + 2** | 10 |
-| Storefront | supported brand kit + subdomain | supported brand kit + subdomain | developer-built bespoke storefront; merchant brings their own domain if mapping one |
+| Storefront | supported brand kit + subdomain; merchant-owned custom domain can be connected | supported brand kit + subdomain; merchant-owned custom domain can be connected | developer-built bespoke storefront; merchant brings their own domain if mapping one |
 | Order placement + COD | Yes | Yes | Yes |
 | Spreadsheet import / CSV export | Yes | Yes | Yes |
 | Analytics | Basic | Basic, **30-day window** | **Full history** |
 | Web push notifications | Yes | Yes | Yes |
-| **Payment gateway** | No | No | **Yes** |
-| **Courier dispatch** | No | No | **Yes** |
-| **Buyer fraud / risk score** | No | No | **Yes** |
+| Platform-funded email / WhatsApp notifications | Yes, subject to daily allowance | **200 emails + 300 WhatsApp messages per UTC day** | Yes |
+| **Custom domain connection** | Yes, merchant-owned domain; no Vendryx connection fee | Yes, merchant-owned domain; no Vendryx connection fee | Yes, merchant-owned domain; no Vendryx connection fee |
+| **Payment gateway** | Yes, during the Pro trial | No | **Yes** |
+| **Courier dispatch** | Yes, during the Pro trial | No | **Yes** |
+| **Buyer fraud / risk score** | Yes, during the Pro trial | No | **Yes** |
+| **AI sales and OKF** | Yes, during the Pro trial | No | **Yes** |
+| **Custom theme selection** | Yes, during the Pro trial | No | **Yes** |
 | **Brand kit** | Yes | Yes | Yes |
 | **Bespoke storefront service** | No | No | **Yes, after payment** |
 
@@ -116,7 +122,7 @@ The first two were already specified. **The third came from this tier plan and i
 
 | Kind | Mechanism | Used by |
 |---|---|---|
-| **Feature gate** | Route group not mounted | `payment_gateway`, `courier_dispatch`, `fraud_score` |
+| **Feature gate** | Route group not mounted | `payment_gateway`, `courier_dispatch`, `fraud_score`, `custom_domain` |
 | **Quota gate** | Atomic counter, reject at limit | `max_products` (100), `max_staff_seats` (3) |
 | **Window gate** | Query bounded by a time horizon | `analytics_window_days` (30 vs unlimited) |
 
@@ -146,37 +152,52 @@ Platform gates read the same `Entitlements` value; they are simply enforced outs
 Three details here are load-bearing, and getting any of them wrong damages trust in a way that is
 hard to recover.
 
-**The 14-day trial starts when an email-verified merchant submits a store request, not at account
+**The 7-day trial starts when an email-verified merchant submits a store request, not at account
 signup or first product creation.** A draft is intentionally free to resume. The submitted request
 is the point at which Stheno begins review and provisioning work, so it is the honest start point.
 
-**At day 14 the account moves to Free. Nothing is deleted, nothing is hidden.** A merchant with 400
+**At the exact seven-day expiry instant the account moves to Free. Nothing is deleted, nothing is hidden.** A merchant with 400
 products keeps all 400 — they are grandfathered, visible, and sellable. They are simply blocked
 from creating the 401st until they upgrade or delete. **Removing a seller's live products is an
 unrecoverable trust failure.**
+
+A trial row without a persisted end date fails closed to Free. Missing expiry metadata must not
+turn the trial into an indefinite Pro grant.
 
 This is exactly the grace state already specified in §6.4: `used > limit` means reads and updates
 continue and creates are rejected. The trial expiry path and the downgrade path are **the same
 code**, which is the right outcome — one mechanism, tested once.
 
-**Warnings at day 7 and day 13**, by web push and email. Both are zero marginal cost.
+**Warnings at day 3 and day 6** are part of the trial lifecycle contract. A 15-minute scheduler
+resolves the verified merchant account owner and sends email warnings through Resend. It skips
+already-sent milestones and retries failed sends with a stable Resend idempotency key. Web Push
+delivery and a durable cross-provider outbox remain pending. Resend retains idempotency keys for
+24 hours, so prolonged outages beyond that retry window still require durable outbox state.
 
-Trial state is evaluated by a **daily job**, not computed per request:
+Trial and paid-term state is checked during request-time entitlement resolution so expiry takes
+effect at its exact UTC instant. A 15-minute reconciliation job persists the tier downgrade so a
+later clock rollback cannot restore expired access:
 
 ```
 entitlement_state
   tier             text          -- 'trial' | 'free' | 'pro'
   trial_started_at timestamptz   -- set on store-request submission, once, never reset
-  trial_ends_at    timestamptz   -- trial_started_at + 14 days
+  trial_ends_at    timestamptz   -- trial_started_at + 7 days
   term_ends_at     timestamptz   -- paid period end, null otherwise
   state            text          -- 'active' | 'grace'
 ```
 
-The daily job moves `trial → free` at expiry, emits the day-23 and day-29 warnings, and writes an
-audit-log entry on every transition. A silent tier change is a support ticket nobody can
-reconstruct.
+The reconciliation job moves `trial → free` at expiry and writes the tier change to
+`platform.subscription`. Warning delivery and a durable audit record for each transition remain
+acceptance work.
 
-**Pro term expiry** follows the same path: `pro → free`, grandfathered, nothing deleted.
+**Pro term expiry** retains Pro access during the seven-day grace period, then resolves to Free at
+the exact grace end. Existing products and store data remain available; Free quotas restrict new
+creates. The reconciliation job persists that downgrade.
+
+When an invoice covering a subscription period is collected during grace, the subscription's
+paid-through date advances to the invoice period end. It never moves backward when an older
+invoice is collected late, so a stale grace deadline cannot downgrade a renewed subscription.
 
 ---
 
@@ -189,21 +210,23 @@ must never require a release.
 # config/tiers.toml
 
 [trial]
-duration_days = 14
+duration_days = 7
 starts_on     = "store_request_submitted"    # never on account signup
-features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic", "branding"]
+features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic",
+                 "payment_gateway", "courier_dispatch", "fraud_score", "custom_domain",
+                 "custom_theme", "branding", "ai_assistant"]
 quotas        = { max_products = 0, max_staff_seats = 10 }   # 0 = unlimited
 windows       = { analytics_window_days = 0 }                # 0 = unlimited
 
 [free]
-features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic", "branding"]
+features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic", "branding", "custom_domain"]
 quotas        = { max_products = 100, max_staff_seats = 3 }  # owner + 2
 windows       = { analytics_window_days = 30 }
 
 [pro]
 features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic",
-                 "payment_gateway", "courier_dispatch", "fraud_score",
-                 "custom_theme", "branding"]
+                 "payment_gateway", "courier_dispatch", "fraud_score", "custom_domain",
+                 "custom_theme", "branding", "ai_assistant"]
 quotas        = { max_products = 0, max_staff_seats = 10 }
 windows       = { analytics_window_days = 0 }
 term_months   = [1]                           # minimum purchase is 1 month; checkout may sell any length
