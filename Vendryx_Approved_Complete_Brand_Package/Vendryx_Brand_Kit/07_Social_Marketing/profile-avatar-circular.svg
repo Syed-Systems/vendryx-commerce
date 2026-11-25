@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1080" viewBox="0 0 1080 1080" role="img" aria-label="Vendryx logo by Syed Systems"><title>Vendryx logo by Syed Systems</title><defs>
+  <linearGradient id="orange-main" x1="0%" y1="0%" x2="85%" y2="100%"><stop offset="0" stop-color="#FFAF24"/><stop offset="0.48" stop-color="#FF7A00"/><stop offset="1" stop-color="#F45605"/></linearGradient>
+  <linearGradient id="wing-top" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#FFB328"/><stop offset="0.46" stop-color="#FF7A00"/><stop offset="1" stop-color="#F45605"/></linearGradient>
+  <linearGradient id="wing-lower" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#FF7A00"/><stop offset="1" stop-color="#DB4408"/></linearGradient>
+  <linearGradient id="fold" x1="0%" y1="0%" x2="90%" y2="100%"><stop offset="0" stop-color="#CF3B09"/><stop offset="0.58" stop-color="#F45605"/><stop offset="1" stop-color="#FF7A00"/></linearGradient>
+  <linearGradient id="icon-bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#191C22"/><stop offset="0.66" stop-color="#0F1115"/><stop offset="1" stop-color="#080A0C"/></linearGradient>
+  <linearGradient id="cover-glow" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#FFA52C"/><stop offset="1" stop-color="#F05408"/></linearGradient>
+ </defs><circle cx="540" cy="540" r="540" fill="#0F1115"/><g transform="translate(170.00 228.00) scale(2.466667)">
+ <path d="M 14 31 H 111 C 132 31 145 41 155 62 L 179 110 L 156 149 C 146 130 137 111 127 92 L 115 72 C 110 65 104 64 91 64 H 58 C 37 64 29 57 22 44 Z" fill="url(#wing-top)"/>
+ <path d="M 42 89 H 106 C 123 89 133 96 142 111 L 157 145 H 90 C 70 145 58 137 51 118 Z" fill="url(#wing-lower)"/>
+ <path d="M 226 31 H 293 L 210 190 C 192 224 168 231 142 231 H 96 L 167 112 C 177 96 190 71 201 53 C 208 40 215 31 226 31 Z" fill="url(#orange-main)"/>
+ <path d="M 138 134 C 147 132 158 121 167 112 L 183 87 C 182 106 171 122 158 146 L 148 164 Z" fill="url(#fold)" opacity="0.90"/>
+ <path d="M 155 148 C 169 145 181 158 190 173 L 206 198 C 189 224 168 231 142 231 H 96 Z" fill="#F3630B" opacity="0.42"/>
+</g></svg>
