@@ -96,9 +96,9 @@ Status colors remain semantic and must never be overridden by brand accents:
 
 ---
 
-## 6. Official Brand Assets (`brand/vendryx/` & `branding/Vendryx_Brand_Kit/`)
+## 6. Official Brand Assets (`Vendryx_Approved_Complete_Brand_Package/Vendryx_Brand_Kit/`)
 
-Source assets are maintained in [`brand/vendryx/`](../brand/vendryx/) and the complete, approved Brand Kit bundle in [`branding/Vendryx_Brand_Kit/`](../branding/Vendryx_Brand_Kit/):
+The complete, approved Brand Kit bundle is maintained in [`Vendryx_Approved_Complete_Brand_Package/Vendryx_Brand_Kit/`](../Vendryx_Approved_Complete_Brand_Package/Vendryx_Brand_Kit/):
 
 | Asset File | Format | Purpose |
 |---|---|---|
