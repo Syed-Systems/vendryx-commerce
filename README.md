@@ -113,7 +113,8 @@ flowchart TD
 │   ├── BRAND.md                          # Corporate brand identity and design tokens
 │   └── archive/                          # Historical phase evidence logs and retired plans
 │
-├── Vendryx_Approved_Complete_Brand_Package/  # Final approved Vendryx Brand Kit v1.0 (vectors, tokens, guidelines)
+├── brand/                                # Legacy/compat corporate visual assets
+├── branding/Vendryx_Brand_Kit/           # Approved Vendryx Brand Kit v1.0 (vectors, tokens, guidelines)
 ├── config/                               # Tiers, quotas, and runtime configurations
 ├── deploy/                               # Deployment manifests, Docker Compose, PgBouncer configs
 ├── migrations/                           # Diesel SQL migrations (partitioned per module schema)

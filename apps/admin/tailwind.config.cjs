@@ -1,16 +1,22 @@
 const path = require("path")
 
-// get the path of the dependency "@medusajs/ui"
-const medusaUI = path.join(
-  path.dirname(require.resolve("@medusajs/ui")),
-  "**/*.{js,jsx,ts,tsx}"
-)
+let uiPreset
+try {
+  uiPreset = require("@medusajs/ui-preset")
+} catch {
+  uiPreset = null
+}
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  presets: [require("@medusajs/ui-preset")],
-  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}", medusaUI],
+  presets: uiPreset ? [uiPreset] : [],
   darkMode: "class",
+  content: [
+    path.join(__dirname, "index.html"),
+    path.join(__dirname, "src/**/*.{js,ts,jsx,tsx}"),
+    path.join(__dirname, "node_modules/@medusajs/ui/dist/**/*.{js,jsx,ts,tsx}"),
+    path.join(__dirname, "../../node_modules/@medusajs/ui/dist/**/*.{js,jsx,ts,tsx}"),
+  ],
   theme: {
     extend: {},
   },
