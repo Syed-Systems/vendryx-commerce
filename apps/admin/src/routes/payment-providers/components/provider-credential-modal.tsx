@@ -180,7 +180,7 @@ export const ProviderCredentialModal = ({
                     {provider.configured ? "Configured" : "Unconfigured"}
                   </Badge>
                 </div>
-                <span className="text-[11px] text-ui-fg-muted font-mono leading-none mt-1">
+                <span className="text-xs text-ui-fg-muted font-mono leading-none mt-1">
                   {provider.id}
                 </span>
               </div>
@@ -323,7 +323,7 @@ export const ProviderCredentialModal = ({
                       {field.required ? (
                         <span className="text-rose-500 ml-1 font-semibold">*</span>
                       ) : (
-                        <span className="text-ui-fg-muted text-[11px] font-normal ml-1.5">(optional)</span>
+                        <span className="text-ui-fg-muted text-xs font-normal ml-1.5">(optional)</span>
                       )}
                     </Label>
                     <div className="w-full">

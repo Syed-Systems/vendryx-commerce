@@ -127,14 +127,23 @@ export const MATRIX_BRANDING = {
   material_style: "border",
 } as const
 
+/**
+ * Font stacks keyed by the tenant's `font_*` branding columns.
+ *
+ * The four faces the shipped themes name point at the CSS variables that
+ * `lib/fonts.ts` defines via `next/font`. The remaining keys are not loaded, so
+ * they fall through to the system stack — see the note there before adding them.
+ * Every stack keeps a generic fallback, so an unresolved variable degrades to
+ * `serif`/`sans-serif` rather than to nothing.
+ */
 export const FONT_STACKS: Record<string, string> = {
-  inter: "var(--font-inter, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif)",
-  geist: "var(--font-geist, 'Geist Sans', -apple-system, BlinkMacSystemFont, sans-serif)",
-  noto_sans_bengali: "'Noto Sans Bengali', 'SolaimanLipi', -apple-system, sans-serif",
-  playfair: "'Playfair Display', Georgia, serif",
+  inter: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  playfair: "var(--font-playfair), Georgia, serif",
+  cinzel: "var(--font-cinzel), 'Times New Roman', serif",
+  noto_sans_bengali: "var(--font-noto-bengali), 'SolaimanLipi', -apple-system, sans-serif",
+  geist: "'Geist Sans', -apple-system, BlinkMacSystemFont, sans-serif",
   plus_jakarta_sans: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
   roboto: "Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
-  cinzel: "Cinzel, 'Times New Roman', serif",
 }
 
 const SAFE_HEX_COLOR = /^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i

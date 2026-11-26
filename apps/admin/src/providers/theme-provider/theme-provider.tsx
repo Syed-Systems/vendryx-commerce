@@ -10,7 +10,13 @@ function getDefaultValue(): ThemeOption {
     return persisted
   }
 
-  return "system"
+  // Default to dark. The references this dashboard is measured against (Ghost,
+  // Linear) are dark, and the admin's own token layer has a complete .dark
+  // block. "system" defaulted to light on a light OS, which is why the
+  // dashboard never looked like the category it belongs to. Persisted choices
+  // are still honoured, so a user who explicitly picked "system" or "light"
+  // keeps it.
+  return "dark"
 }
 
 function getThemeValue(selected: ThemeOption): ThemeValue {

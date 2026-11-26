@@ -37,5 +37,6 @@ stheno-payment-sslcommerz = { workspace = true }
 stheno-payment-nagad = { workspace = true }
 wiremock = { workspace = true }
 
-
-
+# ADR-006: no floating-point arithmetic in money paths.
+[lints]
+workspace = true

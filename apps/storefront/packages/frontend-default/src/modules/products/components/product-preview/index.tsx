@@ -22,120 +22,146 @@ export default async function ProductPreview({
 
   return (
     <LocalizedClientLink href={`/products/${product.handle}`} className="group block h-full">
-      <div 
+      <div
         data-testid="product-wrapper"
         data-product-card="true"
         className="
           flex flex-col h-full transition-all duration-300
-          
+
           /* Mahal: Glassy floating card */
-          group-mahal:bg-brand-surface/60 group-mahal:backdrop-blur-md
-          group-mahal:border group-mahal:border-brand-hairline
-          group-mahal:rounded-card group-mahal:overflow-hidden
-          group-mahal:p-3 group-mahal:shadow-sm
-          group-mahal:hover:-translate-y-1 group-mahal:hover:shadow-md
+          mahal:bg-[color:color-mix(in_oklab,var(--brand-surface)_60%,transparent)] mahal:backdrop-blur-md
+          mahal:border mahal:border-brand-hairline
+          mahal:rounded-card mahal:overflow-hidden
+          mahal:p-3 mahal:shadow-sm
+          mahal:hover:-translate-y-1 mahal:hover:shadow-md
 
           /* Lustre: Stark minimalist block */
-          group-lustre:bg-brand-surface
-          group-lustre:border-b group-lustre:border-brand-hairline
-          group-lustre:pb-4
+          lustre:bg-brand-surface
+          lustre:border-b lustre:border-brand-hairline
+          lustre:pb-4
 
           /* Matrix: Cyberpunk border and glow */
-          group-matrix:bg-brand-background group-matrix:border group-matrix:border-brand-primary/30
-          group-matrix:p-4 group-matrix:hover:border-brand-primary group-matrix:hover:shadow-[0_0_15px_rgba(0,255,0,0.2)]
+          matrix:bg-brand-background matrix:border matrix:border-[color:color-mix(in_oklab,var(--brand-primary)_30%,transparent)]
+          matrix:p-4 matrix:hover:border-brand-primary matrix:hover:shadow-[0_0_15px_rgba(0,255,0,0.2)]
         "
       >
         {/* Image Container with Badges */}
         <div data-product-image="true" className="
-          relative 
-          group-mahal:rounded-[12px] group-mahal:overflow-hidden
-          group-lustre:grayscale group-lustre:hover:grayscale-0 group-lustre:transition-all
-          group-matrix:border group-matrix:border-brand-primary/20
+          relative
+          mahal:rounded-[12px] mahal:overflow-hidden
+          lustre:grayscale lustre:hover:grayscale-0 lustre:transition-all
+          matrix:border matrix:border-[color:color-mix(in_oklab,var(--brand-primary)_20%,transparent)]
         ">
           <Thumbnail
             thumbnail={product.thumbnail}
             images={product.images}
             size="full"
             isFeatured={isFeatured}
+            alt={product.title}
           />
 
           {/* Floating Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-1 pointer-events-none">
             {isSale && (
-              <span className="
+              <span
+                className="
                 badge-tag shadow-sm
-                group-mahal:bg-brand-error/90 group-mahal:text-brand-surface group-mahal:backdrop-blur-lg
-                group-lustre:bg-brand-text group-lustre:text-brand-surface group-lustre:rounded-none group-lustre:uppercase
-                group-matrix:bg-brand-error group-matrix:text-brand-background group-matrix:font-mono group-matrix:uppercase group-matrix:border group-matrix:border-brand-error
+                mahal:bg-[color:color-mix(in_oklab,var(--brand-error)_90%,transparent)] mahal:text-brand-surface mahal:backdrop-blur-lg
+                lustre:bg-brand-text lustre:text-brand-surface lustre:rounded-none lustre:uppercase
+                matrix:bg-brand-error matrix:text-brand-background matrix:font-mono matrix:uppercase matrix:border matrix:border-brand-error
                 bg-brand-error text-brand-surface
-              ">
+              "
+              >
                 Sale
               </span>
             )}
             {isFeatured && !isSale && (
-              <span className="
+              <span
+                className="
                 badge-tag shadow-sm
-                group-mahal:bg-brand-accent/90 group-mahal:text-brand-primary group-mahal:backdrop-blur-lg
-                group-lustre:bg-transparent group-lustre:border group-lustre:border-brand-text group-lustre:text-brand-text group-lustre:rounded-none
-                group-matrix:bg-transparent group-matrix:border group-matrix:border-brand-primary group-matrix:text-brand-primary group-matrix:font-mono group-matrix:uppercase
+                mahal:bg-[color:color-mix(in_oklab,var(--brand-accent)_90%,transparent)] mahal:text-brand-primary mahal:backdrop-blur-lg
+                lustre:bg-transparent lustre:border lustre:border-brand-text lustre:text-brand-text lustre:rounded-none
+                matrix:bg-transparent matrix:border matrix:border-brand-primary matrix:text-brand-primary matrix:font-mono matrix:uppercase
                 bg-brand-primary text-brand-surface
-              ">
+              "
+              >
                 Atelier Edit
               </span>
             )}
           </div>
 
-          {/* Quick View Pill on Hover - only shown on Default/Mahal, hidden on Lustre/Matrix */}
-          <div className="
-            absolute bottom-3 inset-x-3 opacity-0 group-hover:opacity-100 transition-all duration-200 
-            transform translate-y-1 group-hover:translate-y-0 hidden sm:block
-            group-lustre:!hidden group-matrix:!hidden
-          ">
-            <div className="w-full py-2 bg-brand-surface/95 backdrop-blur-md text-brand-text text-center text-xs font-heading font-semibold uppercase tracking-wider rounded-button shadow-md">
-              View Garment
-            </div>
+          {/* Quick-view.
+
+              Three defects fixed here. It was `opacity-0 group-hover:opacity-100`,
+              which is unreachable by keyboard and invisible on touch, where
+              `:hover` never fires. It invented its own `bg-[color:var(--brand-surface)]/95
+              backdrop-blur-md` instead of using the shared glass material. And
+              it said "View Garment" while everything around it says "product".
+
+              `.hover-reveal` forces it visible on `(hover: none)` devices;
+              `group-focus-visible` reveals it for keyboard users, who land on the
+              card link itself. */}
+          <div
+            className="
+              glass-chip hover-reveal
+              absolute bottom-3 inset-x-3
+              opacity-0 translate-y-1
+              group-hover:opacity-100 group-hover:translate-y-0
+              group-focus-visible:opacity-100 group-focus-visible:translate-y-0
+              transition-all duration-200
+              hidden sm:block
+              lustre:!hidden matrix:!hidden
+            "
+          >
+            <span className="w-full py-2 block text-brand-text text-center text-xs font-heading font-semibold uppercase tracking-wider">
+              View Details
+            </span>
           </div>
         </div>
 
         {/* Product Details */}
         <div className="
-          flex flex-col space-y-1
-          group-mahal:mt-4
-          group-lustre:mt-5
-          group-matrix:mt-4
+          flex flex-col gap-1.5
+          mahal:mt-4
+          lustre:mt-5
+          matrix:mt-4
           mt-3.5
         ">
           <div className="flex items-baseline justify-between gap-2">
             <h3
               className="
                 text-sm font-heading font-medium text-brand-text transition-colors line-clamp-1
-                group-mahal:text-base
-                group-lustre:text-xs group-lustre:uppercase group-lustre:tracking-widest group-lustre:font-mono
-                group-matrix:text-xs group-matrix:uppercase group-matrix:tracking-widest group-matrix:font-mono group-matrix:text-brand-primary
+                mahal:text-base
+                lustre:text-xs lustre:uppercase lustre:tracking-widest lustre:font-mono
+                matrix:text-xs matrix:uppercase matrix:tracking-widest matrix:font-mono matrix:text-brand-primary
               "
               data-testid="product-title"
             >
               {product.title}
             </h3>
-            <div className="
-              group-lustre:text-xs group-lustre:font-mono
-              group-matrix:text-xs group-matrix:font-mono group-matrix:text-brand-primary
-            ">
+            <div
+              className="
+                lustre:text-xs lustre:font-mono
+                matrix:text-xs matrix:font-mono matrix:text-brand-primary
+              "
+            >
               {cheapestPrice && <PreviewPrice price={cheapestPrice} />}
             </div>
           </div>
 
           {/* Subtitle / Department / Variant indicator */}
-          <div className="
-            flex items-center justify-between text-[11px] text-brand-secondary font-light
-            group-lustre:font-mono group-lustre:tracking-wider
-            group-matrix:font-mono group-matrix:tracking-widest group-matrix:text-brand-secondary/70 group-matrix:uppercase
-          ">
-            <span>
+          <div
+            className="
+            flex items-center justify-between text-xs text-[color:var(--ink-muted)] font-light
+            lustre:font-mono lustre:tracking-wider
+            matrix:font-mono matrix:tracking-widest matrix:text-brand-secondary matrix:uppercase
+          "
+          >
+            <span className="line-clamp-1">
               {product.collection?.title || (product.categories && product.categories[0]?.name) || "Ready to Wear"}
             </span>
             {variantCount > 1 && (
-              <span>{variantCount} options</span>
+              <span className="shrink-0">{variantCount} options</span>
             )}
           </div>
         </div>

@@ -1,0 +1,20 @@
+{
+  "name": "stheno-workspace",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@vendryx/marketing",
+    "build": "npm run build --workspace=@vendryx/marketing",
+    "start": "npm run preview --workspace=@vendryx/marketing",
+    "lint": "npm run lint --workspace=@vendryx/marketing",
+    "test": "npm run test --workspace=@vendryx/marketing",
+    "dev:admin": "npm run dev --workspace=@stheno/dashboard",
+    "build:admin": "npm run build --workspace=@stheno/dashboard",
+    "lint:admin": "npm run lint --workspace=@stheno/dashboard"
+  },
+  "dependencies": {
+    "lucide-react": "^1.80.0"
+  }
+}

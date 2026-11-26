@@ -1,21 +1,193 @@
 /**
  * frontend-default's design token layer (ADR-031).
  *
- * Core injects tenant-specific tokens on SSR from store.tenant_branding.
- * These CSS custom properties provide the default theme values.
+ * Core injects the tenant's real tokens on SSR (`emitBrandingCss` ->
+ * `<style id="stheno-brand-tokens">`). This file only defines what core does
+ * not: derived tokens built on top of those, plus the glass material.
  */
 :root {
-  --brand-primary: #1C1917;
-  --brand-secondary: #78716C;
-  --brand-accent: #D97706;
-  --brand-background: #FAF8F5;
-  --brand-surface: #FFFFFF;
-  --brand-text: #1C1917;
-  --brand-hairline: rgba(28, 25, 23, 0.08);
-  --brand-font-family: var(--font-serif, 'Playfair Display', Georgia, -apple-system, sans-serif);
-  --brand-radius-card: 16px;
-  --brand-radius-button: 9999px;
-  --brand-radius-input: 12px;
+  /* The tenant's own `--brand-*` are deliberately NOT declared here. This file
+     used to redeclare all of them, which meant two author-origin `:root` blocks
+     setting the same custom properties at equal specificity — so the winner
+     depended on which stylesheet happened to be parsed last. That is how the
+     frontend's 16px default radius was able to shadow Lustre's 0px and Matrix's
+     2px. One owner per property makes the conflict impossible.
+
+     Two exceptions below (`--brand-hairline`, `--brand-error`), and they are not
+     exceptions to the rule — core never emits either name, so there is no second
+     owner to conflict with. They are derived tokens that only exist here. */
+
+  /* Shared measure. `content-container` caps at 1440px and the floating nav pill
+     was capping at 68rem, so the nav and the content beneath it stopped at
+     different edges. One variable, both consumers. */
+  --content-max: 1440px;
+  --content-gutter: 1.5rem;
+
+  /* The glass material. One set of values, used by the nav, the product-card
+     quick-view, the bridal consultation panel and the cart dropdown, so it
+     reads as a single material rather than four unrelated blur effects. */
+  --glass-tint-top: rgb(255 255 255 / 0.58);
+  --glass-tint-bottom: rgb(255 255 255 / 0.4);
+  --glass-edge: rgb(255 255 255 / 0.55);
+  --glass-rim: inset 0 1px 0 0 rgb(255 255 255 / 0.7);
+  --glass-lift: 0 8px 24px -14px rgb(24 24 27 / 0.35);
+  --glass-blur: 16px;
+  --glass-saturate: 1.6;
+
+  /* ── Chrome ───────────────────────────────────────────────────────────────
+     Everything that sits above the page: nav, announcement bar, cart dropdown.
+
+     These were hardcoded `stone-*` values, which silently assumed a light
+     tenant. Lustre (#000000) and Matrix (#0D0208) set dark backgrounds, so
+     their nav rendered as a washed-out light bar with a wordmark at 1.06:1 —
+     invisible. Chrome is now derived from the tenant's own tokens instead, so a
+     dark tenant gets a dark bar with light text and nothing has to be
+     maintained per theme. */
+  --chrome-fg: var(--brand-text);
+  --chrome-fg-muted: color-mix(in oklab, var(--brand-text) 76%, transparent);
+  --chrome-fg-faint: color-mix(in oklab, var(--brand-text) 62%, transparent);
+  --chrome-bg: color-mix(in oklab, var(--brand-background) 82%, transparent);
+  --chrome-edge: color-mix(in oklab, var(--brand-text) 14%, transparent);
+  --chrome-rim: var(--glass-rim);
+  --chrome-lift: var(--glass-lift);
+  --chrome-blur: var(--glass-blur);
+  --chrome-saturate: var(--glass-saturate);
+  /* Default is a capsule: half the collapsed bar height. */
+  --nav-pill-radius: 26px;
+
+  /* ── Hairline ───────────────────────────────────────────────────────────────
+     The 1px separator used by ~40 call sites (`border-[color:var(--brand-hairline)]`).
+
+     `tailwind.config.js` had a literal fallback — `rgba(28, 25, 23, 0.08)` — so
+     on Lustre's #000000 and Matrix's #0D0208 it resolved to 8% of a dark brown
+     over a black background: a border nobody can see, on themes whose entire
+     declared material *is* the border. Mixing toward the tenant's own text
+     colour gives the same relationship on both polarities, exactly as
+     `--chrome-edge` does above. */
+  --brand-hairline: color-mix(in oklab, var(--brand-text) 14%, transparent);
+
+  /* ── Error ──────────────────────────────────────────────────────────────────
+     The sale badge's fill. Also previously a literal fallback (`#EF4444`), which
+     put an unrelated saturated red into Mahal's gold palette and clashed with
+     Matrix's green. Named here so it is at least owned by the token layer; the
+     badge reads it through `--on-accent`/`--brand-surface` either way. */
+  --brand-error: #c0392b;
+
+  /* Text for use on `--brand-primary` surfaces (hero panels, dark bands).
+     The page's own `--brand-text` is not always legible there — Mahal's text is
+     a dark brown and its primary is near-black — so these are separate.
+     `--brand-primary` is dark in every theme except Matrix's green, so the
+     default here is light; Matrix overrides it below. */
+  --on-primary: #f5f5f4;
+  --on-primary-muted: #b8b5b0;
+
+  /* Text for use on an accent-filled button. The accent is the tenant's loudest
+     colour, so the foreground is whatever its background is — not
+     `--on-primary`, which assumed a dark surface. Cream-on-gold measured 1.85:1
+     for Mahal's primary button; this puts near-white on blue, warm white on
+     gold, and near-black on Matrix's green. */
+  --on-accent: #ffffff;
+
+  /* ── Ink ───────────────────────────────────────────────────────────────────
+     The page foreground, derived from the tenant's own text colour by mixing
+     toward its background.
+
+     Mixing toward the *background* rather than toward transparent is the part
+     that matters: it produces the same lightness relationship on both
+     polarities. Lustre mixes #FAFAFA toward #000000 and stays a readable grey;
+     Mahal mixes #2C1E16 toward #FAFAF8 and does the same. A hardcoded
+     `stone-900` could do neither — it is black text, which on Lustre's #000000
+     and Matrix's #0D0208 rendered as black-on-black at 1.13:1 with zero ink
+     actually reaching the screen. */
+  --ink: var(--brand-text);
+  --ink-muted: color-mix(in oklab, var(--brand-text) 74%, var(--brand-background));
+  --ink-faint: color-mix(in oklab, var(--brand-text) 62%, var(--brand-background));
+
+  /* ── Fixed dark bands ──────────────────────────────────────────────────────
+     The footer, cart summary and legal strip are dark in every theme, so their
+     foreground must not be derived from the tenant — a white-tenant footer
+     would otherwise get white text. Tuned to clear 4.5:1 on #0c0a09. */
+  --band-dark: #0c0a09;
+  --on-dark: rgb(250 250 250);
+  --on-dark-muted: rgb(168 162 158);
+  --on-dark-faint: rgb(146 141 137);
+}
+
+/* ── Mahal ─────────────────────────────────────────────────────────────────
+   Warm, glassy, gold. Light page over a deep black-red. */
+body[data-theme="mahal"] {
+  --chrome-blur: 22px;
+  --chrome-bg: color-mix(in oklab, var(--brand-background) 76%, transparent);
+  --nav-pill-radius: 9999px;
+  /* Light cream on the black-red primary: 9.1:1, where brand-secondary's warm
+     clay measured 3.86:1 and failed AA. */
+  --on-accent: #1a0f14;
+  --on-primary: #f8efe4;
+  --on-primary-muted: #dcc7b4;
+}
+
+/* ── Lustre ────────────────────────────────────────────────────────────────
+   Flat, near-black, zero radius. No rim light, no lift, no blur — a frosted
+   pill is the wrong material here, so the nav is a crisp hairline bar. */
+body[data-theme="lustre"] {
+  /* Lustre's `--brand-text` is #FAFAFA, so the derived 14% already reads on
+     black. Stated explicitly because Lustre is the theme whose whole material
+     is a visible edge, and a hairline it barely shows is a defect. */
+  --brand-hairline: rgb(250 250 250 / 0.18);
+  --chrome-bg: rgb(0 0 0 / 0.78);
+  --chrome-fg: #fafafa;
+  --chrome-fg-muted: rgb(250 250 250 / 0.72);
+  --chrome-fg-faint: rgb(250 250 250 / 0.5);
+  --chrome-edge: rgb(250 250 250 / 0.2);
+  --chrome-rim: none;
+  --chrome-lift: none;
+  --chrome-blur: 0px;
+  --chrome-saturate: 1;
+  --nav-pill-radius: 0px;
+  --on-accent: #050505;
+  --on-primary: #fafafa;
+  --on-primary-muted: #c2c2c2;
+  /* Flat themes get no refraction: the displacement map needs a rim to bend,
+     and at zero radius there is none. */
+  --glass-rim: none;
+  --glass-lift: none;
+  --glass-blur: 0px;
+  --glass-saturate: 1;
+  --glass-tint-top: rgb(250 250 250 / 0.06);
+  --glass-tint-bottom: rgb(250 250 250 / 0.03);
+  --glass-edge: rgb(250 250 250 / 0.2);
+}
+
+/* ── Matrix ────────────────────────────────────────────────────────────────
+   Bordered, terminal green on near-black. The border is the material, so the
+   chrome keeps a crisp 1px accent edge and drops the blur. */
+body[data-theme="matrix"] {
+  /* Matrix's declared material is `border`, so its separators carry the accent,
+     matching `--chrome-edge` below. At the derived 14% of `#00FF41` the edge
+     would glow; at 26% it reads as a border that is clearly there. */
+  --brand-hairline: rgb(0 255 65 / 0.26);
+  --chrome-bg: rgb(13 2 8 / 0.86);
+  --chrome-fg: #00ff41;
+  --chrome-fg-muted: rgb(0 255 65 / 0.74);
+  --chrome-fg-faint: rgb(0 255 65 / 0.52);
+  --chrome-edge: rgb(0 255 65 / 0.38);
+  --chrome-rim: none;
+  --chrome-lift: 0 0 0 1px rgb(0 255 65 / 0.14);
+  --chrome-blur: 0px;
+  --chrome-saturate: 1;
+  --nav-pill-radius: 2px;
+  /* Matrix is the one theme whose `--brand-primary` is luminous (terminal green),
+     so text on it has to be dark. Every other theme inherits the light default. */
+  --on-accent: #0d0208;
+  --on-primary: #05070a;
+  --on-primary-muted: #0b2a10;
+  --glass-rim: none;
+  --glass-lift: 0 0 0 1px rgb(0 255 65 / 0.16);
+  --glass-blur: 0px;
+  --glass-saturate: 1;
+  --glass-tint-top: rgb(0 255 65 / 0.05);
+  --glass-tint-bottom: rgb(0 255 65 / 0.02);
+  --glass-edge: rgb(0 255 65 / 0.34);
 }
 
 /* Merchant-approved composition settings; all selectors keep the canonical DOM intact. */
@@ -51,4 +223,169 @@ body[data-theme="matrix"] .theme-hero-matrix {
 
 body[data-theme="lustre"] .theme-hero-lustre {
   display: block;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Liquid-glass nav shell.
+
+   The header is the one element on the page that both carries the brand and
+   sits over scrolling content, so it is where refraction earns its keep. Three
+   pieces:
+
+   1. .glass-nav-header paints the tint, rim highlight and shadow that make the
+      refraction read as glass rather than as a distortion. liquid-glass.js only
+      supplies the displacement + backdrop-filter; the dressing is CSS.
+   2. [data-scrolled="true"] is the pill. Height, width, radius and shadow all
+      transition together on one shared curve so nothing arrives a frame apart.
+   3. .glass-nav-announce collapses the promo bar out of the way first, so the
+      pill is the only thing left in the sticky container.
+
+   Radius is a concrete px value rather than `9999px` on purpose: the module
+   reads computed border-radius to build the displacement map, and a real number
+   keeps the rim crisp instead of relying on canvas to clamp an absurd one.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.glass-nav-shell {
+  position: sticky;
+  top: 0;
+  inset-inline: 0;
+  z-index: 50;
+  /* Chrome follows the tenant's own palette, so a dark tenant gets a dark bar.
+     Previously this painted a white glass tint on every theme, which turned
+     Lustre's and Matrix's black pages into grey bars with invisible wordmarks. */
+  --glass-tint-top: var(--chrome-bg);
+  --glass-tint-bottom: var(--chrome-bg);
+  --glass-edge: var(--chrome-edge);
+  --glass-rim: var(--chrome-rim);
+  --glass-lift: var(--chrome-lift);
+  --glass-blur: var(--chrome-blur);
+  --glass-saturate: var(--chrome-saturate);
+}
+
+.glass-nav-announce {
+  overflow: hidden;
+  max-height: 3rem;
+  transition:
+    max-height 480ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 280ms ease-out;
+}
+
+.glass-nav-announce[data-collapsed="true"] {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.glass-nav-header {
+  --nav-h: 4rem;
+  --nav-edge: transparent;
+  position: relative;
+  height: var(--nav-h);
+  width: 100%;
+  margin-inline: auto;
+  border-bottom: 1px solid var(--chrome-edge);
+  /* Chrome-derived tint, not a white wash: at the top the bar is opaque enough
+     to read text against, and it must belong to the tenant's palette. */
+  backdrop-filter: blur(var(--chrome-blur)) saturate(var(--chrome-saturate));
+  -webkit-backdrop-filter: blur(var(--chrome-blur)) saturate(var(--chrome-saturate));
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  transition:
+    height 480ms cubic-bezier(0.32, 0.72, 0, 1),
+    width 480ms cubic-bezier(0.32, 0.72, 0, 1),
+    margin 480ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 480ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 480ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-color 480ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (min-width: 640px) {
+  .glass-nav-header {
+    --nav-h: 5rem;
+  }
+}
+
+/* No extra rule is needed to switch the refraction on. `liquidGlass()` writes
+   `backdrop-filter` as an inline style, which outranks any stylesheet
+   declaration, and its `destroy()` clears the inline value — at which point the
+   base rule's frosted blur takes over again. */
+
+.glass-nav-header[data-scrolled="true"] {
+  --nav-h: 3.25rem;
+  --nav-edge: var(--chrome-edge);
+  /* Matches `content-container`'s measure so the pill and the sections below it
+     share an edge. Was 68rem, which stopped ~350px short of the content. */
+  width: min(100% - 1.5rem, var(--content-max));
+  margin-top: 0.75rem;
+  border: 1px solid var(--nav-edge);
+  /* Theme-derived: a capsule on Default and Mahal, a crisp 0px bar on Lustre,
+     a 2px edge on Matrix. Hardcoding 26px fought Lustre's declared flat,
+     zero-radius material. */
+  border-radius: var(--nav-pill-radius);
+  box-shadow: var(--chrome-rim), var(--chrome-lift);
+}
+
+/* Frosted fallback (Safari, Firefox). The module sets the blur inline and adds
+   .lg-fallback; this only keeps the tint consistent with the Chromium path. */
+.glass-nav-header.lg-fallback {
+  background: var(--chrome-bg);
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   The glass material, as reusable classes.
+
+   The nav is not the only surface that should read as glass. The product-card
+   quick-view, the bridal consultation panel and the cart dropdown all sit over
+   imagery or scrolled content, and each had invented its own alpha/blur pair —
+   which is why they never looked like one material. These three classes are the
+   whole vocabulary. Refraction is reserved for the nav, where it earns its GPU
+   cost; everything else uses the frosted form.
+
+     .glass         light surface, sits on light or on image
+     .glass-dark    light text over a dark tint, for use on dark imagery
+     .glass-chip    small floating pill: quick-view, shop-now, category chip
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.glass,
+.glass-dark {
+  background: linear-gradient(
+    180deg,
+    var(--glass-tint-top) 0%,
+    var(--glass-tint-bottom) 100%
+  );
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-rim), var(--glass-lift);
+}
+
+.glass-dark {
+  background: linear-gradient(180deg, rgb(20 20 23 / 0.7), rgb(20 20 23 / 0.52));
+  border-color: rgb(255 255 255 / 0.28);
+  box-shadow: var(--glass-rim);
+}
+
+/* Geometry only — deliberately no background.
+   `.glass-chip` used to paint its own translucent fill, which then fought every
+   `bg-white` button it was added to: two backgrounds of equal specificity, and
+   the result depended on stylesheet order. The hero's primary button rendered as
+   a muddy grey lozenge because of it. A chip's shape should not decide its fill,
+   so the fill comes from Tailwind (`bg-white`, `text-stone-950`, …) and this
+   class contributes only the silhouette and the rim light.
+
+   For a chip that sits on imagery and genuinely needs the frosted fill, use
+   `glass` or `glass-dark` alongside `glass-chip`. */
+.glass-chip {
+  border-radius: 9999px;
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-rim);
+}
+
+/* Reduced motion: land on the final state instantly rather than animating a
+   shape the user did not ask to move. */
+@media (prefers-reduced-motion: reduce) {
+  .glass-nav-header,
+  .glass-nav-announce {
+    transition-duration: 1ms;
+  }
 }

@@ -7,6 +7,12 @@ let STHENO_BACKEND_URL = "http://localhost:9000"
 
 if (process.env.STHENO_BACKEND_URL) {
   STHENO_BACKEND_URL = process.env.STHENO_BACKEND_URL
+} else if (process.env.STHENO_BUILD_BACKEND_URL) {
+  // Docker build only. The build container has no access to the compose network
+  // (service names like `engine` do not resolve at build time), so prerender
+  // fetches use this loopback/host-gateway URL if one is supplied. Never read
+  // at request time: STHENO_BACKEND_URL above always wins when set.
+  STHENO_BACKEND_URL = process.env.STHENO_BUILD_BACKEND_URL
 }
 
 export const sdk = new Medusa({

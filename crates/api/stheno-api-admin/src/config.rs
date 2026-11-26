@@ -203,7 +203,16 @@ pub async fn list_tax_regions(
         )
             .into_response()
     })?;
-    let all_rates = ctx.tax_service.list_tax_rates().await.unwrap_or_default();
+    // Propagated rather than defaulted. A failed read used to become an empty rate list,
+    // which the dashboard renders as "this region has no tax configured" - a database
+    // outage indistinguishable from a merchant who never set one up.
+    let all_rates = ctx.tax_service.list_tax_rates().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+        )
+            .into_response()
+    })?;
 
     let regions_with_rates: Vec<serde_json::Value> = all
         .into_iter()
@@ -293,7 +302,14 @@ pub async fn get_tax_region(
 ) -> Result<impl IntoResponse, Response> {
     match ctx.tax_service.get_tax_region(&id).await {
         Ok(r) => {
-            let all_rates = ctx.tax_service.list_tax_rates().await.unwrap_or_default();
+            // Same as the list endpoint above: a failed read must not look like "no rates".
+            let all_rates = ctx.tax_service.list_tax_rates().await.map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse::new("unexpected_state", &e.to_string())),
+                )
+                    .into_response()
+            })?;
             let reg_id_str = r.id.to_string();
             let rates: Vec<&stheno_tax::TaxRateDTO> = all_rates
                 .iter()

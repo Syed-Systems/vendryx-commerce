@@ -128,7 +128,7 @@ pub fn feature_flags(entitlements: &Entitlements) -> Vec<(&'static str, bool)> {
 /// omitted them for as long as they existed — and the dashboard reads absent and false
 /// differently. `all_features_lists_every_variant` in `tests/gated_mounting.rs` now makes
 /// the compiler enforce it, because a comment cannot.
-pub const ALL_FEATURES: [Feature; 11] = [
+pub const ALL_FEATURES: [Feature; 12] = [
     Feature::SpreadsheetImport,
     Feature::CsvExport,
     Feature::WebPush,
@@ -140,4 +140,5 @@ pub const ALL_FEATURES: [Feature; 11] = [
     Feature::CustomTheme,
     Feature::Branding,
     Feature::BuyerAccounts,
+    Feature::AiAssistant,
 ];

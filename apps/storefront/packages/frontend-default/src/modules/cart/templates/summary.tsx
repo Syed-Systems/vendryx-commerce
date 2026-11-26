@@ -26,8 +26,8 @@ const Summary = ({ cart }: SummaryProps) => {
   const step = getCheckoutStep(cart)
 
   return (
-    <div className="flex flex-col gap-y-4 p-6 bg-zinc-50/80 rounded-2xl border border-zinc-200/80">
-      <h2 className="text-xl font-serif font-bold text-zinc-950">
+    <div className="flex flex-col gap-y-4 p-6 bg-[color:var(--band-dark)]/80 rounded-[var(--brand-radius-card)] border text-[color:var(--on-dark-muted)]/80">
+      <h2 className="text-xl font-heading font-bold text-[color:var(--on-dark)]">
         Order Summary
       </h2>
       <DiscountCode cart={cart} />
@@ -38,13 +38,13 @@ const Summary = ({ cart }: SummaryProps) => {
         data-testid="checkout-button"
         className="block mt-2"
       >
-        <button className="w-full py-3.5 px-6 rounded-full bg-zinc-950 text-white font-semibold text-xs uppercase tracking-widest hover:bg-zinc-800 active:scale-[0.99] transition-all shadow-md flex items-center justify-center gap-2">
+        <button className="w-full py-3.5 px-6 rounded-[var(--brand-radius-button)] bg-[color:var(--band-dark)] text-[color:var(--on-dark)] font-semibold text-xs uppercase tracking-widest hover:bg-[color:var(--band-dark)] active:scale-[0.99] transition-all shadow-md flex items-center justify-center gap-2">
           <span>Proceed to Checkout</span>
           <span>→</span>
         </button>
       </LocalizedClientLink>
 
-      <div className="text-[11px] text-zinc-500 text-center font-light pt-2 flex items-center justify-center gap-2">
+      <div className="text-[11px] text-[color:var(--on-dark-muted)] text-center font-light pt-2 flex items-center justify-center gap-2">
         <span>🔒 Secure 256-Bit SSL Encryption</span>
       </div>
     </div>

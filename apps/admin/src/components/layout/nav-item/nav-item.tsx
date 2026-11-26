@@ -49,7 +49,7 @@ export type INavItem = {
 }
 
 const BASE_NAV_LINK_CLASSES =
-  "group text-ui-fg-subtle transition-all duration-150 hover:text-ui-fg-base hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-x-2.5 rounded-lg h-[34px] px-2.5 outline-none [&_svg]:text-ui-fg-muted hover:[&_svg]:text-ui-fg-subtle focus-visible:shadow-borders-focus select-none"
+  "group text-ui-fg-subtle transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 hover:text-ui-fg-base hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-x-2.5 rounded-lg h-[34px] px-2.5 outline-none [&_svg]:text-ui-fg-muted hover:[&_svg]:text-ui-fg-subtle focus-visible:shadow-borders-focus select-none"
 const ACTIVE_NAV_LINK_CLASSES =
   "bg-black/[0.07] text-ui-fg-base font-semibold shadow-xs dark:bg-white/[0.12] dark:text-white hover:bg-black/[0.08] dark:hover:bg-white/[0.16] [&_svg]:text-ui-fg-base dark:[&_svg]:text-white"
 const NESTED_NAV_LINK_CLASSES =

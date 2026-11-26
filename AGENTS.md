@@ -11,9 +11,82 @@ and a change that violates them fails the build rather than earning a review com
 **Working a task?** [TASKS.md §1](docs/TASKS.md) is the loop protocol. Rule L3 — never edit an exit
 command to make it pass — is the one that keeps the loop honest.
 
-**Handed a design to build?** Read [§12](#12-frontends-adapting-a-design) first. `ADAPT` means a new
+**Handed a design to build?** Read [§12](#12-frontends-visual-theming) first. `ADAPT` means a new
 frontend module built from that design — not `frontend-default` repainted. Guessing that one wrong has
 cost three rebuilds, and `./scripts/check-frontend-not-forked.sh` now fails the build over it.
+
+---
+
+## 0. Before you touch anything
+
+**Scope: frontend branch only.** Work on `origin/frontend`, not `main`. The remote branches are
+`main`, `frontend`, `feat/brand-kit-v1.0`, and `fix/storefront-checkout-and-alignment`. As of
+`79767d8`, **`frontend` and `main` point at the same commit** — `frontend` is a fresh branch, not a
+divergent line of work, so diffing against `main` shows nothing today.
+
+`origin/frontend` may not be fetched locally yet. Check with `git fetch --all --prune && git branch -r`
+before concluding a branch does not exist — `git branch -a` alone reads stale remote-tracking refs
+and will lie to you.
+
+All of §1–§11 below is CI-enforced repo-wide; §2 matters when you touch `crates/`, §0 and §12 when
+you touch `apps/`.
+
+### Running it
+
+`run-dev.bat` (local, uncommitted) — double-click it, or `run-dev.bat` / `run-dev.bat stop`.
+It is a thin wrapper: it shells out to `scripts/dev-tenants.sh` (the same script CI runs,
+`.github/workflows/ci.yml`) and then starts the four frontends. Do not re-implement tenant
+creation, migrations, or owner registration in batch — that script owns them.
+
+### This Windows box breaks four documented defaults
+
+Verified by running them. Each costs an afternoon if rediscovered.
+
+| Thing | What breaks | Why |
+|---|---|---|
+| Postgres `5432` | `bind: access to the socket is forbidden` | Windows reserves TCP `5429–5528`. Published on host **`5900`** by `docker-compose.override.yml` (untracked, local only). |
+| Vite `5173/5174/5175` | `listen EACCES: permission denied` | Windows reserves TCP `5141–5240`. |
+| Node `25.x` | every storefront page 500s: `localStorage.getItem is not a function` | Node 25 exposes a global `localStorage` that throws without `--localstorage-file`. Needs `NODE_OPTIONS=--no-experimental-webstorage` (set by the launcher). **Real fix is Node 22; CI pins 20.** |
+| `.cargo/config.toml` | — | **Fixed.** It pinned `target-dir` to `C:/Users/Mahi/rust-target`. Builds now go to the repo-local `target/`, which `.gitignore` already covers. Set `CARGO_TARGET_DIR` in your shell if you want them elsewhere. |
+
+Live ports: engine `9000`, storefront `8000`, admin `6000` (local) / `6100` (Docker), platform `6001` / `6201` (Docker), marketing `6002` / `6202` (Docker),
+Postgres `5900`, Redis `6379`. Use Docker ports if Windows blocks the local ones.
+
+### The build tree is large, and that is not the project's size
+
+`target/` reached **24.7 GB** here. It was not the code. Every integration test file links its
+own executable (~240 of them), and on Windows MSVC writes a full `.pdb` per binary even under
+`debug = "line-tables-only"` — 25.8 MB each, so 6.2 GB for a partial build and ~15 GB for the
+whole suite. `Cargo.toml` now sets `[profile.test] debug = "none"` so the throwaway test
+binaries carry no symbols while `cargo build` / `cargo run` keep their line numbers.
+
+Two consequences worth knowing:
+
+- **A panic inside a test reports a function name, not a file and line.** That is the tradeoff,
+  not a bug. A failing test already names its file.
+- **The disk will fill again.** `cargo test --workspace` needs roughly 7 GB of real code on top
+  of whatever is there. If a build dies with `os error 112` / "not enough space on the disk",
+  that is it — not a code error. `scripts/check-disk-space.sh` exists for exactly this, and CI
+  runs it before the test stage. Delete `target/debug/incremental` first; it is a regenerable
+  cache and is the single largest thing you can reclaim without losing compiled artifacts.
+
+### Frontend facts that are not in the docs
+
+- **Tenant comes from the `Host` header**, not from login. `*.localhost` resolves inside browsers
+  but **not** in Node, so storefront SSR must use `127.0.0.1`, not `localhost`. `127.0.0.1` and
+  `localhost` are registered as secondary domains of the Pro tenant.
+- **Storefront env file is `apps/storefront/.env.local`; admin and marketing use `.env`.**
+- `apps/admin/.env.example` ships `VITE_CLERK_PUBLISHABLE_KEY=pk_test_...`. That placeholder is
+  truthy and **overrides** the working dev key hardcoded in
+  `apps/admin/src/providers/clerk-provider/clerk-auth-provider.tsx`. Comment it out locally.
+- `apps/storefront/package.json` **was broken**: all 7 dev/build/start scripts called
+  `scripts/frontend.js`, deleted in commit `70f5d81`, and 12 more referenced `matrix`/`mahal`/
+  `appliance` variants whose `tsconfig.*.json` do not exist. Fixed locally to call `next`
+  directly. Re-check this before assuming `npm run dev` works on a fresh clone.
+- `scripts/dev-tenants.sh status` **never connects**. Its `db=` value and tenant table are
+  hardcoded strings. Do not cite it as evidence about the live stack.
+- npm's `allowScripts` gating blocks postinstall for `sharp`, `esbuild`, `unrs-resolver`, and
+  `@clerk/shared`. Pages render anyway, but `sharp` means storefront image optimization may fail.
 
 ---
 
@@ -344,33 +417,63 @@ focused feature loop during implementation. When a broad gate is scheduled or re
 cross-cutting change, run it on Space and report the real output. Never claim a gate passed if it
 was not run.
 
+Order matters: format and boundaries before the long compile, `clippy` before `test` so a
+warning does not cost you a test run.
+
 ```bash
+# ── Rust, in CI order (ci.yml stage 1 then 2) ──
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo deny check
 ./scripts/check-module-isolation.sh     # no lateral or upward module edges
 ./scripts/check-sql-boundaries.sh       # no cross-schema raw SQL
 ./scripts/check-shared-kernel.sh        # stheno-types stays starved
 ./scripts/check-module-contracts.sh     # MODULE.toml matches reality
+./scripts/check-dto-separation.sh       # request DTOs are not entity types (§2.9)
 ./scripts/check-no-domain-gates.sh      # no Entitlements inside crates/modules/
+./scripts/check-no-in-memory-stores.sh  # no fake persistence (§2.8)
+./scripts/check-no-enterprise-paths.sh  # no bypass of the public surface
+./scripts/check-migration-phases.sh     # expand/contract pairing (§2.13)
+./scripts/check-ci-postgres.sh
+./scripts/check-upstream-pin.sh
+./scripts/check-disk-space.sh           # before a full test run
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
 ./scripts/check-schema-drift.sh
-cargo run -p stheno-cli -- openapi --check      # SDK drift
-python scripts/doc-sync-workflow.py check       # documentation sync & pricing invariants
-k6 run tests/load/<phase>.js                    # at phase gates
+
+# ── Frontend, in CI order (ci.yml stage 1 then 2) ──
+npm --prefix apps/admin      run typecheck
+npm --prefix apps/storefront run typecheck      # == npx tsc --noEmit
+# Per-theme typecheck, only when you add a frontend under packages/:
+cd apps/storefront && for cfg in tsconfig.*.json; do [ "$cfg" = "tsconfig.json" ] && continue; npx tsc --noEmit -p "$cfg"; done
+./scripts/check-frontend-not-forked.sh   # an independent frontend is not frontend-default repainted
+./scripts/check-frontend-switch.sh       # the bundler binds the one it was asked for
+./scripts/check-storefront-boundaries.sh # a frontend may not reach into core
+./scripts/check-frontend-purity.sh       # a frontend presents; it does not fetch
+./scripts/check-frontend-pin.sh          # every frontend pins a core major
+./scripts/check-frontend-resolution.sh   # core binds one frontend, in one place
+npm --prefix apps/admin      test && npm --prefix apps/admin      run build
+npm --prefix apps/storefront run build
+
+# ── Only when these are touched ──
+cargo deny check
+cargo run -p stheno-cli -- openapi --check       # SDK drift
+python scripts/doc-sync-workflow.py check        # doc sync & pricing invariants
+./scripts/check-image.sh                         # distroless size + cold-boot budgets
+./scripts/check-disclosure.sh                    # security disclosure + SBOM
+./scripts/check-pci-saq-a.sh                     # checkout script integrity
+./scripts/check-provider-conformance.sh          # provider fixtures / conformance
+k6 run tests/load/<phase>.js                     # at phase gates
 ```
 
-Storefront — run these when a frontend module changes (see [§12](#12-frontends-adapting-a-design)):
+**On Windows: not every gate has a `.ps1` twin.** 20 of the 70 `check-*`/`gate-*` scripts are
+bash-only, and they include **every frontend gate** — `check-frontend-not-forked`,
+`check-frontend-switch`, `check-storefront-boundaries`, `check-frontend-purity`,
+`check-frontend-pin`, `check-frontend-resolution`, plus `check-ci-postgres`, `check-disk-space`,
+`check-docs-links`, `check-upstream-pin`, `check-extraction-parity`, `check-pool-checkout`,
+`check-playbook`, `check-control-plane-audit`. Run them under Git Bash
+(`C:\Program Files\Git\bin\bash.exe`) or WSL. Do not assume a Windows-native equivalent exists.
 
-```bash
-npm --prefix apps/storefront run typecheck
-./scripts/check-storefront-boundaries.sh   # a frontend may not reach into core
-./scripts/check-frontend-purity.sh            # a frontend presents; it does not fetch
-./scripts/check-frontend-pin.sh               # every frontend pins a core major
-./scripts/check-frontend-resolution.sh        # core binds one frontend, in one place
-./scripts/check-frontend-switch.sh            # the bundler binds the one it was asked for
-./scripts/check-frontend-not-forked.sh        # an independent frontend is not frontend-default repainted
-```
+`check-frontend-switch.sh` needs `STHENO_FRONTEND` set and **fails under `--turbopack`**
+(`next.config.js` rewrites through the webpack resolver, which Turbopack bypasses).
 
 ---
 
@@ -461,6 +564,26 @@ decision. [ADR-020](docs/DECISIONS.md#adr-020) is the open one.
 A design does not get to rename existing URLs either. `/shop` does not become the store route
 because a design called it that — SEO and sitemap contracts cover those, and the Store API is
 frozen ([§2.11](#211-store-api-is-frozen)).
+
+### 12.4 How it is actually laid out
+
+Only three packages exist under `apps/storefront/packages/`:
+
+- `storefront-core` — data loaders, middleware, region handling, shared UI. A frontend may consume
+  this but must never reach past it.
+- `frontend-default` — the canonical chassis and the only supported storefront.
+- `frontend-fixture-violating` — a deliberate violator used by the frontend gates.
+  `check-frontend-not-forked.sh` explicitly skips `frontend-fixture-*`, so do not "fix" it and
+  do not count it when you reason about how many frontends ship.
+
+The Next app itself is `apps/storefront` root: `src/app/[countryCode]/`, `src/middleware.ts`,
+`next.config.js`. `next.config.js` reads `STHENO_FRONTEND` (default `default`) and rewrites
+through the webpack resolver, so **`next dev --turbopack` silently serves the wrong frontend** —
+`check-frontend-switch.sh` exists because a build once reported "Compiled successfully" while
+shipping `frontend-default` markup. Use the plain webpack dev server.
+
+`docs/VENDRYX_SCREEN_MATRIX.md` is the UI catalogue.
+[docs/archive/FRONTEND_MATRIX.md](docs/archive/FRONTEND_MATRIX.md) is the historical matrix.
 
 ---
 

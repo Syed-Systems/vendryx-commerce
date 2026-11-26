@@ -8,7 +8,7 @@ export const ConfigurableOrderListTable = () => {
   const { t } = useTranslation()
   const location = useLocation()
   const isSocial = location.pathname.includes("/social")
-  const adapter = useOrderTableAdapter()
+  const adapter = useOrderTableAdapter({ t })
 
   return (
     <>

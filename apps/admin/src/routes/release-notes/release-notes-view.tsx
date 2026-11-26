@@ -1,4 +1,4 @@
-import { Badge, Container, Heading, Text } from "@medusajs/ui"
+﻿import { Badge, Container, Heading, Text } from "@medusajs/ui"
 import { SingleColumnPage } from "../../components/layout/pages"
 
 interface ReleaseEntry {
@@ -66,7 +66,7 @@ const RELEASES: ReleaseEntry[] = [
       },
       {
         category: "Localization",
-        title: "Bangladeshi Taka (BDT ৳) Native Engine",
+        title: "Bangladeshi Taka (৳) Native Engine",
         description:
           "Full localization for Bangladeshi commerce: decimal-accurate pricing, divisional addresses, and English/Bengali UI support.",
       },
@@ -151,7 +151,7 @@ export const ReleaseNotesView = () => {
                       className="rounded-lg border border-ui-border-base bg-ui-bg-subtle/40 p-4"
                     >
                       <div className="flex items-center gap-x-2 mb-1.5">
-                        <Badge size="2xsmall" color="blue" className="uppercase text-[10px]">
+                        <Badge size="2xsmall" color="blue" className="uppercase text-xs">
                           {item.category}
                         </Badge>
                         <Text size="small" weight="plus" className="text-ui-fg-base">

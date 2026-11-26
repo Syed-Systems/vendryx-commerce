@@ -191,13 +191,22 @@ fn cors_layer() -> CorsLayer {
         })
         .collect();
 
+    // Dev origins for this machine. These are NOT Vite's defaults: Windows
+    // reserves 5141-5240, so every app is pinned to a port outside it, and the
+    // admin is on 6100 because Chromium refuses to navigate to 6000 at all
+    // (ERR_UNSAFE_PORT). Matching the defaults here meant the admin's
+    // preflight failed, `list_providers` came back empty, and the panel
+    // reported "Register an auth provider in your Vendryx config" while the
+    // engine had emailpass registered the whole time.
     for dev_origin in [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
+        "http://localhost:6100",
+        "http://127.0.0.1:6100",
+        "http://localhost:6001",
+        "http://127.0.0.1:6001",
+        "http://localhost:6002",
+        "http://127.0.0.1:6002",
     ] {
         if let Ok(hv) = HeaderValue::from_str(dev_origin) {
             if !origins.contains(&hv) {
@@ -561,6 +570,10 @@ pub async fn seed_demo(pool: stheno_db::DbPool) {
     // variant. Previously they were seeded bare: no options, no variants, no prices — so
     // the storefront rendered a catalogue nothing could be selected from or added to a
     // cart, and every checkout journey was untestable end to end.
+    // `thumbnail` was `None` on both, so the demo catalogue rendered two blank
+    // product cards and the Featured / Latest Drops rails looked empty even
+    // though they had products. Served as storefront-relative paths so the demo
+    // needs no asset host: the storefront's `public/brand/editorial` serves them.
     let demo_products = [
         (
             "Stheno Performance Hoodie",
@@ -568,6 +581,7 @@ pub async fn seed_demo(pool: stheno_db::DbPool) {
             "Heavyweight Organic Cotton Fleece",
             "Engineered for comfort and durability with signature flatlock stitching.",
             "HOODIE",
+            "/brand/editorial/product-hoodie-1.jpg",
             rust_decimal_macros::dec!(120.00),
             rust_decimal_macros::dec!(110.00),
         ),
@@ -577,12 +591,13 @@ pub async fn seed_demo(pool: stheno_db::DbPool) {
             "240 GSM Combed Jersey",
             "Relaxed fit premium daily essential.",
             "TEE",
+            "/brand/editorial/product-tee-1.jpg",
             rust_decimal_macros::dec!(45.00),
             rust_decimal_macros::dec!(40.00),
         ),
     ];
 
-    for (title, handle, subtitle, description, sku_prefix, usd, eur) in demo_products {
+    for (title, handle, subtitle, description, sku_prefix, thumbnail, usd, eur) in demo_products {
         let Ok(product) = product_service
             .create_product(CreateProductInput {
                 title: title.to_string(),
@@ -610,7 +625,7 @@ pub async fn seed_demo(pool: stheno_db::DbPool) {
                     subtitle: None,
                     description: None,
                     status: Some("published".to_string()),
-                    thumbnail: None,
+                    thumbnail: Some(thumbnail.to_string()),
                     discountable: None,
                 },
             )
@@ -1274,6 +1289,10 @@ impl AppServer {
             payment_service.clone(),
             promotion_service.clone(),
             Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+            // The same store the SAGA engine already uses, so checkout idempotency and
+            // resume checkpoints survive a restart instead of living in a HashMap on this
+            // process.
+            workflow_store.clone(),
         ));
         let return_flow = Arc::new(ReturnWorkflowEngine::new(
             order_service.clone(),
@@ -1514,7 +1533,15 @@ impl AppServer {
                 )],
             ))
             .merge(admin_routes)
-            .merge(gate_buyer_auth(auth_routes(AuthApiContext { auth_flows })))
+            .merge(gate_buyer_auth(auth_routes(AuthApiContext {
+                auth_flows,
+                // One limiter for the process, shared by every auth route. Without it the
+                // login endpoint had no throttle at all and password grinding was free.
+                login_limiter: Arc::new(stheno_http::rate_limit::RateLimiter::new(
+                    stheno_api_auth::LOGIN_MAX_ATTEMPTS,
+                    stheno_api_auth::LOGIN_WINDOW_SECS,
+                )),
+            })))
             // Inbound gateway callbacks belong inside the tenant scope, not beside it.
             // Mounted outside, `/hooks/payment/{provider}` answered every callback with
             // `tenant_not_established`: the handler resolves the tenant's credentials to

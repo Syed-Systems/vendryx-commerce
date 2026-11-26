@@ -245,9 +245,10 @@ async fn tenant_credentials_are_available_for_dispatch_but_not_persisted() {
     let db = TestDb::migrated().await;
     let pool = create_pool(&db.url, 5).expect("pool");
     let service = FulfillmentService::new(pool);
+    let calls = Arc::new(AtomicUsize::new(0));
     service.register_provider(Arc::new(SilentCarrier {
         id: "silent-carrier",
-        calls: None,
+        calls: Some(calls.clone()),
         fail: false,
         labels: vec![],
     }));

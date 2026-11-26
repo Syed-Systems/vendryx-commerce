@@ -20,7 +20,7 @@ export const CourierLogo: React.FC<CourierLogoProps> = ({ id, size = "medium" })
   if (normalized.includes("pathao")) {
     return (
       <div
-        className={`${dim} flex items-center justify-center rounded-xl bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-all hover:scale-105 hover:shadow-xs`}
+        className={`${dim} flex items-center justify-center rounded-xl bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:scale-105 hover:shadow-xs`}
         title="Pathao Courier Logistics"
       >
         {!hasError ? (
@@ -47,7 +47,7 @@ export const CourierLogo: React.FC<CourierLogoProps> = ({ id, size = "medium" })
   if (normalized.includes("steadfast")) {
     return (
       <div
-        className={`${dim} flex items-center justify-center rounded-xl bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-all hover:scale-105 hover:shadow-xs`}
+        className={`${dim} flex items-center justify-center rounded-xl bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:scale-105 hover:shadow-xs`}
         title="Steadfast Courier Services"
       >
         {!hasError ? (
@@ -74,7 +74,7 @@ export const CourierLogo: React.FC<CourierLogoProps> = ({ id, size = "medium" })
   if (normalized.includes("redx")) {
     return (
       <div
-        className={`${dim} flex items-center justify-center rounded-xl bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-all hover:scale-105 hover:shadow-xs`}
+        className={`${dim} flex items-center justify-center rounded-xl bg-white border border-ui-border-base shadow-2xs shrink-0 overflow-hidden transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:scale-105 hover:shadow-xs`}
         title="RedX Parcel Delivery"
       >
         {!hasError ? (

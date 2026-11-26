@@ -106,7 +106,7 @@ export const CodRulesCard = () => {
           {/* Max Order Value */}
           <div className="flex flex-col gap-y-2">
             <Label size="small" weight="plus">
-              Maximum Order Amount (BDT)
+              Maximum Order Amount (৳)
             </Label>
             <div className="relative flex items-center">
               <span className="absolute left-3 text-ui-fg-muted font-semibold">৳</span>

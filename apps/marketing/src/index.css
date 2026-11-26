@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Vendryx Approved Brand Kit v1.0 (tokens.css) */
+:root {
+  --vendryx-orange: #ff7a00;
+  --vendryx-orange-hover: #d95700;
+  --vendryx-orange-light: #ffaf24;
+  --vendryx-orange-deep: #f45605;
+  --vendryx-charcoal: #0f1115;
+  --vendryx-pure-black: #080a0c;
+  --vendryx-dark-surface: #1b1e24;
+  --vendryx-warm-white: #fffcf8;
+  --vendryx-slate: #64748b;
+  --vendryx-border: rgba(255, 252, 248, 0.08);
+}
+
+@layer base {
+  html {
+    background-color: #080a0c;
+    color: #fffcf8;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+}
+
+.vendryx-hero-glow {
+  background: radial-gradient(
+    60% 42% at 50% 0%,
+    rgba(255, 122, 0, 0.14) 0%,
+    rgba(255, 175, 36, 0.04) 40%,
+    rgba(8, 10, 12, 0) 100%
+  );
+}
+
+.vendryx-card-surface {
+  background: linear-gradient(
+    180deg,
+    rgba(27, 30, 36, 0.72) 0%,
+    rgba(15, 17, 21, 0.92) 100%
+  );
+}
+
+.vendryx-cockpit-frame {
+  background: linear-gradient(
+    180deg,
+    rgba(22, 25, 31, 0.97) 0%,
+    rgba(12, 14, 18, 0.99) 100%
+  );
+}
+
+.vendryx-grid-mask {
+  background-image: linear-gradient(to right, rgba(255, 252, 248, 0.032) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 252, 248, 0.032) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 75% 60% at 50% 0%, #000 18%, transparent 80%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

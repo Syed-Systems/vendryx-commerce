@@ -143,6 +143,7 @@ describe("Merchant Routes Smoke Suite (ADM-050 / ADM-051)", () => {
 
   it("renders Home Cockpit route without uncaught exceptions", () => {
     renderWithProviders(<Home />)
+    expect(screen.getByRole("heading", { name: /Good (morning|afternoon|evening)/i })).toBeDefined()
     expect(screen.getByRole("heading", { name: /recent orders/i })).toBeDefined()
   })
 

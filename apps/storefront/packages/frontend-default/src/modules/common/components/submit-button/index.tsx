@@ -24,7 +24,7 @@ export function SubmitButton({
       // template's square button, so the one flow that matters looked like a different
       // product from the pages leading into it.
       className={clx(
-        "rounded-full px-6 py-3 text-xs font-semibold uppercase tracking-widest shadow-md transition-all active:scale-[0.99]",
+        "rounded-[var(--brand-radius-button)] px-6 py-3 text-xs font-semibold uppercase tracking-widest shadow-md transition-all active:scale-[0.99]",
         className
       )}
       type="submit"

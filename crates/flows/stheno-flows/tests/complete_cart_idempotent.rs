@@ -21,6 +21,7 @@ async fn test_no_double_charge_duplicate_complete_returns_same_order() {
         payment_service.clone(),
         promotion_service.clone(),
         Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+        Arc::new(stheno_workflow::WorkflowStore::from_pool(pool.clone())),
     );
 
     // 1. Seed cart

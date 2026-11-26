@@ -90,6 +90,7 @@ async fn test_crash_resumption_at_all_11_steps() {
         payment_service.clone(),
         promotion_service.clone(),
         Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+        Arc::new(stheno_workflow::WorkflowStore::from_pool(pool.clone())),
     );
 
     // Test crash and resume at each step 1..=10

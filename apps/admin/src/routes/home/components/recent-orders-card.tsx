@@ -137,7 +137,7 @@ export const RecentOrdersCard = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Link
               to="/products"
-              className="flex flex-col justify-between p-3.5 rounded-lg border border-ui-border-base hover:border-ui-border-strong hover:bg-ui-bg-subtle/30 transition-all group no-underline"
+              className="flex flex-col justify-between p-3.5 rounded-lg border border-ui-border-base hover:border-ui-border-strong hover:bg-ui-bg-subtle/30 transition-[color,background-color,border-color,box-shadow,transform,opacity] group no-underline"
             >
               <div className="flex items-center gap-2 mb-2">
                 <Tag className="w-4 h-4 text-purple-600" />
@@ -152,7 +152,7 @@ export const RecentOrdersCard = ({
 
             <Link
               to="/payment-providers"
-              className="flex flex-col justify-between p-3.5 rounded-lg border border-ui-border-base hover:border-ui-border-strong hover:bg-ui-bg-subtle/30 transition-all group no-underline"
+              className="flex flex-col justify-between p-3.5 rounded-lg border border-ui-border-base hover:border-ui-border-strong hover:bg-ui-bg-subtle/30 transition-[color,background-color,border-color,box-shadow,transform,opacity] group no-underline"
             >
               <div className="flex items-center gap-2 mb-2">
                 <CreditCard className="w-4 h-4 text-blue-600" />
@@ -169,7 +169,7 @@ export const RecentOrdersCard = ({
               href={STHENO_STOREFRONT_URL}
               target="_blank"
               rel="noreferrer"
-              className="flex flex-col justify-between p-3.5 rounded-lg border border-ui-border-base hover:border-ui-border-strong hover:bg-ui-bg-subtle/30 transition-all group no-underline"
+              className="flex flex-col justify-between p-3.5 rounded-lg border border-ui-border-base hover:border-ui-border-strong hover:bg-ui-bg-subtle/30 transition-[color,background-color,border-color,box-shadow,transform,opacity] group no-underline"
             >
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2">

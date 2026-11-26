@@ -44,10 +44,23 @@ pub struct FilterSpec {
     /// product list filter in the admin API uses. Keying by field silently
     /// dropped the first of the pair.
     pub predicates: Vec<(String, FilterOp)>,
+    /// Optional predicate groups joined with `OR`. Combined with the flat `AND`
+    /// list above so a query can express `title LIKE 'x%' OR handle LIKE 'x%'`,
+    /// which a flat AND list cannot.
+    pub or_groups: Vec<OrGroup>,
     pub order_by: Vec<OrderBy>,
     pub offset: Option<usize>,
     pub limit: Option<usize>,
     pub depth: usize,
+}
+
+/// A group of predicates joined with `OR`. Used together with `FilterSpec`'s flat
+/// `AND` predicate list, so a single query can express `(title LIKE ... OR
+/// handle LIKE ...) AND created_at >= ...`. Never nested: a group's predicates are
+/// flat filters, exactly like the top-level ones.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OrGroup {
+    pub predicates: Vec<(String, FilterOp)>,
 }
 
 impl FilterSpec {
@@ -57,6 +70,11 @@ impl FilterSpec {
 
     pub fn with_predicate(mut self, field: impl Into<String>, op: FilterOp) -> Self {
         self.predicates.push((field.into(), op));
+        self
+    }
+
+    pub fn with_or_group(mut self, group: OrGroup) -> Self {
+        self.or_groups.push(group);
         self
     }
 
@@ -162,7 +180,13 @@ impl FilterSpec {
             });
         }
 
-        if self.predicates.len() > MAX_PREDICATES {
+        let total_pred = self.predicates.len()
+            + self
+                .or_groups
+                .iter()
+                .map(|g| g.predicates.len())
+                .sum::<usize>();
+        if total_pred > MAX_PREDICATES {
             return Err(Error::Invalid {
                 code: "too_many_predicates",
                 message: format!(
@@ -198,6 +222,38 @@ impl FilterSpec {
                     });
                 }
                 _ => {}
+            }
+        }
+
+        for group in &self.or_groups {
+            for (field, op) in &group.predicates {
+                match op {
+                    FilterOp::In(elements) if elements.len() > MAX_IN_ELEMENTS => {
+                        return Err(Error::Invalid {
+                            code: "in_clause_limit_exceeded",
+                            message: format!(
+                                "$in on field '{}' has {} items (max {})",
+                                field,
+                                elements.len(),
+                                MAX_IN_ELEMENTS
+                            ),
+                            field: Some(field.clone()),
+                        });
+                    }
+                    FilterOp::Like(pattern)
+                        if pattern.starts_with('%') || pattern.starts_with('*') =>
+                    {
+                        return Err(Error::Invalid {
+                            code: "leading_wildcard_forbidden",
+                            message: format!(
+                                "Leading wildcard in LIKE filter on field '{}' is forbidden to prevent unindexed sequential scans",
+                                field
+                            ),
+                            field: Some(field.clone()),
+                        });
+                    }
+                    _ => {}
+                }
             }
         }
 

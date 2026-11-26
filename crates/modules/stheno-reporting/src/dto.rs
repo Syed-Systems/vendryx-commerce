@@ -80,6 +80,14 @@ pub struct AverageOrderValueReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TodayReport {
+    pub revenue: Decimal,
+    pub currency: String,
+    pub order_count: i64,
+    pub items_sold: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportEnvelope<T> {
     pub report_type: String,
     pub window_days: Option<u32>,

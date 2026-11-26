@@ -301,7 +301,7 @@ impl WorkflowStore {
         workflow_name: &str,
         initial_payload: Value,
     ) -> WorkflowExecution {
-        let mut map = self.executions.lock().unwrap();
+        let mut map = self.executions.lock().unwrap_or_else(|e| e.into_inner());
         map.entry(transaction_id.to_string())
             .or_insert_with(|| WorkflowExecution {
                 transaction_id: transaction_id.to_string(),
@@ -348,7 +348,7 @@ impl WorkflowStore {
 
     /// All known executions, newest first. Read-only; used by admin observability.
     pub fn list_executions(&self) -> Vec<WorkflowExecution> {
-        let map = self.executions.lock().unwrap();
+        let map = self.executions.lock().unwrap_or_else(|e| e.into_inner());
         let mut all: Vec<WorkflowExecution> = map.values().cloned().collect();
         all.sort_by_key(|e| std::cmp::Reverse(e.created_at));
         all
@@ -370,7 +370,7 @@ impl WorkflowStore {
     }
 
     pub fn get_execution(&self, transaction_id: &str) -> Option<WorkflowExecution> {
-        self.executions.lock().unwrap().get(transaction_id).cloned()
+        self.executions.lock().unwrap_or_else(|e| e.into_inner()).get(transaction_id).cloned()
     }
 
     pub async fn update_state_async(
@@ -422,8 +422,55 @@ impl WorkflowStore {
         .await
     }
 
+    /// Replaces an execution's `context_payload`.
+    ///
+    /// This is the only way to checkpoint a *value*. `update_state_async` moves the
+    /// machine between states and `set_step_state_async` records which named step is
+    /// running, but a caller that needs to remember "how far did I get" — a resume
+    /// offset, an id created partway through — had nowhere to put it. `CompleteCartWorkflowEngine`
+    /// kept exactly such a map in memory because of that gap.
+    ///
+    /// The whole payload is replaced rather than merged. A partial update would need a
+    /// read-modify-write, and the read would have to happen on the caller's connection or
+    /// it takes a second one from the pool mid-transaction (see `read_execution`).
+    pub async fn update_payload_async(
+        &self,
+        transaction_id: &str,
+        payload: Value,
+    ) -> Result<()> {
+        let Some(pool) = &self.pool else {
+            let mut state = self
+                .executions
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            if let Some(exec) = state.get_mut(transaction_id) {
+                exec.context_payload = payload;
+                exec.updated_at = chrono::Utc::now();
+            }
+            return Ok(());
+        };
+
+        let transaction_id = transaction_id.to_string();
+        stheno_db::tenant::with_tenant_conn(pool, move |conn| {
+            Box::pin(async move {
+                diesel::sql_query(
+                    "UPDATE workflow.execution SET context_payload = $1, updated_at = now() \
+                     WHERE id = $2 AND deleted_at IS NULL",
+                )
+                .bind::<diesel::sql_types::Json, _>(&payload)
+                .bind::<diesel::sql_types::Text, _>(&transaction_id)
+                .execute(conn)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+
+                Ok(())
+            })
+        })
+        .await
+    }
+
     pub fn update_state(&self, transaction_id: &str, new_state: TransactionState) -> Result<()> {
-        let mut map = self.executions.lock().unwrap();
+        let mut map = self.executions.lock().unwrap_or_else(|e| e.into_inner());
         let exec = map.get_mut(transaction_id).ok_or_else(|| Error::NotFound {
             entity: "workflow_execution",
             id: transaction_id.to_string(),
@@ -529,7 +576,7 @@ impl WorkflowStore {
         step_key: &str,
         new_state: StepState,
     ) -> Result<()> {
-        let mut map = self.executions.lock().unwrap();
+        let mut map = self.executions.lock().unwrap_or_else(|e| e.into_inner());
         let exec = map.get_mut(transaction_id).ok_or_else(|| Error::NotFound {
             entity: "workflow_execution",
             id: transaction_id.to_string(),
@@ -623,7 +670,7 @@ impl WorkflowStore {
         worker_id: &str,
         lease_duration_secs: i64,
     ) -> bool {
-        let mut map = self.executions.lock().unwrap();
+        let mut map = self.executions.lock().unwrap_or_else(|e| e.into_inner());
         let now = Utc::now();
         if let Some(exec) = map.get_mut(transaction_id) {
             let is_available = match exec.lease_expires_at {
@@ -670,7 +717,7 @@ impl WorkflowStore {
 
     /// Redacts PII / context payload after retention window (Task P1-16)
     pub fn apply_retention_policy(&self, transaction_id: &str) {
-        let mut map = self.executions.lock().unwrap();
+        let mut map = self.executions.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(exec) = map.get_mut(transaction_id) {
             exec.context_payload = serde_json::json!({ "[REDACTED]": "retention_policy_applied" });
         }

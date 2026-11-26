@@ -1,4 +1,5 @@
 import { HttpTypes } from "@medusajs/types"
+import { TFunction } from "i18next"
 import { useProducts } from "../../../../../hooks/api/products"
 import {
   createTableAdapter,
@@ -8,7 +9,11 @@ import { useMemo } from "react"
 import { ProductActions } from "./product-list-table-actions"
 
 // eslint-disable-next-line max-len
-export function createProductTableAdapter(): TableAdapter<HttpTypes.AdminProduct> {
+export function createProductTableAdapter({
+  t,
+}: {
+  t: TFunction<"translation", undefined>
+}): TableAdapter<HttpTypes.AdminProduct> {
   return createTableAdapter<HttpTypes.AdminProduct>({
     entity: "products",
     queryPrefix: "p",
@@ -38,6 +43,18 @@ export function createProductTableAdapter(): TableAdapter<HttpTypes.AdminProduct
     },
     getRowHref: (row) => `/products/${row.id}`,
     renderRowActions: (row) => <ProductActions product={row} />,
+    emptyState: {
+      empty: {
+        heading: t("products.list.noRecordsMessage"),
+      },
+      // Without this, a search matching nothing showed "Create your first
+      // product to start selling" -- the empty-store message -- instead of
+      // "no results", so a filtered-empty list looked like an empty store.
+      filtered: {
+        heading: t("general.noResultsTitle"),
+        description: t("general.noResultsMessage"),
+      },
+    },
     transformColumns: (columns) => {
       const ALLOWED_FILTERS = [
         "id",
@@ -56,11 +73,21 @@ export function createProductTableAdapter(): TableAdapter<HttpTypes.AdminProduct
         "variants.id",
       ]
 
+      // Default visibility. The backend ships Product, Status and Actions
+      // visible and hides the rest, so a fresh Products page shows two columns
+      // and a merchant cannot tell price, stock or collection at a glance. The
+      // reference dashboards (Ghost, Linear) lead with the densest table that
+      // still reads, so the two highest-value hidden columns come forward.
+      // Sales Channels stays hidden: most Vendryx merchants run one channel, and
+      // surfacing it by default adds a column to every screen.
+      const DEFAULT_VISIBLE = new Set(["product", "collection", "variants", "status"])
+
       return columns.map((column) => {
         const isFilterDisabled = !ALLOWED_FILTERS.includes(column.field)
 
         return {
           ...column,
+          default_visible: DEFAULT_VISIBLE.has(column.field),
           filter: isFilterDisabled
             ? { ...column.filter, enabled: false }
             : column.filter,
@@ -73,6 +100,10 @@ export function createProductTableAdapter(): TableAdapter<HttpTypes.AdminProduct
 /**
  * Hook to get the product table adapter with filters
  */
-export function useProductTableAdapter(): TableAdapter<HttpTypes.AdminProduct> {
-  return useMemo(() => createProductTableAdapter(), [])
+export function useProductTableAdapter({
+  t,
+}: {
+  t: TFunction<"translation", undefined>
+}): TableAdapter<HttpTypes.AdminProduct> {
+  return useMemo(() => createProductTableAdapter({ t }), [t])
 }

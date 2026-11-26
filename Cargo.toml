@@ -91,6 +91,16 @@ rust-version = "1.80"
 license = "MIT"
 authors = ["Syed Systems <engineering@syedsystems.com>"]
 
+# ADR-006 / AGENTS.md 2.5. This lint is the compile-time half of the no-float-in-money
+# rule: `Money` has no `From<f64>` and no `as f64`, so anything reaching for one is
+# already a type error, and this catches the arithmetic that would get there.
+#
+# Money and pricing crates opt in with `[lints] workspace = true`. It is NOT applied
+# workspace-wide: the analytics crates compute UI percentages, which are legitimately
+# f64 because they are ratios and never amounts.
+[workspace.lints.clippy]
+float_arithmetic = "deny"
+
 [workspace.dependencies]
 # Internal core crates
 stheno-types = { path = "crates/core/stheno-types", version = "0.1.0" }
@@ -246,3 +256,22 @@ insta = { version = "1.39", features = ["json"] }
 # what test failures are actually read with. It drops variable-inspection data,
 # so a step debugger can still show a stack but not local values.
 debug = "line-tables-only"
+
+# Test executables get no symbols at all.
+#
+# The setting above is the right one for the server binary, where a panic backtrace is
+# read by a human. It is the wrong one for the ~240 integration test executables: on
+# Windows, `line-tables-only` still writes a full PDB per binary, and at 25.8 MB each
+# that was 6.2 GB for a partial build of the suite -- 15 GB once all of it was linked.
+#
+# These binaries are disposable. They are run, they pass or fail, and the next edit
+# rebuilds them. Paying 25 MB apiece to symbol-file them buys nothing, because a failing
+# test already names the file it lives in. `[profile.test]` is the profile cargo uses for
+# the test target, so this scopes the saving to tests and leaves `cargo build` and
+# `cargo run` with the line numbers they need.
+#
+# The tradeoff: a panic inside a test reports a function name rather than a file and
+# line. `target/` still holds roughly 7 GB of actual code - the test executables and the
+# rlibs - and that part is not optional.
+[profile.test]
+debug = "none"

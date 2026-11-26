@@ -142,7 +142,7 @@ export const SocialCheckout: React.FC<SocialCheckoutProps> = ({
 
   return (
     <div
-      className="flex flex-col gap-y-3 rounded-lg border p-4"
+      className="flex flex-col gap-y-3 rounded-[var(--brand-radius-card)] border p-4"
       data-testid="social-checkout"
     >
       <div>
@@ -158,7 +158,7 @@ export const SocialCheckout: React.FC<SocialCheckoutProps> = ({
             type="button"
             onClick={openWhatsApp}
             disabled={pending}
-            className="w-full rounded-md bg-[#25D366] px-4 py-2 text-white disabled:opacity-60"
+            className="w-full rounded-[var(--brand-radius-button)] bg-[#25D366] px-4 py-2 text-[color:var(--on-dark)] disabled:opacity-60"
             data-testid="social-whatsapp"
           >
             {pending ? "Preparing…" : "WhatsApp"}
@@ -172,7 +172,7 @@ export const SocialCheckout: React.FC<SocialCheckoutProps> = ({
               copyAndOpen(`https://instagram.com/${instagramHandle}`)
             }
             disabled={pending}
-            className="w-full rounded-md border px-4 py-2 disabled:opacity-60"
+            className="w-full rounded-[var(--brand-radius-button)] border px-4 py-2 disabled:opacity-60"
             data-testid="social-instagram"
           >
             Copy &amp; open Instagram
@@ -184,7 +184,7 @@ export const SocialCheckout: React.FC<SocialCheckoutProps> = ({
             type="button"
             onClick={() => copyAndOpen(`https://m.me/${messengerHandle}`)}
             disabled={pending}
-            className="w-full rounded-md border px-4 py-2 disabled:opacity-60"
+            className="w-full rounded-[var(--brand-radius-button)] border px-4 py-2 disabled:opacity-60"
             data-testid="social-messenger"
           >
             Copy &amp; open Messenger

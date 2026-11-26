@@ -73,11 +73,19 @@ async fn test_claim_confirm_replace_and_refund_kinds() {
         .await
         .unwrap();
 
-    let confirmed_refund_claim = engine.confirm_claim(&refund_claim.id).await.unwrap();
-    assert_eq!(confirmed_refund_claim.status, "confirmed");
+    // Positive refunds must be executed through the payment service. Claim
+    // confirmation cannot synthesize a ledger entry or claim that money moved.
+    let confirmation = engine.confirm_claim(&refund_claim.id).await;
+    assert!(matches!(
+        confirmation,
+        Err(stheno_types::Error::Invalid {
+            code: "refund_requires_payment_service",
+            ..
+        })
+    ));
 
     let updated_order = order_service.get_order(&order.id).await.unwrap();
-    assert_eq!(updated_order.summary.unwrap().refunded_total, dec!(200.00));
+    assert_eq!(updated_order.summary.unwrap().refunded_total, dec!(0.00));
 
     // 3. Test Claim Type: Replace
     let replace_claim = engine

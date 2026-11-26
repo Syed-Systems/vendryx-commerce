@@ -93,6 +93,117 @@ services:
       postgres:
         condition: service_healthy
 
+  # Commerce engine. --migrate runs embedded migrations before binding, like
+  # dev-tenants.sh relies on. Binds 0.0.0.0 so Docker can publish the port.
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # ENTRYPOINT form: distroless image ENTRYPOINT is the binary with empty CMD,
+    # so compose `command:` would replace nothing to run. Pass flags via the
+    # entrypoint alongside the binary path.
+    entrypoint: ["/app/stheno-server", "--migrate", "--bind", "0.0.0.0:9000"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://stheno:stheno@postgres:5432/stheno}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me-minimum-32-bytes-long}
+      COOKIE_SECRET: ${COOKIE_SECRET:-dev-cookie-secret-change-me-minimum-32-bytes}
+      STHENO_CREDENTIAL_KEY: ${STHENO_CREDENTIAL_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      STHENO_PLATFORM_TOKEN: ${STHENO_PLATFORM_TOKEN:-dev-platform-token}
+      ADMIN_CORS: ${ADMIN_CORS:-http://localhost:6100,http://127.0.0.1:6100}
+      STORE_CORS: ${STORE_CORS:-http://localhost:8000,http://127.0.0.1:8000}
+      AUTH_CORS: ${AUTH_CORS:-http://localhost:6100,http://127.0.0.1:6100}
+    ports:
+      - "${ENGINE_PORT:-9000}:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    # Exec-form: distroless has no shell. --check-config validates DB
+    # connectivity + tier config without launching the daemon.
+    healthcheck:
+      test: ["CMD", "/app/stheno-server", "--check-config"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+
+  # One-shot: trial/free/pro tenants + demo seeds + owners (container equivalent
+  # of scripts/dev-tenants.sh). Idempotent — safe to re-run.
+  bootstrap:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bootstrap
+    entrypoint: ["/app/bootstrap.sh"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://stheno:stheno@postgres:5432/stheno}
+      STHENO_ENGINE_URL: http://engine:9000
+      STHENO_CREDENTIAL_KEY: ${STHENO_CREDENTIAL_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      STHENO_DEV_PASSWORD: ${STHENO_DEV_PASSWORD:-Sup3rSecret!}
+    depends_on:
+      engine:
+        condition: service_started
+    restart: "no"
+
+  # Unified storefront (Next.js production server). Webpack resolver, never
+  # --turbopack (next.config.js). STHENO_BACKEND_URL uses Docker DNS.
+  storefront:
+    build:
+      context: ./apps/storefront
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_STHENO_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STHENO_PUBLISHABLE_KEY:-pk_test}
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:8000}
+        NEXT_PUBLIC_DEFAULT_REGION: ${NEXT_PUBLIC_DEFAULT_REGION:-us}
+        # NOTE: no STHENO_BACKEND_URL build-arg — see apps/storefront/Dockerfile.
+        # The builder cannot resolve `engine`; prerender uses
+        # STHENO_BUILD_BACKEND_URL (host loopback, engine must be up+seeded).
+    environment:
+      STHENO_BACKEND_URL: http://engine:9000
+    ports:
+      - "${STOREFRONT_PORT:-8000}:8000"
+    depends_on:
+      engine:
+        condition: service_started
+
+  # Merchant admin (Vite static + nginx tenant-Host proxy). Backend URL left
+  # empty so the SDK issues same-origin requests like in dev.
+  admin:
+    build:
+      context: ./apps/admin
+      dockerfile: Dockerfile
+      args:
+        VITE_STHENO_BACKEND_URL: ""
+        VITE_STHENO_STOREFRONT_URL: ${VITE_STHENO_STOREFRONT_URL:-http://localhost:8000}
+    ports:
+      - "${ADMIN_PORT:-6100}:80"
+    depends_on:
+      - engine
+
+  # Transitional platform console. Browser calls the engine directly, so the
+  # baked URL is the host-published engine address, not Docker DNS.
+  platform:
+    build:
+      context: ./apps/platform
+      dockerfile: Dockerfile
+      args:
+        VITE_STHENO_BACKEND_URL: ${VITE_STHENO_BACKEND_URL:-http://localhost:9000}
+    ports:
+      - "${PLATFORM_PORT:-6001}:80"
+    depends_on:
+      - engine
+
+  marketing:
+    build:
+      context: ./apps/marketing
+      dockerfile: Dockerfile
+      args:
+        VITE_ADMIN_URL: ${VITE_ADMIN_URL:-http://localhost:6100}
+    ports:
+      - "${MARKETING_PORT:-6002}:80"
+
 volumes:
   stheno-pgdata:
 

@@ -1,12 +1,31 @@
 import React, { createContext, useContext, useMemo } from "react"
 import { ClerkProvider, useUser, useClerk } from "@clerk/clerk-react"
 
-// Environment variable for Clerk Publishable Key
-export const CLERK_PUBLISHABLE_KEY =
+const rawClerkKey =
   (typeof import.meta !== "undefined" &&
     (import.meta.env?.VITE_CLERK_PUBLISHABLE_KEY ||
       (import.meta.env as any)?.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)) ||
-  "pk_test_c21pbGluZy1wZWFjb2NrLTUyNzkuY2xlcmsuYWNjb3VudHMuZGV2JA"
+  ""
+
+function isValidClerkPublishableKey(key: string): boolean {
+  if (!key || key.includes("...") || key.toLowerCase().includes("placeholder")) {
+    return false
+  }
+  const match = /^pk_(?:test|live)_([A-Za-z0-9+/=_-]+)$/.exec(key.trim())
+  if (!match) {
+    return false
+  }
+  try {
+    const decoded = atob(match[1])
+    return decoded.endsWith("$") && decoded.includes(".")
+  } catch {
+    return false
+  }
+}
+
+export const CLERK_PUBLISHABLE_KEY = isValidClerkPublishableKey(rawClerkKey)
+  ? rawClerkKey.trim()
+  : ""
 
 // Vendryx brand appearance configuration for Clerk components
 export const vendryxClerkAppearance = {

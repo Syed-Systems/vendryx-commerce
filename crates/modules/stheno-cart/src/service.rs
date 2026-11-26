@@ -220,9 +220,19 @@ impl CartService {
     // ── Rate Limiting & TTL (P4-07, F22) ──────────────────────────────────────
 
     pub fn check_creation_rate_limit(&self, ip: &str, limit_per_minute: usize) -> bool {
-        let mut map = self.creation_timestamps.write().unwrap();
+        // Poison-safe: one request panicking mid-write should not make every later cart
+        // creation panic too.
+        let mut map = self.creation_timestamps.write().unwrap_or_else(|e| e.into_inner());
         let now = Utc::now();
         let one_minute_ago = now - Duration::minutes(1);
+
+        // Drop keys whose whole window has elapsed. Without this the map only ever grows:
+        // a key is re-examined only if that same IP returns, so a spread of one-off
+        // addresses accumulates for the life of the process.
+        map.retain(|_, ts| {
+            ts.retain(|t| *t > one_minute_ago);
+            !ts.is_empty()
+        });
 
         let timestamps = map.entry(ip.to_string()).or_default();
         timestamps.retain(|t| *t > one_minute_ago);

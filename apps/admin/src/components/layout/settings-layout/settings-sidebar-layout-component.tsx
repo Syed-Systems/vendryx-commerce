@@ -21,7 +21,7 @@ const SettingsGroup = ({
   return (
     <div className="space-y-0.5">
       {label && (
-        <div className="px-2.5 pt-3 pb-1 text-[11px] font-semibold tracking-wider text-ui-fg-muted/70 uppercase select-none">
+        <div className="px-2.5 pt-3 pb-1 text-xs font-semibold tracking-wider text-ui-fg-muted/70 uppercase select-none">
           {label}
         </div>
       )}

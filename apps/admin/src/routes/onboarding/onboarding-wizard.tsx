@@ -121,7 +121,7 @@ export const OnboardingWizard = () => {
             </div>
             <div className="w-full bg-ui-bg-subtle rounded-full h-2.5 overflow-hidden">
               <div
-                className="h-2.5 rounded-full transition-all duration-500 bg-ui-fg-interactive"
+                className="h-2.5 rounded-full transition-[width] duration-500 bg-ui-fg-interactive"
                 style={{ width: `${percentage}%` }}
               />
             </div>
@@ -155,7 +155,7 @@ export const OnboardingWizard = () => {
           {steps.map((step, idx) => (
             <Container
               key={step.id}
-              className={`p-5 border border-ui-border-base rounded-2xl shadow-xs transition-all ${
+              className={`p-5 border border-ui-border-base rounded-2xl shadow-xs transition-[color,background-color,border-color,box-shadow,transform,opacity] ${
                 step.completed
                   ? "bg-ui-bg-base opacity-90"
                   : "bg-ui-bg-base border-ui-border-strong ring-1 ring-ui-border-base/50"

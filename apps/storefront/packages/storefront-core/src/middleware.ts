@@ -299,8 +299,17 @@ export async function middleware(request: NextRequest) {
   return continueRequest(request, tenantId)
 }
 
-export const config = {
-  matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|images|assets|png|svg|jpg|jpeg|gif|webp).*)",
-  ],
-}
+/**
+ * No `config` export here on purpose.
+ *
+ * It used to live beside this handler, and the app shell re-exported it. Next
+ * reads the middleware matcher by statically analysing the app-root module, so a
+ * re-exported matcher is invisible to it and the middleware runs on every
+ * request — including `/_next/image`, which it region-resolved and redirected to
+ * `/{countryCode}/_next/image`, a path that is not a route. Every `<Image>` on
+ * the site therefore 404'd. `Thumbnail` had been using `next/image` long before
+ * this surfaced, so product images were broken too.
+ *
+ * The matcher is now a literal in `apps/storefront/src/middleware.ts`. A second
+ * copy here would be the same bug waiting to be reintroduced.
+ */

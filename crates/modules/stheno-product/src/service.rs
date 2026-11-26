@@ -16,7 +16,9 @@ use stheno_db::diesel::{
     QueryableByName,
 };
 use stheno_db::diesel_async::RunQueryDsl;
-use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
+use stheno_db::{
+    CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository, MAX_PAGE_LIMIT,
+};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
@@ -292,6 +294,99 @@ impl ProductService {
             .iter()
             .map(product_dto)
             .collect())
+    }
+
+    /// A page of products, filtered and paginated in Postgres.
+    ///
+    /// `list_products` cannot back a list endpoint. It is capped at `MAX_PAGE_LIMIT`, so a
+    /// merchant with more than 100 products never sees the rest, and any handler that
+    /// wanted to search them was filtering that capped page in Rust and reporting "no
+    /// results" for a product that exists. This pushes the predicates down so Postgres
+    /// applies them before the limit.
+    ///
+    /// Prefer `query_products_paged`, which returns the match count at the same time.
+    pub async fn query_products(
+        &self,
+        handle: Option<&str>,
+        id_prefix: Option<&str>,
+        search: Option<&str>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<ProductDTO>> {
+        // The page size is the client's to choose, so it is clamped here rather than
+        // trusted: an unbounded limit is a cheap way to ask one request for the whole
+        // table.
+        let limit = limit.clamp(1, MAX_PAGE_LIMIT);
+        let mut spec = Self::live(limit)
+            .with_pagination(offset, limit)
+            .with_order("created_at", OrderDirection::Desc);
+
+        if let Some(handle) = handle {
+            spec = spec.with_predicate("handle", FilterOp::Eq(handle.to_string()));
+        }
+        if let Some(id_prefix) = id_prefix {
+            // Prefix only. `FilterOp::Like` is trailing-wildcard by design so it stays
+            // index-backed; a suffix match is not, which is why the handler's old
+            // `id.ends_with(candidate)` is gone rather than translated.
+            spec = spec.with_predicate("id", FilterOp::Like(format!("{id_prefix}%")));
+        }
+        if let Some(search) = search {
+            let pattern = format!("{}%", search.to_lowercase());
+            spec = spec.with_or_group(stheno_db::filter::OrGroup {
+                predicates: vec![
+                    ("title".into(), FilterOp::Like(pattern.clone())),
+                    ("handle".into(), FilterOp::Like(pattern)),
+                ],
+            });
+        }
+
+        Ok(self
+            .products
+            .list(None, &spec)
+            .await?
+            .iter()
+            .map(product_dto)
+            .collect())
+    }
+
+    /// A page of products plus the total that matched, for the list endpoint.
+    ///
+    /// `count` here means "how many matched the search", not "how many fitted on the
+    /// page", which is what the old handler reported.
+    pub async fn query_products_paged(
+        &self,
+        handle: Option<&str>,
+        id_prefix: Option<&str>,
+        search: Option<&str>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(Vec<ProductDTO>, i64)> {
+        let limit = limit.clamp(1, MAX_PAGE_LIMIT);
+        let mut spec = Self::live(limit)
+            .with_pagination(offset, limit)
+            .with_order("created_at", OrderDirection::Desc);
+
+        if let Some(handle) = handle {
+            spec = spec.with_predicate("handle", FilterOp::Eq(handle.to_string()));
+        }
+        if let Some(id_prefix) = id_prefix {
+            // Prefix only. `FilterOp::Like` is trailing-wildcard by design so it stays
+            // index-backed; a suffix match is not, which is why the handler's old
+            // `id.ends_with(candidate)` is gone rather than translated.
+            spec = spec.with_predicate("id", FilterOp::Like(format!("{id_prefix}%")));
+        }
+        if let Some(search) = search {
+            let pattern = format!("{}%", search.to_lowercase());
+            spec = spec.with_or_group(stheno_db::filter::OrGroup {
+                predicates: vec![
+                    ("title".into(), FilterOp::Like(pattern.clone())),
+                    ("handle".into(), FilterOp::Like(pattern)),
+                ],
+            });
+        }
+
+        let (rows, count) = self.products.list_and_count(None, &spec).await?;
+        Ok((rows.iter().map(product_dto).collect(), count))
     }
 
     // ---- options and option values --------------------------------------

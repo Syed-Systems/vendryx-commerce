@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+﻿import { describe, expect, it, vi } from "vitest"
 
 vi.hoisted(() => {
   const g = global as any
@@ -67,7 +67,7 @@ describe("Payment Providers Components", () => {
     it("renders COD rules configuration controls", () => {
       renderWithProviders(<CodRulesCard />)
       expect(screen.queryByText("Cash on Delivery (COD) Rules")).not.toBeNull()
-      expect(screen.queryByText("Maximum Order Amount (BDT)")).not.toBeNull()
+      expect(screen.queryByText("Maximum Order Amount (৳)")).not.toBeNull()
       expect(screen.queryByText("Dhaka Metro Exclusive")).not.toBeNull()
       expect(screen.queryByText("Require Order Verification Call / SMS")).not.toBeNull()
       expect(screen.queryByText("Customer Checkout Note")).not.toBeNull()

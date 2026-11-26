@@ -1,5 +1,6 @@
 import React, { useState } from "react"
 import { Badge, Button, Container, Heading, Table, Text } from "@medusajs/ui"
+import { getCurrencySymbol } from "../../../lib/data/currencies"
 
 export interface ReconciliationBucketItem {
   consignmentId: string
@@ -114,23 +115,23 @@ export const ReconciliationBucketsView: React.FC<ReconciliationBucketsProps> = (
                 <Table.Cell className="font-mono text-xs">
                   <div>{item.consignmentId}</div>
                   {item.trackingCode && (
-                    <div className="text-ui-fg-subtle text-[11px]">{item.trackingCode}</div>
+                    <div className="text-ui-fg-subtle text-xs">{item.trackingCode}</div>
                   )}
                 </Table.Cell>
                 <Table.Cell className="text-xs">
                   {item.orderId || <span className="text-ui-fg-muted">Unlinked</span>}
                 </Table.Cell>
                 <Table.Cell className="text-xs">
-                  {currency} {item.expectedAmount.toFixed(2)}
+                  {getCurrencySymbol(currency)} {item.expectedAmount.toFixed(2)}
                 </Table.Cell>
                 <Table.Cell className="text-xs font-medium">
-                  {currency} {item.collectedAmount.toFixed(2)}
+                  {getCurrencySymbol(currency)} {item.collectedAmount.toFixed(2)}
                 </Table.Cell>
                 <Table.Cell className="text-xs text-ui-fg-interactive font-medium">
-                  {currency} {item.remittedAmount.toFixed(2)}
+                  {getCurrencySymbol(currency)} {item.remittedAmount.toFixed(2)}
                 </Table.Cell>
                 <Table.Cell className="text-xs text-ui-fg-subtle">
-                  {currency} {item.feeAmount.toFixed(2)}
+                  {getCurrencySymbol(currency)} {item.feeAmount.toFixed(2)}
                 </Table.Cell>
                 <Table.Cell>
                   {item.reason ? (

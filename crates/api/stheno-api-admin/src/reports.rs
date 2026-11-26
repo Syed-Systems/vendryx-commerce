@@ -227,3 +227,27 @@ pub async fn average_order_value_handler(
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
+
+/// Today's pulse for the cockpit (P16).
+///
+/// The admin's `today-pulse` hook expects `{ today: { revenue, currency_code,
+/// order_count, items_sold } }`. The reporting service has no such aggregate, so
+/// this handler sums the daily rollup rows dated today. Returns zeros with a
+/// "USD" currency when nothing has been recorded, so the cockpit can tell "no
+/// sales today" from "this figure never loaded".
+pub async fn today_handler(
+    State(ctx): State<AdminReportingContext>,
+) -> Response {
+    match ctx.reporting_service.get_today().await {
+        Ok(data) => Json(serde_json::json!({
+            "today": {
+                "revenue": data.revenue,
+                "currency_code": data.currency,
+                "order_count": data.order_count,
+                "items_sold": data.items_sold,
+            }
+        }))
+        .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}

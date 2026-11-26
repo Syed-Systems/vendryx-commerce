@@ -1,4 +1,4 @@
-import { ArrowDownTray, ArrowPath, CheckCircle, CreditCard, Sparkles, XCircle } from "@medusajs/icons"
+﻿import { ArrowDownTray, ArrowPath, CheckCircle, CreditCard, Sparkles, XCircle } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Table, Text, toast } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useRef, useState } from "react"
@@ -896,3 +896,4 @@ export const EntitlementsDetail = () => {
     </SingleColumnPage>
   )
 }
+

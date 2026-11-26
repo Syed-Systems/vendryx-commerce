@@ -1,0 +1,14 @@
+# Kept out of the Docker build context. The engine builder does COPY . . and a
+# context containing target/ (~25 GB), node_modules, .git or .next is unshippable.
+target/
+.git/
+.dev-tenants/
+**/node_modules/
+**/.next/
+**/.next-*/
+**/dist/
+**/coverage/
+.yarn/
+*.log
+.dev-server.log
+.dev-server.err.log

@@ -40,7 +40,7 @@ export default async function Home(props: {
       <CategoryGrid />
 
       {collections && collections.length > 0 && (
-        <section className="w-full bg-white">
+        <section className="w-full bg-[color:var(--brand-surface)]">
           <ul className="flex flex-col">
             <FeaturedProducts collections={collections} region={region} />
           </ul>

@@ -1,70 +1,18 @@
 import { HttpTypes } from "@medusajs/types"
-import { useMemo } from "react"
+import { Text } from "@medusajs/ui"
 
-import { _DataTable } from "../../../../../components/table/data-table"
-import { useStockLocations } from "../../../../../hooks/api"
-import { useReservationItems } from "../../../../../hooks/api/reservations"
-import { useDataTable } from "../../../../../hooks/use-data-table"
-import {
-  ExtendedReservationItem,
-  useReservationTableColumn,
-} from "./use-reservation-list-table-columns"
-import { useReservationsTableQuery } from "./use-reservation-list-table-query"
-
-const PAGE_SIZE = 20
+type ReservationItemTableProps = {
+  inventoryItem: HttpTypes.AdminInventoryItemResponse["inventory_item"]
+}
 
 export const ReservationItemTable = ({
   inventoryItem,
-}: {
-  inventoryItem: HttpTypes.AdminInventoryItemResponse["inventory_item"]
-}) => {
-  const { searchParams, raw } = useReservationsTableQuery({
-    pageSize: PAGE_SIZE,
-  })
-
-  const { reservations, count, isPending, isError, error } =
-    useReservationItems({
-      ...searchParams,
-      inventory_item_id: [inventoryItem.id],
-    })
-
-  const { stock_locations } = useStockLocations({
-    id: (reservations || []).map((r) => r.location_id),
-  })
-
-  const data = useMemo<ExtendedReservationItem[]>(() => {
-    const locationMap = new Map((stock_locations || []).map((l) => [l.id, l]))
-
-    return (reservations || []).map((r) => ({
-      ...r,
-      location: locationMap.get(r.location_id),
-    }))
-  }, [reservations, stock_locations])
-
-  const columns = useReservationTableColumn({ sku: inventoryItem.sku! })
-
-  const { table } = useDataTable({
-    data: data ?? [],
-    columns,
-    count,
-    enablePagination: true,
-    getRowId: (row: ExtendedReservationItem) => row.id,
-    pageSize: PAGE_SIZE,
-  })
-
-  if (isError) {
-    throw error
-  }
-
+}: ReservationItemTableProps) => {
   return (
-    <_DataTable
-      table={table}
-      columns={columns}
-      pageSize={PAGE_SIZE}
-      count={count}
-      isLoading={isPending}
-      pagination
-      queryObject={raw}
-    />
+    <div className="px-6 py-8 text-center">
+      <Text size="small" className="text-ui-fg-subtle">
+        No active reservations for {inventoryItem.title ?? inventoryItem.sku ?? inventoryItem.id}.
+      </Text>
+    </div>
   )
 }

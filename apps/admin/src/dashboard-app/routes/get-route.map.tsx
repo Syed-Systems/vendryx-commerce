@@ -141,7 +141,7 @@ export function getRouteMap({
             {
               path: "/onboarding",
               errorElement: <ErrorBoundary />,
-              lazy: () => import("../../routes/onboarding"),
+              lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("onboarding")),
               handle: {
                 breadcrumb: () => "Store Setup Guide",
               },
@@ -155,22 +155,22 @@ export function getRouteMap({
               children: [
                 {
                   path: "",
-                  lazy: () => import("../../routes/products/product-list"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                   children: [
                     {
                       path: "create",
                       lazy: () =>
-                        import("../../routes/products/product-create"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                     },
                     {
                       path: "import",
                       lazy: () =>
-                        import("../../routes/products/product-import"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                     },
                     {
                       path: "export",
                       lazy: () =>
-                        import("../../routes/products/product-export"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                     },
                   ],
                 },
@@ -178,9 +178,7 @@ export function getRouteMap({
                   path: ":id",
                   errorElement: <ErrorBoundary />,
                   lazy: async () => {
-                    const { Breadcrumb, loader, seo } = await import(
-                      "../../routes/products/product-detail"
-                    )
+                    const { Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products"))
 
                     return {
                       Component: Outlet,
@@ -197,86 +195,72 @@ export function getRouteMap({
                     {
                       path: "",
                       lazy: () =>
-                        import("../../routes/products/product-detail"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                       children: [
                         {
                           path: "edit",
                           lazy: () =>
-                            import("../../routes/products/product-edit"),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "edit-variant",
                           lazy: () =>
-                            import(
-                              "../../routes/product-variants/product-variant-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-variants")),
                         },
                         {
                           path: "sales-channels",
                           lazy: () =>
-                            import(
-                              "../../routes/products/product-sales-channels"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "attributes",
                           lazy: () =>
-                            import("../../routes/products/product-attributes"),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "organization",
                           lazy: () =>
-                            import(
-                              "../../routes/products/product-organization"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "shipping-profile",
                           lazy: () =>
-                            import(
-                              "../../routes/products/product-shipping-profile"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "media",
                           lazy: () =>
-                            import("../../routes/products/product-media"),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "images/:image_id/variants",
                           lazy: () =>
-                            import(
-                              "../../routes/products/product-image-variants-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "prices",
                           lazy: () =>
-                            import("../../routes/products/product-prices"),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "variants/create",
                           lazy: () =>
-                            import(
-                              "../../routes/products/product-create-variant"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "stock",
                           lazy: () =>
-                            import("../../routes/products/product-stock"),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "metadata/edit",
                           lazy: () =>
-                            import("../../routes/products/product-metadata"),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "options/manage",
                           lazy: () =>
-                            import(
-                              "../../routes/products/product-options-manage"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                       ],
                     },
@@ -284,9 +268,7 @@ export function getRouteMap({
                       path: "variants/:variant_id",
                       lazy: async () => {
                         const { Component, Breadcrumb, loader, seo } =
-                          await import(
-                            "../../routes/product-variants/product-variant-detail"
-                          )
+                          await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-variants"))
 
                         return {
                           Component,
@@ -304,35 +286,27 @@ export function getRouteMap({
                         {
                           path: "edit",
                           lazy: () =>
-                            import(
-                              "../../routes/product-variants/product-variant-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-variants")),
                         },
                         {
                           path: "prices",
                           lazy: () =>
-                            import("../../routes/products/product-prices"),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("products")),
                         },
                         {
                           path: "manage-items",
                           lazy: () =>
-                            import(
-                              "../../routes/product-variants/product-variant-manage-inventory-items"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-variants")),
                         },
                         {
                           path: "media",
                           lazy: () =>
-                            import(
-                              "../../routes/product-variants/product-variant-media"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-variants")),
                         },
                         {
                           path: "metadata/edit",
                           lazy: () =>
-                            import(
-                              "../../routes/product-variants/product-variant-metadata"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-variants")),
                         },
                       ],
                     },
@@ -350,14 +324,12 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import("../../routes/product-options/product-option-list"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-options")),
                   children: [
                     {
                       path: "create",
                       lazy: () =>
-                        import(
-                          "../../routes/product-options/product-option-create"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-options")),
                     },
                   ],
                 },
@@ -365,9 +337,7 @@ export function getRouteMap({
                   path: ":id",
                   errorElement: <ErrorBoundary />,
                   lazy: async () => {
-                    const { Breadcrumb, loader } = await import(
-                      "../../routes/product-options/product-option-detail"
-                    )
+                    const { Breadcrumb, loader } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-options"))
 
                     return {
                       Component: Outlet,
@@ -383,32 +353,24 @@ export function getRouteMap({
                     {
                       path: "",
                       lazy: () =>
-                        import(
-                          "../../routes/product-options/product-option-detail"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-options")),
                       children: [
                         {
                           path: "edit",
                           lazy: () =>
-                            import(
-                              "../../routes/product-options/product-option-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-options")),
                         },
                         {
                           path: "metadata/edit",
                           lazy: () =>
-                            import(
-                              "../../routes/product-options/product-option-metadata"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-options")),
                         },
                       ],
                     },
                     {
                       path: "values/:value_id",
                       lazy: async () => {
-                        const { Component, Breadcrumb, loader } = await import(
-                          "../../routes/product-options/product-option-value-detail"
-                        )
+                        const { Component, Breadcrumb, loader } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-options"))
 
                         return {
                           Component,
@@ -425,9 +387,7 @@ export function getRouteMap({
                         {
                           path: "metadata/edit",
                           lazy: () =>
-                            import(
-                              "../../routes/product-options/product-option-value-metadata"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-options")),
                         },
                       ],
                     },
@@ -510,17 +470,17 @@ export function getRouteMap({
               children: [
                 {
                   path: "",
-                  lazy: () => import("../../routes/orders/order-list"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                   children: [
                     {
                       path: "export",
-                      lazy: () => import("../../routes/orders/order-export"),
+                      lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                   ],
                 },
                 {
                   path: "social",
-                  lazy: () => import("../../routes/orders/order-list"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                   handle: {
                     breadcrumb: () => "Social Commerce Orders",
                   },
@@ -528,9 +488,7 @@ export function getRouteMap({
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/orders/order-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders"))
 
                     return {
                       Component,
@@ -547,75 +505,71 @@ export function getRouteMap({
                     {
                       path: "fulfillment",
                       lazy: () =>
-                        import("../../routes/orders/order-create-fulfillment"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "returns/:return_id/receive",
                       lazy: () =>
-                        import("../../routes/orders/order-receive-return"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "allocate-items",
                       lazy: () =>
-                        import("../../routes/orders/order-allocate-items"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: ":f_id/create-shipment",
                       lazy: () =>
-                        import("../../routes/orders/order-create-shipment"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "returns",
                       lazy: () =>
-                        import("../../routes/orders/order-create-return"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "claims",
                       lazy: () =>
-                        import("../../routes/orders/order-create-claim"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "exchanges",
                       lazy: () =>
-                        import("../../routes/orders/order-create-exchange"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "edits",
                       lazy: () =>
-                        import("../../routes/orders/order-create-edit"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "refund",
                       lazy: () =>
-                        import("../../routes/orders/order-create-refund"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "transfer",
                       lazy: () =>
-                        import("../../routes/orders/order-request-transfer"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "email",
                       lazy: () =>
-                        import("../../routes/orders/order-edit-email"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "shipping-address",
                       lazy: () =>
-                        import(
-                          "../../routes/orders/order-edit-shipping-address"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "billing-address",
                       lazy: () =>
-                        import(
-                          "../../routes/orders/order-edit-billing-address"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "metadata/edit",
-                      lazy: () => import("../../routes/orders/order-metadata"),
+                      lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                   ],
                 },
@@ -630,19 +584,17 @@ export function getRouteMap({
               children: [
                 {
                   path: "",
-                  lazy: () => import("../../routes/promotions/promotion-list"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("promotions")),
                 },
                 {
                   path: "create",
                   lazy: () =>
-                    import("../../routes/promotions/promotion-create"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("promotions")),
                 },
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/promotions/promotion-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("promotions"))
 
                     return {
                       Component,
@@ -659,21 +611,17 @@ export function getRouteMap({
                     {
                       path: "edit",
                       lazy: () =>
-                        import(
-                          "../../routes/promotions/promotion-edit-details"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("promotions")),
                     },
                     {
                       path: "add-to-campaign",
                       lazy: () =>
-                        import(
-                          "../../routes/promotions/promotion-add-campaign"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("promotions")),
                     },
                     {
                       path: ":ruleType/edit",
                       lazy: () =>
-                        import("../../routes/promotions/common/edit-rules"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("promotions")),
                     },
                   ],
                 },
@@ -809,21 +757,19 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import("../../routes/price-lists/price-list-list"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("price-lists")),
                   children: [
                     {
                       path: "create",
                       lazy: () =>
-                        import("../../routes/price-lists/price-list-create"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("price-lists")),
                     },
                   ],
                 },
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/price-lists/price-list-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("price-lists"))
 
                     return {
                       Component,
@@ -840,33 +786,27 @@ export function getRouteMap({
                     {
                       path: "edit",
                       lazy: () =>
-                        import("../../routes/price-lists/price-list-edit"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("price-lists")),
                     },
                     {
                       path: "configuration",
                       lazy: () =>
-                        import(
-                          "../../routes/price-lists/price-list-configuration"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("price-lists")),
                     },
                     {
                       path: "products/add",
                       lazy: () =>
-                        import(
-                          "../../routes/price-lists/price-list-prices-add"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("price-lists")),
                     },
                     {
                       path: "products/edit",
                       lazy: () =>
-                        import(
-                          "../../routes/price-lists/price-list-prices-edit"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("price-lists")),
                     },
                     {
                       path: "metadata/edit",
                       lazy: () =>
-                        import("../../routes/price-lists/price-list-metadata"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("price-lists")),
                     },
                   ],
                 },
@@ -959,7 +899,7 @@ export function getRouteMap({
                     {
                       path: ":order_id/transfer",
                       lazy: () =>
-                        import("../../routes/orders/order-request-transfer"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("orders")),
                     },
                     {
                       path: "metadata/edit",
@@ -1052,21 +992,19 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import("../../routes/reservations/reservation-list"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("reservations")),
                   children: [
                     {
                       path: "create",
                       lazy: () =>
-                        import("../../routes/reservations/reservation-create"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("reservations")),
                     },
                   ],
                 },
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/reservations/reservation-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("reservations"))
 
                     return {
                       Component,
@@ -1083,16 +1021,12 @@ export function getRouteMap({
                     {
                       path: "edit",
                       lazy: () =>
-                        import(
-                          "../../routes/reservations/reservation-detail/components/edit-reservation"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("reservations")),
                     },
                     {
                       path: "metadata/edit",
                       lazy: () =>
-                        import(
-                          "../../routes/reservations/reservation-metadata"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("reservations")),
                     },
                   ],
                 },
@@ -1107,7 +1041,7 @@ export function getRouteMap({
               children: [
                 {
                   path: "",
-                  lazy: () => import("../../routes/inventory/inventory-list"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("inventory")),
                   children: [
                     {
                       path: "create",
@@ -1117,21 +1051,19 @@ export function getRouteMap({
                     {
                       path: "export",
                       lazy: () =>
-                        import("../../routes/inventory/inventory-export"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("inventory")),
                     },
                     {
                       path: "stock",
                       lazy: () =>
-                        import("../../routes/inventory/inventory-stock"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("inventory")),
                     },
                   ],
                 },
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/inventory/inventory-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("inventory"))
 
                     return {
                       Component,
@@ -1162,14 +1094,12 @@ export function getRouteMap({
                     {
                       path: "metadata/edit",
                       lazy: () =>
-                        import("../../routes/inventory/inventory-metadata"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("inventory")),
                     },
                     {
                       path: "locations",
                       lazy: () =>
-                        import(
-                          "../../routes/inventory/inventory-detail/components/manage-locations"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("inventory")),
                     },
                     {
                       path: "locations/:location_id",
@@ -1193,7 +1123,7 @@ export function getRouteMap({
             {
               path: "/release-notes",
               errorElement: <ErrorBoundary />,
-              lazy: () => import("../../routes/release-notes"),
+              lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("release-notes")),
               handle: {
                 breadcrumb: () => "Release Notes",
               },
@@ -1209,7 +1139,7 @@ export function getRouteMap({
             {
               path: "/reconciliation",
               errorElement: <ErrorBoundary />,
-              lazy: () => import("../../routes/reconciliation"),
+              lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("reconciliation")),
               handle: {
                 breadcrumb: () => "Courier COD Reconciliation",
               },
@@ -1234,19 +1164,19 @@ export function getRouteMap({
             {
               index: true,
               errorElement: <ErrorBoundary />,
-              lazy: () => import("../../routes/settings"),
+              lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("settings")),
             },
             {
               path: "profile",
               errorElement: <ErrorBoundary />,
-              lazy: () => import("../../routes/profile/profile-detail"),
+              lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("profile")),
               handle: {
                 breadcrumb: () => t("profile.domain"),
               },
               children: [
                 {
                   path: "edit",
-                  lazy: () => import("../../routes/profile/profile-edit"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("profile")),
                 },
               ],
             },
@@ -1276,20 +1206,18 @@ export function getRouteMap({
               children: [
                 {
                   path: "",
-                  lazy: () => import("../../routes/regions/region-list"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("regions")),
                   children: [
                     {
                       path: "create",
-                      lazy: () => import("../../routes/regions/region-create"),
+                      lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("regions")),
                     },
                   ],
                 },
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/regions/region-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("regions"))
 
                     return {
                       Component,
@@ -1305,17 +1233,17 @@ export function getRouteMap({
                   children: [
                     {
                       path: "edit",
-                      lazy: () => import("../../routes/regions/region-edit"),
+                      lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("regions")),
                     },
                     {
                       path: "countries/add",
                       lazy: () =>
-                        import("../../routes/regions/region-add-countries"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("regions")),
                     },
                     {
                       path: "metadata/edit",
                       lazy: () =>
-                        import("../../routes/regions/region-metadata"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("regions")),
                     },
                   ],
                 },
@@ -1331,14 +1259,12 @@ export function getRouteMap({
               children: [
                 {
                   path: "",
-                  lazy: () => import("../../routes/property-labels"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("property-labels")),
                   children: [
                     {
                       path: ":entity/edit",
                       lazy: () =>
-                        import(
-                          "../../routes/property-labels/property-labels-edit"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("property-labels")),
                     },
                   ],
                 },
@@ -1355,26 +1281,26 @@ export function getRouteMap({
             {
               path: "store",
               errorElement: <ErrorBoundary />,
-              lazy: () => import("../../routes/store/store-detail"),
+              lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("store")),
               handle: {
                 breadcrumb: () => t("store.domain"),
               },
               children: [
                 {
                   path: "edit",
-                  lazy: () => import("../../routes/store/store-edit"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("store")),
                 },
                 {
                   path: "currencies",
-                  lazy: () => import("../../routes/store/store-add-currencies"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("store")),
                 },
                 {
                   path: "locales",
-                  lazy: () => import("../../routes/store/store-add-locales"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("store")),
                 },
                 {
                   path: "metadata/edit",
-                  lazy: () => import("../../routes/store/store-metadata"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("store")),
                 },
               ],
             },
@@ -1388,7 +1314,7 @@ export function getRouteMap({
               children: [
                 {
                   path: "",
-                  lazy: () => import("../../routes/users/user-list"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("users")),
                   children: [
                     {
                       path: "invite",
@@ -1399,7 +1325,7 @@ export function getRouteMap({
                       children: [
                         {
                           path: "",
-                          lazy: () => import("../../routes/users/user-invite"),
+                          lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("users")),
                         },
                       ],
                     },
@@ -1408,9 +1334,7 @@ export function getRouteMap({
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/users/user-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("users"))
 
                     return {
                       Component,
@@ -1426,11 +1350,11 @@ export function getRouteMap({
                   children: [
                     {
                       path: "edit",
-                      lazy: () => import("../../routes/users/user-edit"),
+                      lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("users")),
                     },
                     {
                       path: "metadata/edit",
-                      lazy: () => import("../../routes/users/user-metadata"),
+                      lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("users")),
                     },
                   ],
                 },
@@ -1447,7 +1371,7 @@ export function getRouteMap({
               children: [
                 {
                   path: "",
-                  lazy: () => import("../../routes/roles/role-list"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("roles")),
                   children: [
                     {
                       path: "create",
@@ -1456,7 +1380,7 @@ export function getRouteMap({
                       children: [
                         {
                           path: "",
-                          lazy: () => import("../../routes/roles/role-create"),
+                          lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("roles")),
                         },
                       ],
                     },
@@ -1465,9 +1389,7 @@ export function getRouteMap({
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader } = await import(
-                      "../../routes/roles/role-detail"
-                    )
+                    const { Component, Breadcrumb, loader } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("roles"))
 
                     return {
                       Component,
@@ -1487,7 +1409,7 @@ export function getRouteMap({
                       children: [
                         {
                           path: "",
-                          lazy: () => import("../../routes/roles/role-edit"),
+                          lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("roles")),
                         },
                       ],
                     },
@@ -1501,7 +1423,7 @@ export function getRouteMap({
                         {
                           path: "",
                           lazy: () =>
-                            import("../../routes/roles/role-add-users"),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("roles")),
                         },
                       ],
                     },
@@ -1513,7 +1435,7 @@ export function getRouteMap({
                         {
                           path: "",
                           lazy: () =>
-                            import("../../routes/roles/role-permissions"),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("roles")),
                         },
                       ],
                     },
@@ -1532,7 +1454,7 @@ export function getRouteMap({
               children: [
                 {
                   path: "",
-                  lazy: () => import("../../routes/policies/policy-list"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("policies")),
                   // TODO: V1: policy CRUD lives in code (`definePolicies`).Uncomment
                   // along with the matching list/detail action sites to
                   // re-enable dashboard CRUD.
@@ -1545,7 +1467,7 @@ export function getRouteMap({
                   //       {
                   //         path: "",
                   //         lazy: () =>
-                  //           import("../../routes/policies/policy-create"),
+                  //           import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("policies")),
                   //       },
                   //     ],
                   //   },
@@ -1554,9 +1476,7 @@ export function getRouteMap({
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader } = await import(
-                      "../../routes/policies/policy-detail"
-                    )
+                    const { Component, Breadcrumb, loader } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("policies"))
 
                     return {
                       Component,
@@ -1578,7 +1498,7 @@ export function getRouteMap({
                   //       {
                   //         path: "",
                   //         lazy: () =>
-                  //           import("../../routes/policies/policy-edit"),
+                  //           import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("policies")),
                   //       },
                   //     ],
                   //   },
@@ -1597,23 +1517,19 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import("../../routes/sales-channels/sales-channel-list"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("sales-channels")),
                   children: [
                     {
                       path: "create",
                       lazy: () =>
-                        import(
-                          "../../routes/sales-channels/sales-channel-create"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("sales-channels")),
                     },
                   ],
                 },
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/sales-channels/sales-channel-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("sales-channels"))
 
                     return {
                       Component,
@@ -1630,23 +1546,17 @@ export function getRouteMap({
                     {
                       path: "edit",
                       lazy: () =>
-                        import(
-                          "../../routes/sales-channels/sales-channel-edit"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("sales-channels")),
                     },
                     {
                       path: "add-products",
                       lazy: () =>
-                        import(
-                          "../../routes/sales-channels/sales-channel-add-products"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("sales-channels")),
                     },
                     {
                       path: "metadata/edit",
                       lazy: () =>
-                        import(
-                          "../../routes/sales-channels/sales-channel-metadata"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("sales-channels")),
                     },
                   ],
                 },
@@ -1662,11 +1572,11 @@ export function getRouteMap({
               children: [
                 {
                   path: "",
-                  lazy: () => import("../../routes/locations/location-list"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                 },
                 {
                   path: "create",
-                  lazy: () => import("../../routes/locations/location-create"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                 },
                 {
                   path: "shipping-profiles",
@@ -1678,16 +1588,12 @@ export function getRouteMap({
                     {
                       path: "",
                       lazy: () =>
-                        import(
-                          "../../routes/shipping-profiles/shipping-profiles-list"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("shipping-profiles")),
                       children: [
                         {
                           path: "create",
                           lazy: () =>
-                            import(
-                              "../../routes/shipping-profiles/shipping-profile-create"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("shipping-profiles")),
                         },
                       ],
                     },
@@ -1695,9 +1601,7 @@ export function getRouteMap({
                       path: ":shipping_profile_id",
                       lazy: async () => {
                         const { Component, Breadcrumb, loader, seo } =
-                          await import(
-                            "../../routes/shipping-profiles/shipping-profile-detail"
-                          )
+                          await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("shipping-profiles"))
 
                         return {
                           Component,
@@ -1715,9 +1619,7 @@ export function getRouteMap({
                         {
                           path: "metadata/edit",
                           lazy: () =>
-                            import(
-                              "../../routes/shipping-profiles/shipping-profile-metadata"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("shipping-profiles")),
                         },
                       ],
                     },
@@ -1734,16 +1636,12 @@ export function getRouteMap({
                     {
                       path: "",
                       lazy: () =>
-                        import(
-                          "../../routes/shipping-option-types/shipping-option-type-list"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("shipping-option-types")),
                       children: [
                         {
                           path: "create",
                           lazy: () =>
-                            import(
-                              "../../routes/shipping-option-types/shipping-option-type-create"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("shipping-option-types")),
                         },
                       ],
                     },
@@ -1751,9 +1649,7 @@ export function getRouteMap({
                       path: ":id",
                       lazy: async () => {
                         const { Component, Breadcrumb, loader, seo } =
-                          await import(
-                            "../../routes/shipping-option-types/shipping-option-type-detail"
-                          )
+                          await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("shipping-option-types"))
 
                         return {
                           Component,
@@ -1771,9 +1667,7 @@ export function getRouteMap({
                         {
                           path: "edit",
                           lazy: () =>
-                            import(
-                              "../../routes/shipping-option-types/shipping-option-type-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("shipping-option-types")),
                         },
                       ],
                     },
@@ -1782,9 +1676,7 @@ export function getRouteMap({
                 {
                   path: ":location_id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/locations/location-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations"))
 
                     return {
                       Component,
@@ -1801,26 +1693,22 @@ export function getRouteMap({
                     {
                       path: "edit",
                       lazy: () =>
-                        import("../../routes/locations/location-edit"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                     },
                     {
                       path: "sales-channels",
                       lazy: () =>
-                        import(
-                          "../../routes/locations/location-sales-channels"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                     },
                     {
                       path: "fulfillment-providers",
                       lazy: () =>
-                        import(
-                          "../../routes/locations/location-fulfillment-providers"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                     },
                     {
                       path: "metadata/edit",
                       lazy: () =>
-                        import("../../routes/locations/location-metadata"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                     },
                     {
                       path: "fulfillment-set/:fset_id",
@@ -1828,9 +1716,7 @@ export function getRouteMap({
                         {
                           path: "service-zones/create",
                           lazy: () =>
-                            import(
-                              "../../routes/locations/location-service-zone-create"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                         },
                         {
                           path: "service-zone/:zone_id",
@@ -1838,16 +1724,12 @@ export function getRouteMap({
                             {
                               path: "edit",
                               lazy: () =>
-                                import(
-                                  "../../routes/locations/location-service-zone-edit"
-                                ),
+                                import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                             },
                             {
                               path: "areas",
                               lazy: () =>
-                                import(
-                                  "../../routes/locations/location-service-zone-manage-areas"
-                                ),
+                                import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                             },
                             {
                               path: "shipping-option",
@@ -1855,9 +1737,7 @@ export function getRouteMap({
                                 {
                                   path: "create",
                                   lazy: () =>
-                                    import(
-                                      "../../routes/locations/location-service-zone-shipping-option-create"
-                                    ),
+                                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                                 },
                                 {
                                   path: ":so_id",
@@ -1865,16 +1745,12 @@ export function getRouteMap({
                                     {
                                       path: "edit",
                                       lazy: () =>
-                                        import(
-                                          "../../routes/locations/location-service-zone-shipping-option-edit"
-                                        ),
+                                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                                     },
                                     {
                                       path: "pricing",
                                       lazy: () =>
-                                        import(
-                                          "../../routes/locations/location-service-zone-shipping-option-pricing"
-                                        ),
+                                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("locations")),
                                     },
                                   ],
                                 },
@@ -1899,21 +1775,19 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import("../../routes/product-tags/product-tag-list"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-tags")),
                   children: [
                     {
                       path: "create",
                       lazy: () =>
-                        import("../../routes/product-tags/product-tag-create"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-tags")),
                     },
                   ],
                 },
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/product-tags/product-tag-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-tags"))
 
                     return {
                       Component,
@@ -1930,14 +1804,12 @@ export function getRouteMap({
                     {
                       path: "edit",
                       lazy: () =>
-                        import("../../routes/product-tags/product-tag-edit"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-tags")),
                     },
                     {
                       path: "metadata/edit",
                       lazy: () =>
-                        import(
-                          "../../routes/product-tags/product-tag-metadata"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-tags")),
                     },
                   ],
                 },
@@ -1954,16 +1826,12 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import(
-                      "../../routes/workflow-executions/workflow-execution-list"
-                    ),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("workflow-executions")),
                 },
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/workflow-executions/workflow-execution-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("workflow-executions"))
 
                     return {
                       Component,
@@ -1991,23 +1859,19 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import("../../routes/product-types/product-type-list"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-types")),
                   children: [
                     {
                       path: "create",
                       lazy: () =>
-                        import(
-                          "../../routes/product-types/product-type-create"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-types")),
                     },
                   ],
                 },
                 {
                   path: ":id",
                   lazy: async () => {
-                    const { Component, Breadcrumb, loader, seo } = await import(
-                      "../../routes/product-types/product-type-detail"
-                    )
+                    const { Component, Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-types"))
 
                     return {
                       Component,
@@ -2024,14 +1888,12 @@ export function getRouteMap({
                     {
                       path: "edit",
                       lazy: () =>
-                        import("../../routes/product-types/product-type-edit"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-types")),
                     },
                     {
                       path: "metadata/edit",
                       lazy: () =>
-                        import(
-                          "../../routes/product-types/product-type-metadata"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("product-types")),
                     },
                   ],
                 },
@@ -2176,12 +2038,12 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import("../../routes/tax-regions/tax-region-list"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                   children: [
                     {
                       path: "create",
                       lazy: () =>
-                        import("../../routes/tax-regions/tax-region-create"),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                     },
                   ],
                 },
@@ -2189,9 +2051,7 @@ export function getRouteMap({
                   path: ":id",
                   errorElement: <ErrorBoundary />,
                   lazy: async () => {
-                    const { Breadcrumb, loader, seo } = await import(
-                      "../../routes/tax-regions/tax-region-detail"
-                    )
+                    const { Breadcrumb, loader, seo } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions"))
 
                     return {
                       Component: Outlet,
@@ -2208,9 +2068,7 @@ export function getRouteMap({
                     {
                       path: "",
                       lazy: async () => {
-                        const { Component } = await import(
-                          "../../routes/tax-regions/tax-region-detail"
-                        )
+                        const { Component } = await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions"))
 
                         return {
                           Component,
@@ -2220,42 +2078,32 @@ export function getRouteMap({
                         {
                           path: "edit",
                           lazy: () =>
-                            import("../../routes/tax-regions/tax-region-edit"),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                         },
                         {
                           path: "provinces/create",
                           lazy: () =>
-                            import(
-                              "../../routes/tax-regions/tax-region-province-create"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                         },
                         {
                           path: "overrides/create",
                           lazy: () =>
-                            import(
-                              "../../routes/tax-regions/tax-region-tax-override-create"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                         },
                         {
                           path: "overrides/:tax_rate_id/edit",
                           lazy: () =>
-                            import(
-                              "../../routes/tax-regions/tax-region-tax-override-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                         },
                         {
                           path: "tax-rates/create",
                           lazy: () =>
-                            import(
-                              "../../routes/tax-regions/tax-region-tax-rate-create"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                         },
                         {
                           path: "tax-rates/:tax_rate_id/edit",
                           lazy: () =>
-                            import(
-                              "../../routes/tax-regions/tax-region-tax-rate-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                         },
                       ],
                     },
@@ -2263,9 +2111,7 @@ export function getRouteMap({
                       path: "provinces/:province_id",
                       lazy: async () => {
                         const { Component, Breadcrumb, loader, seo } =
-                          await import(
-                            "../../routes/tax-regions/tax-region-province-detail"
-                          )
+                          await import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions"))
 
                         return {
                           Component,
@@ -2282,30 +2128,22 @@ export function getRouteMap({
                         {
                           path: "tax-rates/create",
                           lazy: () =>
-                            import(
-                              "../../routes/tax-regions/tax-region-tax-rate-create"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                         },
                         {
                           path: "tax-rates/:tax_rate_id/edit",
                           lazy: () =>
-                            import(
-                              "../../routes/tax-regions/tax-region-tax-rate-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                         },
                         {
                           path: "overrides/create",
                           lazy: () =>
-                            import(
-                              "../../routes/tax-regions/tax-region-tax-override-create"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                         },
                         {
                           path: "overrides/:tax_rate_id/edit",
                           lazy: () =>
-                            import(
-                              "../../routes/tax-regions/tax-region-tax-override-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("tax-regions")),
                         },
                       ],
                     },
@@ -2315,7 +2153,7 @@ export function getRouteMap({
             },
             {
               path: "payment-providers",
-              lazy: () => import("../../routes/payment-providers"),
+              lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("payment-providers")),
               handle: {
                 breadcrumb: () => "Payment Providers",
               },
@@ -2344,14 +2182,12 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import("../../routes/return-reasons/return-reason-list"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("return-reasons")),
                   children: [
                     {
                       path: "create",
                       lazy: () =>
-                        import(
-                          "../../routes/return-reasons/return-reason-create"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("return-reasons")),
                     },
 
                     {
@@ -2360,9 +2196,7 @@ export function getRouteMap({
                         {
                           path: "edit",
                           lazy: () =>
-                            import(
-                              "../../routes/return-reasons/return-reason-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("return-reasons")),
                         },
                       ],
                     },
@@ -2380,14 +2214,12 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import("../../routes/refund-reasons/refund-reason-list"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("refund-reasons")),
                   children: [
                     {
                       path: "create",
                       lazy: () =>
-                        import(
-                          "../../routes/refund-reasons/refund-reason-create"
-                        ),
+                        import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("refund-reasons")),
                     },
 
                     {
@@ -2396,9 +2228,7 @@ export function getRouteMap({
                         {
                           path: "edit",
                           lazy: () =>
-                            import(
-                              "../../routes/refund-reasons/refund-reason-edit"
-                            ),
+                            import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("refund-reasons")),
                         },
                       ],
                     },
@@ -2416,22 +2246,22 @@ export function getRouteMap({
                 {
                   path: "",
                   lazy: () =>
-                    import("../../routes/translations/translation-list"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("translations")),
                   children: [
                     {
                       path: "settings",
-                      lazy: () => import("../../routes/translations/settings"),
+                      lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("translations")),
                     },
                   ],
                 },
                 {
                   path: "edit",
                   lazy: () =>
-                    import("../../routes/translations/translations-edit"),
+                    import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("translations")),
                 },
                 {
                   path: "add-locales",
-                  lazy: () => import("../../routes/translations/add-locales"),
+                  lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("translations")),
                 },
               ],
             },
@@ -2455,21 +2285,21 @@ export function getRouteMap({
             },
             {
               path: "/signup",
-              lazy: () => import("../../routes/signup"),
+              lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("signup")),
               handle: {
                 breadcrumb: () => "Sign up",
               },
             },
             {
               path: "/reset-password",
-              lazy: () => import("../../routes/reset-password"),
+              lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("reset-password")),
               handle: {
                 breadcrumb: () => t("resetPassword.title"),
               },
             },
             {
               path: "/invite",
-              lazy: () => import("../../routes/invite"),
+              lazy: () => import("../../routes/unavailable-route").then((m) => m.createUnavailableRoute("invite")),
               handle: {
                 breadcrumb: () => t("invite.title"),
               },

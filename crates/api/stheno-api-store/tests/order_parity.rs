@@ -146,11 +146,16 @@ async fn test_store_order_and_shipping_option_endpoints_parity() {
     assert_eq!(body["orders"][0]["email"], "alice@example.com");
 
     // 2. GET /store/orders/{id}
+    //
+    // This now sends Alice's bearer token. It previously sent none and asserted 200,
+    // which passed only because the route had no ownership check at all - the test was
+    // asserting the IDOR. The negative cases live in tests/order_authz.rs.
     let get_resp = app
         .clone()
         .oneshot(
             Request::builder()
                 .uri(format!("/store/orders/{}", order.id))
+                .header("authorization", &bearer)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -177,6 +182,7 @@ async fn test_store_order_and_shipping_option_endpoints_parity() {
             Request::builder()
                 .method("POST")
                 .uri("/store/orders/transfer")
+                .header("authorization", &bearer)
                 .header("Content-Type", "application/json")
                 .body(Body::from(transfer_payload.to_string()))
                 .unwrap(),
@@ -202,6 +208,7 @@ async fn test_store_order_and_shipping_option_endpoints_parity() {
             Request::builder()
                 .method("POST")
                 .uri("/store/orders/transfer/accept")
+                .header("authorization", &bearer)
                 .header("Content-Type", "application/json")
                 .body(Body::from(accept_payload.to_string()))
                 .unwrap(),

@@ -1,5 +1,6 @@
 import React from "react"
 import { Badge, Container, Heading, Text } from "@medusajs/ui"
+import { getCurrencySymbol } from "../../../lib/data/currencies"
 
 export interface CourierSettlementSummaryProps {
   cycleId: string
@@ -54,7 +55,7 @@ export const CourierSettlementSummary: React.FC<CourierSettlementSummaryProps> =
             Total Collected at Doorstep
           </Text>
           <Text className="text-2xl font-bold mt-1">
-            {currency} {totalCollected.toFixed(2)}
+            {getCurrencySymbol(currency)} {totalCollected.toFixed(2)}
           </Text>
           <Text className="text-xs text-ui-fg-subtle mt-1">
             Gross cash collected by courier
@@ -66,7 +67,7 @@ export const CourierSettlementSummary: React.FC<CourierSettlementSummaryProps> =
             Courier & COD Fees
           </Text>
           <Text className="text-2xl font-bold mt-1 text-ui-fg-error">
-            - {currency} {totalFees.toFixed(2)}
+            - {getCurrencySymbol(currency)} {totalFees.toFixed(2)}
           </Text>
           <Text className="text-xs text-ui-fg-subtle mt-1">
             Delivery charges + COD handling fees
@@ -78,7 +79,7 @@ export const CourierSettlementSummary: React.FC<CourierSettlementSummaryProps> =
             Net Remittance (Owed to Merchant)
           </Text>
           <Text className="text-2xl font-bold mt-1 text-ui-fg-interactive">
-            {currency} {totalRemitted.toFixed(2)}
+            {getCurrencySymbol(currency)} {totalRemitted.toFixed(2)}
           </Text>
           <Text className="text-xs text-ui-fg-subtle mt-1">
             Net payout owed to merchant account
@@ -94,7 +95,7 @@ export const CourierSettlementSummary: React.FC<CourierSettlementSummaryProps> =
         }`}
       >
         <span>
-          Accounting Balance Invariant: Remitted ({currency} {totalRemitted.toFixed(2)}) + Fees ({currency} {totalFees.toFixed(2)}) = Collected ({currency} {totalCollected.toFixed(2)})
+          Accounting Balance Invariant: Remitted ({getCurrencySymbol(currency)} {totalRemitted.toFixed(2)}) + Fees ({getCurrencySymbol(currency)} {totalFees.toFixed(2)}) = Collected ({getCurrencySymbol(currency)} {totalCollected.toFixed(2)})
         </span>
         <Badge color={isBalanced ? "green" : "red"}>
           {isBalanced ? "BALANCED" : "FEE MISMATCH"}

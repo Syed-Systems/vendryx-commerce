@@ -40,7 +40,7 @@ export const Home = () => {
   const { user } = useMe()
   const { summary, isLoading: summaryLoading, isError: summaryError, error: summaryErrorObj } = useHomeSummary()
   const { data: onboarding, isLoading: onboardingLoading } = useOnboarding()
-  const { today, isLoading: todayLoading } = useTodayPulse()
+  const { today, isLoading: todayLoading, isError: todayError } = useTodayPulse()
   const { orders: recentOrders, totalCount: totalOrderCount, isLoading: ordersLoading } = useRecentOrders()
   const { count: productsCount, isLoading: productsLoading } = useProducts({ limit: 0 })
   const { store } = useStore()
@@ -100,6 +100,7 @@ export const Home = () => {
         lowStockCount={lowStockCount}
         currencyCode={currencyCode}
         isLoading={isFirstLoad || todayLoading || productsLoading}
+        todayUnavailable={todayError}
       />
 
       {/* ── 3. Operational Attention Alerts (only if bottlenecks exist) ─── */}
@@ -109,33 +110,25 @@ export const Home = () => {
         lowStockThreshold={lowStockThreshold}
       />
 
-      {/* ── 4. Main 2-Column Command Cockpit ────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (7 cols): Setup Roadmap & Orders Workstream */}
-        <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-y-6">
-          {/* Setup Roadmap (active until completed or dismissed) */}
-          <OnboardingSummaryCard
-            onboarding={onboarding}
-            isLoading={onboardingLoading}
-          />
+      {/* ── 4. Main Command Cockpit ─────────────────────────────────────── */}
+      <div className="flex flex-col gap-y-6">
+        {/* Setup Roadmap (active until completed or dismissed) */}
+        <OnboardingSummaryCard
+          onboarding={onboarding}
+          isLoading={onboardingLoading}
+        />
 
-          {/* Orders Workstream / First Sale Launchpad */}
-          <RecentOrdersCard
-            orders={recentOrders}
-            isLoading={ordersLoading}
-          />
-        </div>
+        {/* Orders Workstream / First Sale Launchpad */}
+        <RecentOrdersCard
+          orders={recentOrders}
+          isLoading={ordersLoading}
+        />
 
-        {/* Right Column (5 cols): Store Management Shortcuts & Live Studio */}
-        <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-y-6">
-          {/* Quick Operations Panel */}
-          <QuickOperationsCard />
+        {/* Quick Operations — full-width strip */}
+        <QuickOperationsCard />
 
-          {/* Storefront Live Studio Preview */}
-          <div className="flex flex-col gap-2">
-            <StorefrontPreviewCard />
-          </div>
-        </div>
+        {/* Storefront Live Studio — full width row */}
+        <StorefrontPreviewCard />
       </div>
     </div>
   )

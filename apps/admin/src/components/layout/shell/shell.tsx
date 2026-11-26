@@ -241,7 +241,7 @@ const DesktopSidebarContainer = ({ children }: PropsWithChildren) => {
 
   return (
     <div
-      className={clx("isolate hidden h-screen w-[260px] border-e border-ui-border-base bg-[var(--vx-bg-sidebar,#F7F3ED)] dark:bg-[#141416] transition-all", {
+      className={clx("isolate hidden h-screen w-[260px] border-e border-ui-border-base bg-[var(--vx-bg-sidebar,#F7F3ED)] dark:bg-[#141416] transition-[color,background-color,border-color,box-shadow,transform,opacity]", {
         "lg:flex": desktop,
       })}
     >
