@@ -1,17 +1,17 @@
-# Graph Report - Store  (2026-11-14)
+# Graph Report - Store  (2026-11-26)
 
 ## Corpus Check
-- 3663 files · ~2,135,351 words
+- 3688 files · ~2,129,572 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 86 file(s) not represented in the graph (top: .toml 36, (none) 12, .ico 11)
+- Unclassified: 97 file(s) not represented in the graph (top: .toml 36, (none) 21, .ico 8)
 
 ## Summary
-- 41553 nodes · 86310 edges · 1593 communities (1216 shown, 377 thin omitted)
-- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 2918 edges (avg confidence: 0.78)
+- 41728 nodes · 86276 edges · 1591 communities (1217 shown, 374 thin omitted)
+- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 2937 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `104df0c1`
+- Built from commit: `bc4e843f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -19,81 +19,81 @@
 - yarn-4.12.0.cjs
 - ref_medusajs_icons
 - create_pool
-- react-i18next
+- _DataTable
 - react-router-dom
-- campaign-detail.tsx
+- add-campaign-promotions-form.tsx
 - TestDb
 - ref_medusajs_ui
 - cell-renderers.tsx
-- stheno-platform/src/service.rs
-- arc
+- PlatformService
+- ai_tools.rs
 - payment-providers-list.tsx
 - edit-shipping-options-pricing-form.tsx
-- combobox.tsx
+- location-general-section.tsx
 - a
 - Qr
 - side-menu/index.tsx
 - DbPool
 - c
 - constructor
-- data-grid/components/index.ts
-- stheno-api-admin/src/orders.rs
+- ai_social.rs
+- AdminOrderContext
 - Ht
 - claim-create-form.tsx
-- api-key-general-section.tsx
+- RouteFocusModal
 - Path
-- PlatformService
-- get-route.map.tsx
+- stheno-api-admin/src/orders.rs
+- MetadataForm
 - CrudEntity
-- super
+- scheduler.rs
 - ref_medusajs_types
 - l5e
 - stheno-order/src/dto.rs
 - stheno-server/src/lib.rs
-- product-media-gallery.tsx
+- useProduct
 - mapToBase
 - render
 - properties
 - permissions-provider/index.ts
 - NotificationService
 - CredentialMap
-- storefront-core/src/app/[countryCode]/(main)/collections/[handle]/page.tsx
+- getRegion
 - PricingService
 - tax-region-detail/tax-region-detail.tsx
-- OrderService
+- OrderDTO
 - CustomerService
 - workflow-execution-history-section.tsx
 - config.rs
 - frontend/index.ts
 - stheno-auth/src/events.rs
-- CartService
+- stheno-cart/src/dto.rs
 - Conn
 - catalog.rs
 - stheno-product/src/models.rs
 - dependencies
 - properties
-- ProductService
+- src/categories.rs
 - social_webhook.rs
 - storefront-core/src/index.ts
-- Rr
+- HJe
 - invite.tsx
-- TaxService
-- RbacService
+- StepContext
+- stheno-api-admin/src/rbac.rs
 - CurrencyCode
 - Lh
 - storefront/package.json
 - Wr
 - Session Log — 2026-10-23 (ADR-033 deployed plan price)
 - next
-- tiered-price-cell.tsx
-- target-form.tsx
+- Response
+- route-focus-modal.tsx
 - stheno-api-store/src/lib.rs
 - stheno-types
 - stheno-payment/src/dto.rs
 - dashboard-app/types.ts
 - tenant_store_intelligence.rs
 - SteadfastFulfillmentProvider
-- marketing/src/App.tsx
+- DemoPage.tsx
 - tenant.rs
 - configuration.rs
 - ai.rs
@@ -108,7 +108,7 @@
 - PaymentProvider
 - SocialDraftWorkflow
 - general
-- LocalizedClientLink
+- next
 - stheno-connector-space/src/lib.rs
 - stheno-api-platform/src/lib.rs
 - FulfillmentService
@@ -120,8 +120,8 @@
 - general
 - general
 - general
-- ai_tools.rs
-- use-view-configurations.tsx
+- RegionService
+- react-i18next
 - general
 - api.ts
 - ai_conversation.rs
@@ -154,18 +154,18 @@
 - general
 - RedisLockProvider
 - stheno-ai/src/lib.rs
-- hooks/index.ts
+- stheno-ai-openai-compatible/src/lib.rs
 - DECISIONS.md
 - qk
 - stheno-search-console/src/lib.rs
 - fulfillment_settings.rs
-- StoreService
-- ReturnDTO
+- onboarding.rs
+- route-smoke.spec.tsx
 - ReportingService
 - branding_asset_validation.rs
 - account-nav/index.tsx
 - IndexData
-- translations-edit-form.tsx
+- react-router-dom
 - WorkflowStore
 - run
 - OfflinePaymentProvider
@@ -230,7 +230,7 @@
 - products.rs
 - environment
 - fields
-- getCandidates
+- nN
 - SettingsService
 - AuthIdentity
 - fields
@@ -241,14 +241,14 @@
 - couriers.rs
 - HttpError
 - oversight.rs
-- PaymentProviderCredentialDTO
+- ProviderHealthStatus
 - resilience
 - Tab
 - filters
 - filters
 - filters
 - Implementation Plan
-- admin/package.json
+- tenant_entitlements.rs
 - AuthService
 - fields
 - date
@@ -268,7 +268,7 @@
 - date
 - fields
 - fields
-- storefront-core/src/app/layout.tsx
+- marketing/src/App.tsx
 - platform_workflows.rs
 - stheno-fulfillment-pathao/src/lib.rs
 - Feature
@@ -304,7 +304,7 @@
 - System Work Log & Version History
 - shell.tsx
 - reconciliation.tsx
-- reportInfo
+- CartService
 - AuthWorkflows
 - CartWorkflows
 - validate_credential_map
@@ -420,13 +420,13 @@
 - settings
 - commands
 - Vendryx product rebrand, interface adaptation, and provider integration plan
-- branding/Vendryx_Brand_Kit/12_Source/build_brand.py
+- Policy
 - views.rs
 - ApiKeyDTO
 - it.json
 - products
 - PromotionService
-- OperatorRole
+- security.rs
 - Technical Requirements Document — Stheno Commerce Engine
 - media
 - Dy
@@ -438,7 +438,7 @@
 - media
 - properties
 - subscription.tsx
-- 1. Compliance Ledger (All 45 Slots)
+- LocalizedClientLink
 - compilerOptions
 - localisation.rs
 - StoreSetting
@@ -524,7 +524,7 @@
 - products
 - products
 - products
-- PaymentService
+- .get_provider
 - 5. Functional requirements
 - products
 - media
@@ -532,8 +532,8 @@
 - products
 - properties
 - api_keys.rs
-- social.rs
-- ShippingOptionDTO
+- payment_collections.rs
+- EligibilityContext
 - ref_path
 - layout-composer/types.ts
 - date
@@ -549,10 +549,10 @@
 - media
 - date
 - test-conformance.js
-- ProductDTO
+- ProductService
 - users.rs
 - 20260817020001_identity_access_schema/up.sql
-- cart/components/item/index.tsx
+- convertToLocale
 - AuditLog
 - stheno-order-change/src/lib.rs
 - stheno-payment/src/models.rs
@@ -587,7 +587,7 @@
 - variants
 - variants
 - variants
-- scripts
+- marketing-logic.ts
 - storefront-core/src/middleware.ts
 - support.rs
 - stheno-api-store/src/returns.rs
@@ -603,7 +603,7 @@
 - CompleteCartWorkflowEngine
 - three_plan_states_lifecycle.rs
 - OKF Completion Plan — AI Social Commerce
-- meta_insights_authorization.rs
+- store_intelligence_review.rs
 - media
 - media
 - media
@@ -627,11 +627,11 @@
 - media
 - media
 - compilerOptions
-- premium-landing.tsx
+- BentoOperationsSection.tsx
 - lighthouse/runner.js
 - migrations.rs
 - errorresponse
-- PaymentSessionStatus
+- IndexService
 - Translation
 - Phase 3 Implementation Plan
 - edit
@@ -772,7 +772,7 @@
 - audit_pagination.rs
 - BkashPaymentProvider
 - check-no-fabricated-handlers.py
-- CurrencyService
+- Path
 - validate-translation.js
 - form-extension-zone.tsx
 - transferOwnership
@@ -837,7 +837,7 @@
 - ApiKeyWorkflows
 - RbacWorkflows
 - stheno-pricing/tests/schema.rs
-- Country
+- File
 - ref_k6
 - nav-item.tsx
 - nav
@@ -894,7 +894,7 @@
 - nav
 - billing.tsx
 - ChatOfferService
-- data-grid-root.tsx
+- stheno-inventory/src/dto.rs
 - NagadPaymentProvider
 - SslcommerzPaymentProvider
 - ingress
@@ -912,7 +912,7 @@
 - proxy
 - navigation
 - navigation
-- module.d.ts
+- args
 - analytics.tsx
 - tier_pricing.rs
 - platform.tenant
@@ -922,7 +922,7 @@
 - calculator.rs
 - 12. Phased implementation plan
 - StripePaymentProvider
-- stheno-api-admin/src/rbac.rs
+- skeleton-cart-page/index.tsx
 - suspended_tenant_is_offline.rs
 - cd.yml
 - errorBoundary
@@ -955,7 +955,7 @@
 - steps
 - re
 - affected-cargo-gate.py
-- order-by.tsx
+- RedxFulfillmentProvider
 - 20260815000001_fulfillment_schema/up.sql
 - widget_db
 - validate-translations.spec.ts
@@ -969,7 +969,7 @@
 - hEe
 - auth_guard.rs
 - AnalyticsEvent
-- Currency
+- Part 1 — The engine
 - Part 2 — Admin dashboard (`apps/admin`) — forked
 - .build
 - .build
@@ -985,14 +985,15 @@
 - Tab
 - templates.ts
 - tsconfig.typecheck.json
-- cart-cookie-crypto.ts
+- product-import.tsx
 - makeBound
 - refresh
-- Utc
-- dunning_ladder.rs
+- totals.rs
+- two-column-page.tsx
 - postgres
 - column-utils.ts
 - compilerOptions
+- vite.config.cts
 - audit.tsx
 - check_migrations.rs
 - Vendryx_Approved_Complete_Brand_Package/Vendryx_Brand_Kit/12_Source/build_brand.py
@@ -1008,7 +1009,7 @@
 - restart-durability.sh
 - filter_hard_cases.rs
 - PromotionStatus
-- workspace-seam.test.ts
+- ref_vitest
 - _typeModule
 - 2. Capabilities
 - couriers-list.tsx
@@ -1020,7 +1021,7 @@
 - check-extraction-parity.sh
 - is-return-cell.tsx
 - WhatsAppInsightsReport
-- stheno-order/tests/schema.rs
+- src/rate_limit.rs
 - image
 - ci
 - container
@@ -1028,16 +1029,17 @@
 - web-test
 - on
 - ShippingOptionPriceType
-- ADR-012 — One database, `tenant_id` on every row, isolation enforced by Postgres RLS
+- convert_medusa_money_to_stheno
 - Uze
 - stheno-demo/src/events.rs
+- reports.rs
 - stheno-api-admin/src/pricing.rs
 - check-frontend-purity.sh
 - check-no-in-memory-stores.sh
 - gate-p26.sh
 - src/vite-env.d.ts
-- nb
-- present
+- src/tiers.rs
+- UploadPipeline
 - check-ci-postgres.sh
 - check-disk-space.sh
 - check-image.sh
@@ -1058,7 +1060,7 @@
 - vercel.json
 - next-sitemap.js
 - que
-- branding/Vendryx_Brand_Kit/09_Developer/tailwind.config.example.ts
+- sso-login.tsx
 - check-brand-surface.sh script
 - check-checkout-branding.sh script
 - check-checkout-scripts.sh script
@@ -1120,7 +1122,7 @@
 - redis-outage.sh script
 - restore-drill.sh script
 - sync-brand-surfaces.sh script
-- distinct_shipments_are_not_deduped.rs
+- onboarding.tsx
 - Notification
 - Commercial Implementation Plan
 - 20260814000003_payment_schema/up.sql
@@ -1138,8 +1140,8 @@
 - Stheno Deployment & Infrastructure Guide
 - Task Decomposition
 - 20260817010002_catalog_config_schema/up.sql
-- Dce
-- KnowledgeService
+- SpaceConnectorError
+- stheno-ai/src/service.rs
 - 2. The ten domains
 - 20260814000004_promotion_schema/up.sql
 - with_transaction
@@ -1152,15 +1154,15 @@
 - filter_sql_set.rs
 - RedisCacheProvider
 - Phase 4 — Control Plane Task Decomposition
-- um
+- stheno-cart/src/service.rs
 - filter_sql_scalar.rs
 - StockLocation
 - 8. Breaking points — where the lazy answer is the wrong answer
 - 3. The tasks
 - Vendryx — Commerce Operating System by Syed Systems
-- use-layout-dnd.ts
+- entries.ts
 - PollingCarrier
-- cache_safety.rs
+- User
 - Phase 3 Task Decomposition
 - Vendryx Brand Guidelines & Design System Specification
 - Payments setup — what to supply, and where
@@ -1170,20 +1172,20 @@
 - SearchDocumentEntity
 - Runbook: Reconciliation Discrepancy
 - Runbook: Stuck Consignment
-- ✅ Best Practices
-- inclusive_exact.rs
-- Frontend Contract Inputs — what frontend B needs
+- ResendNotificationProvider
+- scripts
+- btreemap
 - multi-tenant-load.js
-- Apple Design System
+- AI Assistant Instructions
 - use-data-grid-form-handlers.tsx
 - theme-provider.tsx
 - TransactionStepState
 - cache.rs
 - Space Control Plane Implementation Plan
 - region.country
-- AI Assistant Instructions
-- Vendryx Brand Guidelines v1.0
-- stheno-sales-channel/src/dto.rs
+- space_integration.rs
+- src/launch_requests.rs
+- hooks.rs
 - src/egress_guard.rs
 - postgres
 - ADR-032 through ADR-036 Implementation Plan
@@ -1194,20 +1196,20 @@
 - 20260822000001_control_plane_persistence/up.sql
 - 20261023000007_ai_chat_offers/up.sql
 - Vendryx Brand Guidelines v1.0
-- workflow-execution-general-section.tsx
+- workflow-detail.tsx
 - frontend-fixture-violating/package.json
-- FieldSelection
-- collection_ledger.rs
-- .evaluate_buyget
+- checkout-ownership.test.ts
+- suspension_notice.rs
+- PromotionService
 - SalesChannel
-- TaxContext
+- environment
 - cloudflared
 - healthcheck
 - proxy
 - Responsible Vulnerability Disclosure Policy
 - Migration Playbook
 - Frontend Theme Authoring Guide
-- 18. Delivery phases and tickets
+- use-document-title.tsx
 - 20260817000002_workflow_schema/up.sql
 - 20260821000002_platform_operator/up.sql
 - 20260908000003_courier_settlement/up.sql
@@ -1215,41 +1217,40 @@
 - time-series-chart.tsx
 - TransactionState
 - Vendryx Marketing & Interactive Showcase
-- p
-- billing_run.rs
+- manifest.json
+- FulfillmentProvider
 - services
 - Marketing Content Audit — Stheno
 - ADR-009 — Plan tiers by entitlements, on single-tenant deployments
 - Vendryx Architecture & Documentation Hub
 - scripts
-- data-grid-readonly-cell.tsx
-- use-column-state.ts
+- buildCallerFunction
 - workflow-executions/types.ts
 - Vendryx Platform Control Plane (Transitional)
 - Vendryx Unified Storefront
-- Ch
-- Vendryx brand asset integration (for coding agents)
-- KnowledgeEntryRow
+- bootstrap
+- MetaInboundMessage
+- ApiKey
 - values.yaml
-- tests/launch_requests.rs
+- routes/utils.ts
 - ADR-035 — Architecture Implementation Distance & Readiness Audit
 - ADR-003 — Custom Postgres SAGA engine
 - ADR-004 — Diesel and diesel-async
 - ADR-013 — Storefront presentation is swappable; commerce logic is not
-- ADR-036 — Space provides dedicated build execution and shared build caches
+- logo-palette.ts
 - External Penetration Test & Security Audit Report
 - 1. Migration Steps
 - 20261024000002_notification_outbox/up.sql
 - Vendryx brand asset integration (for coding agents)
-- 🎨 Features
-- 📖 Documentation
-- Core Components
-- category-tree.tsx
+- HeroSection.tsx
+- capture_payment
+- MetaWebhookRegistration
+- store_schema.rs
 - Storefront — provenance
 - mock_upstream.py
-- locales.rs
+- Vendryx Merchant Admin Dashboard
 - check.py
-- pgbouncer
+- engine
 - frontend-matrix — The Matrix Hours
 - ADR-001 — Extensibility is compile-time
 - ADR-002 — Full wire compatibility with Medusa v2, Store and Admin
@@ -1259,22 +1260,20 @@
 - ADR-020 — Content pages a design needs are core routes fed by a theme slot
 - ADR-037 — Cloudflare is the edge layer only; vendor calls are confined to one provider crate and Space
 - Documentation & Version Logging Workflow Protocol
-- 13. Frontend information architecture
-- 14. Space design system
-- 8. Data model
+- src/liquid-glass.js
+- ref_node_assert
+- glass-nav/liquid-glass.js
 - Project Status
 - 20260817060001_reporting_schema/up.sql
 - ai.channel_event
-- 🚀 Quick Start
-- Quick Start
+- ShippingProfileDTO
 - Tab
-- storefront-core/src/app/not-found.tsx
-- ADR-021 — AI-authored storefront content is data against a closed schema, never code
+- ProductStatus
 - Build, test, and artifact policy
 - Vendryx Core Commerce Engine Workspace
 - edge
 - paths
-- environment
+- create_fulfillment
 - ADR-007 — Modular monolith with build-enforced boundaries
 - ADR-019 — Provider credentials are tenant-owned, encrypted, and resolved through factories
 - ADR-022 — Tenant identity is the Host header, and the Store API is served same-origin
@@ -1286,18 +1285,18 @@
 - PCI DSS v4.0 Self-Assessment Questionnaire A (SAQ A) Attestation
 - Stheno Platform Control Plane Runbook
 - 1. Quick Start
-- 11. Subscription and billing workflows
-- 17. Migration from the current Vendryx control plane
-- 3. Current-state assessment
+- redact_value
+- ShippingOptionTypeDTO
+- SocialDispatchResolution
 - 20260821000004_payment_provider_credential/up.sql
-- Resources
+- stheno-stock-location/src/dto.rs
 - Tab
 - Tab
 - RuleType
 - tsconfig.build.json
-- Vendryx Complete Brand Kit
-- P22 — Bangladesh payment gateways (4 weeks)
-- P26 — Branding tier, runtime tokens (3 weeks)
+- ADR-016 — Plan definitions are data the control plane owns, not config baked into the image
+- src/liquid-glass.d.ts
+- glass-nav/liquid-glass.d.ts
 - ADR-005 — Postgres only
 - ADR-014 — A line item's price comes from the catalogue, never from the request
 - ADR-018 — Support impersonation: time-boxed, scope-limited, and audited
@@ -1307,12 +1306,12 @@
 - ADR-033 — Commercial Entitlements Overhaul: Free & 7-Day Pro Trial Packaging
 - Module Authoring Guide
 - Provider Authoring Guide
-- 12. API design
-- 19. Test strategy
-- 1. Decision summary
-- 20. CI and release gates
-- 5. Users, roles, and permissions
-- 9. Entitlement model
+- ADR-026 — Docker Compose now, Kubernetes at scale
+- logo-box/VendryxLogo.tsx
+- SortDirection
+- Tab
+- Tab
+- Tab
 - links.link_fulfillment_provider_location
 - links.link_fulfillment_set_location
 - links.link_invite_rbac_role
@@ -1346,8 +1345,8 @@
 - Tab
 - tokenSecret
 - check.sh
-- 10. Product connector contract
-- 6. Target architecture
+- brand/VendryxLogo.tsx
+- order-now.tsx
 - 20261023000003_ai_configuration/up.sql
 - 20261023000006_ai_channel_conversation/up.sql
 - "order".payment_proof
@@ -1357,38 +1356,38 @@
 - 20261024000010_ai_search_console_oauth_state/up.sql
 - 20261024000012_notification_whatsapp_analytics_consent/up.sql
 - 2.0.1
-- 2.0.2
-- 2.0.3
-- 2.0.5
+- product-onboarding-cta/index.tsx
+- mark_payment_collection_paid
+- update_dismiss_return_item
 - 2.0.6
 - 2.0.7
-- 2.10.0
+- bootstrap.sh
 - 2.10.1
 - 2.10.2
 - 2.10.3
-- 2.11.0
+- 2.0.4
 - 2.11.1
 - 2.11.2
 - 2.11.3
 - 2.12.0
 - 2.12.1
 - 2.12.2
-- 2.12.3
+- 2.13.2
 - 2.12.4
 - 2.12.5
 - 2.12.6
 - 2.13.1
 - 2.13.3
 - 2.13.4
-- 2.13.5
-- 2.13.6
+- 2.1.2
+- 2.3.0
 - 2.14.0
 - 2.14.1
 - 2.14.2
 - 2.15.0
-- 2.15.1
-- 2.15.2
-- 2.15.4
+- 2.6.0
+- 2.8.6
+- 2.8.7
 - 2.15.5
 - 2.17.0
 - 2.17.1
@@ -1398,20 +1397,16 @@
 - 2.1.3
 - 2.2.0
 - 2.3.1
-- 2.5.0
+- check-architecture.sh
 - 2.5.1
 - 2.6.1
-- 2.7.0
+- check-frontend.sh
 - 2.7.1
 - 2.8.0
 - 2.8.1
 - 2.8.2
 - 2.8.3
-- 2.8.4
-- 2.8.5
-- 2.8.8
 - 2.9.0
-- branding/Vendryx_Brand_Kit/12_Source/README.md
 - CLAUDE.md
 - FRONTEND_MAHAL_SLOTS.md
 - 20260816000002_currency_schema/up.sql
@@ -1422,16 +1417,16 @@
 - stheno-cdn-cloudflare
 
 ## God Nodes (most connected - your core abstractions)
-1. `create_pool()` - 678 edges
+1. `create_pool()` - 686 edges
 2. `react-i18next` - 633 edges
-3. `react-router-dom` - 381 edges
+3. `react-router-dom` - 384 edges
 4. `useRouteModal()` - 262 edges
 5. `KeyboundForm` - 239 edges
 6. `PlatformService` - 236 edges
-7. `getRouteMap()` - 228 edges
-8. `Id` - 225 edges
-9. `ActionMenu()` - 220 edges
-10. `react-hook-form` - 209 edges
+7. `Id` - 225 edges
+8. `ActionMenu()` - 220 edges
+9. `react-hook-form` - 209 edges
+10. `RouteFocusModal` - 207 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `When a second store *is* justified` --references--> `SearchProvider()`  [INFERRED]
@@ -1440,10 +1435,10 @@
   docs/archive/PHASE3_PLAN.md → apps/admin/src/routes/payment-providers/components/provider-credential-modal.tsx
 - `Context` --references--> `PaymentProvider`  [INFERRED]
   docs/DECISIONS.md → apps/admin/src/routes/payment-providers/components/provider-credential-modal.tsx
-- `5. What is not done` --references--> `Hero()`  [INFERRED]
-  docs/archive/FRONTEND_MATRIX.md → apps/marketing/src/App.tsx
-- `2. The line, restated` --references--> `fetch()`  [INFERRED]
-  docs/archive/FRONTEND_CONTRACT_INPUTS.md → apps/storefront/.yarn/releases/yarn-4.12.0.cjs
+- `P4 — Cart, promotion, payment (31 tasks)` --references--> `PaymentProvider`  [INFERRED]
+  docs/TASKS.md → apps/admin/src/routes/payment-providers/components/provider-credential-modal.tsx
+- `6.5 Shared product primitives` --references--> `ProviderLogo()`  [INFERRED]
+  docs/archive/VENDRYX_ADAPTATION_PLAN.md → apps/admin/src/routes/payment-providers/components/provider-logo.tsx
 
 ## Import Cycles
 - 1-file cycle: `crates/stheno-server/src/lib.rs -> crates/stheno-server/src/lib.rs`
@@ -1467,187 +1462,187 @@
 - 2-file cycle: `crates/modules/stheno-file/src/lib.rs -> crates/modules/stheno-file/src/service.rs -> crates/modules/stheno-file/src/lib.rs`
 - 2-file cycle: `crates/api/stheno-api-platform/src/lib.rs -> crates/api/stheno-api-platform/src/operators.rs -> crates/api/stheno-api-platform/src/lib.rs`
 
-## Communities (1593 total, 377 thin omitted)
+## Communities (1591 total, 374 thin omitted)
 
 ### Community 0 - "yarn-4.12.0.cjs"
 Cohesion: 0.00
-Nodes (501): Universal build, test, and artifact rules, _5e(), A1t(), A2t(), a3(), addOrCreate(), addPositional(), addProxy() (+493 more)
+Nodes (553): Universal build, test, and artifact rules, _4e(), _5e(), A1t(), A2t(), a3(), a4e(), a_e() (+545 more)
 
 ### Community 1 - "ref_medusajs_icons"
 Cohesion: 0.01
-Nodes (449): Action, ActionGroup, ActionMenu(), Bar(), DateRangeDisplay(), DateRangeDisplayProps, FilePreview(), FileThumbnail() (+441 more)
+Nodes (211): Action, ActionGroup, ActionMenu(), ActionMenuProps, BadgeListSummary(), BadgeListSummaryProps, Bar(), DateRangeDisplay() (+203 more)
 
 ### Community 2 - "create_pool"
 Cohesion: 0.01
-Nodes (237): batch_product_route_enforces_the_quota_for_each_created_product(), first_user_bootstrap_consumes_one_staff_seat_and_replays_without_double_counting(), invite_acceptance_consumes_quota_and_preserves_a_second_invite_when_full(), production_product_route_enforces_the_atomic_quota(), production_staff_route_enforces_the_atomic_quota(), quota_context(), quota_context_with_limits(), merchant_support_session_notice_recorded_and_visible() (+229 more)
+Nodes (235): call(), test_admin_reconciliation_routes_lifecycle(), merchant_support_session_notice_recorded_and_visible(), create_pool(), test_entitlement_usage_schema_exists(), test_quota_decrement_on_delete(), test_quota_atomic_conditional_increment(), one_tenant_cannot_see_or_change_another_tenants_rows() (+227 more)
 
-### Community 3 - "react-i18next"
+### Community 3 - "_DataTable"
 Cohesion: 0.01
-Nodes (403): Chip(), ChipGroup, ChipGroupProps, ChipGroupVariant, ChipProps, GroupContext, GroupContextValue, useGroupContext() (+395 more)
+Nodes (287): _DataTable(), Filter, useApiKeys(), useUpdateProductCategoryProducts(), useCollections(), useUpdateCollectionProducts(), useCurrencies(), useAddCustomersToGroup() (+279 more)
 
 ### Community 4 - "react-router-dom"
 Cohesion: 0.01
-Nodes (349): InfiniteList(), InfiniteListProps, MockIntersectionObserver, Notification(), NotificationData, Notifications(), NotificationsEmptyState(), useUnreadNotifications() (+341 more)
+Nodes (252): InfiniteList(), InfiniteListProps, NotificationData, useUnreadNotifications(), API_KEYS_QUERY_KEY, apiKeysQueryKeys, campaignsQueryKeys, REGIONS_QUERY_KEY (+244 more)
 
-### Community 5 - "campaign-detail.tsx"
-Cohesion: 0.10
-Nodes (18): useCampaign(), useDeleteCampaign(), AddCampaignPromotions(), CampaignDetailBreadcrumb(), CampaignDetailBreadcrumbProps, seo(), CampaignDetail(), CampaignBudget() (+10 more)
+### Community 5 - "add-campaign-promotions-form.tsx"
+Cohesion: 0.04
+Nodes (57): CellProps, CodeCell(), CodeHeader(), HeaderProps, PromotionCellProps, StatusCell(), VisuallyHidden(), useApiKey() (+49 more)
 
 ### Community 6 - "TestDb"
 Cohesion: 0.01
-Nodes (242): announcements_creation_and_listing(), app(), BOOTSTRAP, call(), TIERS_TOML, app(), BOOTSTRAP, call() (+234 more)
+Nodes (252): test_auth_api_endpoints_parity(), TierConfig, announcements_creation_and_listing(), app(), BOOTSTRAP, call(), TIERS_TOML, app() (+244 more)
 
 ### Community 7 - "ref_medusajs_ui"
 Cohesion: 0.01
-Nodes (545): ActionMenuProps, ConditionalTooltip(), ConditionalTooltipProps, Form, SortableList, HeadlessControllerProps, SwitchBox(), SwitchBoxProps (+537 more)
+Nodes (537): ConditionalTooltipProps, Form, HeadlessControllerProps, SwitchBox(), SwitchBoxProps, AddFilterMenu(), AddFilterMenuProps, FilterGroup() (+529 more)
 
 ### Community 8 - "cell-renderers.tsx"
-Cohesion: 0.02
-Nodes (118): Addresses(), AddressPrint(), CustomerInfo, getOrderCustomer(), ID(), ListSummary(), ListSummaryProps, TruncatedText() (+110 more)
-
-### Community 9 - "stheno-platform/src/service.rs"
-Cohesion: 0.04
-Nodes (44): audit_json(), operator_json(), ApplyInvoiceCreditsInput, BillingAttemptDTO, BillingRunDTO, BillingRunInput, CalculateProrationInput, CalculateVatInput (+36 more)
-
-### Community 10 - "arc"
 Cohesion: 0.01
-Nodes (116): RouteTestCourier, stheno_service_crud!, Error, AmountOverflow, Conflict, CurrencyMismatch, Database, Forbidden (+108 more)
+Nodes (194): ListSummary(), ListSummaryProps, TruncatedText(), TruncatedTextProps, UserLink(), DataTableStatusCell(), DataTableStatusCellProps, DataTableStatusIndicator() (+186 more)
+
+### Community 9 - "PlatformService"
+Cohesion: 0.02
+Nodes (103): staff_reconciles_unknown_social_courier_request_once_over_admin_api(), app(), BOOTSTRAP, call(), invoice(), invoices_are_listed_globally_and_for_one_tenant(), retry_and_credit_routes_write_audit_rows(), TIERS_TOML (+95 more)
+
+### Community 10 - "ai_tools.rs"
+Cohesion: 0.02
+Nodes (63): RouteTestCourier, CatalogSearchItem, CatalogSearchRequest, FulfillmentService, invalid(), InventoryReader, InventoryService, make_tool() (+55 more)
 
 ### Community 11 - "payment-providers-list.tsx"
-Cohesion: 0.17
-Nodes (17): CodRulesCard(), CredentialField, PaymentProvider, ProviderCredentialModal(), ProviderCredentialModalProps, VerificationVerdict, formatProviderTitle(), ProviderLogo() (+9 more)
+Cohesion: 0.16
+Nodes (18): CodRules, CodRulesCard(), DEFAULT_COD_RULES, CredentialField, PaymentProvider, ProviderCredentialModal(), ProviderCredentialModalProps, VerificationVerdict (+10 more)
 
 ### Community 12 - "edit-shipping-options-pricing-form.tsx"
 Cohesion: 0.01
-Nodes (292): AmountDisplay(), AmountDisplayProps, TieredPriceForm(), TieredPriceInput(), TieredPriceItem(), TieredPriceItemProps, getRuleValue(), TieredPriceList() (+284 more)
+Nodes (297): AmountDisplay(), AmountDisplayProps, TieredPriceForm(), TieredPriceInput(), TieredPriceItem(), TieredPriceItemProps, getRuleValue(), TieredPriceList() (+289 more)
 
-### Community 13 - "combobox.tsx"
-Cohesion: 0.29
-Nodes (4): ComboboxOption, ComboboxProps, Value, genericForwardRef()
+### Community 13 - "location-general-section.tsx"
+Cohesion: 0.03
+Nodes (76): Chip(), ChipGroup, ChipGroupProps, ChipGroupVariant, ChipProps, GroupContext, GroupContextValue, useGroupContext() (+68 more)
 
 ### Community 14 - "a"
 Cohesion: 0.01
-Nodes (200): _2e(), $5(), a(), Aet(), ahe(), AIt(), ask(), aWe() (+192 more)
+Nodes (212): _2e(), $5(), a(), ade(), Aet(), ahe(), AIt(), ask() (+204 more)
 
 ### Community 15 - "Qr"
 Cohesion: 0.01
-Nodes (237): _3e(), _8e(), a3e(), a8e(), ag(), Amt(), ane(), aRe() (+229 more)
+Nodes (251): _3e(), _8e(), a3e(), a8e(), ag(), Amt(), ane(), aRe() (+243 more)
 
 ### Community 16 - "side-menu/index.tsx"
-Cohesion: 0.09
-Nodes (19): COMPUTED_COLUMN_FUNCTIONS, DISPLAY_STRATEGIES, ENTITY_COLUMN_OVERRIDES, getEntityAccessor(), getNestedValue(), CountryOption, CountrySelectProps, DEFAULT_OPTION (+11 more)
+Cohesion: 0.10
+Nodes (13): COMPUTED_COLUMN_FUNCTIONS, DISPLAY_STRATEGIES, ENTITY_COLUMN_OVERRIDES, getEntityAccessor(), getNestedValue(), CountryOption, CountrySelectProps, DEFAULT_OPTION (+5 more)
 
 ### Community 17 - "DbPool"
 Cohesion: 0.01
-Nodes (154): a_posted_webhook_reaches_the_service_and_is_recorded(), an_unknown_provider_is_refused(), app(), insert_credential(), PROVIDER, seed_offline_credential(), TENANT, TEST_KEY_HEX (+146 more)
+Nodes (209): a_posted_webhook_reaches_the_service_and_is_recorded(), an_unknown_provider_is_refused(), app(), insert_credential(), PROVIDER, seed_offline_credential(), TENANT, TEST_KEY_HEX (+201 more)
 
 ### Community 18 - "c"
-Cohesion: 0.02
-Nodes (251): $1(), a2(), A5e(), Ac(), st(), AE(), Af(), An() (+243 more)
+Cohesion: 0.03
+Nodes (216): $1(), a2(), A5e(), Ac(), st(), An(), AP(), AT() (+208 more)
 
 ### Community 19 - "constructor"
 Cohesion: 0.01
-Nodes (174): $2(), [_6](), [a0e](), add(), addListener(), [Am](), applyChanges(), [aR]() (+166 more)
+Nodes (165): $2(), [_6](), [a0e](), add(), addListener(), [Am](), api(), applyChanges() (+157 more)
 
-### Community 20 - "data-grid/components/index.ts"
-Cohesion: 0.13
-Nodes (35): DataGridBooleanCell(), Inner(), DataGridCellContainer(), RenderChildren(), DataGridCurrencyCell(), DataGridCurrencyCellProps, Inner(), DataGridMultilineCell() (+27 more)
+### Community 20 - "ai_social.rs"
+Cohesion: 0.06
+Nodes (33): app(), app_for(), bad_signatures_are_rejected_and_failed_handoffs_are_retryable(), body_for(), get_verification_requires_matching_token_and_returns_only_challenge(), HmacSha256, HOOK_ID, instagram_message_payloads_use_the_linked_account_id() (+25 more)
 
-### Community 21 - "stheno-api-admin/src/orders.rs"
-Cohesion: 0.05
-Nodes (183): add_claim_inbound_items(), add_claim_inbound_shipping_method(), add_claim_items(), add_claim_outbound_items(), add_claim_outbound_shipping_method(), add_draft_order_edit_items(), add_draft_order_edit_promotions(), add_draft_order_edit_shipping_methods() (+175 more)
+### Community 21 - "AdminOrderContext"
+Cohesion: 0.09
+Nodes (77): AdminOrderContext, apply_order_change(), archive_order(), cancel_claim(), cancel_claim_request(), cancel_exchange(), cancel_exchange_request(), cancel_fulfillment_direct() (+69 more)
 
 ### Community 22 - "Ht"
 Cohesion: 0.02
-Nodes (179): $4(), _8(), accepts(), activatePlugin(), ade(), al(), Ale(), anchoredPackage() (+171 more)
+Nodes (186): $4(), accepts(), Aj(), al(), anchoredPackage(), applyLightResolution(), aZ(), b8() (+178 more)
 
 ### Community 23 - "claim-create-form.tsx"
 Cohesion: 0.01
-Nodes (277): Patch Changes, DisplayId(), DisplayIdProps, By(), UserLink(), UserLinkProps, MoneyAmountCellProps, ProductCell() (+269 more)
+Nodes (297): CustomerInfo, DisplayId(), DisplayIdProps, By(), UserLinkProps, MoneyAmountCellProps, ProductCell(), ProductCellProps (+289 more)
 
-### Community 24 - "api-key-general-section.tsx"
-Cohesion: 0.12
-Nodes (24): useApiKeys(), useDeleteApiKey(), useRevokeApiKey(), ApiKeyManagementCreate(), ApiKeyGeneralSection(), ApiKeyGeneralSectionProps, ApiKeyManagementList(), ApiKeyManagementListTable() (+16 more)
+### Community 24 - "RouteFocusModal"
+Cohesion: 0.01
+Nodes (118): RouteFocusModal, ErrorBoundary(), HydrateFallback(), curateMerchantWorkspace(), getRouteMap(), MERCHANT_SETTINGS_ROUTES, MERCHANT_WORKSPACE_ROUTES, useCreateCampaign() (+110 more)
 
 ### Community 25 - "Path"
 Cohesion: 0.02
-Nodes (28): config(), custom_endpoint_uses_auto_region_and_separate_buckets(), private_presigned_upload_uses_private_bucket_without_public_file_url(), resolving_a_private_object_never_returns_a_public_url(), bkash_factory_builds_provider_with_schema_validation(), test_credentials(), bkash_factory_builds_and_verifies_honest_capabilities(), bkash_factory_rejects_missing_credentials() (+20 more)
+Nodes (11): bkash_factory_builds_provider_with_schema_validation(), test_credentials(), nagad_factory_builds_and_verifies_honest_capabilities(), nagad_factory_rejects_missing_credentials(), valid_credentials(), sslcommerz_factory_builds_provider_with_schema_validation(), test_credentials(), refund_input() (+3 more)
 
-### Community 26 - "PlatformService"
+### Community 26 - "stheno-api-admin/src/orders.rs"
+Cohesion: 0.06
+Nodes (45): AdminOrderListQuery, bad_request(), cancel_return(), cancel_return_request(), confirm_return_receive(), confirm_return_request(), ConfirmReturnReceiptRequest, convert_draft_order_to_order() (+37 more)
+
+### Community 27 - "MetadataForm"
 Cohesion: 0.03
-Nodes (17): BangladeshBankRateFetcher, IssuedOperator, LaunchRequestDTO, SubscriptionDTO, TrialWarningRecipient, GlobalFlag, .ENTITY, .ID_COLUMN (+9 more)
-
-### Community 27 - "get-route.map.tsx"
-Cohesion: 0.01
-Nodes (136): MetadataForm(), PlaceholderInner(), HydrateFallback(), getRouteMap(), MERCHANT_SETTINGS_ROUTES, MERCHANT_WORKSPACE_ROUTES, useApiKey(), useUpdateProductCategory() (+128 more)
+Nodes (75): SortableList, MetadataForm(), ChipInput, ChipInputProps, useUpdateProductCategory(), useCustomerGroup(), useUpdateCustomerGroup(), useUpdateCustomer() (+67 more)
 
 ### Community 28 - "CrudEntity"
 Cohesion: 0.02
-Nodes (62): CrudEntity, .ENTITY, .ID_COLUMN, .TABLE, Announcement, .ENTITY, .TABLE, BillingAttempt (+54 more)
+Nodes (74): CrudEntity, .ENTITY, .ID_COLUMN, .TABLE, Announcement, .ENTITY, .TABLE, BillingAttempt (+66 more)
 
-### Community 29 - "super"
-Cohesion: 0.04
-Nodes (36): DbConnection, BoolRow, COUNTER, CountRow, TEST_DB_CREATE_LOCK, TextRow, backoff(), BASE_BACKOFF (+28 more)
+### Community 29 - "scheduler.rs"
+Cohesion: 0.24
+Nodes (9): execute(), invalid_schedule_is_refused(), Job, JobFn, JobFuture, LOCK_TTL_SECONDS, MIN_SLEEP, run_forever() (+1 more)
 
 ### Community 30 - "ref_medusajs_types"
-Cohesion: 0.01
-Nodes (220): DataTableStatusCell(), DataTableStatusCellProps, DataTableStatusIndicatorProps, StatusColor, ColumnOrderState, DataTable(), DataTableAction(), DataTableActionMenuActionProps (+212 more)
+Cohesion: 0.02
+Nodes (163): ColumnOrderState, DataTable(), DataTableAction(), DataTableActionMenuActionProps, DataTableActionMenuGroupProps, DataTableActionMenuProps, DataTableActionProps, DataTableActions() (+155 more)
 
 ### Community 31 - "l5e"
 Cohesion: 0.03
-Nodes (155): a6e(), aa(), Bd(), BE(), Co(), compile(), dt(), Dte() (+147 more)
+Nodes (146): a6e(), aa(), Af(), au(), Bd(), Co(), dt(), e6e() (+138 more)
 
 ### Community 32 - "stheno-order/src/dto.rs"
-Cohesion: 0.07
-Nodes (39): ClaimWorkflowEngine, AddClaimItemInput, AddExchangeItemInput, AddressDTO, AddReturnItemInput, ClaimDTO, ClaimItemDTO, ClaimItemImageDTO (+31 more)
+Cohesion: 0.04
+Nodes (43): ClaimWorkflowEngine, DraftOrderWorkflowEngine, ExchangeWorkflowEngine, ReturnWorkflowEngine, AddClaimItemInput, AddExchangeItemInput, AddressDTO, AddReturnItemInput (+35 more)
 
 ### Community 33 - "stheno-server/src/lib.rs"
 Cohesion: 0.02
-Nodes (114): admin_courier_routes(), admin_ai_routes(), admin_api_key_routes(), admin_catalog_routes(), admin_config_routes(), admin_customer_routes(), admin_fulfillment_settings_routes(), admin_home_routes() (+106 more)
+Nodes (99): admin_courier_routes(), admin_ai_routes(), admin_api_key_routes(), admin_catalog_routes(), admin_config_routes(), admin_customer_routes(), admin_fulfillment_settings_routes(), admin_home_routes() (+91 more)
 
-### Community 34 - "product-media-gallery.tsx"
-Cohesion: 0.11
-Nodes (16): Canvas(), getMedia(), Media, Preview(), ProductMediaGallery(), ProductMediaGalleryProps, ProductMediaViewContext, ProductMediaViewContextValue (+8 more)
+### Community 34 - "useProduct"
+Cohesion: 0.05
+Nodes (28): useProduct(), useUpdateProductVariantsBatch(), ProductCreateVariant(), ProductDetailBreadcrumb(), ProductDetailBreadcrumbProps, seo(), ExtendedProduct, PRODUCT_DETAIL_FIELDS (+20 more)
 
 ### Community 35 - "mapToBase"
-Cohesion: 0.03
-Nodes (159): accessPromise(), accessSync(), addDirectory(), allocateBuffer(), allocateSource(), allocateUnattachedSource(), appendFilePromise(), appendFileSync() (+151 more)
+Cohesion: 0.04
+Nodes (150): accessPromise(), accessSync(), addDirectory(), allocateBuffer(), allocateSource(), allocateUnattachedSource(), appendFilePromise(), appendFileSync() (+142 more)
 
 ### Community 36 - "render"
 Cohesion: 0.03
-Nodes (113): aat(), addChoice(), alert(), altDown(), altUp(), append(), backward(), cast() (+105 more)
+Nodes (112): aat(), addChoice(), alert(), altDown(), altUp(), aMe(), append(), backward() (+104 more)
 
 ### Community 37 - "properties"
 Cohesion: 0.01
 Nodes (137): type, type, type, type, type, type, type, type (+129 more)
 
 ### Community 38 - "permissions-provider/index.ts"
-Cohesion: 0.06
-Nodes (49): AccessDenied(), AccessDeniedProps, PermissionRouteHandle, readRequirementFromHandle(), ResolvedRequirement, RoutePermissionGuard(), MetadataSection(), BasePermissionGuardProps (+41 more)
+Cohesion: 0.10
+Nodes (34): AccessDenied(), AccessDeniedProps, PermissionRouteHandle, readRequirementFromHandle(), ResolvedRequirement, RoutePermissionGuard(), BasePermissionGuardProps, PermissionGuardProps (+26 more)
 
 ### Community 39 - "NotificationService"
 Cohesion: 0.02
-Nodes (62): staff_conversion_dispatch_preflight_replay_and_ambiguous_retry_contract(), Event, InMemoryEventBus, OutboxEntry, CreateTemplateInput, NotificationDeliveryDTO, NotificationDTO, NotificationTemplateDTO (+54 more)
+Nodes (57): staff_conversion_dispatch_preflight_replay_and_ambiguous_retry_contract(), Event, EventBus, InMemoryEventBus, OutboxEntry, AppContext, CreateTemplateInput, NotificationDeliveryDTO (+49 more)
 
 ### Community 40 - "CredentialMap"
-Cohesion: 0.13
-Nodes (15): credential_aad(), credential_cipher_from_env(), CredentialMap, decrypt_credential_map(), encrypt_credential_map(), PaymentProviderFactory, FixedProviderFactory, aad_binds_ciphertext_to_tenant_and_provider() (+7 more)
+Cohesion: 0.10
+Nodes (17): credential_aad(), credential_cipher_from_env(), CredentialMap, decrypt_credential_map(), encrypt_credential_map(), PaymentProviderFactory, credential_dto(), CredentialSummaryRow (+9 more)
 
-### Community 41 - "storefront-core/src/app/[countryCode]/(main)/collections/[handle]/page.tsx"
-Cohesion: 0.08
-Nodes (37): CategoryTemplate(), CollectionTemplate(), FilterRadioGroup(), FilterRadioGroupProps, SkeletonProductPreview(), SkeletonProductGrid(), Pagination(), RefinementList() (+29 more)
+### Community 41 - "getRegion"
+Cohesion: 0.05
+Nodes (64): FilterRadioGroup(), FilterRadioGroupProps, ImageGallery(), ImageGalleryProps, ProductInfoTab(), ProductTabs(), RelatedProducts(), ADR-0013 (+56 more)
 
 ### Community 42 - "PricingService"
-Cohesion: 0.04
-Nodes (59): StoreCalculatedPrice, StoreCalculatedPriceDetail, StoreProductOption, StoreProductOptionValue, StoreVariant, StoreVariantOption, to_store_price(), SagaCoordinator (+51 more)
+Cohesion: 0.03
+Nodes (78): StoreCalculatedPrice, StoreCalculatedPriceDetail, StoreProductOption, StoreProductOptionValue, StoreVariant, StoreVariantOption, to_store_price(), SagaCoordinator (+70 more)
 
 ### Community 43 - "tax-region-detail/tax-region-detail.tsx"
-Cohesion: 0.04
-Nodes (58): ActionProps, DefaultButton(), NoRecords(), NoRecordsProps, NoResults(), NoResultsProps, TransparentIconLeftButton(), ProvinceSelect (+50 more)
-
-### Community 44 - "OrderService"
 Cohesion: 0.05
-Nodes (7): DraftOrderWorkflowEngine, ExchangeWorkflowEngine, OrderTransferRequest, OrderWorkflowEngine, ExchangeDTO, OrderDTO, OrderService
+Nodes (52): NoResults(), NoResultsProps, TableFooterSkeleton(), ProvinceSelect, LocalizedTablePagination, LocalizedTablePaginationProps, DataTableProps, MemoizedDataTableQuery (+44 more)
+
+### Community 44 - "OrderDTO"
+Cohesion: 0.06
+Nodes (5): OrderEditWorkflowEngine, OrderTransferRequest, OrderWorkflowEngine, OrderChangePreview, OrderDTO
 
 ### Community 45 - "CustomerService"
 Cohesion: 0.06
@@ -1655,26 +1650,26 @@ Nodes (60): add_customer_address(), AdminCreateCustomerAddressPayload, batch_cus
 
 ### Community 46 - "workflow-execution-history-section.tsx"
 Cohesion: 0.16
-Nodes (12): STEP_ERROR_STATES, STEP_IN_PROGRESS_STATES, STEP_INACTIVE_STATES, STEP_OK_STATES, STEP_SKIPPED_STATES, TRANSACTION_ERROR_STATES, TRANSACTION_IN_PROGRESS_STATES, TRANSACTION_OK_STATES (+4 more)
+Nodes (13): STEP_ERROR_STATES, STEP_IN_PROGRESS_STATES, STEP_INACTIVE_STATES, STEP_OK_STATES, STEP_SKIPPED_STATES, TRANSACTION_ERROR_STATES, TRANSACTION_IN_PROGRESS_STATES, TRANSACTION_OK_STATES (+5 more)
 
 ### Community 47 - "config.rs"
-Cohesion: 0.17
-Nodes (42): BatchLinkSalesChannelProductsRequest, ConfigContext, create_gift_card(), create_region(), create_tax_rate_rule(), CreateTaxRateRuleRequest, credential_schema_json(), delete_region() (+34 more)
+Cohesion: 0.15
+Nodes (49): BatchLinkSalesChannelProductsRequest, ConfigContext, create_gift_card(), create_region(), create_sales_channel(), create_tax_rate(), create_tax_rate_rule(), create_tax_region() (+41 more)
 
 ### Community 48 - "frontend/index.ts"
 Cohesion: 0.06
-Nodes (50): lodash@^4.17.21, AccountInfo(), AccountInfoProps, AddressBook(), AddressBookProps, AddAddress(), EditAddress(), EditAddressProps (+42 more)
+Nodes (52): AccountInfo(), AccountInfoProps, AddressBookProps, AddAddress(), EditAddress(), EditAddressProps, Login(), Props (+44 more)
 
 ### Community 49 - "stheno-auth/src/events.rs"
 Cohesion: 0.51
 Nodes (7): IdentityAuthenticated, IdentityCreated, LockoutTriggered, MfaFactorAdded, MfaFactorVerified, PasswordChanged, TokenVersionInvalidated
 
-### Community 50 - "CartService"
-Cohesion: 0.06
-Nodes (42): cart_context(), AddressDTO, calculate_cart_totals(), calculate_line_item_totals(), calculate_shipping_method_totals(), CartDTO, CartTotalsDTO, CreateAddressInput (+34 more)
+### Community 50 - "stheno-cart/src/dto.rs"
+Cohesion: 0.15
+Nodes (24): calculate_cart_totals(), calculate_shipping_method_totals(), CartTotalsDTO, CreateAddressInput, CreateCartInput, CreateCreditLineInput, CreateLineItemAdjustmentInput, CreateLineItemInput (+16 more)
 
 ### Community 51 - "Conn"
-Cohesion: 0.10
+Cohesion: 0.09
 Nodes (6): OptionalRow, PgCrudRepository<T>, std::result::Result<R, diesel::result::Error>, to_db_error(), InMemoryCrudStore<T>, Conn
 
 ### Community 52 - "catalog.rs"
@@ -1683,131 +1678,131 @@ Nodes (80): bad_request(), batch_product_image_variants(), batch_product_options
 
 ### Community 53 - "stheno-product/src/models.rs"
 Cohesion: 0.03
-Nodes (34): compute_variant_option_values_hash(), Product, .ENTITY, .TABLE, ProductCategory, .ENTITY, .TABLE, ProductCollection (+26 more)
+Nodes (32): compute_variant_option_values_hash(), Product, .ENTITY, .TABLE, ProductCategory, .ENTITY, .TABLE, ProductCollection (+24 more)
 
 ### Community 54 - "dependencies"
 Cohesion: 0.03
-Nodes (64): dependencies, @babel/runtime@^7.26.10, cmdk@^0.2.0, copy-to-clipboard@^3.3.3, date-fns@^3.6.0, @dnd-kit/core@^6.1.0, @dnd-kit/sortable@^8.0.0, @dnd-kit/utilities@^3.2.2 (+56 more)
+Nodes (101): allowScripts, @clerk/shared@3.47.8, esbuild@0.21.5, dependencies, @ariakit/react@^0.4.15, @babel/runtime@^7.26.10, cmdk@^0.2.0, copy-to-clipboard@^3.3.3 (+93 more)
 
 ### Community 55 - "properties"
 Cohesion: 0.02
 Nodes (95): properties, type, type, type, type, type, type, type (+87 more)
 
-### Community 56 - "ProductService"
-Cohesion: 0.06
-Nodes (12): get_category(), GetCategoryResponse, list_categories(), ListCategoriesResponse, BatchProductService, ProductCategoryDTO, UpdateCategoryInput, ProductType (+4 more)
+### Community 56 - "src/categories.rs"
+Cohesion: 0.47
+Nodes (4): get_category(), GetCategoryResponse, list_categories(), ListCategoriesResponse
 
 ### Community 57 - "social_webhook.rs"
-Cohesion: 0.05
-Nodes (47): hex(), HmacSha256, invalid_payload(), MAX_BODY_BYTES, MAX_EVENTS_PER_DELIVERY, MAX_RATE_LIMIT_KEYS, MAX_TEXT_BYTES, meta_webhook_routes() (+39 more)
+Cohesion: 0.11
+Nodes (19): hex(), HmacSha256, MAX_BODY_BYTES, MAX_EVENTS_PER_DELIVERY, MAX_RATE_LIMIT_KEYS, MAX_TEXT_BYTES, meta_webhook_routes(), MetaInboundHandler (+11 more)
 
 ### Community 58 - "storefront-core/src/index.ts"
 Cohesion: 0.04
-Nodes (63): CartTotals(), CartTotalsProps, ModalProps, Title(), X(), initialState, ManualPaymentProof(), SubmitState (+55 more)
+Nodes (59): ModalProps, Title(), X(), DevThemeSwitcher(), slug(), Swatch(), SWITCHER_TOKENS, THEMES (+51 more)
 
-### Community 59 - "Rr"
-Cohesion: 0.11
-Nodes (39): as(), B9e(), bte(), C9e(), D9e(), dE(), f9e(), fTe() (+31 more)
+### Community 59 - "HJe"
+Cohesion: 0.06
+Nodes (70): AE(), as(), B9e(), BE(), C9e(), compile(), D9e(), dE() (+62 more)
 
 ### Community 60 - "invite.tsx"
-Cohesion: 0.04
-Nodes (69): AvatarBox(), LogoBox(), LogoBoxProps, ErrorBoundary(), I18n(), AuthProvider, provisionAuthUser(), useAuthProviders() (+61 more)
+Cohesion: 0.10
+Nodes (27): react-jwt@^1.2.0, LogoBox(), LogoBoxProps, authProvidersQueryKey, useResetPasswordForEmailPass(), useSignInWithEmailPass(), useSignUpWithEmailPass(), useUpdateProviderForEmailPass() (+19 more)
 
-### Community 61 - "TaxService"
-Cohesion: 0.06
-Nodes (20): build_create_tax_rate_rule_saga(), build_create_tax_rate_saga(), build_create_tax_region_saga(), build_delete_tax_rate_rule_saga(), build_delete_tax_rate_saga(), build_delete_tax_region_saga(), build_resolve_tax_lines_saga(), build_update_tax_rate_saga() (+12 more)
+### Community 61 - "StepContext"
+Cohesion: 0.02
+Nodes (70): BrandingContext, BrandingResponse, get_appearance(), get_branding(), Step, StepContext, FailingStep, InventoryStep (+62 more)
 
-### Community 62 - "RbacService"
-Cohesion: 0.06
-Nodes (23): AuditRecordDTO, CreatePolicyInput, CreateRoleInput, EvaluatePermissionInput, PermissionDecision, PolicyDTO, RoleDTO, UpdatePolicyInput (+15 more)
+### Community 62 - "stheno-api-admin/src/rbac.rs"
+Cohesion: 0.11
+Nodes (28): AuditQuery, create_policy(), create_role(), delete_policy(), delete_role(), evaluate(), failed(), get_me_permissions() (+20 more)
 
 ### Community 63 - "CurrencyCode"
-Cohesion: 0.03
-Nodes (50): CurrencyCode, Aud, Bdt, Bhd, Bif, Cad, Chf, Clp (+42 more)
+Cohesion: 0.05
+Nodes (33): CurrencyCode, Aud, Bdt, Bhd, Bif, Cad, Chf, Clp (+25 more)
 
 ### Community 64 - "Lh"
-Cohesion: 0.02
-Nodes (100): _4e(), a4e(), a_e(), ad(), aFe(), B8e(), B_e(), BFe() (+92 more)
+Cohesion: 0.03
+Nodes (66): _8(), activatePlugin(), aFe(), Ale(), aq(), bXe(), cFe(), cloneFromRemote() (+58 more)
 
 ### Community 65 - "storefront/package.json"
-Cohesion: 0.03
-Nodes (92): allowScripts, esbuild@0.28.2, sharp@0.34.5, unrs-resolver@1.12.2, author, dependencies, gsap@^3.15.0, @gsap/react@^2.1.2 (+84 more)
+Cohesion: 0.02
+Nodes (112): c, requiredEnvs, CORE, FRONTEND_MODULES, ADR-0013, nextConfig, path, allowScripts (+104 more)
 
 ### Community 66 - "Wr"
-Cohesion: 0.09
-Nodes (52): aYe(), CE(), cWe(), dne(), dWe(), eYe(), fo(), fre() (+44 more)
+Cohesion: 0.07
+Nodes (67): aWe(), aYe(), CE(), cWe(), dne(), dWe(), eYe(), fM() (+59 more)
 
 ### Community 67 - "Session Log — 2026-10-23 (ADR-033 deployed plan price)"
 Cohesion: 0.03
-Nodes (64): CI follow-up — affected Cargo package gates, Session continuation — 2026-10-24 (ADR-032 / ADR-035 database acceptance), Session continuation — 2026-10-24 (ADR-032 flow contracts), Session continuation — 2026-10-24 (ADR-032 focused gate repair), Session continuation — 2026-10-24 (ADR-032 server compile follow-up), Session continuation — 2026-10-24 (ADR-033/035 SSR branding), Session continuation — 2026-10-24 (ADR-033 frontend pin/switch evidence), Session continuation — 2026-10-24 (ADR-033 production quota wiring) (+56 more)
+Nodes (72): pending(), 1.3 Merchant launch workflow, 3.1 Payment session — 7 states, 3.2 Webhook actions — 8 values, 3.3 Money ledger invariants, 3. State machines, 7.4 Events mapped, CI follow-up — affected Cargo package gates (+64 more)
 
 ### Community 68 - "next"
-Cohesion: 0.04
-Nodes (94): CartMismatchBanner(), RelatedProducts(), ADR-0013, Bad(), AboutPage(), metadata, Addresses(), metadata (+86 more)
+Cohesion: 0.05
+Nodes (81): CartMismatchBanner(), Footer(), ADR-0013, Bad(), Addresses(), metadata, Cart(), metadata (+73 more)
 
-### Community 69 - "tiered-price-cell.tsx"
-Cohesion: 0.12
-Nodes (19): DataGridQuantityPriceCell(), DataGridQuantityPriceCellProps, DataGridCellProps, Inner(), OuterComponent(), TieredPriceCell(), TieredPriceCellProps, TieredPriceControls() (+11 more)
+### Community 69 - "Response"
+Cohesion: 0.09
+Nodes (43): add_claim_inbound_items(), add_claim_inbound_shipping_method(), add_claim_items(), add_claim_outbound_items(), add_claim_outbound_shipping_method(), add_draft_order_edit_items(), add_draft_order_edit_promotions(), add_draft_order_edit_shipping_methods() (+35 more)
 
-### Community 70 - "target-form.tsx"
-Cohesion: 0.03
-Nodes (78): useStateAwareTo(), Root(), RouteDrawerProps, Content(), ContentProps, Root(), RouteFocusModalProps, RouteModalForm() (+70 more)
+### Community 70 - "route-focus-modal.tsx"
+Cohesion: 0.17
+Nodes (13): useStateAwareTo(), Root(), RouteDrawerProps, Content(), ContentProps, Root(), RouteFocusModalProps, RouteModalForm() (+5 more)
 
 ### Community 71 - "stheno-api-store/src/lib.rs"
 Cohesion: 0.04
-Nodes (53): store_branding_routes(), store_cart_routes(), store_catalog_routes(), store_catalog_secondary_routes(), store_currency_routes(), store_customer_routes(), store_locale_routes(), store_order_routes() (+45 more)
+Nodes (51): store_branding_routes(), store_cart_routes(), store_catalog_routes(), store_catalog_secondary_routes(), store_currency_routes(), store_customer_routes(), store_locale_routes(), store_order_routes() (+43 more)
 
 ### Community 72 - "stheno-types"
 Cohesion: 0.12
 Nodes (80): stheno-ai, stheno-ai-openai-compatible, stheno-analytics, stheno-api-admin, stheno-api-admin-platform, stheno-api-auth, stheno-api-core, stheno-api-key (+72 more)
 
 ### Community 73 - "stheno-payment/src/dto.rs"
-Cohesion: 0.09
-Nodes (46): AccountHolderDTO, AccountHolderOutput, AuthorizePaymentSessionInput, CaptureDTO, CapturePaymentInput, CodReturnDTO, CodReturnInput, CourierReconciliationBucketItem (+38 more)
+Cohesion: 0.05
+Nodes (53): AccountHolderDTO, AccountHolderOutput, AuthorizePaymentSessionInput, CaptureDTO, CapturePaymentInput, CodReturnDTO, CodReturnInput, CourierReconciliationBucketItem (+45 more)
 
 ### Community 74 - "dashboard-app/types.ts"
 Cohesion: 0.06
-Nodes (46): LayoutDefinition, SectionWidgetMap, DashboardApp, DashboardAppProps, UseExtendableFormProps, curateMerchantWorkspace(), addRoute(), createBranchRoute() (+38 more)
+Nodes (45): CORE_LAYOUTS, SectionWidgetMap, DashboardApp, DashboardAppProps, ConfigExtension, ConfigFieldExtension, ConfigFieldMap, DashboardPlugin (+37 more)
 
 ### Community 75 - "tenant_store_intelligence.rs"
-Cohesion: 0.03
-Nodes (39): EventBus, ALL_LINKS, Cardinality, ManyToMany, ManyToOne, OneToMany, OneToOne, CascadeBehaviour (+31 more)
+Cohesion: 0.06
+Nodes (31): LinkStore, LinkTableMap, DEFAULT_MAX_DEPTH, FetchNode, FieldSelection, MAX_NODES, QueryEngine, QueryPlanner (+23 more)
 
 ### Community 76 - "SteadfastFulfillmentProvider"
-Cohesion: 0.13
-Nodes (4): required_text(), SteadfastConfig, SteadfastFulfillmentProvider, value_to_id()
+Cohesion: 0.14
+Nodes (3): SteadfastConfig, SteadfastFulfillmentProvider, value_to_id()
 
-### Community 77 - "marketing/src/App.tsx"
-Cohesion: 0.06
-Nodes (65): AdminTab, App(), AuthShell(), Breadcrumbs(), catalogPresets, Closing(), Currency, DedicatedDemoPage() (+57 more)
+### Community 77 - "DemoPage.tsx"
+Cohesion: 0.10
+Nodes (27): DedicatedDemoPage(), addDemoOrder(), clearDemoSession(), convertSocialToOrder(), createDemoSession(), createId(), DemoOrder, DemoProduct (+19 more)
 
 ### Community 78 - "tenant.rs"
 Cohesion: 0.14
 Nodes (12): a_scope_is_visible_to_everything_beneath_it(), APP_ROLE, apply_scope(), current(), is_set(), PLATFORM_SCOPE, process_default(), PROCESS_DEFAULT (+4 more)
 
 ### Community 79 - "configuration.rs"
-Cohesion: 0.09
-Nodes (28): AiConfigurationService, AiConfigurationStatus, AiProviderRuntimeConfig, allowed_secret_keys(), associated_data(), ConfigurationRow, decrypt_payload(), decrypt_values() (+20 more)
+Cohesion: 0.08
+Nodes (29): AiConfigurationService, AiConfigurationStatus, AiProviderRuntimeConfig, allowed_secret_keys(), associated_data(), ConfigurationRow, decrypt_payload(), decrypt_values() (+21 more)
 
 ### Community 80 - "ai.rs"
 Cohesion: 0.11
 Nodes (56): AiAdminContext, can_manage_store_ai(), complete_search_console_oauth(), CompleteSearchConsoleOAuthRequest, concurrent_local_rankings_are_rejected_and_slot_recovers(), create_knowledge(), delete_chat_offer(), delete_knowledge() (+48 more)
 
 ### Community 81 - "layout-composer.tsx"
-Cohesion: 0.05
-Nodes (47): CUSTOMIZE_IDS, CustomizeId, LAYOUT_CONTROLS_LOCATION, CustomizeHost, CustomizerMenu(), HOSTS, buildCoreEntries(), buildDisplayEntries() (+39 more)
+Cohesion: 0.06
+Nodes (35): CUSTOMIZE_IDS, CustomizeId, LAYOUT_CONTROLS_LOCATION, CustomizeHost, CustomizerMenu(), HOSTS, buildDisplayEntries(), isSamePreference() (+27 more)
 
 ### Community 82 - "CacheProvider"
 Cohesion: 0.05
-Nodes (6): InMemoryCacheProvider, PostgresCacheProvider, CacheProvider, CacheService, ProductCacheEntry, test_postgres_cache_provider_fallback()
+Nodes (7): CacheEntry, InMemoryCacheProvider, PostgresCacheProvider, CacheProvider, CacheService, ProductCacheEntry, test_postgres_cache_provider_fallback()
 
 ### Community 83 - "stheno-http/src/lib.rs"
 Cohesion: 0.05
-Nodes (26): CSRF_COOKIE_NAME, CSRF_HEADER_NAME, is_safe_method(), validate_csrf(), validate_origin_host(), ErrorResponse, extract_idempotency_key(), IDEMPOTENCY_KEY_HEADER (+18 more)
+Nodes (21): test_over_quota_error_shape_and_upsell(), CSRF_COOKIE_NAME, CSRF_HEADER_NAME, is_safe_method(), validate_csrf(), validate_origin_host(), ErrorResponse, extract_idempotency_key() (+13 more)
 
 ### Community 84 - "search-entities.ts"
-Cohesion: 0.10
-Nodes (31): DynamicSearchResult, DynamicSearchResultItem, SearchArea, transformSearchResultGroup(), useDebouncedSearch(), useDynamicSearchResults(), UseSearchProps, useSearchResults() (+23 more)
+Cohesion: 0.11
+Nodes (27): DynamicSearchResult, DynamicSearchResultItem, SearchArea, transformSearchResultGroup(), useDebouncedSearch(), useDynamicSearchResults(), UseSearchProps, useSearchResults() (+19 more)
 
 ### Community 85 - "general"
 Cohesion: 0.03
@@ -1822,48 +1817,48 @@ Cohesion: 0.03
 Nodes (69): general, active, add, added, admin, apply, areYouSure, areYouSureDescription (+61 more)
 
 ### Community 88 - "Divider"
-Cohesion: 0.08
-Nodes (35): @stripe/react-stripe-js@^5.3.0, @stripe/stripe-js@^8.2.0, SignInPrompt(), CartTemplate(), getCheckoutStep(), Summary(), SummaryProps, Divider() (+27 more)
+Cohesion: 0.09
+Nodes (29): @headlessui/react@^2.2.0, Radio(), Checkout(), metadata, isStripeLike(), calculatePriceForShippingOption(), listCartShippingMethods(), listCartPaymentMethods() (+21 more)
 
 ### Community 89 - "PaymentProvider"
 Cohesion: 0.04
-Nodes (29): AuthorizeInput, AuthorizeOutput, CancelInput, CancelOutput, CaptureInput, CaptureOutput, DeleteInput, PaymentProvider (+21 more)
+Nodes (44): AuthorizeInput, AuthorizeOutput, CancelInput, CancelOutput, CaptureInput, CaptureOutput, DeleteInput, InitiateInput (+36 more)
 
 ### Community 90 - "SocialDraftWorkflow"
-Cohesion: 0.12
-Nodes (18): is_insufficient_inventory(), should_skip_placed_push(), SocialDraftInput, SocialDraftWorkflow, validate_ai_draft(), ai_handoff_rejects_missing_buyer_address_and_invalid_quantity(), ai_handoff_requires_buyer_fields_and_retries_return_one_uncommitted_draft(), an_empty_basket_is_rejected() (+10 more)
+Cohesion: 0.06
+Nodes (34): create_social_draft(), CreateSocialDraftRequest, CreateSocialDraftResponse, SocialContext, SocialDraftLine, store_social_routes(), is_insufficient_inventory(), should_skip_placed_push() (+26 more)
 
 ### Community 91 - "general"
 Cohesion: 0.03
 Nodes (68): general, active, add, added, admin, apply, areYouSure, areYouSureDescription (+60 more)
 
-### Community 92 - "LocalizedClientLink"
+### Community 92 - "next"
 Cohesion: 0.06
-Nodes (39): OrderCard(), OrderCardProps, OrderOverview(), EDITORIAL_TRIO, QUICK_RAIL_ITEMS, STYLE_SILHOUETTES, ProductRail(), ADR-0013 (+31 more)
+Nodes (45): Divider(), Help(), Items(), ItemsProps, initialState, ManualPaymentProof(), SubmitState, OnboardingCta() (+37 more)
 
 ### Community 93 - "stheno-connector-space/src/lib.rs"
-Cohesion: 0.05
-Nodes (37): EntitlementsFetchResult, Fresh, NotModified, EntitlementsSnapshot, HmacSha256, ManifestCapabilityInput, ObservedStateResponse, sign_space_webhook() (+29 more)
+Cohesion: 0.10
+Nodes (22): EntitlementsFetchResult, Fresh, NotModified, EntitlementsSnapshot, HmacSha256, ManifestCapabilityInput, ObservedStateResponse, sign_space_webhook() (+14 more)
 
 ### Community 94 - "stheno-api-platform/src/lib.rs"
-Cohesion: 0.07
-Nodes (76): get_launch_request(), LaunchActionBody, LaunchRequestView, list_launch_requests(), string_draft_field(), transition_launch_request(), view(), Actor (+68 more)
+Cohesion: 0.11
+Nodes (48): Actor, actor(), add_tenant_domain(), AddDomainRequest, bearer(), BOOTSTRAP_ACTOR_ID, close_tenant(), CloseTenantRequest (+40 more)
 
 ### Community 95 - "FulfillmentService"
-Cohesion: 0.08
-Nodes (7): FulfillmentWorkflowEngine, CreateAddressInput, CreateFulfillmentInput, FulfillmentDTO, FulfillmentService, is_provider_secret_key(), redact_provider_secrets()
+Cohesion: 0.09
+Nodes (6): FulfillmentWorkflowEngine, CreateAddressInput, CreateFulfillmentInput, CreateFulfillmentLabelInput, FulfillmentDTO, FulfillmentService
 
 ### Community 96 - "DemoService"
 Cohesion: 0.18
 Nodes (4): CreateDemoInput, DemoDTO, DemoItem, DemoService
 
 ### Community 97 - "search.rs"
-Cohesion: 0.07
-Nodes (4): SearchProvider, SearchService, LocalSearchProvider, test_search_persistence_and_full_rebuild()
+Cohesion: 0.06
+Nodes (9): SearchDocument, SearchFilter, SearchHit, SearchQuery, SearchResult, SearchProvider, SearchService, LocalSearchProvider (+1 more)
 
 ### Community 98 - "marketing/package.json"
-Cohesion: 0.04
-Nodes (61): dependencies, clsx@^2.1.1, @fontsource-variable/geist@^5.3.0, gsap@^3.15.0, lucide-react@^1.39.0, motion@^12.5.0, radix-ui@^1.6.7, react@^18.3.1 (+53 more)
+Cohesion: 0.07
+Nodes (37): dependencies, lucide-react@^0.475.0, motion@^11.15.0, react@^18.3.1, react-dom@^18.3.1, devDependencies, autoprefixer@^10.4.20, postcss@^8.4.47 (+29 more)
 
 ### Community 99 - "general"
 Cohesion: 0.03
@@ -1885,13 +1880,13 @@ Nodes (63): general, active, add, added, admin, apply, areYouSure, areYouSureDes
 Cohesion: 0.03
 Nodes (63): general, active, add, added, admin, apply, areYouSure, areYouSureDescription (+55 more)
 
-### Community 104 - "ai_tools.rs"
+### Community 104 - "RegionService"
 Cohesion: 0.03
-Nodes (70): get_region(), list_regions(), AiToolExecutor, CatalogSearchItem, CatalogSearchRequest, FulfillmentService, invalid(), InventoryReader (+62 more)
+Nodes (35): app(), call(), credential_health_comes_from_latest_provider_outcome_not_row_presence(), insert_provider_request(), PROVIDER, stripe_creds(), stripe_provider(), TEST_KEY_HEX (+27 more)
 
-### Community 105 - "use-view-configurations.tsx"
-Cohesion: 0.21
-Nodes (17): SaveViewDialog(), SaveViewDialogProps, SaveViewFormData, ViewPills(), ViewPillsProps, ViewSelector(), ViewSelectorProps, useActiveViewConfiguration() (+9 more)
+### Community 105 - "react-i18next"
+Cohesion: 0.02
+Nodes (198): SegmentedControl(), SegmentedControlOption, SegmentedControlProps, DataGridKeyboardShortcutModal(), DataGridKeyboardShortcutModalProps, useDataGridShortcuts(), DataGridHeader(), formatKey() (+190 more)
 
 ### Community 106 - "general"
 Cohesion: 0.03
@@ -1902,12 +1897,12 @@ Cohesion: 0.06
 Nodes (58): Announcement, ApiError, assignTenantTheme(), CodSettlementOversight, CourierOversight, createAnnouncement(), DeadLetterWebhook, DomainVerification (+50 more)
 
 ### Community 108 - "ai_conversation.rs"
-Cohesion: 0.05
-Nodes (69): accumulate_usage(), allowed_tool(), amount_appears_in(), collect_verified_prices(), ConversationEngine, ConversationInput, ConversationOutput, ConversationTurn (+61 more)
+Cohesion: 0.07
+Nodes (43): accumulate_usage(), AiToolExecutor, allowed_tool(), amount_appears_in(), collect_verified_prices(), ConversationEngine, ConversationInput, ConversationOutput (+35 more)
 
 ### Community 109 - "sortable-tree.tsx"
-Cohesion: 0.10
-Nodes (30): directions, horizontal, sortableTreeKeyboardCoordinates(), dropAnimationConfig, measuring, Props, SortableTree(), getMovementAnnouncement() (+22 more)
+Cohesion: 0.09
+Nodes (34): @dnd-kit/core@^6.1.0, directions, horizontal, sortableTreeKeyboardCoordinates(), dropAnimationConfig, measuring, Props, SortableTree() (+26 more)
 
 ### Community 110 - "general"
 Cohesion: 0.03
@@ -1923,7 +1918,7 @@ Nodes (58): general, active, add, added, admin, apply, areYouSure, areYouSureDes
 
 ### Community 113 - "stheno-fulfillment/src/dto.rs"
 Cohesion: 0.12
-Nodes (18): AddressDTO, CreateFulfillmentLabelInput, CreateFulfillmentSetInput, CreateGeoZoneInput, CreateServiceZoneInput, CreateShippingOptionRuleInput, CreateShippingOptionTypeInput, CreateShippingProfileInput (+10 more)
+Nodes (19): AddressDTO, CreateFulfillmentSetInput, CreateGeoZoneInput, CreateServiceZoneInput, CreateShippingOptionInput, CreateShippingOptionRuleInput, CreateShippingOptionTypeInput, CreateShippingProfileInput (+11 more)
 
 ### Community 114 - "CourierStatus"
 Cohesion: 0.07
@@ -1967,7 +1962,7 @@ Nodes (57): general, active, add, added, admin, apply, areYouSure, areYouSureDes
 
 ### Community 124 - "TierConfig"
 Cohesion: 0.05
-Nodes (56): BillingInterval, .ALL, Month, Year, EntitlementsError, Io, MalformedQuota, MissingTier (+48 more)
+Nodes (37): BillingInterval, .ALL, Month, Year, EntitlementsError, Io, MalformedQuota, MissingTier (+29 more)
 
 ### Community 125 - "general"
 Cohesion: 0.04
@@ -2021,49 +2016,49 @@ Nodes (6): InMemoryLockProvider, LockEntry, LockManager, LockProvider, LockToken
 Cohesion: 0.09
 Nodes (44): archetype_for_category(), build_recommendations(), build_store_intelligence_report(), CATEGORY_ARCHETYPE_RULES_VERSION, category_rules_are_versioned_and_unknown_categories_use_the_baseline(), CategoryTrend, change_basis_points(), confidence() (+36 more)
 
-### Community 138 - "hooks/index.ts"
-Cohesion: 0.28
-Nodes (6): DataGridDuplicateCell(), DataGridDuplicateCellProps, useDataGridDuplicateCell(), findErrorPaths(), useDataGridErrorHighlighting(), VisibilitySnapshot
+### Community 138 - "stheno-ai-openai-compatible/src/lib.rs"
+Cohesion: 0.13
+Nodes (27): AiChatMessage, AiChatRequest, AiToolCall, CompletionChoice, CompletionEnvelope, CompletionFunction, CompletionMessage, CompletionToolCall (+19 more)
 
 ### Community 140 - "qk"
 Cohesion: 0.07
 Nodes (37): A0(), Bae(), BB(), bc(), c0(), C4(), Ck(), DB() (+29 more)
 
 ### Community 141 - "stheno-search-console/src/lib.rs"
-Cohesion: 0.08
-Nodes (31): GoogleSearchConsoleRuntimeConfig, API_BASE_URL, AuthorizationCodeToken, checked_metric_add(), collects_decimal_daily_metrics_and_marks_missing_dates_partial(), config(), decimal(), ensure_success() (+23 more)
+Cohesion: 0.07
+Nodes (34): MetricCoverage, Complete, Partial, Unavailable, API_BASE_URL, AuthorizationCodeToken, checked_metric_add(), collects_decimal_daily_metrics_and_marks_missing_dates_partial() (+26 more)
 
 ### Community 142 - "fulfillment_settings.rs"
 Cohesion: 0.17
 Nodes (41): add_location_fulfillment_set(), bad_request(), batch_shipping_option_rules(), BatchShippingOptionRulesPayload, create_fulfillment_set(), create_service_zone(), create_service_zone_for_set(), create_shipping_option() (+33 more)
 
-### Community 143 - "StoreService"
-Cohesion: 0.06
-Nodes (27): AdminOnboardingContext, dismiss_onboarding(), failed(), get_onboarding_status(), OnboardingStatusResponse, OnboardingStep, reset_onboarding(), BrandingContext (+19 more)
+### Community 143 - "onboarding.rs"
+Cohesion: 0.33
+Nodes (7): AdminOnboardingContext, dismiss_onboarding(), failed(), get_onboarding_status(), OnboardingStatusResponse, OnboardingStep, reset_onboarding()
 
-### Community 144 - "ReturnDTO"
-Cohesion: 0.07
-Nodes (7): OrderChangeControlWorkflowEngine, OrderEditWorkflowEngine, ReturnWorkflowEngine, OrderChangeActionDTO, OrderChangeDTO, OrderChangePreview, ReturnDTO
+### Community 144 - "route-smoke.spec.tsx"
+Cohesion: 0.12
+Nodes (27): APPEARANCE_QUERY_KEY, BRANDING_QUERY_KEY, StorefrontAppearance, TenantBranding, useBranding(), useStorefrontAppearance(), useUpsertBranding(), useUpsertStorefrontAppearance() (+19 more)
 
 ### Community 145 - "ReportingService"
 Cohesion: 0.07
-Nodes (31): test_admin_reports_envelope_shape_and_csv(), ENV_LOCK, provider_and_meta_secrets_are_encrypted_redacted_and_rotatable(), secrets(), TEST_KEY, unsupported_fields_and_incomplete_enabled_configs_fail_closed(), AverageOrderValueReport, OrderPlacedRollupItem (+23 more)
+Nodes (31): ENV_LOCK, provider_and_meta_secrets_are_encrypted_redacted_and_rotatable(), secrets(), TEST_KEY, unsupported_fields_and_incomplete_enabled_configs_fail_closed(), AverageOrderValueReport, OrderPlacedRollupItem, OrdersOverTimeItem (+23 more)
 
 ### Community 146 - "branding_asset_validation.rs"
-Cohesion: 0.08
-Nodes (22): AllowedMimeType, Jpeg, Pdf, Png, Webp, BrandingAssetKind, Favicon, Logo (+14 more)
+Cohesion: 0.18
+Nodes (12): favicon_above_maximum_rejected(), favicon_below_minimum_rejected(), logo_above_maximum_dimensions_rejected(), logo_below_minimum_dimensions_rejected(), make_jpeg(), make_png(), make_webp(), non_square_favicon_rejected() (+4 more)
 
 ### Community 147 - "account-nav/index.tsx"
-Cohesion: 0.05
-Nodes (46): @radix-ui/react-accordion@^1.2.1, AccountNav(), AccountNavLink(), AccountNavLinkProps, getProfileCompletion(), Overview(), OverviewProps, CartItemSelect (+38 more)
+Cohesion: 0.06
+Nodes (35): AccountNav(), AccountNavLink(), AccountNavLinkProps, getProfileCompletion(), Overview(), OverviewProps, CartItemSelect, NativeSelectProps (+27 more)
 
 ### Community 148 - "IndexData"
 Cohesion: 0.09
 Nodes (12): IndexData, .ENTITY, .TABLE, IndexField, .ENTITY, .TABLE, IndexRelation, .ENTITY (+4 more)
 
-### Community 149 - "translations-edit-form.tsx"
-Cohesion: 0.02
-Nodes (112): LinkButton(), LinkButtonProps, SegmentedControl(), SegmentedControlOption, SegmentedControlProps, GeneralSectionSkeleton(), GeneralSectionSkeletonProps, HeadingSkeleton() (+104 more)
+### Community 149 - "react-router-dom"
+Cohesion: 0.01
+Nodes (247): LinkButton(), LinkButtonProps, MetadataSection(), MetadataSectionProps, RequiredPermissionsSection(), SingleColumnPageSkeleton(), TwoColumnPageSkeleton(), detailPageDefaultEntries() (+239 more)
 
 ### Community 150 - "WorkflowStore"
 Cohesion: 0.07
@@ -2071,15 +2066,15 @@ Nodes (19): read_execution(), StepState, Compensated, Compensating, Completed, F
 
 ### Community 151 - "run"
 Cohesion: 0.05
-Nodes (50): addOnPostRun(), addOnPreRun(), callRuntimeCallbacks(), createEnvironment(), createSession(), createWorker(), definition(), definitions() (+42 more)
+Nodes (44): addOnPostRun(), addOnPreRun(), callRuntimeCallbacks(), createEnvironment(), createSession(), createWorker(), definition(), definitions() (+36 more)
 
 ### Community 152 - "OfflinePaymentProvider"
-Cohesion: 0.06
-Nodes (3): ManualPaymentInstructions, OfflinePaymentProvider, validate_manual_currency()
+Cohesion: 0.05
+Nodes (5): ManualPaymentInstructions, ManualTransferPaymentProviderFactory, OfflinePaymentProvider, OfflinePaymentProviderFactory, validate_manual_currency()
 
 ### Community 153 - "AGENTS.md — Build rules for agents working on Stheno"
 Cohesion: 0.04
-Nodes (51): 10. Scope discipline, 11. Reporting, 12.1 The Unified Runtime, 12.2 Dynamic Theming and Variant Modifiers, 12.3 Routes, 12. Frontends: Visual Theming (ADR-031), 1. Before any line of code — the ladder, 2.10 Never look up a customer-owned resource by raw id (+43 more)
+Nodes (47): 0. Before you touch anything, 10. Scope discipline, 11. Reporting, 12.1 The Unified Runtime, 12.2 Dynamic Theming and Variant Modifiers, 12.3 Routes, 12.4 How it is actually laid out, 12. Frontends: Visual Theming (ADR-031) (+39 more)
 
 ### Community 154 - "fields"
 Cohesion: 0.04
@@ -2122,12 +2117,12 @@ Cohesion: 0.06
 Nodes (48): abort(), abortOnCannotGrowMemory(), allocate(), assert(), demangle(), demangleAll(), _emscripten_get_now(), _emscripten_set_main_loop() (+40 more)
 
 ### Community 164 - "ls"
-Cohesion: 0.09
-Nodes (27): aje(), BWe(), dv(), DXe(), findFolderRcFile(), findRcFiles(), gj(), Hz() (+19 more)
+Cohesion: 0.05
+Nodes (48): ad(), aje(), B8e(), BM(), BWe(), dv(), DXe(), e8e() (+40 more)
 
 ### Community 165 - "FileService"
-Cohesion: 0.11
-Nodes (11): CreatePresignedUploadWorkflow, DeleteFileWorkflow, UploadFileWorkflow, CreatePresignedUploadInput, FileDTO, PresignedUploadDTO, UploadFileInput, File (+3 more)
+Cohesion: 0.17
+Nodes (8): CreatePresignedUploadWorkflow, DeleteFileWorkflow, UploadFileWorkflow, CreatePresignedUploadInput, FileDTO, PresignedUploadDTO, UploadFileInput, FileService
 
 ### Community 166 - "InventoryItem"
 Cohesion: 0.12
@@ -2154,24 +2149,24 @@ Cohesion: 0.04
 Nodes (46): actions, add, addItems, addNote, addReason, apply, back, browse (+38 more)
 
 ### Community 172 - "Id"
-Cohesion: 0.15
-Nodes (34): Id, Address, Claim, ClaimItem, ClaimItemImage, CreditLine, Exchange, ExchangeItem (+26 more)
+Cohesion: 0.06
+Nodes (45): Id, OrderChangeControlWorkflowEngine, OrderChangeActionDTO, OrderChangeDTO, ReceiveReturnItemsInput, StoreCategoryOrderSignal, StoreOrderSignal, Address (+37 more)
 
 ### Community 173 - "stheno-promotion/src/dto.rs"
-Cohesion: 0.16
-Nodes (16): ApplicationMethodDTO, CampaignBudgetDTO, CampaignBudgetUsageDTO, CampaignDTO, CreateApplicationMethodInput, CreateCampaignBudgetInput, CreateCampaignInput, CreatePromotionInput (+8 more)
+Cohesion: 0.22
+Nodes (15): ApplicationMethodDTO, CampaignBudgetDTO, CampaignBudgetUsageDTO, CampaignDTO, CreateApplicationMethodInput, CreateCampaignBudgetInput, CreateCampaignInput, CreatePromotionInput (+7 more)
 
 ### Community 174 - "UserService"
 Cohesion: 0.06
-Nodes (19): QuotaCounter, build_create_seat_quota_saga(), build_accept_invite_quota_saga(), QuotaReconciliationJob, concurrent_staff_seat_creates_cannot_exceed_the_limit(), test_staff_seat_creation_wired_with_check_quota_step(), AcceptInviteInput, CreateInviteInput (+11 more)
+Nodes (20): batch_product_route_enforces_the_quota_for_each_created_product(), first_user_bootstrap_consumes_one_staff_seat_and_replays_without_double_counting(), invite_acceptance_consumes_quota_and_preserves_a_second_invite_when_full(), production_product_route_enforces_the_atomic_quota(), production_staff_route_enforces_the_atomic_quota(), quota_context(), quota_context_with_limits(), QuotaCounter (+12 more)
 
 ### Community 175 - "platform/package.json"
 Cohesion: 0.07
 Nodes (39): dependencies, @medusajs/icons@2.19.0, @medusajs/ui@4.2.1, react@^18.3.1, react-dom@^18.3.1, @tanstack/react-query@5.64.2, devDependencies, autoprefixer@^10.4.20 (+31 more)
 
 ### Community 176 - "rules-form-field.tsx"
-Cohesion: 0.06
-Nodes (38): BadgeListSummary(), BadgeListSummaryProps, usePromotion(), usePromotionAddRules(), usePromotionRemoveRules(), usePromotionRuleAttributes(), usePromotionRules(), usePromotionUpdateRules() (+30 more)
+Cohesion: 0.09
+Nodes (26): usePromotionAddRules(), usePromotionRemoveRules(), usePromotionRuleAttributes(), usePromotionRules(), usePromotionUpdateRules(), CreateCampaignSchema, EditPromotionFormProps, EditRulesForm() (+18 more)
 
 ### Community 177 - "actions"
 Cohesion: 0.05
@@ -2186,19 +2181,19 @@ Cohesion: 0.05
 Nodes (44): actions, add, addItems, addNote, addReason, apply, back, browse (+36 more)
 
 ### Community 180 - "cn"
-Cohesion: 0.11
-Nodes (36): class-variance-authority@^0.7.1, AudienceStakeholderSection(), MarketingFaq(), MerchantValuePillars(), PricingSection(), Accordion(), AccordionContent(), AccordionItem() (+28 more)
+Cohesion: 0.06
+Nodes (6): Badge(), badgeVariants, Button(), buttonVariants, TabsList(), tabsListVariants
 
 ### Community 181 - "PostHogAnalyticsProvider"
 Cohesion: 0.09
 Nodes (12): AnalyticsEventDTO, IdentifyUserInput, TrackEventInput, AnalyticsProvider, EventList, LocalAnalyticsProvider, PostHogAnalyticsProvider, PostHogConfig (+4 more)
 
 ### Community 182 - "status"
-Cohesion: 0.05
-Nodes (51): 2.9 Request DTOs are never entity types, cancelled(), capture(), length(), name(), signature(), status(), value() (+43 more)
+Cohesion: 0.04
+Nodes (60): 2.9 Request DTOs are never entity types, Accessibility, ✅ Best Practices, Code Organization, Performance, Responsive Design, Accessibility, Best Practices (+52 more)
 
 ### Community 183 - "date-filter.tsx"
-Cohesion: 0.12
+Cohesion: 0.13
 Nodes (33): DataTableFilterContext, DataTableFilterContextValue, useDataTableFilterContext(), ClearAllFilters(), ClearAllFiltersProps, DataTableFilter(), DataTableFilterProps, getInitialFilters() (+25 more)
 
 ### Community 184 - "actions"
@@ -2282,15 +2277,15 @@ Cohesion: 0.05
 Nodes (42): actions, add, addItems, addNote, addReason, apply, back, browse (+34 more)
 
 ### Community 204 - "stheno-api-admin-platform/src/lib.rs"
-Cohesion: 0.15
-Nodes (32): add_domain(), AddDomainRequest, AdminPlatformContext, CAPABILITY_FLAGS, delete_domain(), EntitlementsResponse, get_billing_portal_url(), get_billing_subscription() (+24 more)
+Cohesion: 0.17
+Nodes (29): add_domain(), AddDomainRequest, AdminPlatformContext, CAPABILITY_FLAGS, delete_domain(), EntitlementsResponse, get_billing_portal_url(), get_billing_subscription() (+21 more)
 
 ### Community 205 - "src/inventory.rs"
-Cohesion: 0.14
-Nodes (36): bad_request(), batch_inventory_location_levels(), batch_item_location_levels(), BatchInventoryLocationLevelsRequest, create_inventory_item(), create_location_level(), create_reservation(), create_stock_location() (+28 more)
+Cohesion: 0.22
+Nodes (31): bad_request(), batch_inventory_location_levels(), batch_item_location_levels(), BatchInventoryLocationLevelsRequest, create_inventory_item(), create_location_level(), create_reservation(), create_stock_location() (+23 more)
 
 ### Community 206 - "routes.rs"
-Cohesion: 0.12
+Cohesion: 0.13
 Nodes (40): ADMIN_SESSION_COOKIE, auth_callback(), auth_callback_user(), auth_cookie_csrf(), auth_cookie_origin_is_valid(), auth_provider_user(), auth_routes(), AuthApiContext (+32 more)
 
 ### Community 207 - "actions"
@@ -2302,12 +2297,12 @@ Cohesion: 0.04
 Nodes (49): 10. Required state contract for every screen, 11.1 One route and capability truth registry, 11.2 Client/server boundary, 11.3 Capability-specific backend decisions, 11. Functional architecture plan, 13. Implementation backlog, 14.1 Courier credential setup, 14.2 Domain verification (+41 more)
 
 ### Community 209 - "TranslationService"
-Cohesion: 0.12
-Nodes (12): BatchTranslateWorkflow, CreateLocaleWorkflow, ResolveFieldTranslationWorkflow, SetTranslationOverrideWorkflow, SetTranslationWorkflow, CreateLocaleInput, LocaleDTO, SetTranslationInput (+4 more)
+Cohesion: 0.10
+Nodes (14): list_locales(), ListLocalesResponse, BatchTranslateWorkflow, CreateLocaleWorkflow, ResolveFieldTranslationWorkflow, SetTranslationOverrideWorkflow, SetTranslationWorkflow, CreateLocaleInput (+6 more)
 
 ### Community 210 - "stheno-api-store/src/orders.rs"
-Cohesion: 0.16
-Nodes (27): accept_transfer(), accept_transfer_for_order(), cancel_transfer(), cancel_transfer_for_order(), decline_transfer(), decline_transfer_for_order(), get_order(), get_order_payment_proof() (+19 more)
+Cohesion: 0.17
+Nodes (31): accept_transfer(), accept_transfer_for_order(), caller_customer_id(), cancel_transfer(), cancel_transfer_for_order(), decline_transfer(), decline_transfer_for_order(), get_order() (+23 more)
 
 ### Community 211 - "products.rs"
 Cohesion: 0.15
@@ -2321,9 +2316,9 @@ Nodes (12): DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER, DEFAULT_POOL_SIZE, 
 Cohesion: 0.05
 Nodes (40): label, label, label, hint, label, placeholder, hint, label (+32 more)
 
-### Community 214 - "getCandidates"
-Cohesion: 0.06
-Nodes (39): aq(), bindDescriptor(), bQ(), bXe(), cloneFromRemote(), cq(), dYe(), Fle() (+31 more)
+### Community 214 - "nN"
+Cohesion: 0.07
+Nodes (35): bdt(), bSe(), BT(), Ddt(), discardAndClose(), DSe(), Et(), FBe() (+27 more)
 
 ### Community 215 - "SettingsService"
 Cohesion: 0.10
@@ -2358,16 +2353,16 @@ Cohesion: 0.14
 Nodes (23): courier_rates_default_is_positive(), CourierContext, CourierFieldMeta, CourierProbeRecord, CourierProviderInfo, CourierRates, credential_error(), decode_encrypted_credentials() (+15 more)
 
 ### Community 223 - "HttpError"
-Cohesion: 0.18
+Cohesion: 0.20
 Nodes (27): admin_search(), AdminStoreContext, batch_property_labels(), batch_translation_settings(), batch_translations(), create_property_label(), delete_property_label(), expand_supported_locales() (+19 more)
 
 ### Community 224 - "oversight.rs"
 Cohesion: 0.16
-Nodes (29): CodSettlementOversightDTO, collect_ledger(), courier_display_name(), CourierOversightDTO, DeadLetterWebhookDTO, get_provider_health(), get_sweep_status(), is_gateway_killed() (+21 more)
+Nodes (30): PlatformApiContext, CodSettlementOversightDTO, collect_ledger(), courier_display_name(), CourierOversightDTO, DeadLetterWebhookDTO, get_provider_health(), get_sweep_status() (+22 more)
 
-### Community 225 - "PaymentProviderCredentialDTO"
-Cohesion: 0.08
-Nodes (22): CredentialFieldReadDTO, CredentialHealth, Configured, ConfiguredUnverified, Invalid, Unconfigured, CredentialKind, Bool (+14 more)
+### Community 225 - "ProviderHealthStatus"
+Cohesion: 0.29
+Nodes (6): ProviderHealthStatus, ConfiguredUnverified, Degraded, Failed, Healthy, ProviderVerificationResult
 
 ### Community 226 - "resilience"
 Cohesion: 0.05
@@ -2393,13 +2388,13 @@ Nodes (37): all, andLabel, exact, greaterThan, greaterThanLabel, lessThan, lessT
 Cohesion: 0.04
 Nodes (48): 0. How the plan is structured, 1. Phase map, 2. Staffing, 3. Sequencing rules, 4. What would make this take longer, 5. Definition of done, per module, Deliverables, Deliverables (+40 more)
 
-### Community 232 - "admin/package.json"
-Cohesion: 0.06
-Nodes (45): allowScripts, @clerk/shared@3.47.8, esbuild@0.21.5, @ariakit/react@^0.4.15, devDependencies, autoprefixer@^10.4.20, jsdom@^25.0.1, @medusajs/ui-preset@2.19.0 (+37 more)
+### Community 232 - "tenant_entitlements.rs"
+Cohesion: 0.15
+Nodes (24): DeleteResponse, ErrorResponse, GetResponse, ListResponse, a_malformed_row_leaves_the_shipped_default_standing(), a_negotiated_quota_override_is_applied_to_one_tenant_only(), a_per_tenant_feature_override_grants_and_revokes(), a_stored_tier_row_replaces_that_tier_and_leaves_the_others_alone() (+16 more)
 
 ### Community 233 - "AuthService"
 Cohesion: 0.03
-Nodes (33): CsvExportWorkflow, CustomerDataExport, EraseTenantStoreIntelligenceWorkflow, ErasurePipelineWorkflow, PlatformReportingWorkflow, ProductSalesAggregate, ReportingAggregates, RetentionJobResult (+25 more)
+Nodes (36): ATTEMPTS, login_request(), repeated_failures_are_throttled_then_a_correct_password_is_too(), CsvExportWorkflow, CustomerDataExport, EraseTenantStoreIntelligenceWorkflow, ErasurePipelineWorkflow, PlatformReportingWorkflow (+28 more)
 
 ### Community 234 - "fields"
 Cohesion: 0.06
@@ -2473,9 +2468,9 @@ Nodes (36): label, label, label, hint, label, placeholder, hint, label (+28 more
 Cohesion: 0.06
 Nodes (36): label, label, label, hint, label, placeholder, hint, label (+28 more)
 
-### Community 252 - "storefront-core/src/app/layout.tsx"
-Cohesion: 0.10
-Nodes (27): DevTheme, DevThemeSwitcher(), DEV_THEME_OPTIONS, metadata, RootLayout(), DEFAULT_BRANDING, emitBrandingCss(), FONT_STACKS (+19 more)
+### Community 252 - "marketing/src/App.tsx"
+Cohesion: 0.11
+Nodes (22): App(), EngineArchitectureSection(), OrderSafetyStep, SAFETY_STEPS, Footer(), FooterProps, NAV_LINKS, Navbar() (+14 more)
 
 ### Community 253 - "platform_workflows.rs"
 Cohesion: 0.07
@@ -2486,7 +2481,7 @@ Cohesion: 0.12
 Nodes (12): location_rows(), nonempty_text(), optional_nonnegative_u64(), PathaoArea, PathaoCity, PathaoConfig, PathaoFulfillmentProvider, PathaoZone (+4 more)
 
 ### Community 255 - "Feature"
-Cohesion: 0.05
+Cohesion: 0.06
 Nodes (37): Feature, AiAssistant, .ALL, AnalyticsBasic, Branding, BuyerAccounts, CourierDispatch, CsvExport (+29 more)
 
 ### Community 256 - "pl.json"
@@ -2591,11 +2586,11 @@ Nodes (34): andLabel, exact, greaterThan, greaterThanLabel, lessThan, lessThanLa
 
 ### Community 281 - "rp"
 Cohesion: 0.06
-Nodes (45): Aj(), aMe(), aoe(), BUe(), cOe(), cx(), dKe(), fE() (+37 more)
+Nodes (43): aoe(), BFe(), BNe(), BUe(), BX(), cOe(), cx(), eOe() (+35 more)
 
 ### Community 282 - "Phase 2 Task Decomposition"
-Cohesion: 0.05
-Nodes (44): index(), 1.1 Base, 1.2 Authentication, 1.3 Field selection (both surfaces), 1.4 Pagination, 1.5 Filtering, 1.7 Idempotency (FR-PLUS-2), 1.8 Versioning (+36 more)
+Cohesion: 0.04
+Nodes (47): index(), 1.1 Base, 1.2 Authentication, 1.3 Field selection (both surfaces), 1.4 Pagination, 1.5 Filtering, 1.7 Idempotency (FR-PLUS-2), 1.8 Versioning (+39 more)
 
 ### Community 283 - "properties"
 Cohesion: 0.07
@@ -2610,20 +2605,20 @@ Cohesion: 0.05
 Nodes (43): finally(), [0.4.0] — 2026-09-07 21:21 UTC, Session Log — 2026-09-08 (Space Standalone Control Plane Documentation Sync), Session Log — 2026-10-23 (ADR-033 billing state and grace UI), Session Log — 2026-10-23 (ADR-036 isolated manual build account), Session Log — 2026-10-24 (ADR-032 courier provider contracts), Session Log — 2026-10-25 (ADR-032 authenticated courier dispatch route), Session Log — 2026-10-25 (ADR-032 Meta webhook rate-limit route) (+35 more)
 
 ### Community 286 - "shell.tsx"
-Cohesion: 0.10
-Nodes (22): ProgressBar(), ProgressBarProps, PublicLayout(), Breadcrumbs(), DesktopSidebarContainer(), Gutter(), MobileSidebarContainer(), NavigationBar() (+14 more)
+Cohesion: 0.13
+Nodes (18): ProgressBar(), ProgressBarProps, Notifications(), NotificationsEmptyState(), Breadcrumbs(), DesktopSidebarContainer(), Gutter(), MobileSidebarContainer() (+10 more)
 
 ### Community 287 - "reconciliation.tsx"
 Cohesion: 0.13
 Nodes (22): RECONCILIATION_QUERY_KEY, ReconciliationReport, SettlementAlert, SettlementCycle, SettlementLine, useReconciliationAlerts(), useRunReconciliation(), useSettlementCycleLines() (+14 more)
 
-### Community 288 - "reportInfo"
-Cohesion: 0.11
-Nodes (32): aZ(), clearProgress(), commit(), createStreamReporter(), finalize(), formatIndent(), formatName(), formatNameWithHyperlink() (+24 more)
+### Community 288 - "CartService"
+Cohesion: 0.13
+Nodes (3): AddressDTO, CartDTO, CartService
 
 ### Community 291 - "validate_credential_map"
 Cohesion: 0.10
-Nodes (11): is_valid_pem(), validate_credential_map(), accepts_valid_url_pem_bool_and_secret_shapes(), credentials(), PEM_SCHEMA, rejects_invalid_pem_at_write_time(), rejects_invalid_urls_at_write_time(), STRIPE_SCHEMA (+3 more)
+Nodes (16): CredentialField, CredentialKind, Bool, Pem, Secret, Text, Url, is_valid_pem() (+8 more)
 
 ### Community 292 - "ar.json"
 Cohesion: 0.06
@@ -3073,17 +3068,17 @@ Nodes (31): disabled, resetToDefault, view, clear, copy, delete, edit, focusCanc
 Cohesion: 0.05
 Nodes (42): 10. Definition of done, 11. Review decisions requested, 12. Source notes, 1. Outcome, 2. Architecture ladder decision, 3. Current state and gap statement, 4.1 Brand architecture, 4.2 Design read (+34 more)
 
-### Community 404 - "branding/Vendryx_Brand_Kit/12_Source/build_brand.py"
-Cohesion: 0.16
-Nodes (14): cover(), defs(), display_text(), emit(), mark(), primary(), save(), social_lockup() (+6 more)
+### Community 404 - "Policy"
+Cohesion: 0.09
+Nodes (13): AuditRecord, .ENTITY, .TABLE, Policy, .ENTITY, .TABLE, Role, .ENTITY (+5 more)
 
 ### Community 405 - "views.rs"
 Cohesion: 0.20
 Nodes (21): active_configuration(), Column, columns_for(), create_configuration(), CreateViewConfigurationRequest, delete_configuration(), delete_layout_configuration(), ENTITIES (+13 more)
 
 ### Community 406 - "ApiKeyDTO"
-Cohesion: 0.13
-Nodes (9): ApiKeyDTO, CreateApiKeyInput, CreatedApiKeyResponse, UpdateApiKeyInput, ValidateKeyResult, ApiKey, .ENTITY, .TABLE (+1 more)
+Cohesion: 0.23
+Nodes (6): ApiKeyDTO, CreateApiKeyInput, CreatedApiKeyResponse, UpdateApiKeyInput, ValidateKeyResult, ApiKeyService
 
 ### Community 407 - "it.json"
 Cohesion: 0.07
@@ -3094,16 +3089,16 @@ Cohesion: 0.07
 Nodes (30): title, noRecordsMessage, products, attributes, deleteVariantWarning, deleteWarning, discountableHint, domain (+22 more)
 
 ### Community 409 - "PromotionService"
-Cohesion: 0.23
-Nodes (18): add_campaign_promotions(), batch_promotion_buy_rules(), batch_promotion_rules(), batch_promotion_target_rules(), create_campaign(), create_promotion(), delete_campaign(), delete_promotion() (+10 more)
+Cohesion: 0.37
+Nodes (17): add_campaign_promotions(), batch_promotion_buy_rules(), batch_promotion_rules(), batch_promotion_target_rules(), create_campaign(), create_promotion(), delete_campaign(), delete_promotion() (+9 more)
 
-### Community 410 - "OperatorRole"
-Cohesion: 0.25
-Nodes (5): OperatorRole, Billing, Engineer, Owner, Support
+### Community 410 - "security.rs"
+Cohesion: 0.16
+Nodes (18): ComplianceEvidenceDTO, get_bootstrap_retirement_status(), get_compliance_evidence(), get_operator_role(), get_security_profile(), NetworkLimitsRequest, OperatorRole, Billing (+10 more)
 
 ### Community 411 - "Technical Requirements Document — Stheno Commerce Engine"
 Cohesion: 0.05
-Nodes (41): 11.1 Admin (`apps/admin`) — forked, not built, 11.2 Storefront (`apps/storefront`), 11. Frontend architecture, 12. Observability, 14.1 The parity corpus, 14. Testing strategy, 15. Performance strategy, 16. Migration from Medusa v2 (+33 more)
+Nodes (39): 11.1 Admin (`apps/admin`) — forked, not built, 11.2 Storefront (`apps/storefront`), 11. Frontend architecture, 12. Observability, 14.1 The parity corpus, 14. Testing strategy, 15. Performance strategy, 16. Migration from Medusa v2 (+31 more)
 
 ### Community 412 - "media"
 Cohesion: 0.07
@@ -3122,8 +3117,8 @@ Cohesion: 0.09
 Nodes (4): Id<T>, prefixed_id!, Prefixed, .PREFIX
 
 ### Community 416 - "subscription_journey.rs"
-Cohesion: 0.15
-Nodes (17): ACME, an_operator_can_control_every_plan_and_every_subscription(), as_merchant(), call(), features_of(), operator(), quota_limit(), RIVAL (+9 more)
+Cohesion: 0.30
+Nodes (10): ACME, an_operator_can_control_every_plan_and_every_subscription(), as_merchant(), call(), features_of(), operator(), quota_limit(), RIVAL (+2 more)
 
 ### Community 417 - "20260815000002_order_schema/up.sql"
 Cohesion: 0.10
@@ -3145,9 +3140,9 @@ Nodes (28): type, type, type, additionalProperties, properties, required, type, 
 Cohesion: 0.13
 Nodes (26): Catalog, EffectiveEntitlements, getSubscription(), patchSubscription(), resetTier(), saveTier(), Subscription, TierView (+18 more)
 
-### Community 422 - "1. Compliance Ledger (All 45 Slots)"
-Cohesion: 0.05
-Nodes (62): Hero(), Login(), Props, Props, Register(), TransferRequestForm(), AccountLayout(), LOGIN_VIEW (+54 more)
+### Community 422 - "LocalizedClientLink"
+Cohesion: 0.04
+Nodes (78): AddressBook(), OrderCard(), OrderCardProps, OrderOverview(), ProfileName(), TransferRequestForm(), AccountLayout(), LoginTemplate() (+70 more)
 
 ### Community 423 - "compilerOptions"
 Cohesion: 0.07
@@ -3431,19 +3426,19 @@ Nodes (6): Fn(), n7e(), PSe(), r7e(), t7e(), Ud()
 
 ### Community 496 - "store_intelligence_sources.rs"
 Cohesion: 0.15
-Nodes (20): aggregate_compatible_source_observations(), compare_adjacent_source_observations(), compare_adjacent_source_snapshots(), CompatibleSourceMetricAggregate, cross_source_aggregation_requires_compatible_disjoint_complete_counts(), MetricCoverage, Complete, Partial (+12 more)
+Nodes (16): aggregate_compatible_source_observations(), compare_adjacent_source_observations(), compare_adjacent_source_snapshots(), CompatibleSourceMetricAggregate, cross_source_aggregation_requires_compatible_disjoint_complete_counts(), observation(), only_complete_adjacent_windows_with_matching_source_semantics_compare(), relative_change_requires_compatible_windows_and_positive_baseline() (+8 more)
 
 ### Community 497 - "Store"
 Cohesion: 0.10
 Nodes (12): Store, .ENTITY, .TABLE, StoreCurrency, .ENTITY, .TABLE, StoreLocale, .ENTITY (+4 more)
 
 ### Community 498 - "keybind-provider/hooks.tsx"
-Cohesion: 0.24
-Nodes (15): useRegisterShortcut(), useShortcuts(), KeybindContext, KeybindProvider(), KeybindProviderProps, KeybindContextState, Platform, Shortcut (+7 more)
+Cohesion: 0.20
+Nodes (18): getSearchEntityShortcuts(), resolveSearchEntityShortcutLabel(), useGlobalShortcuts(), useRegisterShortcut(), useShortcuts(), KeybindContext, KeybindProvider(), KeybindProviderProps (+10 more)
 
 ### Community 499 - "main-layout.tsx"
-Cohesion: 0.06
-Nodes (45): ProtectedRoute(), Header(), MainLayout(), MainSidebar(), NavSection, Searchbar(), SidebarRoutes(), useCoreSections() (+37 more)
+Cohesion: 0.04
+Nodes (66): ProtectedRoute(), GeneralSectionSkeleton(), GeneralSectionSkeletonProps, HeadingSkeleton(), HeadingSkeletonProps, IconButtonSkeleton(), JsonViewSectionSkeleton(), SingleColumnPageSkeletonProps (+58 more)
 
 ### Community 500 - "create"
 Cohesion: 0.08
@@ -3477,10 +3472,6 @@ Nodes (26): collection, product_display, sales_channels_display, status, thumbna
 Cohesion: 0.08
 Nodes (26): collection, product_display, sales_channels_display, status, thumbnail, variants_count, noRecordsMessage, products (+18 more)
 
-### Community 508 - "PaymentService"
-Cohesion: 0.07
-Nodes (6): RefundReasonDTO, UnsettledReconcileReport, compute_sha256(), CredentialRow, PaymentService, ProviderCacheKey
-
 ### Community 509 - "5. Functional requirements"
 Cohesion: 0.05
 Nodes (40): 10. Risks, 11. Open questions, 1. Summary, 2.1 Why not just optimise Medusa, 2. Problem statement, 3.1 Goals, 3.2 Non-goals, 3. Goals and non-goals (+32 more)
@@ -3509,21 +3500,17 @@ Nodes (25): type, type, type, type, type, type, type, type (+17 more)
 Cohesion: 0.25
 Nodes (20): AdminApiKeyContext, create_api_key(), create_of_type(), create_publishable_api_key(), CreateApiKeyRequest, delete_api_key(), envelope(), get_api_key() (+12 more)
 
-### Community 516 - "social.rs"
-Cohesion: 0.14
-Nodes (15): create_social_draft(), CreateSocialDraftRequest, CreateSocialDraftResponse, SocialContext, SocialDraftLine, store_social_routes(), a_line_without_a_sku_omits_the_code_row_rather_than_printing_empty(), generate_ref_code() (+7 more)
-
-### Community 517 - "ShippingOptionDTO"
+### Community 516 - "payment_collections.rs"
 Cohesion: 0.17
-Nodes (5): CreateShippingOptionInput, EligibilityContext, ShippingOptionDTO, ShippingOptionFilter, ShippingOptionRuleDTO
+Nodes (14): authorize_payment_session(), create_payment_collection(), create_payment_session(), CreatePaymentCollectionRequest, list_payment_providers(), ListPaymentProvidersQuery, ListPaymentProvidersResponse, map_error() (+6 more)
 
 ### Community 518 - "ref_path"
-Cohesion: 0.09
-Nodes (15): generateCurrencies(), medusaUI, path, medusaUI, path, path, CORE_CHECKOUT_DIR, PACKAGES_DIR (+7 more)
+Cohesion: 0.14
+Nodes (8): path, medusaUI, path, path, docs, docsDir, fs, path
 
 ### Community 519 - "layout-composer/types.ts"
-Cohesion: 0.12
-Nodes (15): CORE_LAYOUTS, LayoutComposerProps, LayoutComponentProps, LayoutControlSize, WidgetPreference, WidgetRenderEntry, SingleColumnLayoutComponent(), SingleRowLayoutComponent() (+7 more)
+Cohesion: 0.15
+Nodes (12): LayoutComponentProps, LayoutDefinition, WidgetRenderEntry, SingleColumnLayoutComponent(), SingleRowLayoutComponent(), TwoColumnLayoutComponent(), GroupDivider(), hasContent() (+4 more)
 
 ### Community 520 - "date"
 Cohesion: 0.08
@@ -3577,9 +3564,9 @@ Nodes (24): andLabel, exact, greaterThan, greaterThanLabel, lessThan, lessThanLa
 Cohesion: 0.08
 Nodes (23): accountSlots, browseSlots, cartSlots, checkoutControls, contractContent, contractFile, contractSlots, CORE_DIR (+15 more)
 
-### Community 533 - "ProductDTO"
-Cohesion: 0.10
-Nodes (14): CatalogReader, MockCatalog, ProductService, CreateCollectionInput, ProductCollectionDTO, ProductDTO, ProductOptionDTO, ProductOptionValueDTO (+6 more)
+### Community 533 - "ProductService"
+Cohesion: 0.05
+Nodes (19): CatalogReader, MockCatalog, ProductService, BatchProductService, CreateCollectionInput, ProductCategoryDTO, ProductCollectionDTO, ProductDTO (+11 more)
 
 ### Community 534 - "users.rs"
 Cohesion: 0.30
@@ -3589,9 +3576,9 @@ Nodes (18): AdminQuotaContext, accept_invite(), AcceptInviteRequest, AdminUserCo
 Cohesion: 0.08
 Nodes (36): api_key.api_key, auth.auth_identity, auth.auth_provider, auth.auth_session, auth.mfa_factor, auth.password_reset_token, auth.token_family, customer.customer (+28 more)
 
-### Community 536 - "cart/components/item/index.tsx"
-Cohesion: 0.13
-Nodes (23): Item(), ItemProps, ItemsTemplate(), ItemsTemplateProps, ItemsPreviewTemplate(), ItemsTemplateProps, DeleteButton(), LineItemOptions() (+15 more)
+### Community 536 - "convertToLocale"
+Cohesion: 0.06
+Nodes (44): Item(), ItemProps, ItemsTemplate(), ItemsTemplateProps, ItemsTemplateProps, DeleteButton(), LineItemOptions(), LineItemOptionsProps (+36 more)
 
 ### Community 537 - "AuditLog"
 Cohesion: 0.13
@@ -3602,12 +3589,12 @@ Cohesion: 0.11
 Nodes (17): OrderAction, OrderActionType, ItemAdd, ItemRemove, ItemUpdate, ReceiveReturn, RefundAdd, ShippingAdd (+9 more)
 
 ### Community 539 - "stheno-payment/src/models.rs"
-Cohesion: 0.24
-Nodes (16): AccountHolder, Capture, CourierSettlementCycle, CourierSettlementLine, impl_crud_entity!, Payment, PaymentCollection, PaymentProvider (+8 more)
+Cohesion: 0.20
+Nodes (17): UnsettledReconcileReport, AccountHolder, Capture, CourierSettlementCycle, CourierSettlementLine, impl_crud_entity!, Payment, PaymentCollection (+9 more)
 
 ### Community 540 - "DataGridMatrix"
-Cohesion: 0.11
-Nodes (8): useDataGridQueryTool(), DataGridMatrix, DataGridQueryTool, DataGridColumnType, DataGridCoordinates, Grid, GridCell, InternalColumnMeta
+Cohesion: 0.10
+Nodes (9): UseDataGridNavigationOptions, useDataGridQueryTool(), DataGridMatrix, DataGridQueryTool, DataGridColumnType, DataGridCoordinates, Grid, GridCell (+1 more)
 
 ### Community 541 - "variants"
 Cohesion: 0.09
@@ -3729,13 +3716,13 @@ Nodes (23): variants, description, heading, description, heading, placeholder, p
 Cohesion: 0.09
 Nodes (23): variants, description, heading, description, heading, placeholder, placeholder, hint (+15 more)
 
-### Community 571 - "scripts"
-Cohesion: 0.09
-Nodes (23): scripts, analyze, build, build:appliance, build:mahal, build:matrix, dev, dev:appliance (+15 more)
+### Community 571 - "marketing-logic.ts"
+Cohesion: 0.11
+Nodes (21): OnboardingModal(), handleSubmit(), ANNUAL_DISCOUNT_THRESHOLD_MONTHS, calculatePlanTermQuote(), calculateProTermQuote(), CourierQuote, CourierQuoteInput, formatUsdCents() (+13 more)
 
 ### Community 572 - "storefront-core/src/middleware.ts"
-Cohesion: 0.08
-Nodes (29): c, requiredEnvs, CORE, FRONTEND_MODULES, ADR-0013, nextConfig, path, CACHE_SCOPE_HEADER (+21 more)
+Cohesion: 0.11
+Nodes (24): CACHE_SCOPE_HEADER, getCacheScopeHeader(), ADR-0022, createHostKeyedCache(), HostEntry, HostKeyedCache, normalizeHost(), ADR-0022 (+16 more)
 
 ### Community 573 - "support.rs"
 Cohesion: 0.23
@@ -3746,16 +3733,16 @@ Cohesion: 0.25
 Nodes (14): create_return(), CreateReturnItemRequest, CreateReturnRequest, current_customer_id(), get_return(), list_returns(), ListReturnsQuery, map_error() (+6 more)
 
 ### Community 575 - "InvoicePaymentProof"
-Cohesion: 0.07
-Nodes (22): Entitlements, Feature, Analytics, AuditLog, Automations, B2B, CustomFulfillment, MultiCurrency (+14 more)
+Cohesion: 0.11
+Nodes (15): Entitlements, Feature, Analytics, AuditLog, Automations, B2B, CustomFulfillment, MultiCurrency (+7 more)
 
 ### Community 576 - "Payments — Design Specification"
-Cohesion: 0.06
-Nodes (35): pending(), 1.3 Merchant launch workflow, 10. Disputes and chargebacks, 11. Edge-case atlas, 12. Library decision, 13. Testing, 1. The premise, 3.1 Payment session — 7 states (+27 more)
+Cohesion: 0.07
+Nodes (27): 10. Disputes and chargebacks, 11. Edge-case atlas, 12. Library decision, 13. Testing, 1. The premise, 4.1 Capabilities, 4. The provider trait — all 18 methods, 5. The money boundary (+19 more)
 
 ### Community 577 - "stheno-fulfillment/src/service.rs"
-Cohesion: 0.24
-Nodes (20): SocialDispatchResolution, Accepted, NotCreated, Address, Fulfillment, FulfillmentItem, FulfillmentLabel, FulfillmentProvider (+12 more)
+Cohesion: 0.28
+Nodes (17): Address, Fulfillment, FulfillmentItem, FulfillmentLabel, FulfillmentProvider, FulfillmentProviderRequest, FulfillmentSet, FulfillmentWebhookEvent (+9 more)
 
 ### Community 578 - "stheno-cdn-cloudflare/src/lib.rs"
 Cohesion: 0.09
@@ -3793,9 +3780,9 @@ Nodes (11): APPLIANCE_HOST, as_merchant(), call(), CLOTHING_HOST, features_of(),
 Cohesion: 0.07
 Nodes (33): off(), suggest(), ADR-032 — AI-Powered Social Commerce Automation: OKF Architecture, Tool Calling & Safe Draft Intake, Amendment (2026-11-14), Consequences, Context, Decision, 10. Edge cases (+25 more)
 
-### Community 587 - "meta_insights_authorization.rs"
-Cohesion: 0.14
-Nodes (13): invalid_review_input(), StoreIntelligenceReviewService, valid_recommendation_id(), validate_history_input(), validate_review_input(), call(), CREDENTIAL_KEY, ENV_LOCK (+5 more)
+### Community 587 - "store_intelligence_review.rs"
+Cohesion: 0.17
+Nodes (14): accepts_current_window_recommendation_and_owner_decision(), invalid_review_input(), rejects_unknown_decisions_and_invalid_actor_or_idempotency_values(), review_history_is_limited_to_current_recommendations_and_bounded_pages(), ReviewAuditRow, ReviewHistoryRow, ReviewRow, StoreIntelligenceReview (+6 more)
 
 ### Community 588 - "media"
 Cohesion: 0.10
@@ -3889,9 +3876,9 @@ Nodes (21): action, description, header, deleteImageLabel, deleteWarning_one, de
 Cohesion: 0.10
 Nodes (20): compilerOptions, allowImportingTsExtensions, esModuleInterop, isolatedModules, jsx, lib, module, moduleResolution (+12 more)
 
-### Community 611 - "premium-landing.tsx"
-Cohesion: 0.16
-Nodes (18): AmbientLight(), Brand(), BrandMark(), channels, featureData, FeaturePreview(), Header(), Journey() (+10 more)
+### Community 611 - "BentoOperationsSection.tsx"
+Cohesion: 0.14
+Nodes (21): BentoOperationsSection(), PRESET_IDS, WEIGHTS, ZONES, CHANNEL_ORDER, InstagramChatBox(), MessengerChatBox(), OkfAgentsSection() (+13 more)
 
 ### Community 612 - "lighthouse/runner.js"
 Cohesion: 0.22
@@ -3905,17 +3892,17 @@ Nodes (5): MIGRATIONS, pending(), revert_last(), run(), with_sync_conn()
 Cohesion: 0.12
 Nodes (8): DummyProduct, get_collection(), GetCollectionResponse, list_collections(), ListCollectionsQuery, ListCollectionsResponse, get_variant(), GetVariantResponse
 
-### Community 615 - "PaymentSessionStatus"
-Cohesion: 0.09
-Nodes (15): InitiateInput, InitiateOutput, PaymentSessionStatus, Authorized, Canceled, Captured, Error, Pending (+7 more)
+### Community 615 - "IndexService"
+Cohesion: 0.14
+Nodes (9): IndexDataDTO, IndexFieldDTO, IndexRelationDTO, IndexSyncStateDTO, QueryIndexFilterInput, UpsertIndexDataInput, IndexService, test_cross_module_filtering_and_sorting() (+1 more)
 
 ### Community 616 - "Translation"
 Cohesion: 0.12
 Nodes (9): Locale, .ENTITY, .TABLE, Translation, .ENTITY, .TABLE, TranslationOverride, .ENTITY (+1 more)
 
 ### Community 617 - "Phase 3 Implementation Plan"
-Cohesion: 0.06
-Nodes (33): 0. Where Phase 3 actually starts, 1. How the plan is structured, 2. Phase map, 3. Staffing, 4. Sequencing rules, 5. What would make this take longer, 6. Definition of done, per provider, 7. Definition of done, per theme (+25 more)
+Cohesion: 0.05
+Nodes (41): 0. Where Phase 3 actually starts, 1. How the plan is structured, 2. Phase map, 3. Staffing, 4. Sequencing rules, 5. What would make this take longer, 6. Definition of done, per provider, 7. Definition of done, per theme (+33 more)
 
 ### Community 618 - "edit"
 Cohesion: 0.11
@@ -4090,8 +4077,8 @@ Cohesion: 0.20
 Nodes (10): description, exports, @stheno/storefront-core, main, name, peerDependencies, @stheno/storefront-core@^0.1.0, private (+2 more)
 
 ### Community 661 - "InteractiveLink"
-Cohesion: 0.13
-Nodes (13): AccountLayoutProps, EmptyCartMessage(), InteractiveLink(), InteractiveLinkProps, metadata, NotFound(), metadata, NotFound() (+5 more)
+Cohesion: 0.10
+Nodes (16): AccountLayoutProps, EmptyCartMessage(), InteractiveLink(), InteractiveLinkProps, metadata, NotFound(), AccountPageLayout(), metadata (+8 more)
 
 ### Community 662 - "stheno-api-admin/src/settings.rs"
 Cohesion: 0.42
@@ -4102,8 +4089,8 @@ Cohesion: 0.28
 Nodes (12): get_launch_status(), initiate_payment(), merchant_id(), merchant_routes(), MerchantApiContext, payment_status(), public_plans(), save_draft() (+4 more)
 
 ### Community 665 - "stheno-promotion/src/models.rs"
-Cohesion: 0.40
-Nodes (8): ApplicationMethod, Campaign, CampaignBudget, CampaignBudgetUsage, impl_crud_entity!, Promotion, PromotionRule, PromotionRuleValue
+Cohesion: 0.30
+Nodes (10): ApplicationMethod, Campaign, CampaignBudget, CampaignBudgetUsage, impl_crud_entity!, Promotion, PromotionRule, PromotionRuleValue (+2 more)
 
 ### Community 666 - "create"
 Cohesion: 0.11
@@ -4338,12 +4325,12 @@ Cohesion: 0.34
 Nodes (14): a_plan_move_records_who_moved_them_and_what_they_moved_from(), a_refused_write_records_nothing(), a_subscription_patch_records_the_row_before_and_after(), app(), BOOTSTRAP, call(), find(), issue() (+6 more)
 
 ### Community 724 - "boot_pool.rs"
-Cohesion: 0.12
-Nodes (6): a_nonsense_pool_size_is_rejected_not_silently_defaulted(), connectivity_failure_is_reported_not_swallowed(), Result<DbConfig, stheno_types::Error>, the_pool_reaches_a_real_database(), UnwrapErrMsg, URL
+Cohesion: 0.06
+Nodes (8): Args, DB_CONNECT_TIMEOUT, a_nonsense_pool_size_is_rejected_not_silently_defaulted(), connectivity_failure_is_reported_not_swallowed(), Result<DbConfig, stheno_types::Error>, the_pool_reaches_a_real_database(), UnwrapErrMsg, URL
 
 ### Community 725 - "tier_matrix.rs"
-Cohesion: 0.18
-Nodes (9): config(), creation_is_rejected_exactly_at_the_limit_not_at_limit_plus_one(), downgrade_puts_an_over_limit_quota_into_grace(), env_overrides_apply_on_top_of_tier_defaults(), every_tier_boots(), pro_features_never_leak_into_free(), quotas_match_the_tier_table(), resolve() (+1 more)
+Cohesion: 0.15
+Nodes (12): QuotaState, Grace, Ok, config(), creation_is_rejected_exactly_at_the_limit_not_at_limit_plus_one(), downgrade_puts_an_over_limit_quota_into_grace(), env_overrides_apply_on_top_of_tier_defaults(), every_tier_boots() (+4 more)
 
 ### Community 726 - "stheno-product/tests/persistence.rs"
 Cohesion: 0.24
@@ -4366,15 +4353,15 @@ Cohesion: 0.12
 Nodes (18): success, description, header, success, template, upload, uploadHint, uploadLabel (+10 more)
 
 ### Community 731 - "compilerOptions"
-Cohesion: 0.11
-Nodes (17): compilerOptions, baseUrl, esModuleInterop, isolatedModules, jsx, lib, module, moduleResolution (+9 more)
+Cohesion: 0.13
+Nodes (14): compilerOptions, esModuleInterop, isolatedModules, jsx, lib, module, moduleResolution, noEmit (+6 more)
 
 ### Community 732 - "models/index.ts"
-Cohesion: 0.10
-Nodes (16): useDataGridCellHandlers(), UseDataGridCellHandlersOptions, useDataGridClipboardEvents(), UseDataGridClipboardEventsOptions, ARROW_KEYS, getFocusableElements(), useDataGridKeydownEvent(), UseDataGridKeydownEventOptions (+8 more)
+Cohesion: 0.11
+Nodes (12): UseDataGridClipboardEventsOptions, ARROW_KEYS, getFocusableElements(), useDataGridKeydownEvent(), UseDataGridKeydownEventOptions, VERTICAL_KEYS, UseDataGridMouseUpEventOptions, DataGridBulkUpdateCommand (+4 more)
 
 ### Community 733 - "taxonomy_persistence.rs"
-Cohesion: 0.25
+Cohesion: 0.23
 Nodes (15): CreateCategoryInput, a_child_extends_its_parents_path(), a_child_of_a_missing_parent_is_rejected(), a_collection_round_trips(), a_leaf_has_no_descendants(), a_root_category_persists_with_its_own_path(), categories_list_in_path_order(), category() (+7 more)
 
 ### Community 734 - "doc-sync-workflow.py"
@@ -4406,12 +4393,12 @@ Cohesion: 0.12
 Nodes (17): noRecordsMessage, products, attributes, deleteVariantWarning, deleteWarning, discountableHint, domain, editAttributes (+9 more)
 
 ### Community 741 - "S3FileProvider"
-Cohesion: 0.16
-Nodes (11): ensure_success(), hmac_sha256(), host_header(), invalid_config(), invalid_input(), object_key(), provider_error(), provider_status() (+3 more)
+Cohesion: 0.13
+Nodes (15): ensure_success(), hmac_sha256(), host_header(), invalid_config(), invalid_input(), object_key(), provider_error(), provider_status() (+7 more)
 
 ### Community 742 - "QuotaKey"
-Cohesion: 0.08
-Nodes (26): admin_platform_routes(), quota_resource(), UsageSnapshot, an_over_limit_quota_reports_grace_not_failure(), app(), billing_subscription_reports_unknown_without_a_persisted_subscription(), entitlements_reports_tier_features_quotas_and_windows(), feature_flags_flip_on_pro() (+18 more)
+Cohesion: 0.12
+Nodes (21): admin_platform_routes(), UsageSnapshot, an_over_limit_quota_reports_grace_not_failure(), app(), billing_subscription_reports_unknown_without_a_persisted_subscription(), entitlements_reports_tier_features_quotas_and_windows(), feature_flags_flip_on_pro(), feature_flags_use_medusas_exact_shape() (+13 more)
 
 ### Community 743 - "src/reconciliation.rs"
 Cohesion: 0.41
@@ -4419,7 +4406,7 @@ Nodes (9): AdminReconciliationContext, AlertsQuery, check_alerts(), get_cycle(),
 
 ### Community 744 - "Entitlements"
 Cohesion: 0.11
-Nodes (18): AdminReportingContext, average_order_value_handler(), clamp_window(), orders_over_time_handler(), ReportBody, ReportEnvelope, ReportQueryParams, revenue_over_time_handler() (+10 more)
+Nodes (11): quota_resource(), Entitlements, QuotaKey, .ALL, MaxProducts, MaxStaffSeats, load_entitlements_for(), not_found() (+3 more)
 
 ### Community 745 - "Frontend Lustre: Luxury Watch and Ornament Storefront Plan"
 Cohesion: 0.06
@@ -4430,16 +4417,16 @@ Cohesion: 0.25
 Nodes (8): AnalyticsWindowGate, trial_status_rank(), TrialLifecycleJob, TrialStatus, Active, ExpiredToFree, WarningFinal, WarningFirst
 
 ### Community 748 - "api.spec.ts"
-Cohesion: 0.23
-Nodes (12): hostFor(), login(), Tenant, ADR-0012, hostFor(), login(), Tenant, BACKEND (+4 more)
+Cohesion: 0.17
+Nodes (14): hostFor(), login(), Tenant, ADR-0012, hostFor(), login(), Tenant, Ctx (+6 more)
 
 ### Community 749 - "compilerOptions"
 Cohesion: 0.12
 Nodes (15): compilerOptions, esModuleInterop, isolatedModules, jsx, lib, module, moduleResolution, noEmit (+7 more)
 
 ### Community 750 - "ci"
-Cohesion: 0.07
-Nodes (27): BIt(), CBt(), ci(), concat(), DBt(), Ebt(), getSpecial(), getSupportedArchitectures() (+19 more)
+Cohesion: 0.04
+Nodes (50): BIt(), Byt(), CBt(), ci(), concat(), cv(), DBt(), Ebt() (+42 more)
 
 ### Community 751 - "3. Full scope — all 63 capabilities, re-scored"
 Cohesion: 0.06
@@ -4450,8 +4437,8 @@ Cohesion: 0.16
 Nodes (9): get_home_summary(), HOME_SUMMARY_ITEM_LIMIT, HomeSummaryContext, LOW_STOCK_THRESHOLD, LowStockItem, LowStockSummary, PendingOrderItem, PendingOrdersSummary (+1 more)
 
 ### Community 753 - "operators.rs"
-Cohesion: 0.40
-Nodes (7): AuditQuery, create_operator(), CreateOperatorRequest, DEFAULT_AUDIT_LIMIT, get_audit(), list_operators(), revoke_operator()
+Cohesion: 0.29
+Nodes (9): audit_json(), AuditQuery, create_operator(), CreateOperatorRequest, DEFAULT_AUDIT_LIMIT, get_audit(), list_operators(), operator_json() (+1 more)
 
 ### Community 754 - "audit_pagination.rs"
 Cohesion: 0.33
@@ -4461,17 +4448,17 @@ Nodes (12): a_page_size_beyond_the_cap_is_clamped_not_refused(), a_row_written_b
 Cohesion: 0.20
 Nodes (8): all_fn_names(), _brace_match(), consults_a_service(), handler_bodies(), main(), selftest(), strip_preamble(), _uses()
 
-### Community 757 - "CurrencyService"
-Cohesion: 0.06
-Nodes (26): app(), call(), credential_health_comes_from_latest_provider_outcome_not_row_presence(), insert_provider_request(), PROVIDER, stripe_creds(), stripe_provider(), TEST_KEY_HEX (+18 more)
+### Community 757 - "Path"
+Cohesion: 0.25
+Nodes (4): get_currency(), list_currencies(), get_region(), list_regions()
 
 ### Community 758 - "validate-translation.js"
 Cohesion: 0.13
 Nodes (12): Ajv, allPluralKeys, errors, filePath, findAllPluralKeys(), fs, langCode, path (+4 more)
 
 ### Community 759 - "form-extension-zone.tsx"
-Cohesion: 0.20
-Nodes (8): FormExtensionField(), FormExtensionFieldComponent(), FormExtensionFieldComponentProps, FormExtensionFieldProps, FormExtensionZoneProps, getFieldLabel(), FormFieldType, getFieldType()
+Cohesion: 0.13
+Nodes (14): FormExtensionField(), FormExtensionFieldComponent(), FormExtensionFieldComponentProps, FormExtensionFieldProps, FormExtensionZoneProps, getFieldLabel(), FormFieldType, getFieldType() (+6 more)
 
 ### Community 760 - "transferOwnership"
 Cohesion: 0.13
@@ -4713,17 +4700,17 @@ Nodes (5): Cart, CartId, Envelope, Product, ProductId
 Cohesion: 0.24
 Nodes (10): a_price_cannot_reference_a_missing_price_set(), an_inverted_price_list_window_is_rejected(), an_inverted_quantity_tier_is_rejected(), an_uppercase_currency_code_is_rejected(), deleting_a_price_set_cascades_to_its_prices_and_rules(), duplicate_price_preferences_are_rejected(), insert(), money_round_trips_at_every_iso_precision() (+2 more)
 
-### Community 822 - "Country"
-Cohesion: 0.17
-Nodes (6): Country, .ENTITY, .TABLE, Region, .ENTITY, .TABLE
+### Community 822 - "File"
+Cohesion: 0.07
+Nodes (13): Currency, .ENTITY, .ID_COLUMN, .TABLE, File, .ENTITY, .TABLE, Country (+5 more)
 
 ### Community 823 - "ref_k6"
 Cohesion: 0.13
 Nodes (7): options, options, options, options, options, options, options
 
 ### Community 824 - "nav-item.tsx"
-Cohesion: 0.17
-Nodes (18): getIsOpen(), Icon(), INavItem, isPathActive(), ItemType, NavItem(), NavItemSubItem(), NavItemTooltip() (+10 more)
+Cohesion: 0.18
+Nodes (17): Patch Changes, getIsOpen(), Icon(), INavItem, isPathActive(), ItemType, NavItem(), NavItemSubItem() (+9 more)
 
 ### Community 825 - "nav"
 Cohesion: 0.14
@@ -4941,9 +4928,9 @@ Nodes (13): BillingAttempt, creditInvoice(), Invoice, listBillingAttempts(), lis
 Cohesion: 0.16
 Nodes (15): chat_price_parser_preserves_exact_decimal_and_rejects_unsafe_values(), ChatOffer, ChatOfferQuote, ChatOfferService, ConfirmationQuoteRow, invalid(), OfferRow, parse_price() (+7 more)
 
-### Community 880 - "data-grid-root.tsx"
-Cohesion: 0.10
-Nodes (23): DataGridKeyboardShortcutModal(), DataGridKeyboardShortcutModalProps, useDataGridShortcuts(), DataGridCell(), DataGridCellProps, DataGridHeader(), DataGridHeaderProps, DataGridRoot() (+15 more)
+### Community 880 - "stheno-inventory/src/dto.rs"
+Cohesion: 0.12
+Nodes (8): CreateInventoryItemInput, CreateInventoryLevelInput, CreateReservationInput, InventoryItemDTO, InventoryLevelDTO, ReservationItemDTO, UpdateInventoryItemInput, UpdateReservationInput
 
 ### Community 883 - "ingress"
 Cohesion: 0.22
@@ -4961,17 +4948,13 @@ Nodes (13): concurrency, cancel-in-progress, group, env, CARGO_TERM_COLOR, jobs,
 Cohesion: 0.27
 Nodes (14): steps, steps, steps, BASE_SHA, FORCE_FULL, steps, env, if (+6 more)
 
-### Community 887 - "ref_playwright_test"
-Cohesion: 0.19
-Nodes (3): Ctx, ADR-0012, BACKEND
-
 ### Community 888 - "generate-schema.js"
 Cohesion: 0.22
 Nodes (10): ALL_PLURAL_FORMS, enPath, fs, generateSchemaFromObject(), getBaseKey(), main(), path, prettier (+2 more)
 
 ### Community 889 - "sortable-list.tsx"
-Cohesion: 0.18
-Nodes (11): DragHandle(), dropAnimationConfig, List(), Overlay(), SortableBaseItem, SortableItemContext, SortableItemContextValue, SortableItemProps (+3 more)
+Cohesion: 0.15
+Nodes (13): @dnd-kit/utilities@^3.2.2, DragHandle(), dropAnimationConfig, List(), Overlay(), SortableBaseItem, SortableItemContext, SortableItemContextValue (+5 more)
 
 ### Community 890 - "errors"
 Cohesion: 0.15
@@ -5001,9 +4984,9 @@ Nodes (12): navigation, goToCampaigns, goToCategories, goToCollections, goToCust
 Cohesion: 0.17
 Nodes (12): navigation, goToCampaigns, goToCategories, goToCollections, goToCustomerGroups, goToCustomers, goToInventory, goToOrders (+4 more)
 
-### Community 898 - "module.d.ts"
-Cohesion: 0.17
-Nodes (10): virtual:medusa/cell-renderers, virtual:medusa/displays, virtual:medusa/forms, virtual:medusa/i18n, virtual:medusa/layouts, virtual:medusa/links, virtual:medusa/menu-items, virtual:medusa/routes (+2 more)
+### Community 898 - "args"
+Cohesion: 0.11
+Nodes (24): build, depends_on, ports, NEXT_PUBLIC_BASE_URL, NEXT_PUBLIC_DEFAULT_REGION, NEXT_PUBLIC_STHENO_PUBLISHABLE_KEY, VITE_ADMIN_URL, VITE_STHENO_BACKEND_URL (+16 more)
 
 ### Community 899 - "analytics.tsx"
 Cohesion: 0.24
@@ -5018,28 +5001,28 @@ Cohesion: 0.11
 Nodes (23): idx_tenant_domain_tenant, platform.subscription, platform.tenant, platform.tenant_domain, idx_billing_attempt_invoice, idx_billing_attempt_unsettled, idx_invoice_line_invoice, platform.billing_attempt (+15 more)
 
 ### Community 902 - "data-grid/types.ts"
-Cohesion: 0.11
-Nodes (19): DataGridContext, DataGridContextType, isFieldError(), collectErrors(), UseDataGridCellErrorOptions, useDataGridCellMetadata(), UseDataGridCellMetadataOptions, UseDataGridDuplicateCellOptions (+11 more)
+Cohesion: 0.06
+Nodes (48): DataGridDuplicateCell(), DataGridDuplicateCellProps, DataGridCell(), DataGridCellProps, DataGridHeaderProps, DataGridRoot(), DataGridRow(), DataGridRowProps (+40 more)
 
 ### Community 903 - "Architecture Decision Records"
-Cohesion: 0.07
-Nodes (28): options(), ADR-008 — RBAC and SSO are clean-room, not ported, ADR-015 — Wire-shape expansion lives in the API layer, not in module DTOs, ADR-016 — Plan definitions are data the control plane owns, not config baked into the image, ADR-025 — Connection pooling is transaction-mode, with a session-mode route for session state, ADR-026 — Docker Compose now, Kubernetes at scale, ADR-034 — Manual Payment "In Verification" Truth Contract & Email/WhatsApp Channel Pipeline, Architecture Decision Records (+20 more)
+Cohesion: 0.11
+Nodes (19): options(), ADR-008 — RBAC and SSO are clean-room, not ported, ADR-015 — Wire-shape expansion lives in the API layer, not in module DTOs, ADR-025 — Connection pooling is transaction-mode, with a session-mode route for session state, ADR-034 — Manual Payment "In Verification" Truth Contract & Email/WhatsApp Channel Pipeline, Architecture Decision Records, Consequences, Consequences (+11 more)
 
 ### Community 904 - "Product Layer — Onboarding, Social Checkout, Storefront, Reporting"
 Cohesion: 0.07
 Nodes (28): 10.1 Product shape, 10.2 Boundaries and sources of truth, 10.3 Delivery choices to validate, 10.4 Safety and trust requirements, 10.5 Architecture fit if validated, 10.6 Pilot criteria, 10.7 Suggested rollout, 10. Exploration — conversational order intake (+20 more)
 
 ### Community 905 - "calculator.rs"
-Cohesion: 0.30
+Cohesion: 0.28
 Nodes (6): CalculatorError, InvalidMonths, MissingFxRate, FxMetadata, SubscriptionInvoice, SubscriptionInvoiceCalculator
 
 ### Community 906 - "12. Phased implementation plan"
-Cohesion: 0.10
-Nodes (26): 1. Overview & Architectural Principles, 2. Directory Structure, 3. Environment Variables, 4. Development & Build Commands, 5. Security & Data Integrity Rules, Core Architecture Pillars, Vendryx Merchant Admin Dashboard, AsyncState() (+18 more)
+Cohesion: 0.11
+Nodes (24): Core Architecture Pillars, AsyncState(), SettingsRow(), SettingsSection(), StatusAccessory(), StatusAccessoryProps, StatusVariant, SettingCategory (+16 more)
 
-### Community 908 - "stheno-api-admin/src/rbac.rs"
-Cohesion: 0.31
-Nodes (18): AuditQuery, create_policy(), create_role(), delete_policy(), delete_role(), evaluate(), failed(), get_me_permissions() (+10 more)
+### Community 908 - "skeleton-cart-page/index.tsx"
+Cohesion: 0.15
+Nodes (11): SkeletonButton(), SkeletonCartItem(), SkeletonCartTotals(), SkeletonCodeForm(), SkeletonOrderConfirmedHeader(), SkeletonOrderInformation(), SkeletonOrderItems(), SkeletonOrderSummary() (+3 more)
 
 ### Community 909 - "suspended_tenant_is_offline.rs"
 Cohesion: 0.32
@@ -5118,8 +5101,8 @@ Cohesion: 0.18
 Nodes (11): errorBoundary, backToDashboard, badRequestMessage, badRequestTitle, defaultMessage, defaultTitle, internalServerErrorMessage, internalServerErrorTitle (+3 more)
 
 ### Community 928 - "clerk-auth-provider.tsx"
-Cohesion: 0.18
-Nodes (11): @clerk/clerk-react@^5.61.9, CLERK_PUBLISHABLE_KEY, ClerkAuthContext, ClerkAuthContextValue, ClerkAuthProvider(), ClerkAuthProviderProps, ClerkInnerConsumer(), ClerkSafeUserContext (+3 more)
+Cohesion: 0.10
+Nodes (22): @clerk/clerk-react@^5.61.9, AvatarBox(), useVerifyAuthMfaChallenge(), CLERK_PUBLISHABLE_KEY, ClerkAuthContext, ClerkAuthContextValue, ClerkAuthProvider(), ClerkAuthProviderProps (+14 more)
 
 ### Community 929 - "gateways.tsx"
 Cohesion: 0.29
@@ -5146,8 +5129,8 @@ Cohesion: 0.10
 Nodes (26): analytics.analytics_event, audit.audit_log, caching.cache_entry, "file"."file", idx_analytics_distinct_id, idx_analytics_event_name, idx_audit_actor, idx_audit_entity (+18 more)
 
 ### Community 935 - "search/search.tsx"
-Cohesion: 0.16
-Nodes (18): DEFAULT_SEARCH_LIMIT, getSearchAreas(), SEARCH_LIMIT_INCREMENT, CommandDialog(), CommandDialogProps, CommandEmpty, CommandGroup, CommandInput (+10 more)
+Cohesion: 0.14
+Nodes (20): DEFAULT_SEARCH_LIMIT, getSearchAreas(), SEARCH_LIMIT_INCREMENT, CommandDialog(), CommandDialogProps, CommandEmpty, CommandGroup, CommandInput (+12 more)
 
 ### Community 936 - "read_only_tenant.rs"
 Cohesion: 0.35
@@ -5169,9 +5152,9 @@ Nodes (5): blocks(), luminance(), main(), ratio(), resolve()
 Cohesion: 0.20
 Nodes (6): affected_packages(), changed_paths(), main(), package_graph(), run(), AffectedCargoGateTests
 
-### Community 941 - "order-by.tsx"
-Cohesion: 0.38
-Nodes (5): formatKey(), initState(), OrderBy(), OrderByProps, SortState
+### Community 941 - "RedxFulfillmentProvider"
+Cohesion: 0.13
+Nodes (5): positive_u64(), RedxConfig, RedxFulfillmentProvider, required_text(), value_to_id()
 
 ### Community 942 - "20260815000001_fulfillment_schema/up.sql"
 Cohesion: 0.15
@@ -5202,12 +5185,12 @@ Cohesion: 0.36
 Nodes (9): createOperator(), listOperators(), Operator, revokeOperator(), IssuedToken(), IssueForm(), Operators(), RevokeButton() (+1 more)
 
 ### Community 949 - "Frontend Mahal: Image-to-Code Storefront Plan"
-Cohesion: 0.08
-Nodes (23): 1. Design read, 2. Ladder decision and architecture, 3. Reference evidence map, 4. Source-first image-to-code execution set, 5. Screen and DOM matrix, 6. Content and truth constraints, 7. Implementation phases, 8. Required gates (+15 more)
+Cohesion: 0.05
+Nodes (42): FrontendContract, FrontendSlot, 1. Design read, 2. Ladder decision and architecture, 3. Reference evidence map, 4. Source-first image-to-code execution set, 5. Screen and DOM matrix, 6. Content and truth constraints (+34 more)
 
 ### Community 950 - "maxAge"
-Cohesion: 0.14
-Nodes (22): age(), _ageValue(), _allowsStoringAuthenticated(), _assertRequestHasHeaders(), _copyWithoutHopByHopHeaders(), date(), fH(), _hasExplicitExpiration() (+14 more)
+Cohesion: 0.13
+Nodes (23): age(), _ageValue(), _allowsStoringAuthenticated(), _assertRequestHasHeaders(), _copyWithoutHopByHopHeaders(), date(), fH(), _hasExplicitExpiration() (+15 more)
 
 ### Community 951 - "storefront-core/package.json"
 Cohesion: 0.20
@@ -5218,20 +5201,20 @@ Cohesion: 0.20
 Nodes (7): cEe(), fEe(), hEe(), p(), JC(), pEe(), uEe()
 
 ### Community 953 - "auth_guard.rs"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (12): ADMIN_ACTOR_TYPE, admin_credential(), ADMIN_SESSION_COOKIE, AdminCredential, Bearer, SessionCookie, credential_is_allowed(), credential_origin_allowed() (+4 more)
 
 ### Community 954 - "AnalyticsEvent"
 Cohesion: 0.24
 Nodes (3): AnalyticsEvent, .ENTITY, .TABLE
 
-### Community 955 - "Currency"
-Cohesion: 0.24
-Nodes (4): Currency, .ENTITY, .ID_COLUMN, .TABLE
+### Community 955 - "Part 1 — The engine"
+Cohesion: 0.10
+Nodes (21): 8. Code style, async(), 6.1 What it must reproduce, 6.2 Rust shape, 6.4 Idempotency, 6. The workflow engine, 1.1 Why an engine at all, 1.2 Semantics to reproduce (+13 more)
 
 ### Community 956 - "Part 2 — Admin dashboard (`apps/admin`) — forked"
-Cohesion: 0.09
-Nodes (22): default(), home(), Decision, 1.1 URL structure, 1.2 Route tree, 1.3 Page data contracts, 1.4 Storefront non-functional gates, 2.1 Curated merchant workspace (+14 more)
+Cohesion: 0.13
+Nodes (15): 1.1 URL structure, 1.2 Route tree, 1.3 Page data contracts, 1.4 Storefront non-functional gates, 2.1 Curated merchant workspace, 2.3 New product routes added by the fork, 2.4 What the fork changes, 2.5 The admin extension system comes along (+7 more)
 
 ### Community 957 - ".build"
 Cohesion: 0.24
@@ -5286,12 +5269,12 @@ Cohesion: 0.22
 Nodes (8): amountOfOrderHiddenFields, amountOfProductHiddenFields, buyGetHiddenFields, commonHiddenFields, freeShippingHiddenFields, percentageOfOrderHiddenFields, percentageOfProductHiddenFields, templates
 
 ### Community 970 - "tsconfig.typecheck.json"
-Cohesion: 0.33
-Nodes (5): compilerOptions, isolatedModules, skipLibCheck, extends, ./tsconfig.json
+Cohesion: 0.50
+Nodes (3): exclude, extends, ./tsconfig.json
 
-### Community 971 - "cart-cookie-crypto.ts"
-Cohesion: 0.39
-Nodes (6): AAD, cookieKey(), decryptCartId(), decryptCartIdFromEnvironment(), encryptCartId(), encryptCartIdFromEnvironment()
+### Community 971 - "product-import.tsx"
+Cohesion: 0.16
+Nodes (14): FileType, FileUpload(), FileUploadProps, RejectedFile, useConfirmImportProducts(), useImportProducts(), ImportSummary(), Stat() (+6 more)
 
 ### Community 972 - "makeBound"
 Cohesion: 0.25
@@ -5301,13 +5284,13 @@ Nodes (7): __decorate(), _defineHidden(), disableMember(), __extends(), makeBoun
 Cohesion: 0.39
 Nodes (9): getTargetInfo(), loadLocalMetadata(), loadRoot(), loadSnapshot(), loadTargets(), loadTimestamp(), persistMetadata(), preorderDepthFirstWalk() (+1 more)
 
-### Community 974 - "Utc"
-Cohesion: 0.39
-Nodes (5): StoreCategoryOrderSignal, StoreOrderSignal, PaymentProofReviewRow, PaymentProofRow, validate_store_intelligence_window()
+### Community 974 - "totals.rs"
+Cohesion: 0.13
+Nodes (5): SPECIAL_CURRENCIES, calculate_line_item_totals(), test_full_cart_totals_calculation(), test_pure_line_item_totals_tax_exclusive(), test_pure_line_item_totals_tax_inclusive()
 
-### Community 978 - "dunning_ladder.rs"
-Cohesion: 0.24
-Nodes (8): free_and_trial_subscriptions_do_not_enter_payment_dunning(), payment_dunning_does_not_shorten_the_contract_term_grace_period(), payment_resets_dunning_to_active(), service(), unpaid_subscription_walks_active_to_past_due_to_grace_to_suspended(), call(), quota_bearing_product_write_rejects_customers_and_admits_staff(), register_token()
+### Community 978 - "two-column-page.tsx"
+Cohesion: 0.15
+Nodes (12): Copied(), CopiedProps, JsonViewSection(), JsonViewSectionProps, Root(), TwoColumnPage, TwoColumnPageProps, TwoColumnWidgetProps (+4 more)
 
 ### Community 979 - "postgres"
 Cohesion: 0.22
@@ -5321,6 +5304,10 @@ Nodes (4): ColumnAlignment, CENTER, LEFT, RIGHT
 Cohesion: 0.25
 Nodes (7): compilerOptions, allowSyntheticDefaultImports, composite, module, moduleResolution, skipLibCheck, include
 
+### Community 982 - "vite.config.cts"
+Cohesion: 0.21
+Nodes (6): buildTimeSeries(), createMockApiState(), handleMockApiRequest(), readJsonBody(), sthenoMockApiPlugin(), VIRTUAL_MEDUSA_MODULES
+
 ### Community 983 - "audit.tsx"
 Cohesion: 0.36
 Nodes (7): AuditEntry, listAudit(), ACTION_LABELS, Audit(), BILLING_ACTIONS, Row(), when()
@@ -5330,7 +5317,7 @@ Cohesion: 0.36
 Nodes (4): check_migrations_detects_a_deliberately_drifted_schema(), check_migrations_fails_on_an_unmigrated_database(), check_migrations_passes_on_a_migrated_database(), run()
 
 ### Community 985 - "Vendryx_Approved_Complete_Brand_Package/Vendryx_Brand_Kit/12_Source/build_brand.py"
-Cohesion: 0.16
+Cohesion: 0.11
 Nodes (14): cover(), defs(), display_text(), emit(), mark(), primary(), save(), social_lockup() (+6 more)
 
 ### Community 987 - "env"
@@ -5358,8 +5345,8 @@ Cohesion: 0.50
 Nodes (7): down(), psql_admin(), require_binary(), dev-tiers.sh script, status(), up(), wait_for_health()
 
 ### Community 993 - "app.tsx"
-Cohesion: 0.17
-Nodes (9): App(), AppProps, localPlugin, appendLinkableFields(), getLinkedFields(), Language, Resources, CustomTypeOptions (+1 more)
+Cohesion: 0.13
+Nodes (11): App(), AppProps, localPlugin, appendLinkableFields(), getLinkedFields(), Language, Resources, CustomTypeOptions (+3 more)
 
 ### Community 995 - "dev-tenants.sh"
 Cohesion: 0.57
@@ -5377,9 +5364,9 @@ Nodes (22): case_01_admin_orders_status_set_and_date_floor(), case_02_date_range
 Cohesion: 0.33
 Nodes (6): PromotionStatus, ACTIVE, DRAFT, EXPIRED, INACTIVE, SCHEDULED
 
-### Community 999 - "workspace-seam.test.ts"
-Cohesion: 0.40
-Nodes (3): FRONTEND_ID, ADR-0013, corePkg
+### Community 999 - "ref_vitest"
+Cohesion: 0.11
+Nodes (10): currencyCodeColumn, displayIdColumn, totalColumn, queryClient, storageMock, queryClient, FRONTEND_ID, ADR-0013 (+2 more)
 
 ### Community 1000 - "_typeModule"
 Cohesion: 0.60
@@ -5390,8 +5377,8 @@ Cohesion: 0.09
 Nodes (23): 1. Modules — 34 packages, 2.10 Identity and access, 2.11 Platform, 2.12 Workflow engine, 2.13 API, 2.14 Admin dashboard, 2.15 Security and compliance, 2.16 Entitlements — service delivery (+15 more)
 
 ### Community 1002 - "couriers-list.tsx"
-Cohesion: 0.21
-Nodes (15): CourierField, CourierProvider, useCouriers(), useProbeCourier(), useUpdateCourierCredentials(), useUpdateCourierRates(), CourierCredentialModal(), CourierCredentialModalProps (+7 more)
+Cohesion: 0.17
+Nodes (19): CourierField, CourierProbeRecord, CourierProbeResponse, CourierProvider, CourierRates, COURIERS_QUERY_KEY, useCouriers(), useProbeCourier() (+11 more)
 
 ### Community 1004 - "autoscaling"
 Cohesion: 0.33
@@ -5416,6 +5403,10 @@ Nodes (4): audit_check(), handler_body(), self_test(), check-control-plane-audit
 ### Community 1009 - "check-extraction-parity.sh"
 Cohesion: 0.53
 Nodes (5): catalog_fingerprint(), cleanup(), kill_pid_tree(), listeners_on(), check-extraction-parity.sh script
+
+### Community 1012 - "src/rate_limit.rs"
+Cohesion: 0.23
+Nodes (9): allows_up_to_the_limit_then_refuses(), expired_keys_are_pruned_rather_than_kept_forever(), keys_are_independent(), limiter(), LimiterState, MAX_TRACKED_KEYS, RateLimiter, reset_clears_one_key() (+1 more)
 
 ### Community 1017 - "image"
 Cohesion: 0.39
@@ -5445,9 +5436,9 @@ Nodes (5): on, pull_request, push, workflow_dispatch, branches
 Cohesion: 0.50
 Nodes (3): ShippingOptionPriceType, CALCULATED, FLAT_RATE
 
-### Community 1024 - "ADR-012 — One database, `tenant_id` on every row, isolation enforced by Postgres RLS"
-Cohesion: 0.10
-Nodes (19): FrontendContract, FrontendSlot, Cart, checkout, account, and orders, Core changes frontend B required, Delta 1 — a frontend supplies a token layer, Delta 2 — the bundler binding became switchable, Delta 3 — `gsap` and `@gsap/react` are storefront dependencies, Reading of the budget (+11 more)
+### Community 1024 - "convert_medusa_money_to_stheno"
+Cohesion: 0.18
+Nodes (11): convert_medusa_money_to_stheno(), FinancialReconciliation, OrderFinancialSnapshot, reconcile_order_financials(), test_medusa_money_conversion_jpy(), test_medusa_money_conversion_kwd(), test_medusa_money_conversion_precision_loss_assertion(), test_medusa_money_conversion_usd() (+3 more)
 
 ### Community 1025 - "Uze"
 Cohesion: 0.67
@@ -5456,6 +5447,10 @@ Nodes (3): Uze(), c(), f()
 ### Community 1026 - "stheno-demo/src/events.rs"
 Cohesion: 0.50
 Nodes (3): EVT_DEMO_CREATED, EVT_DEMO_DELETED, EVT_DEMO_UPDATED
+
+### Community 1027 - "reports.rs"
+Cohesion: 0.36
+Nodes (10): AdminReportingContext, average_order_value_handler(), clamp_window(), orders_over_time_handler(), ReportBody, ReportEnvelope, ReportQueryParams, revenue_over_time_handler() (+2 more)
 
 ### Community 1028 - "stheno-api-admin/src/pricing.rs"
 Cohesion: 0.32
@@ -5473,9 +5468,25 @@ Nodes (3): API_ALLOWED, api_hits(), check-no-in-memory-stores.sh script
 Cohesion: 0.50
 Nodes (3): CARGO_TARGET_DIR, DATABASE_URL, gate-p26.sh script
 
-### Community 1217 - "distinct_shipments_are_not_deduped.rs"
-Cohesion: 0.16
-Nodes (10): ambiguous_provider_result_is_not_retried_as_a_second_consignment(), parcel(), repeated_order_derived_key_returns_the_first_local_fulfillment(), retry_repairs_local_item_write_after_provider_success_without_redispatch(), retry_repairs_local_label_write_after_provider_success_without_redispatch(), retry_reuses_address_when_fulfillment_row_insert_failed(), SilentCarrier, stable_order_key_cannot_switch_courier_after_dispatch_started() (+2 more)
+### Community 1035 - "src/tiers.rs"
+Cohesion: 0.28
+Nodes (11): effective_tier_config(), tier_config_for(), delete_tier(), entitlements_json(), get_tiers(), put_tier(), TierDefinitionBody, TierView (+3 more)
+
+### Community 1036 - "UploadPipeline"
+Cohesion: 0.15
+Nodes (10): AllowedMimeType, Jpeg, Pdf, Png, Webp, BrandingAssetKind, Favicon, Logo (+2 more)
+
+### Community 1078 - "sso-login.tsx"
+Cohesion: 0.23
+Nodes (14): AuthProvider, provisionAuthUser(), useAuthProviders(), AuthCallbackError, OrDivider(), resolveProvisionError(), SsoLogin(), SsoLoginProps (+6 more)
+
+### Community 1140 - "sync-brand-surfaces.sh script"
+Cohesion: 0.83
+Nodes (3): check_title(), sync-brand-surfaces.sh script, sync_asset()
+
+### Community 1217 - "onboarding.tsx"
+Cohesion: 0.23
+Nodes (10): ONBOARDING_QUERY_KEY, OnboardingStatus, OnboardingStep, useDismissOnboarding(), useOnboarding(), useResetOnboarding(), OnboardingSummaryCard(), getStepIcon() (+2 more)
 
 ### Community 1218 - "Notification"
 Cohesion: 0.12
@@ -5490,20 +5501,20 @@ Cohesion: 0.16
 Nodes (21): idx_account_holder_provider_external, idx_capture_payment_id, idx_payment_collection_id, idx_payment_collection_status, idx_payment_session_collection, idx_provider_req_key, idx_provider_req_state, idx_reconciliation_provider (+13 more)
 
 ### Community 1221 - "entitlements-detail.tsx"
-Cohesion: 0.12
-Nodes (17): EntitlementsData, EntitlementsDetail(), FeatureFlagsData, formatInstant(), humanise(), InvoiceItem, NotificationChannelUsage, NotificationUsageData (+9 more)
+Cohesion: 0.10
+Nodes (21): @testing-library/jest-dom@^6.6.3, @testing-library/user-event@^14.5.2, EntitlementsData, EntitlementsDetail(), FeatureFlagsData, formatInstant(), humanise(), InvoiceItem (+13 more)
 
 ### Community 1222 - "stheno-tax/src/dto.rs"
-Cohesion: 0.16
-Nodes (12): create_tax_rate(), create_tax_region(), update_tax_rate(), update_tax_region(), CreateTaxRateInput, CreateTaxRateRuleInput, CreateTaxRegionInput, TaxRateDTO (+4 more)
+Cohesion: 0.17
+Nodes (6): CreateTaxRateInput, CreateTaxRateRuleInput, TaxRateDTO, TaxRateRuleDTO, TaxRegionDTO, UpdateTaxRateInput
 
 ### Community 1223 - "Entitlements — Feature Gating and Plan Tiers"
 Cohesion: 0.10
 Nodes (21): 1. The two layers, 2. Deployment model, 3. The governing rule, 5. Trial mechanics, 5b. Configuration, 5c. What this tier plan needs that the engine does not have, 5d. The writable layer (ADR-016), 6.1 The rule that keeps this clean (+13 more)
 
 ### Community 1224 - "@medusajs/dashboard"
-Cohesion: 0.10
-Nodes (19): 2.0.4, 2.13.2, 2.15.3, 2.16.0, 2.1.2, 2.3.0, 2.6.0, 2.8.6 (+11 more)
+Cohesion: 0.05
+Nodes (37): 2.0.2, 2.0.3, 2.0.5, 2.10.0, 2.11.0, 2.12.3, 2.13.5, 2.13.6 (+29 more)
 
 ### Community 1225 - "tree-item.tsx"
 Cohesion: 0.16
@@ -5526,8 +5537,8 @@ Cohesion: 0.19
 Nodes (19): cart.address, cart.cart, cart.credit_line, cart.line_item, cart.line_item_adjustment, cart.line_item_tax_line, cart.shipping_method, cart.shipping_method_adjustment (+11 more)
 
 ### Community 1230 - "ai-settings.tsx"
-Cohesion: 0.11
-Nodes (18): AiConfiguration, AiSettings(), CHAT_OFFERS_QUERY, ChatOffer, CONFIG_QUERY, KNOWLEDGE_QUERY, KnowledgeEntry, MetaInsightsReport (+10 more)
+Cohesion: 0.07
+Nodes (26): SingleColumnPage(), AiConfiguration, AiSettings(), CHAT_OFFERS_QUERY, ChatOffer, CONFIG_QUERY, KNOWLEDGE_QUERY, KnowledgeEntry (+18 more)
 
 ### Community 1231 - "Handover — Control Plane, Phase 4"
 Cohesion: 0.11
@@ -5538,20 +5549,20 @@ Cohesion: 0.11
 Nodes (19): 1. Architecture Overview, 2. Container Image Specification, 4. Kubernetes Deployment via Helm, 5.1 Zero-Downtime Rolling Upgrades, 5.2 Health Probes, 5.3 Redis Outage Fallback, 5. High Availability & Operational Resilience, 6. Phased Database Migrations (+11 more)
 
 ### Community 1233 - "Task Decomposition"
-Cohesion: 0.11
-Nodes (19): 1.1 Rules that make the loop terminate, 1.2 The universal gate, 1.3 Escalation format, 1.4 Status values, 1. The loop protocol, 2. Reading a task row, 3. Task summary, 4. What this decomposition deliberately does not do (+11 more)
+Cohesion: 0.10
+Nodes (20): 1.1 Rules that make the loop terminate, 1.2 The universal gate, 1.3 Escalation format, 1.4 Status values, 1. The loop protocol, 2. Reading a task row, 3. Task summary, 4. What this decomposition deliberately does not do (+12 more)
 
 ### Community 1234 - "20260817010002_catalog_config_schema/up.sql"
 Cohesion: 0.15
 Nodes (18): idx_sales_channel_name, idx_stock_location_name, idx_store_currency_store, idx_store_locale_store, idx_tax_rate_region, idx_tax_rate_rule_rate, idx_tax_region_country_province, idx_tax_region_parent (+10 more)
 
-### Community 1235 - "Dce"
-Cohesion: 0.13
-Nodes (7): Dce(), P(), U(), kc(), Nze(), f(), p()
+### Community 1235 - "SpaceConnectorError"
+Cohesion: 0.17
+Nodes (11): SpaceConnectorError, ApiError, Http, InvalidConfig, Serialization, Webhook, WebhookVerifyError, InvalidHeaderFormat (+3 more)
 
-### Community 1236 - "KnowledgeService"
-Cohesion: 0.18
-Nodes (9): CreateKnowledgeEntry, KnowledgeEntry, KnowledgeSearchHit, UpdateKnowledgeEntry, invalid(), invalid_value(), KnowledgeService, validate_fields() (+1 more)
+### Community 1236 - "stheno-ai/src/service.rs"
+Cohesion: 0.09
+Nodes (18): CreateKnowledgeEntry, KnowledgeEntry, KnowledgeSearchHit, UpdateKnowledgeEntry, crate::dto::KnowledgeEntry, KnowledgeEntryRow, invalid(), invalid_value() (+10 more)
 
 ### Community 1237 - "2. The ten domains"
 Cohesion: 0.11
@@ -5574,11 +5585,11 @@ Cohesion: 0.21
 Nodes (16): idx_link_cart_payment_collection_left, idx_link_cart_payment_collection_right, idx_link_cart_promotion_left, idx_link_cart_promotion_right, idx_link_customer_account_holder_left, idx_link_customer_account_holder_right, idx_link_user_rbac_role_left, idx_link_user_rbac_role_right (+8 more)
 
 ### Community 1242 - "Apple Design System"
-Cohesion: 0.12
-Nodes (15): Apple Design System, Check Contrast Ratios, 🤝 Contributing, 💡 Examples, Generate Color Variables, Glass Card, Hero Section, Hover Animation (+7 more)
+Cohesion: 0.06
+Nodes (32): 1. Basic Setup, 2. Include Color System, 3. Apply Typography, 4. Use Templates, Animations, Animations, Apple Design System, Check Contrast Ratios (+24 more)
 
 ### Community 1243 - "workflow-execution-timeline-section.tsx"
-Cohesion: 0.20
+Cohesion: 0.22
 Nodes (13): Arrow(), Canvas(), createNodeClusters(), defaultState, EndArrow(), getNextCluster(), HorizontalArrow(), Line() (+5 more)
 
 ### Community 1244 - "Widget"
@@ -5586,7 +5597,7 @@ Cohesion: 0.14
 Nodes (4): CREATE_TABLE, Widget, .ENTITY, .TABLE
 
 ### Community 1245 - "filter_sql_paging.rs"
-Cohesion: 0.26
+Cohesion: 0.32
 Nodes (12): a_page_limit_over_the_maximum_is_clamped(), an_injected_order_column_is_rejected(), an_offset_past_the_end_returns_nothing(), ids(), list_and_count_on_an_empty_result_reports_zero(), list_and_count_returns_the_page_and_the_unpaginated_total(), list_and_count_total_ignores_offset(), multiple_order_keys_are_applied_in_sequence() (+4 more)
 
 ### Community 1246 - "filter_sql_set.rs"
@@ -5597,9 +5608,9 @@ Nodes (14): a_leading_wildcard_is_rejected_to_protect_the_index(), a_range_appli
 Cohesion: 0.12
 Nodes (16): 1.1 The universal gate, Phase 4 edition, 1.2 `[BP]` — breaking points, 1.3 The standing review question, 1. The loop protocol, 2. Totals and sequencing, 3. What is next, 4. What is blocked on someone else, P29 — Operator identity and audit (10 tasks) · **D9** (+8 more)
 
-### Community 1249 - "um"
-Cohesion: 0.16
-Nodes (15): ax(), gv(), Hpe(), hv(), kT(), Mj(), mz(), Npe() (+7 more)
+### Community 1249 - "stheno-cart/src/service.rs"
+Cohesion: 0.43
+Nodes (10): Address, Cart, CreditLine, LineItem, LineItemAdjustment, LineItemTaxLine, impl_crud_entity!, ShippingMethod (+2 more)
 
 ### Community 1250 - "filter_sql_scalar.rs"
 Cohesion: 0.35
@@ -5621,13 +5632,13 @@ Nodes (15): 1. Where the control plane actually is, 2. Where the gap is concentr
 Cohesion: 0.13
 Nodes (15): 1. What We Are Building, 2. High-Level System Architecture, 3. Monorepo Structure, 4. Local Development & Service Port Matrix, 5. Quickstart Guide, 6. Architecture Decision Records (ADRs), 7. Quality Gates & Automated Verification, 8. Documentation Index (+7 more)
 
-### Community 1255 - "use-layout-dnd.ts"
-Cohesion: 0.27
-Nodes (12): DisplayEntry, getSectionIdFromTailId(), isSectionTailId(), isContainerTarget(), resolveOverSection(), useLayoutDnd(), handleDragEnd(), handleDragOver() (+4 more)
+### Community 1255 - "entries.ts"
+Cohesion: 0.10
+Nodes (30): @dnd-kit/sortable@^8.0.0, buildCoreEntries(), collectElements(), DisplayEntry, EntryRenderer, extractSectionElements(), getCoreEntryKey(), getElementName() (+22 more)
 
-### Community 1257 - "cache_safety.rs"
-Cohesion: 0.26
-Nodes (9): add_tenant(), ADMIN_A, ADMIN_B, admin_session_cookie_is_rejected_on_another_tenant_host(), assert_not_public(), call(), customer_cart_checkout_auth_and_admin_responses_are_not_public(), public_catalog_cache_headers_are_tenant_scoped() (+1 more)
+### Community 1257 - "User"
+Cohesion: 0.17
+Nodes (6): Invite, .ENTITY, .TABLE, User, .ENTITY, .TABLE
 
 ### Community 1258 - "Phase 3 Task Decomposition"
 Cohesion: 0.14
@@ -5665,21 +5676,25 @@ Nodes (12): 1. Incident Definition & Severity, 2. Detection & Alert Signals, 3. 
 Cohesion: 0.15
 Nodes (12): 1. Incident Definition & Severity, 2. Detection & Alert Signals, 3. Investigation & Diagnostic Workflow, 4. Mitigation & Resolution Procedures, 5. Post-Incident Verification, Resolution for Case A: Parcel Exists at Courier (Reconciliation), Resolution for Case B: Parcel Does Not Exist (Safe Re-dispatch), Resolution for Case C: Unmapped Courier Status Alert (+4 more)
 
-### Community 1267 - "✅ Best Practices"
-Cohesion: 0.18
-Nodes (12): Accessibility, ✅ Best Practices, Code Organization, Performance, Responsive Design, Accessibility, Best Practices, Code Organization (+4 more)
+### Community 1267 - "ResendNotificationProvider"
+Cohesion: 0.20
+Nodes (3): ResendConfig, ResendEmailRecord, ResendNotificationProvider
 
-### Community 1269 - "Frontend Contract Inputs — what frontend B needs"
+### Community 1268 - "scripts"
+Cohesion: 0.13
+Nodes (15): dependencies, lucide-react@^1.80.0, lucide-react, name, private, scripts, build, build:admin (+7 more)
+
+### Community 1269 - "btreemap"
 Cohesion: 0.17
-Nodes (12): 1. How to use this document, 2. The line, restated, 4. Core-owned — a frontend never supplies these, 5. Skinnable core — checkout, 6.1 Is home a component list or a slot?, 6.2 How much layout does core impose?, 6.3 Who formats money?, 6.4 Does a frontend own its own responsive breakpoints? (+4 more)
+Nodes (6): bkash_factory_builds_and_verifies_honest_capabilities(), bkash_factory_rejects_missing_credentials(), valid_credentials(), sslcommerz_factory_builds_and_verifies_honest_capabilities(), sslcommerz_factory_rejects_missing_credentials(), valid_credentials()
 
 ### Community 1270 - "multi-tenant-load.js"
 Cohesion: 0.20
 Nodes (9): 13.1 Running it as a hosted service, 13. Deployment, http, { performance }, renderSsrPage(), resolveTokens(), runLoadTest(), worker() (+1 more)
 
-### Community 1271 - "Apple Design System"
-Cohesion: 0.18
-Nodes (10): Animation Duration, Animations, Apple Design System, Border Radius Scale, Easing Functions, Entrance Animations, Hover Effects, Quick Reference (+2 more)
+### Community 1271 - "AI Assistant Instructions"
+Cohesion: 0.06
+Nodes (35): 1. Always Prioritize, 1. Core Design Principles, 2. Color System, 2. Component Creation Workflow, 3. Styling Approach, 3. Typography, 4. Never Do, 4. Spacing (+27 more)
 
 ### Community 1272 - "use-data-grid-form-handlers.tsx"
 Cohesion: 0.31
@@ -5694,28 +5709,28 @@ Cohesion: 0.18
 Nodes (11): TransactionStepState, COMPENSATING, DONE, DORMANT, FAILED, INVOKING, NOT_STARTED, REVERTED (+3 more)
 
 ### Community 1275 - "cache.rs"
-Cohesion: 0.35
-Nodes (7): entity_tag(), listing_tag(), no_store(), public_cache_headers(), public_tags_are_tenant_scoped_and_use_header_specific_separators(), unscoped_or_invalid_tags_disable_public_caching(), valid_atom()
+Cohesion: 0.15
+Nodes (11): session_cookie(), session_cookie_is_host_only_and_protected(), entity_tag(), listing_tag(), no_store(), public_cache_headers(), public_tags_are_tenant_scoped_and_use_header_specific_separators(), unscoped_or_invalid_tags_disable_public_caching() (+3 more)
 
 ### Community 1276 - "Space Control Plane Implementation Plan"
-Cohesion: 0.18
-Nodes (11): 15. Frontend source layout, 16. Observability and operational safety, 21. Documentation set, 22. Decisions required before coding, 23. Handoff protocol for the implementing agent, 24. Definition of done, 2. Design read, 4. Product vocabulary (+3 more)
+Cohesion: 0.02
+Nodes (83): 10.1 Connector rules, 10.2 Vendryx adapter, 10. Product connector contract, 11.1 Activate subscription, 11.2 Change plan or bundle, 11.3 Billing cycle and dunning, 11.4 Cancellation, 11. Subscription and billing workflows (+75 more)
 
 ### Community 1277 - "region.country"
 Cohesion: 0.27
 Nodes (8): idx_country_iso_2, idx_country_region_id, idx_region_currency_code, region.country, region.region, idx_country_iso_2, idx_country_iso_2, idx_country_tenant
 
-### Community 1278 - "AI Assistant Instructions"
-Cohesion: 0.20
-Nodes (10): 1. Always Prioritize, 2. Component Creation Workflow, 3. Styling Approach, 4. Never Do, 5. For Portfolio Sites Specifically, 6. Code Quality Standards, 7. When Suggesting Designs, 8. Reference Documentation (+2 more)
+### Community 1278 - "space_integration.rs"
+Cohesion: 0.22
+Nodes (4): receive_space_webhook(), space_integration_routes(), SpaceIntegrationState, test_space_webhook_lifecycle_handling()
 
-### Community 1279 - "Vendryx Brand Guidelines v1.0"
-Cohesion: 0.20
-Nodes (9): Brand colors, Brand concept, Clear space & sizes, Correct usage, Logo family, Social media, Status and legal notes, Typography (+1 more)
+### Community 1279 - "src/launch_requests.rs"
+Cohesion: 0.32
+Nodes (7): get_launch_request(), LaunchActionBody, LaunchRequestView, list_launch_requests(), string_draft_field(), transition_launch_request(), view()
 
-### Community 1280 - "stheno-sales-channel/src/dto.rs"
-Cohesion: 0.29
-Nodes (4): create_sales_channel(), CreateSalesChannelInput, SalesChannelDTO, UpdateSalesChannelInput
+### Community 1280 - "hooks.rs"
+Cohesion: 0.32
+Nodes (8): ErrorResponse, hooks_routes(), HooksContext, is_signature_failure(), map_error(), receive_fulfillment_webhook(), receive_payment_webhook(), WebhookAccepted
 
 ### Community 1282 - "postgres"
 Cohesion: 0.20
@@ -5753,41 +5768,45 @@ Nodes (9): ai.chat_offer, ai.chat_offer_audit, ai_chat_offer_audit_tenant_create
 Cohesion: 0.20
 Nodes (9): Brand colors, Brand concept, Clear space & sizes, Correct usage, Logo family, Social media, Status and legal notes, Typography (+1 more)
 
-### Community 1291 - "workflow-execution-general-section.tsx"
-Cohesion: 0.33
-Nodes (6): getTransactionState(), getTransactionStateColor(), Progress(), WorkflowExecutionGeneralSection(), WorkflowExecutionGeneralSectionProps, useWorkflowExecutionTableFilters()
+### Community 1291 - "workflow-detail.tsx"
+Cohesion: 0.18
+Nodes (11): useWorkflowExecution(), getTransactionStateColor(), seo(), WorkflowExecutionDetailBreadcrumb(), WorkflowExecutionDetailBreadcrumbProps, Progress(), WorkflowExecutionGeneralSection(), WorkflowExecutionGeneralSectionProps (+3 more)
 
 ### Community 1292 - "frontend-fixture-violating/package.json"
 Cohesion: 0.25
 Nodes (8): @stheno/storefront-core, main, name, peerDependencies, @stheno/storefront-core@^0.1.0, private, types, version
 
-### Community 1293 - "FieldSelection"
-Cohesion: 0.36
-Nodes (3): FetchNode, FieldSelection, QueryPlanner
+### Community 1293 - "checkout-ownership.test.ts"
+Cohesion: 0.15
+Nodes (7): generateCurrencies(), CORE_CHECKOUT_DIR, PACKAGES_DIR, PAYMENT_SCRIPTS_DOC, REPO_ROOT, STOREFRONT_ROOT, ADR-0031
 
-### Community 1294 - "collection_ledger.rs"
-Cohesion: 0.44
-Nodes (6): StartBillingAttemptInput, an_idempotency_key_cannot_be_reused_for_a_different_payload(), an_unknown_attempt_is_not_retried_as_a_new_charge(), attempt(), retrying_the_same_collection_attempt_returns_the_existing_row(), service()
+### Community 1294 - "suspension_notice.rs"
+Cohesion: 0.32
+Nodes (7): call(), HOST, operator(), staff_token(), suspension_notice_is_visible_with_reason_and_pay_url(), TENANT_ID, TOKEN
+
+### Community 1295 - "PromotionService"
+Cohesion: 0.14
+Nodes (4): ComputedDiscountAdjustment, PromotionDTO, PromotionEvaluationContext, PromotionService
 
 ### Community 1296 - "SalesChannel"
 Cohesion: 0.28
 Nodes (3): SalesChannel, .ENTITY, .TABLE
 
-### Community 1297 - "TaxContext"
-Cohesion: 0.36
-Nodes (4): TaxContext, TaxLine, SystemTaxProvider, TaxProviderTrait
+### Community 1297 - "environment"
+Cohesion: 0.17
+Nodes (13): environment, environment, ADMIN_CORS, AUTH_CORS, COOKIE_SECRET, DATABASE_URL, JWT_SECRET, REDIS_URL (+5 more)
 
 ### Community 1298 - "cloudflared"
 Cohesion: 0.22
 Nodes (9): command, depends_on, environment, image, networks, profiles, restart, TUNNEL_TOKEN (+1 more)
 
 ### Community 1299 - "healthcheck"
-Cohesion: 0.31
-Nodes (9): interval, retries, test, timeout, healthcheck, healthcheck, image, ports (+1 more)
+Cohesion: 0.46
+Nodes (8): healthcheck, interval, retries, start_period, test, timeout, healthcheck, healthcheck
 
 ### Community 1300 - "proxy"
-Cohesion: 0.22
-Nodes (9): command, entrypoint, expose, image, networks, profiles, restart, volumes (+1 more)
+Cohesion: 0.14
+Nodes (14): STHENO_ADMIN_DOMAIN_SUFFIX, STHENO_ADMIN_UPSTREAM, STHENO_ENGINE_UPSTREAM, STHENO_STOREFRONT_UPSTREAM, command, entrypoint, environment, expose (+6 more)
 
 ### Community 1301 - "Responsible Vulnerability Disclosure Policy"
 Cohesion: 0.22
@@ -5801,9 +5820,9 @@ Nodes (8): 0. Before you start, 2. Make the entities persistable, 3. Rewrite the
 Cohesion: 0.22
 Nodes (8): 1. Architecture: The Unified Runtime (ADR-031), 2. Dynamic Runtime Theming, 3. Aesthetic Baseline: Apple HIG, 4. Real-Time Admin Preview, 5. Verification Checklist, Frontend Theme Authoring Guide, The Token Layer (`--brand-*`), Visual Variant Modifiers (`data-*`)
 
-### Community 1304 - "18. Delivery phases and tickets"
-Cohesion: 0.22
-Nodes (9): 18. Delivery phases and tickets, Access and audit, Billing, Foundation, Future product onboarding template, Migration and release, Product catalog and organizations, Product instances and connectors (+1 more)
+### Community 1304 - "use-document-title.tsx"
+Cohesion: 0.27
+Nodes (6): PublicLayout(), useMatchesMock, DocumentTitle(), getTitleFromMatch(), RouteHandle, useDocumentTitle()
 
 ### Community 1305 - "20260817000002_workflow_schema/up.sql"
 Cohesion: 0.42
@@ -5830,20 +5849,16 @@ Cohesion: 0.25
 Nodes (8): TransactionState, COMPENSATING, DONE, FAILED, INVOKING, NOT_STARTED, REVERTED, WAITING_TO_COMPENSATE
 
 ### Community 1311 - "Vendryx Marketing & Interactive Showcase"
-Cohesion: 0.25
+Cohesion: 0.29
 Nodes (7): 1. Overview & Capabilities, 2. Directory Structure, 3. Environment Variables, 4. Development & Build Commands, 5. Verification Invariants, Key Capabilities, Vendryx Marketing & Interactive Showcase
 
-### Community 1312 - "p"
-Cohesion: 0.43
-Nodes (8): GXe(), f(), h(), p(), P(), N(), R(), S()
-
-### Community 1313 - "billing_run.rs"
-Cohesion: 0.39
-Nodes (6): BillingPlanPrice, billing_run_issues_due_invoices_once(), billing_run_skips_unsold_plans(), collected_renewal_during_grace_extends_term_and_survives_old_grace_deadline(), pro_price(), service()
+### Community 1312 - "manifest.json"
+Cohesion: 0.17
+Nodes (11): accessories, anarkali, atelier, bridal-lehenga, editorial, hero-bridal, jewellery, menswear (+3 more)
 
 ### Community 1314 - "services"
-Cohesion: 0.25
-Nodes (7): networks, origin, external, name, services, volumes, stheno-pgdata
+Cohesion: 0.18
+Nodes (10): networks, origin, external, name, image, ports, services, redis (+2 more)
 
 ### Community 1315 - "Marketing Content Audit — Stheno"
 Cohesion: 0.25
@@ -5858,16 +5873,12 @@ Cohesion: 0.25
 Nodes (8): 1. Document Authority & Precedence Rules, 2. Documentation Directory Map, 3. Engineering Reading Order by Role, 4. Documentation Verification Gate, 🛠️ Backend / Rust Engineers, 🎨 Frontend Engineers (Storefront, Admin, Marketing), 🔒 Security, Compliance & DevOps Engineers, Vendryx Architecture & Documentation Hub
 
 ### Community 1318 - "scripts"
-Cohesion: 0.29
-Nodes (7): scripts, build, dev, preview, test, test:e2e, typecheck
+Cohesion: 0.25
+Nodes (8): scripts, build, dev, lint, preview, test, test:e2e, typecheck
 
-### Community 1319 - "data-grid-readonly-cell.tsx"
-Cohesion: 0.43
-Nodes (5): DataGridReadonlyCell(), DataGridReadonlyCellProps, DataGridRowErrorIndicator(), DataGridRowErrorIndicatorProps, DataGridRowErrorLine()
-
-### Community 1320 - "use-column-state.ts"
-Cohesion: 0.38
-Nodes (6): ColumnState, getInitialColumnOrder(), getInitialColumnVisibility(), useColumnState(), UseColumnStateReturn, ViewConfiguration
+### Community 1320 - "buildCallerFunction"
+Cohesion: 0.24
+Nodes (10): anyNeedsWireRead(), anyNeedsWireWrite(), buildCallerFunction(), buildJSCallerFunction(), makeArgList(), makeCaller(), makeJSCaller(), makeMethodCaller() (+2 more)
 
 ### Community 1321 - "workflow-executions/types.ts"
 Cohesion: 0.29
@@ -5881,17 +5892,25 @@ Nodes (7): 1. Architectural Role & Space Migration Baseline, 2. Operator Domains
 Cohesion: 0.29
 Nodes (7): 1. Overview & Architecture, 2. Directory Structure, 3. Environment Variables, 4. Development & Build Commands, 5. Accessibility & Quality Standards (WCAG 2.2 Level AA), Key Architectural Pillars, Vendryx Unified Storefront
 
-### Community 1325 - "Vendryx brand asset integration (for coding agents)"
-Cohesion: 0.29
-Nodes (6): Accessibility, Asset selection, Canonical choice, Source rebuild, Vendryx brand asset integration (for coding agents), Workflow
+### Community 1324 - "bootstrap"
+Cohesion: 0.18
+Nodes (11): depends_on, entrypoint, restart, engine, condition, STHENO_BACKEND_URL, bootstrap, storefront (+3 more)
+
+### Community 1325 - "MetaInboundMessage"
+Cohesion: 0.44
+Nodes (7): invalid_payload(), MetaInboundMessage, parse_messages(), parse_timestamp(), parse_whatsapp_message(), required_id(), validate_text()
+
+### Community 1326 - "ApiKey"
+Cohesion: 0.24
+Nodes (3): ApiKey, .ENTITY, .TABLE
 
 ### Community 1327 - "values.yaml"
 Cohesion: 0.29
 Nodes (5): replicaCount, secretEnv, service, port, type
 
-### Community 1328 - "tests/launch_requests.rs"
-Cohesion: 0.52
-Nodes (6): SubmitLaunchRequestInput, concurrent_provisioning_reuses_the_same_tenant_handoff(), launch_request_requires_verified_email_and_is_idempotent(), provisioning_is_idempotent_binds_the_owner_and_hands_off_only_when_activated(), request(), subdomain_is_reserved_and_pro_cannot_provision_before_payment()
+### Community 1328 - "routes/utils.ts"
+Cohesion: 0.36
+Nodes (8): addRoute(), createBranchRoute(), createLeafRoute(), createParallelRoute(), createRouteMap(), getRouteExtensions(), processParallelRoutes(), RouteExtension
 
 ### Community 1329 - "ADR-035 — Architecture Implementation Distance & Readiness Audit"
 Cohesion: 0.29
@@ -5909,9 +5928,9 @@ Nodes (7): ADR-004 — Diesel and diesel-async, Consequences, Context, Decision,
 Cohesion: 0.29
 Nodes (7): ADR-013 — Storefront presentation is swappable; commerce logic is not, Consequences, Context, Decision, Options considered, Rationale, Reversal condition
 
-### Community 1333 - "ADR-036 — Space provides dedicated build execution and shared build caches"
-Cohesion: 0.29
-Nodes (7): ADR-036 — Space provides dedicated build execution and shared build caches, Consequences, Context, Decision, Edge cases and required behavior, Implementation plan, Reversal condition
+### Community 1333 - "logo-palette.ts"
+Cohesion: 0.42
+Nodes (7): contrastWithWhite(), ensureReadableOnWhite(), extractLogoPalette(), linearChannel(), LogoPaletteSuggestion, parseHex(), toHex()
 
 ### Community 1334 - "External Penetration Test & Security Audit Report"
 Cohesion: 0.29
@@ -5929,33 +5948,37 @@ Nodes (6): idx_notification_outbox_due, idx_whatsapp_consent_customer_active, no
 Cohesion: 0.29
 Nodes (6): Accessibility, Asset selection, Canonical choice, Source rebuild, Vendryx brand asset integration (for coding agents), Workflow
 
-### Community 1338 - "🎨 Features"
-Cohesion: 0.33
-Nodes (6): Animations, Color System, Components, Design System, 🎨 Features, Typography
+### Community 1338 - "HeroSection.tsx"
+Cohesion: 0.22
+Nodes (6): HeroSection(), HeroSectionProps, OrderView, QUICK_SHORTCUTS, DashboardOrderRow, INITIAL_DASHBOARD_ORDERS
 
-### Community 1339 - "📖 Documentation"
-Cohesion: 0.33
-Nodes (6): Animations, Color System, Components, Core Principles, 📖 Documentation, Typography
+### Community 1339 - "capture_payment"
+Cohesion: 0.25
+Nodes (7): capture_payment(), capture_payment_direct(), create_payment_collection(), CreatePaymentCollectionRequest, queue_payment_lifecycle_email(), refund_payment(), refund_payment_direct()
 
-### Community 1340 - "Core Components"
-Cohesion: 0.33
-Nodes (6): Buttons, Core Components, Glass Card, Hero Section, Navigation Bar, Project Card
+### Community 1340 - "MetaWebhookRegistration"
+Cohesion: 0.36
+Nodes (5): MetaWebhookRegistration, MetaWebhookRegistry, TestRegistry, ConfigurationRegistry, registration()
 
-### Community 1341 - "category-tree.tsx"
-Cohesion: 0.40
-Nodes (3): CategoryLeafPlaceholder(), CategoryTree(), CategoryTreeProps
+### Community 1341 - "store_schema.rs"
+Cohesion: 0.32
+Nodes (3): duplicate_step_state_is_rejected(), insert(), missing_execution_foreign_key_rejected()
 
 ### Community 1342 - "Storefront — provenance"
 Cohesion: 0.33
 Nodes (5): Compatibility caveat, Local modifications, Run, Storefront — provenance, build()
 
-### Community 1347 - "pgbouncer"
-Cohesion: 0.33
-Nodes (6): postgres, depends_on, image, ports, condition, pgbouncer
+### Community 1344 - "Vendryx Merchant Admin Dashboard"
+Cohesion: 0.29
+Nodes (6): 1. Overview & Architectural Principles, 2. Directory Structure, 3. Environment Variables, 4. Development & Build Commands, 5. Security & Data Integrity Rules, Vendryx Merchant Admin Dashboard
+
+### Community 1347 - "engine"
+Cohesion: 0.17
+Nodes (12): postgres, redis, depends_on, entrypoint, ports, depends_on, image, ports (+4 more)
 
 ### Community 1348 - "frontend-matrix — The Matrix Hours"
-Cohesion: 0.33
-Nodes (6): 1. Running it, 2. What was ported, and what was not, 3. How the binding switches, 4. Core changes this required, 5. What is not done, frontend-matrix — The Matrix Hours
+Cohesion: 0.40
+Nodes (5): 1. Running it, 3. How the binding switches, 4. Core changes this required, 5. What is not done, frontend-matrix — The Matrix Hours
 
 ### Community 1349 - "ADR-001 — Extensibility is compile-time"
 Cohesion: 0.33
@@ -5989,21 +6012,21 @@ Nodes (6): ADR-037 — Cloudflare is the edge layer only; vendor calls are confi
 Cohesion: 0.33
 Nodes (6): 1. The Verification Gate, 2.1 Status Ledger Protocol, 2. Version Logging Protocol, 3. Versioning Strategy, 4. Integration with CI & Quality Gates, Documentation & Version Logging Workflow Protocol
 
-### Community 1357 - "13. Frontend information architecture"
-Cohesion: 0.33
-Nodes (6): 13.1 Route tree, 13.2 Global shell, 13.3 Primary navigation, 13.4 Overview page, 13.5 Detail-page pattern, 13. Frontend information architecture
+### Community 1357 - "src/liquid-glass.js"
+Cohesion: 0.48
+Nodes (6): buildFilter(), ensureDefs(), liquidGlass(), refresh(), makeMap(), resolveRadius()
 
-### Community 1358 - "14. Space design system"
-Cohesion: 0.33
-Nodes (6): 14.1 Brand direction, 14.2 Proposed token direction, 14.3 shadcn component inventory, 14.4 Tables and data density, 14.5 State contract, 14. Space design system
+### Community 1358 - "ref_node_assert"
+Cohesion: 0.29
+Nodes (3): CURRENCY_SYMBOLS, mockStorage, runTests()
 
-### Community 1359 - "8. Data model"
-Cohesion: 0.33
-Nodes (6): 8.1 Access, 8.2 Customer and product catalog, 8.3 Subscription and entitlement, 8.4 Billing, 8.5 Provisioning, delivery, and audit, 8. Data model
+### Community 1359 - "glass-nav/liquid-glass.js"
+Cohesion: 0.48
+Nodes (6): buildFilter(), ensureDefs(), liquidGlass(), refresh(), makeMap(), resolveRadius()
 
 ### Community 1360 - "Project Status"
-Cohesion: 0.33
-Nodes (6): 1. Product Summary, 2. Phase Status, 3. Phase 3 Detail, 4. Control Plane Detail, 5. Source-Of-Truth Rules, Project Status
+Cohesion: 0.29
+Nodes (7): 1. Product Summary, 2. Phase Status, 3. Phase 3 Detail, 4. Control Plane Detail, 5. Architecture Decisions & Post-Phase-3 Tracks (ADR-031 – ADR-037), 6. Source-Of-Truth Rules, Project Status
 
 ### Community 1361 - "20260817060001_reporting_schema/up.sql"
 Cohesion: 0.53
@@ -6013,21 +6036,13 @@ Nodes (5): idx_reporting_daily_rollup_date, idx_reporting_product_rollup_date, i
 Cohesion: 0.47
 Nodes (4): ai.channel_event, ai_channel_event_conversation_order_idx, ai_channel_event_retry_idx, idx_ai_channel_event_whatsapp_insights_window
 
-### Community 1363 - "🚀 Quick Start"
-Cohesion: 0.40
-Nodes (5): 1. Basic Setup, 2. Include Color System, 3. Apply Typography, 4. Use Templates, 🚀 Quick Start
-
-### Community 1364 - "Quick Start"
-Cohesion: 0.40
-Nodes (5): 1. Core Design Principles, 2. Color System, 3. Typography, 4. Spacing, Quick Start
-
 ### Community 1365 - "Tab"
 Cohesion: 0.40
 Nodes (5): Tab, DETAILS, INVENTORY, ORGANIZE, VARIANTS
 
-### Community 1367 - "ADR-021 — AI-authored storefront content is data against a closed schema, never code"
-Cohesion: 0.40
-Nodes (5): custom(), ADR-021 — AI-authored storefront content is data against a closed schema, never code, Consequences, Context, Options considered
+### Community 1366 - "ProductStatus"
+Cohesion: 0.29
+Nodes (5): ProductStatus, Draft, Proposed, Published, Rejected
 
 ### Community 1368 - "Build, test, and artifact policy"
 Cohesion: 0.40
@@ -6045,9 +6060,9 @@ Nodes (5): edge, adminDomainSuffix, adminUpstream, enabled, storefrontUpstream
 Cohesion: 0.40
 Nodes (5): host, paths, hosts, path, pathType
 
-### Community 1372 - "environment"
-Cohesion: 0.40
-Nodes (5): STHENO_ADMIN_DOMAIN_SUFFIX, STHENO_ADMIN_UPSTREAM, STHENO_ENGINE_UPSTREAM, STHENO_STOREFRONT_UPSTREAM, environment
+### Community 1372 - "create_fulfillment"
+Cohesion: 0.33
+Nodes (5): cancel_order_fulfillment(), create_fulfillment(), create_fulfillment_shipment(), mark_fulfillment_delivered(), queue_fulfillment_status_email()
 
 ### Community 1373 - "ADR-007 — Modular monolith with build-enforced boundaries"
 Cohesion: 0.40
@@ -6086,32 +6101,24 @@ Cohesion: 0.40
 Nodes (5): 1. Scope Eligibility & Payment Flow Architecture, 2. Detailed Requirement-by-Requirement Matrix (PCI DSS v4.0), 3. Checkout Script Security & Anti-Skimming Controls (Req 6.4.3 & 11.6.1), 4. Attestation & Sign-off, PCI DSS v4.0 Self-Assessment Questionnaire A (SAQ A) Attestation
 
 ### Community 1382 - "Stheno Platform Control Plane Runbook"
-Cohesion: 0.40
+Cohesion: 0.33
 Nodes (5): 1. Incident Response & Merchant Read-Only Lockdown, 2. Operator Credential Compromise & Rotation, 3. Tenant Purge & Data Retention Reversal, 4. Payment Gateway Kill Switch, Stheno Platform Control Plane Runbook
 
 ### Community 1383 - "1. Quick Start"
 Cohesion: 0.40
 Nodes (4): 1. Quick Start, Getting Started with Stheno, Prerequisites, Running Locally
 
-### Community 1384 - "11. Subscription and billing workflows"
-Cohesion: 0.40
-Nodes (5): 11.1 Activate subscription, 11.2 Change plan or bundle, 11.3 Billing cycle and dunning, 11.4 Cancellation, 11. Subscription and billing workflows
+### Community 1384 - "redact_value"
+Cohesion: 0.47
+Nodes (3): redact_value(), SENSITIVE_KEYS, test_sensitive_field_redaction()
 
-### Community 1385 - "17. Migration from the current Vendryx control plane"
+### Community 1386 - "SocialDispatchResolution"
 Cohesion: 0.40
-Nodes (5): 17.1 Expand, 17.2 Shadow, 17.3 Cut over, 17.4 Contract, 17. Migration from the current Vendryx control plane
-
-### Community 1386 - "3. Current-state assessment"
-Cohesion: 0.40
-Nodes (5): 3.1 What exists, 3.2 What must not be carried into Space, 3.3 Migration posture, 3.4 Architecture decisions to record, 3. Current-state assessment
+Nodes (5): SocialDispatchResolution, Accepted, NotCreated, validate_reconciliation_text(), validate_reconciliation_url()
 
 ### Community 1387 - "20260821000004_payment_provider_credential/up.sql"
 Cohesion: 0.70
 Nodes (4): payment.payment_provider_credential, payment_provider_credential_cache_key_idx, payment_provider_credential_tenant_provider_uq, payment_provider_credential_webhook_slug_uq
-
-### Community 1388 - "Resources"
-Cohesion: 0.50
-Nodes (4): Internal Documentation, Official Apple Resources, Resources, Useful Tools
 
 ### Community 1389 - "Tab"
 Cohesion: 0.50
@@ -6129,17 +6136,17 @@ Nodes (4): RuleType, BUY_RULES, RULES, TARGET_RULES
 Cohesion: 0.50
 Nodes (3): exclude, extends, ./tsconfig.json
 
-### Community 1393 - "Vendryx Complete Brand Kit"
-Cohesion: 0.50
-Nodes (3): Notes, Structure, Vendryx Complete Brand Kit
+### Community 1393 - "ADR-016 — Plan definitions are data the control plane owns, not config baked into the image"
+Cohesion: 0.40
+Nodes (5): ADR-016 — Plan definitions are data the control plane owns, not config baked into the image, Consequences, Context, Decision, Options considered
 
-### Community 1395 - "P22 — Bangladesh payment gateways (4 weeks)"
+### Community 1395 - "src/liquid-glass.d.ts"
 Cohesion: 0.50
-Nodes (4): Deliverables, Exit gate, P22 — Bangladesh payment gateways (4 weeks), Risk
+Nodes (3): LiquidGlassInstance, LiquidGlassOptions, Window
 
-### Community 1396 - "P26 — Branding tier, runtime tokens (3 weeks)"
+### Community 1396 - "glass-nav/liquid-glass.d.ts"
 Cohesion: 0.50
-Nodes (4): Deliverables, Exit gate, P26 — Branding tier, runtime tokens (3 weeks), Risk
+Nodes (3): LiquidGlassInstance, LiquidGlassOptions, Window
 
 ### Community 1397 - "ADR-005 — Postgres only"
 Cohesion: 0.50
@@ -6177,29 +6184,25 @@ Nodes (3): 1. Scaffolding a Module, 2. The Four Interaction Channels, Module Aut
 Cohesion: 0.50
 Nodes (3): 1. Provider Rules (AGENTS.md §5), 2. Implementing a Payment Provider, Provider Authoring Guide
 
-### Community 1406 - "12. API design"
+### Community 1406 - "ADR-026 — Docker Compose now, Kubernetes at scale"
 Cohesion: 0.50
-Nodes (4): 12.1 Operator API, 12.2 Product integration API, 12.3 API rules, 12. API design
+Nodes (4): ADR-026 — Docker Compose now, Kubernetes at scale, Consequences, Context, Decision
 
-### Community 1407 - "19. Test strategy"
-Cohesion: 0.50
-Nodes (4): 19.1 Rust, 19.2 Frontend, 19.3 Required end-to-end journeys, 19. Test strategy
+### Community 1408 - "SortDirection"
+Cohesion: 0.67
+Nodes (3): SortDirection, ASC, DESC
 
-### Community 1408 - "1. Decision summary"
-Cohesion: 0.50
-Nodes (4): 1.1 Technology choices, 1.2 Why not Next.js, 1.3 Implementation ladder, 1. Decision summary
+### Community 1409 - "Tab"
+Cohesion: 0.67
+Nodes (3): Tab, DETAILS, ORGANIZE
 
-### Community 1409 - "20. CI and release gates"
-Cohesion: 0.50
-Nodes (4): 20.1 Existing repository gates, 20.2 New Space gates, 20.3 Dependency review, 20. CI and release gates
+### Community 1410 - "Tab"
+Cohesion: 0.67
+Nodes (3): Tab, PRICE, PRODUCT
 
-### Community 1410 - "5. Users, roles, and permissions"
-Cohesion: 0.50
-Nodes (4): 5.1 Identity boundary, 5.2 Permission model, 5.3 Dangerous-operation policy, 5. Users, roles, and permissions
-
-### Community 1411 - "9. Entitlement model"
-Cohesion: 0.50
-Nodes (4): 9.1 Product-owned definitions, 9.2 Resolution order, 9.3 Distribution and enforcement, 9. Entitlement model
+### Community 1411 - "Tab"
+Cohesion: 0.67
+Nodes (3): Tab, DETAILS, PERMISSIONS
 
 ### Community 1412 - "links.link_fulfillment_provider_location"
 Cohesion: 0.50
@@ -6325,33 +6328,29 @@ Nodes (3): Tab, DETAILS, PRICING
 Cohesion: 0.67
 Nodes (3): key, name, tokenSecret
 
-### Community 1445 - "10. Product connector contract"
+### Community 1458 - "update_dismiss_return_item"
 Cohesion: 0.67
-Nodes (3): 10.1 Connector rules, 10.2 Vendryx adapter, 10. Product connector contract
-
-### Community 1446 - "6. Target architecture"
-Cohesion: 0.67
-Nodes (3): 6.1 Deployment boundary, 6.2 Availability behavior, 6. Target architecture
+Nodes (3): ReturnReceiptQuantityRequest, update_dismiss_return_item(), update_receive_return_item()
 
 ## Knowledge Gaps
-- **393 isolated node(s):** `ADR-0012`, `ADR-0012`, `ADR-0012`, `ASC`, `DESC` (+388 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 20637 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **377 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **396 isolated node(s):** `ADR-0012`, `ADR-0012`, `ADR-0012`, `ASC`, `DESC` (+391 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 20733 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **374 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `auth` connect `es.json` to `arc`?**
-  _High betweenness centrality (0.280) - this node is a cross-community bridge._
-- **Are the 383 inferred relationships involving `create_pool()` (e.g. with `invalid_courier_preflight_leaves_social_draft_unconverted()` and `test_admin_access()`) actually correct?**
-  _`create_pool()` has 383 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `auth` connect `es.json` to `StepContext`?**
+  _High betweenness centrality (0.283) - this node is a cross-community bridge._
+- **Are the 389 inferred relationships involving `create_pool()` (e.g. with `invalid_courier_preflight_leaves_social_draft_unconverted()` and `test_admin_access()`) actually correct?**
+  _`create_pool()` has 389 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `ADR-0012`, `ADR-0012`, `ADR-0012` to the rest of the system?**
-  _393 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _396 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `yarn-4.12.0.cjs` be split into smaller, more focused modules?**
-  _Cohesion score 0.002551383743236899 - nodes in this community are weakly interconnected._
-- **Why does `react-router-dom` connect `react-router-dom` to `ref_medusajs_icons`, `react-i18next`, `campaign-detail.tsx`, `ref_medusajs_ui`, `cell-renderers.tsx`, `payment-providers-list.tsx`, `edit-shipping-options-pricing-form.tsx`, `translations-edit-form.tsx`, `claim-create-form.tsx`, `api-key-general-section.tsx`, `get-route.map.tsx`, `ref_medusajs_types`, `shell.tsx`, `product-media-gallery.tsx`, `permissions-provider/index.ts`, `search/search.tsx`, `tax-region-detail/tax-region-detail.tsx`, `order-by.tsx`, `workflow-execution-history-section.tsx`, `rules-form-field.tsx`, `dependencies`, `date-filter.tsx`, `nav-item.tsx`, `invite.tsx`, `target-form.tsx`, `dashboard-app/types.ts`, `layout-composer.tsx`, `workflow-execution-timeline-section.tsx`, `admin/package.json`, `couriers-list.tsx`, `keybind-provider/hooks.tsx`, `main-layout.tsx`?**
-  _High betweenness centrality (0.066) - this node is a cross-community bridge._
+  _Cohesion score 0.0024667437224329797 - nodes in this community are weakly interconnected._
+- **Why does `react-router-dom` connect `react-router-dom` to `ref_medusajs_icons`, `_DataTable`, `react-router-dom`, `add-campaign-promotions-form.tsx`, `ref_medusajs_ui`, `cell-renderers.tsx`, `payment-providers-list.tsx`, `edit-shipping-options-pricing-form.tsx`, `location-general-section.tsx`, `workflow-detail.tsx`, `route-smoke.spec.tsx`, `claim-create-form.tsx`, `use-document-title.tsx`, `RouteFocusModal`, `MetadataForm`, `ref_medusajs_types`, `shell.tsx`, `clerk-auth-provider.tsx`, `useProduct`, `permissions-provider/index.ts`, `search/search.tsx`, `tax-region-detail/tax-region-detail.tsx`, `workflow-execution-history-section.tsx`, `routes/utils.ts`, `rules-form-field.tsx`, `dependencies`, `date-filter.tsx`, `nav-item.tsx`, `sso-login.tsx`, `invite.tsx`, `onboarding.tsx`, `route-focus-modal.tsx`, `dashboard-app/types.ts`, `layout-composer.tsx`, `two-column-page.tsx`, `workflow-execution-timeline-section.tsx`, `ref_vitest`, `react-i18next`, `couriers-list.tsx`, `keybind-provider/hooks.tsx`, `main-layout.tsx`?**
+  _High betweenness centrality (0.065) - this node is a cross-community bridge._
 - **Should `ref_medusajs_icons` be split into smaller, more focused modules?**
-  _Cohesion score 0.007043645970081522 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.012343725272986232 - nodes in this community are weakly interconnected._
 - **Why does `tr()` connect `c` to `yarn-4.12.0.cjs`, `Dy`, `a`, `l5e`?**
-  _High betweenness centrality (0.040) - this node is a cross-community bridge._
+  _High betweenness centrality (0.039) - this node is a cross-community bridge._
