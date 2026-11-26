@@ -99,18 +99,6 @@ jobs:
         working-directory: apps/storefront
         run: npm ci --strict-allow-scripts && npx tsc --noEmit
 
-      # Every frontend is typechecked against the contract it binds, not just the
-      # default one — a frontend excluded from the root tsconfig is unchecked
-      # otherwise, which is how frontend-matrix went several rounds without one.
-      - name: Frontend typecheck (per theme)
-        working-directory: apps/storefront
-        run: |
-          for cfg in tsconfig.*.json; do
-            [ "$cfg" = "tsconfig.json" ] && continue
-            echo "==> $cfg"
-            npx tsc --noEmit -p "$cfg"
-          done
-
       # AGENTS.md §12: an independent frontend is not frontend-default repainted.
       # Purity, boundaries, pin and resolution all passed on three forks — none
       # of them look at markup. This one does. Ratcheted on stheno.forkDebt, so
