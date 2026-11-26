@@ -1,0 +1,620 @@
+.root {
+  --ek-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ek-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ek-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --apple-r-shell: 28px;
+  --apple-r-sheet: 24px;
+  --apple-r-card: var(--theme-radius-card, 20px);
+  --apple-r-inner: 16px;
+  --apple-r-control: 12px;
+  --apple-r-pill: 9999px;
+
+  background-color: var(--theme-canvas);
+  color: var(--theme-ink);
+  font-family: var(--font-jakarta), var(--font-bengali), sans-serif;
+  min-height: 100vh;
+}
+
+.displayFont {
+  font-family: var(--font-cormorant), var(--font-bengali), Georgia, serif;
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+}
+
+/* Apple translucent chrome: vibrant frosted material with specular hairline edge (no hard box divider) */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  height: 72px;
+  background-color: color-mix(in srgb, var(--theme-canvas) 80%, transparent);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: inset 0 -1px 0 rgba(23, 21, 19, 0.07);
+}
+
+.navLink {
+  position: relative;
+  color: var(--theme-ink-muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 6px 12px;
+  border-radius: var(--apple-r-pill);
+  transition: color 180ms ease, background-color 180ms ease, transform 160ms var(--ek-ease-out);
+}
+
+.navLink:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navLink:hover {
+    color: var(--theme-ink);
+    background-color: rgba(23, 21, 19, 0.055);
+  }
+}
+
+.bagTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 15px;
+  border-radius: var(--apple-r-pill);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--theme-ink);
+  background-color: rgba(23, 21, 19, 0.055);
+  transition: background-color 180ms ease, transform 160ms var(--ek-ease-out);
+}
+
+.bagTrigger:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bagTrigger:hover {
+    background-color: rgba(23, 21, 19, 0.1);
+  }
+}
+
+/* Shared tactile press rule (Emil Kowalski RECIPES.md: scale(0.97) on :active, 160ms strong ease-out) */
+.pressable {
+  transition: transform 160ms var(--ek-ease-out), opacity 180ms ease, background-color 180ms ease,
+    border-color 180ms ease, box-shadow 200ms var(--ek-ease-out);
+}
+
+.pressable:active {
+  transform: scale(0.97);
+}
+
+/* Full-bleed sunlit editorial hero */
+.heroFrame {
+  position: relative;
+  height: 100dvh;
+  min-height: 620px;
+  max-height: 980px;
+  padding-top: 72px;
+  background-color: var(--theme-hero-bg);
+  color: var(--theme-hero-ink);
+  overflow: hidden;
+}
+
+.heroMediaWrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.heroImg {
+  width: 100%;
+  height: 108%;
+  object-fit: cover;
+  object-position: center;
+  will-change: transform;
+}
+
+.heroScrim {
+  background: linear-gradient(
+    to top,
+    rgba(23, 21, 19, 0.82) 0%,
+    rgba(23, 21, 19, 0.32) 48%,
+    rgba(23, 21, 19, 0.14) 100%
+  );
+}
+
+.heroPrimaryCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 26px;
+  border-radius: var(--apple-r-pill);
+  background-color: #faf7f2;
+  color: #171513;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  box-shadow: 0 8px 24px rgba(23, 21, 19, 0.22);
+  transition: transform 160ms var(--ek-ease-out), opacity 180ms ease, box-shadow 200ms var(--ek-ease-out);
+}
+
+.heroPrimaryCta:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .heroPrimaryCta:hover {
+    opacity: 0.92;
+    box-shadow: 0 12px 28px rgba(23, 21, 19, 0.3);
+  }
+}
+
+.heroGlassCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  border-radius: var(--apple-r-pill);
+  background-color: rgba(250, 247, 242, 0.14);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 0 0 1px rgba(250, 247, 242, 0.22);
+  color: #faf7f2;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: transform 160ms var(--ek-ease-out), background-color 180ms ease;
+}
+
+.heroGlassCta:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .heroGlassCta:hover {
+    background-color: rgba(250, 247, 242, 0.22);
+  }
+}
+
+/* Pinned 4-Stage Atelier Showcase (GSAP ScrollTrigger pin: true + scrub: 0.65) */
+.showcaseSection {
+  position: relative;
+  width: 100%;
+  background-color: #171513;
+}
+
+.showcaseViewport {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  min-height: 580px;
+  overflow: hidden;
+  background-color: #171513;
+}
+
+.showcaseFrame {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  will-change: clip-path;
+}
+
+.showcaseImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.showcaseScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(23, 21, 19, 0.86) 0%,
+    rgba(23, 21, 19, 0.34) 42%,
+    rgba(23, 21, 19, 0.12) 100%
+  );
+}
+
+.showcaseHud {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  margin-inline: auto;
+  max-width: 1280px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 0 24px 52px;
+}
+
+@media (min-width: 1024px) {
+  .showcaseHud {
+    padding: 0 40px 60px;
+  }
+}
+
+/* Subtle blur seam mask (Emil Kowalski RECIPES.md: <= 20px blur masks crossfade overlap) */
+.showcaseCaption {
+  max-width: 580px;
+  color: #faf7f2;
+  transition: opacity 200ms var(--ek-ease-out), filter 200ms var(--ek-ease-out),
+    transform 200ms var(--ek-ease-out);
+}
+
+.showcaseCaptionBlur {
+  opacity: 0;
+  filter: blur(3px);
+  transform: translateY(6px);
+}
+
+.chapterIndex {
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(237, 231, 220, 0.8);
+}
+
+.showcaseTitle {
+  margin-top: 10px;
+  font-family: var(--font-cormorant), var(--font-bengali), Georgia, serif;
+  font-optical-sizing: auto;
+  font-size: clamp(2rem, 3.8vw, 3.35rem);
+  font-weight: 500;
+  line-height: 1.04;
+  letter-spacing: -0.022em;
+  color: #faf7f2;
+  text-wrap: balance;
+}
+
+.showcaseSub {
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: rgba(237, 231, 220, 0.88);
+  max-width: 480px;
+}
+
+/* Rounded Apple capsule progress track indicators */
+.stageBars {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--apple-r-pill);
+  background-color: rgba(23, 21, 19, 0.44);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  flex-shrink: 0;
+}
+
+.stageBar {
+  position: relative;
+  width: 22px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  transition: width 260ms var(--ek-ease-out), transform 160ms var(--ek-ease-out);
+}
+
+.stageBar:active {
+  transform: scale(0.95);
+}
+
+.stageBar::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 4px;
+  border-radius: var(--apple-r-pill);
+  background-color: rgba(250, 247, 242, 0.34);
+  transition: background-color 200ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .stageBar:hover::after {
+    background-color: rgba(250, 247, 242, 0.72);
+  }
+}
+
+.stageBarActive {
+  width: 48px;
+}
+
+.stageBarActive::after {
+  background-color: #faf7f2;
+}
+
+/* Interactive Patina Evolution Comparison (Concentric Apple Rounded Geometry) */
+.patinaWrap {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 22px;
+  background-color: #e8e1d5;
+  box-shadow: 0 1px 2px rgba(23, 21, 19, 0.06), 0 14px 36px rgba(23, 21, 19, 0.08),
+    0 0 0 1px rgba(23, 21, 19, 0.08);
+  cursor: ew-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.patinaLayer {
+  position: absolute;
+  inset: 0;
+}
+
+.patinaImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.patinaTag {
+  position: absolute;
+  top: 14px;
+  z-index: 3;
+  padding: 6px 12px;
+  border-radius: var(--apple-r-pill);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #faf7f2;
+  background-color: rgba(23, 21, 19, 0.66);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+.patinaDivider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 4;
+  width: 1.5px;
+  background-color: rgba(250, 247, 242, 0.94);
+  box-shadow: 0 0 12px rgba(23, 21, 19, 0.35);
+  pointer-events: none;
+}
+
+.patinaHandle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  width: 44px;
+  height: 44px;
+  border-radius: var(--apple-r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(23, 21, 19, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #faf7f2;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 8px 24px rgba(23, 21, 19, 0.32),
+    0 0 0 1px rgba(250, 247, 242, 0.45);
+  transition: transform 160ms var(--ek-ease-out), background-color 180ms ease;
+}
+
+.patinaHandleDragging {
+  transform: translate(-50%, -50%) scale(0.93);
+  background-color: rgba(23, 21, 19, 0.92);
+}
+
+.patinaBtn {
+  text-align: left;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--apple-r-inner);
+  padding: 18px 20px;
+  background-color: var(--theme-canvas);
+  transition: border-color 180ms ease, background-color 180ms ease, transform 160ms var(--ek-ease-out),
+    box-shadow 180ms ease;
+}
+
+.patinaBtn:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .patinaBtn:hover {
+    border-color: var(--theme-ink);
+  }
+}
+
+.patinaBtnActive {
+  border-color: var(--theme-ink);
+  background-color: var(--theme-surface-alt);
+  box-shadow: 0 4px 14px rgba(23, 21, 19, 0.06);
+}
+
+.primaryAction {
+  background-color: var(--theme-accent);
+  color: var(--theme-accent-ink);
+  border-radius: var(--apple-r-pill);
+  letter-spacing: 0.02em;
+  transition: opacity 180ms ease, transform 160ms var(--ek-ease-out), box-shadow 200ms var(--ek-ease-out);
+}
+
+.primaryAction:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .primaryAction:hover {
+    opacity: 0.9;
+    box-shadow: 0 8px 20px rgba(23, 21, 19, 0.18);
+  }
+}
+
+.cardFrame {
+  background-color: var(--theme-surface);
+  border-radius: var(--apple-r-card);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(23, 21, 19, 0.05), 0 0 0 1px rgba(23, 21, 19, 0.06);
+  transition: transform 200ms var(--ek-ease-out), box-shadow 220ms var(--ek-ease-out);
+}
+
+.cardButton:active {
+  transform: scale(0.985);
+}
+
+.cardImage {
+  transition: transform 420ms var(--ek-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cardButton:hover {
+    box-shadow: 0 12px 30px rgba(23, 21, 19, 0.09), 0 0 0 1px rgba(23, 21, 19, 0.1);
+  }
+
+  .cardButton:hover .cardImage {
+    transform: scale(1.03);
+  }
+}
+
+.craftMediaFrame {
+  border-radius: 24px;
+  overflow: hidden;
+  background-color: #261e18;
+  box-shadow: 0 1px 2px rgba(23, 21, 19, 0.06), 0 14px 36px rgba(23, 21, 19, 0.08),
+    0 0 0 1px rgba(23, 21, 19, 0.07);
+}
+
+/* Concentric Apple Modal & Floating Sheet geometry */
+.modalShell {
+  border-radius: var(--apple-r-shell);
+  background-color: var(--theme-canvas);
+  color: var(--theme-ink);
+  box-shadow: 0 28px 80px rgba(23, 21, 19, 0.3), 0 0 0 1px rgba(23, 21, 19, 0.1);
+}
+
+.modalGalleryInner {
+  border-radius: var(--apple-r-inner);
+  overflow: hidden;
+  background-color: var(--theme-surface);
+}
+
+.sheetShell {
+  border-radius: var(--apple-r-sheet);
+  background-color: var(--theme-canvas);
+  color: var(--theme-ink);
+  box-shadow: -8px 24px 64px rgba(23, 21, 19, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 1px rgba(23, 21, 19, 0.08);
+}
+
+.iconCircleBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--apple-r-pill);
+  background-color: color-mix(in srgb, var(--theme-canvas) 82%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: var(--theme-ink);
+  box-shadow: 0 0 0 1px rgba(23, 21, 19, 0.08);
+  transition: transform 160ms var(--ek-ease-out), background-color 180ms ease;
+}
+
+.iconCircleBtn:active {
+  transform: scale(0.95);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .iconCircleBtn:hover {
+    background-color: var(--theme-surface-alt);
+  }
+}
+
+.swatchRing {
+  transition: transform 160ms var(--ek-ease-out), border-color 160ms ease;
+}
+
+.swatchRing:active {
+  transform: scale(0.93);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .swatchRing:hover {
+    transform: scale(1.1);
+  }
+}
+
+/* Accessibility: Apple HIG §14 Reduced Motion, Reduced Transparency & High Contrast */
+@media (prefers-reduced-motion: reduce) {
+  .showcaseCaption,
+  .cardImage,
+  .cardFrame,
+  .pressable,
+  .stageBar,
+  .patinaHandle {
+    transition-duration: 150ms !important;
+    transform: none !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .header,
+  .sheetShell,
+  .heroGlassCta,
+  .stageBars,
+  .patinaTag,
+  .patinaHandle,
+  .iconCircleBtn {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .header {
+    background-color: var(--theme-canvas);
+  }
+
+  .sheetShell {
+    background-color: var(--theme-canvas);
+  }
+}
+
+@media (prefers-contrast: more) {
+  .header {
+    background-color: var(--theme-canvas);
+    box-shadow: inset 0 -1px 0 var(--theme-ink);
+  }
+
+  .cardFrame,
+  .patinaWrap,
+  .craftMediaFrame {
+    box-shadow: 0 0 0 1.5px var(--theme-ink);
+  }
+}
+
+@media (max-width: 768px) {
+  .showcaseHud {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+    padding-bottom: 40px;
+  }
+}
