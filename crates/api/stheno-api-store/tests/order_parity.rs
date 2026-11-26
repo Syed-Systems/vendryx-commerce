@@ -32,6 +32,9 @@ async fn test_store_order_and_shipping_option_endpoints_parity() {
             order_flows: order_flows.clone(),
             links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
             payment_service: Arc::new(stheno_payment::PaymentService::new(pool.clone())),
+            notification_service: Arc::new(stheno_notification::NotificationService::new(
+                pool.clone(),
+            )),
             auth_service: auth_service.clone(),
         }))
         .merge(store_shipping_option_routes(fulfillment_service.clone()));

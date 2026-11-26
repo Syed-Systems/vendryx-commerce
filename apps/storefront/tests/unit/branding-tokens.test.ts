@@ -76,4 +76,23 @@ describe("P26-05: Branding tokens & runtime resolution", () => {
     expect(css).toContain(`--brand-font-family: ${FONT_STACKS.inter};`)
     expect(css).toContain("}")
   })
+
+  it("keeps persisted CSS tokens inside the supported value allowlists", () => {
+    const tokens = resolveBrandingTokens({
+      color_primary: "rgba(20, 30, 40, 0.5)",
+      color_text: "</style><script>alert(1)</script>",
+      radius_card: "0px; background: url(https://attacker.test)",
+      radius_input: "12px",
+      material_style: "shadow;}</style><script>",
+    })
+
+    expect(tokens.color_primary).toBe("rgba(20, 30, 40, 0.5)")
+    expect(tokens.color_text).toBe(DEFAULT_BRANDING.color_text)
+    expect(tokens.radius_card).toBe(DEFAULT_BRANDING.radius_card)
+    expect(tokens.radius_input).toBe("12px")
+    expect(tokens.material_style).toBe(DEFAULT_BRANDING.material_style)
+    expect(emitBrandingCss({ color_text: "</style><script>alert(1)</script>" })).not.toContain(
+      "</style>"
+    )
+  })
 })

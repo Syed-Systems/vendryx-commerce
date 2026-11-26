@@ -7,7 +7,7 @@ use stheno_types::Id;
 pub(crate) struct Notification {
     pub id: Id<Notification>,
     pub to: String,
-    pub channel: String, // "email", "push", "sms"
+    pub channel: String, // "email", "whatsapp", or non-SMS push; SMS is rejected at dispatch.
     pub template: Option<String>,
     pub data: Option<serde_json::Value>,
     pub trigger_type: Option<String>,

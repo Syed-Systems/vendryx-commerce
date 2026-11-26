@@ -7,4 +7,7 @@ pub mod service;
 
 pub use dto::*;
 pub use provider::{NotificationProvider, NotificationProviderResult};
-pub use service::NotificationService;
+pub use service::{
+    DailyNotificationChannelUsage, DailyNotificationUsage, NotificationQuotaPolicy,
+    NotificationService, WhatsAppConsentChecker,
+};

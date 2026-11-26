@@ -172,10 +172,10 @@ impl BkashPaymentProvider {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("bKash token grant network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("bKash token grant network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse bKash token grant response: {}", e).into())
+            Error::Internal(format!("Failed to parse bKash token grant response: {e}").into())
         })?;
 
         let id_token = body["id_token"]
@@ -254,10 +254,14 @@ impl PaymentProvider for BkashPaymentProvider {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("bKash payment create network error: {}", e).into()))?;
+            .map_err(|e| {
+                Error::Internal(
+                    format!("bKash payment create network error: {e}").into(),
+                )
+            })?;
 
         let mut body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse bKash payment create response: {}", e).into())
+            Error::Internal(format!("Failed to parse bKash payment create response: {e}").into())
         })?;
 
         let status_code = body["statusCode"].as_str().unwrap_or_default();
@@ -408,10 +412,10 @@ impl PaymentProvider for BkashPaymentProvider {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("bKash refund network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("bKash refund network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse bKash refund response: {}", e).into())
+            Error::Internal(format!("Failed to parse bKash refund response: {e}").into())
         })?;
 
         let status_code = body["statusCode"].as_str().unwrap_or_default();
@@ -450,10 +454,14 @@ impl PaymentProvider for BkashPaymentProvider {
             .header("X-App-Key", &self.app_key)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("bKash query payment network error: {}", e).into()))?;
+            .map_err(|e| {
+                Error::Internal(
+                    format!("bKash query payment network error: {e}").into(),
+                )
+            })?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse bKash query response: {}", e).into())
+            Error::Internal(format!("Failed to parse bKash query response: {e}").into())
         })?;
 
         let transaction_status = body["transactionStatus"].as_str().unwrap_or_default();
@@ -527,7 +535,7 @@ impl PaymentProvider for BkashPaymentProvider {
         let event_json: serde_json::Value = serde_json::from_slice(raw).map_err(|e| {
             Error::Invalid {
                 code: "invalid_webhook_payload",
-                message: format!("Could not parse bKash webhook JSON: {}", e),
+                message: format!("Could not parse bKash webhook JSON: {e}"),
                 field: None,
             }
         })?;

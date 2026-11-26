@@ -21,12 +21,12 @@ async fn test_quota_boundary_exact_rejection_at_limit() {
     for i in 1..=limit {
         let res = saga
             .execute(
-                &format!("tx_{}", i),
+                &format!("tx_{i}"),
                 "create-product",
-                json!({ "title": format!("Product {}", i), "handle": format!("prod-{}", i) }),
+                json!({ "title": format!("Product {i}"), "handle": format!("prod-{i}") }),
             )
             .await;
-        assert!(res.is_ok(), "Product {} within limit must succeed", i);
+        assert!(res.is_ok(), "Product {i} within limit must succeed");
     }
 
     // 11th product (limit + 1) must be rejected

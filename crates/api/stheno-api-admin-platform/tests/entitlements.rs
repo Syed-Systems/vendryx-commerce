@@ -26,11 +26,65 @@ fn app(tier: Tier, usage: UsageSnapshot) -> axum::Router {
     let entitlements = Arc::new(entitlements);
     admin_platform_routes(AdminPlatformContext {
         entitlements: entitlements.clone(),
+        tier_config: Arc::new(TierConfig::from_toml(TIERS).expect("tier config must parse")),
         usage: Arc::new(usage),
         workflows: Arc::new(WorkflowStore::new()),
         platform: None,
     })
     .layer(axum::Extension(entitlements))
+}
+
+#[tokio::test]
+async fn subscription_reports_deployment_configured_plan_price() {
+    let configured = TIERS.replace("price         = \"20.00\"", "price         = \"19.95\"");
+    let config = TierConfig::from_toml(&configured).expect("deployment price override parses");
+    let entitlements = Arc::new(
+        config
+            .resolve(Tier::Pro, &BTreeMap::new())
+            .expect("Pro tier resolves"),
+    );
+    let app = admin_platform_routes(AdminPlatformContext {
+        entitlements: entitlements.clone(),
+        tier_config: Arc::new(config),
+        usage: Arc::new(UsageSnapshot::new()),
+        workflows: Arc::new(WorkflowStore::new()),
+        platform: None,
+    })
+    .layer(axum::Extension(entitlements));
+
+    let (status, json) = get_json(app, "/admin/billing/subscription").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["subscription"]["plan_amount"], "19.95");
+    assert_eq!(json["subscription"]["currency"], "usd");
+    assert_eq!(json["subscription"]["billing_interval"], "month");
+    assert_eq!(json["subscription"]["pro_plan"]["amount"], "19.95");
+    assert_eq!(json["subscription"]["pro_plan"]["currency"], "usd");
+    assert_eq!(json["subscription"]["pro_plan"]["interval"], "month");
+}
+
+#[tokio::test]
+async fn free_subscription_exposes_configured_pro_upgrade_price() {
+    let configured = TIERS.replace("price         = \"20.00\"", "price         = \"19.95\"");
+    let config = TierConfig::from_toml(&configured).expect("deployment price override parses");
+    let entitlements = Arc::new(
+        config
+            .resolve(Tier::Free, &BTreeMap::new())
+            .expect("Free tier resolves"),
+    );
+    let app = admin_platform_routes(AdminPlatformContext {
+        entitlements: entitlements.clone(),
+        tier_config: Arc::new(config),
+        usage: Arc::new(UsageSnapshot::new()),
+        workflows: Arc::new(WorkflowStore::new()),
+        platform: None,
+    })
+    .layer(axum::Extension(entitlements));
+
+    let (status, json) = get_json(app, "/admin/billing/subscription").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["subscription"]["tier"], "free");
+    assert_eq!(json["subscription"]["plan_amount"], Value::Null);
+    assert_eq!(json["subscription"]["pro_plan"]["amount"], "19.95");
 }
 
 async fn get_json(app: axum::Router, uri: &str) -> (StatusCode, Value) {
@@ -128,6 +182,21 @@ async fn entitlements_reports_tier_features_quotas_and_windows() {
     let windows = json["windows"].as_array().unwrap();
     assert_eq!(windows[0]["key"], "analytics_window_days");
     assert_eq!(windows[0]["limit"], 30);
+}
+
+#[tokio::test]
+async fn billing_subscription_reports_unknown_without_a_persisted_subscription() {
+    let (status, json) = get_json(
+        app(Tier::Free, UsageSnapshot::new()),
+        "/admin/billing/subscription",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["subscription"]["tier"], "free");
+    assert_eq!(json["subscription"]["status"], "unknown");
+    assert_eq!(json["subscription"]["trial_ends_at"], Value::Null);
+    assert_eq!(json["subscription"]["term_ends_at"], Value::Null);
+    assert_eq!(json["subscription"]["grace_ends_at"], Value::Null);
 }
 
 #[tokio::test]

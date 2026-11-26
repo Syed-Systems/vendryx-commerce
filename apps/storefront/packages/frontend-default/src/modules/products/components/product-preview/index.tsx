@@ -23,7 +23,8 @@ export default async function ProductPreview({
   return (
     <LocalizedClientLink href={`/products/${product.handle}`} className="group block h-full">
       <div 
-        data-testid="product-wrapper" 
+        data-testid="product-wrapper"
+        data-product-card="true"
         className="
           flex flex-col h-full transition-all duration-300
           
@@ -45,7 +46,7 @@ export default async function ProductPreview({
         "
       >
         {/* Image Container with Badges */}
-        <div className="
+        <div data-product-image="true" className="
           relative 
           group-mahal:rounded-[12px] group-mahal:overflow-hidden
           group-lustre:grayscale group-lustre:hover:grayscale-0 group-lustre:transition-all

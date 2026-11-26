@@ -32,11 +32,7 @@ async fn redx_options_and_zone_rates() {
     assert_eq!(inside, dec!(60.00));
 
     let sub = provider
-        .calculate_price(
-            Some(&json!({ "id": "redx-sub-city" })),
-            None,
-            None,
-        )
+        .calculate_price(Some(&json!({ "id": "redx-sub-city" })), None, None)
         .await
         .expect("sub rate");
     assert_eq!(sub, dec!(100.00));
@@ -95,6 +91,8 @@ async fn redx_parcel_lifecycle_wiremock() {
                 "customer_phone": "01911111111",
                 "customer_address": "Uttara Sector 3",
                 "delivery_area": "Uttara",
+                "delivery_area_id": 101,
+                "parcel_weight": 500,
                 "cash_collection_amount": 850
             })),
             &items,
@@ -108,10 +106,7 @@ async fn redx_parcel_lifecycle_wiremock() {
         data.get("tracking_id").and_then(|v| v.as_str()),
         Some("REDX-TRK-7711")
     );
-    assert_eq!(
-        data.get("parcel_id").and_then(|v| v.as_str()),
-        Some("7711")
-    );
+    assert_eq!(data.get("parcel_id").and_then(|v| v.as_str()), Some("7711"));
     assert_eq!(resp.labels.len(), 1);
     assert_eq!(resp.labels[0].tracking_number, "REDX-TRK-7711");
 
@@ -120,5 +115,77 @@ async fn redx_parcel_lifecycle_wiremock() {
         .create_return_fulfillment(Some(&json!({ "tracking_id": "REDX-TRK-7711" })))
         .await
         .expect("create return");
-    assert!(ret.data.unwrap().get("is_return").and_then(|v| v.as_bool()).unwrap());
+    assert!(ret
+        .data
+        .unwrap()
+        .get("is_return")
+        .and_then(|v| v.as_bool())
+        .unwrap());
+}
+
+#[tokio::test]
+async fn failed_redx_create_is_not_reported_as_a_fake_parcel() {
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/parcel"))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&mock_server)
+        .await;
+    let provider = RedxFulfillmentProvider::new(RedxConfig {
+        base_url: mock_server.uri(),
+        access_token: "test-redx-token".to_string(),
+    });
+
+    let result = provider
+        .create_fulfillment(
+            Some(&json!({
+                "merchant_invoice_id": "order-stable-123",
+                "customer_name": "Test Buyer",
+                "customer_phone": "01711111111",
+                "customer_address": "House 1, Dhaka",
+                "delivery_area": "Dhaka",
+                "delivery_area_id": 1,
+                "parcel_weight": 500,
+                "cash_collection_amount": 0
+            })),
+            &[],
+            None,
+        )
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn redx_rate_limit_does_not_retry_shipment_creation() {
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/parcel"))
+        .respond_with(ResponseTemplate::new(429))
+        .mount(&mock_server)
+        .await;
+    let provider = RedxFulfillmentProvider::new(RedxConfig {
+        base_url: mock_server.uri(),
+        access_token: "test-redx-token".to_string(),
+    });
+
+    let result = provider
+        .create_fulfillment(
+            Some(&json!({
+                "merchant_invoice_id": "order-rate-limited-123",
+                "customer_name": "Test Buyer",
+                "customer_phone": "01711111111",
+                "customer_address": "House 1, Dhaka",
+                "delivery_area": "Dhaka",
+                "delivery_area_id": 1,
+                "parcel_weight": 500,
+                "cash_collection_amount": 0
+            })),
+            &[],
+            None,
+        )
+        .await;
+
+    assert!(result.is_err());
+    assert_eq!(mock_server.received_requests().await.unwrap().len(), 1);
 }

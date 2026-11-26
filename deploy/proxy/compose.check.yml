@@ -1,0 +1,43 @@
+services:
+  engine:
+    image: python:3.12-alpine
+    command: ["python", "/check/mock_upstream.py"]
+    environment:
+      UPSTREAM_NAME: engine
+    volumes:
+      - ./mock_upstream.py:/check/mock_upstream.py:ro
+
+  storefront:
+    image: python:3.12-alpine
+    command: ["python", "/check/mock_upstream.py"]
+    environment:
+      UPSTREAM_NAME: storefront
+    volumes:
+      - ./mock_upstream.py:/check/mock_upstream.py:ro
+
+  admin:
+    image: python:3.12-alpine
+    command: ["python", "/check/mock_upstream.py"]
+    environment:
+      UPSTREAM_NAME: admin
+    volumes:
+      - ./mock_upstream.py:/check/mock_upstream.py:ro
+
+  proxy:
+    image: caddy:2.11.9
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - 'test -n "$$STHENO_ADMIN_DOMAIN_SUFFIX" || { echo "STHENO_ADMIN_DOMAIN_SUFFIX must be set" >&2; exit 1; }; exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile'
+    environment:
+      STHENO_ADMIN_DOMAIN_SUFFIX: admin.example.test
+      STHENO_ENGINE_UPSTREAM: engine:8080
+      STHENO_STOREFRONT_UPSTREAM: storefront:8080
+      STHENO_ADMIN_UPSTREAM: admin:8080
+    ports:
+      - "127.0.0.1:18080:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - engine
+      - storefront
+      - admin

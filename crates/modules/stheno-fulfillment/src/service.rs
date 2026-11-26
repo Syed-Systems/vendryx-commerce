@@ -3,10 +3,18 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
+use sha2::Digest;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use stheno_db::diesel::{
+    self,
+    sql_types::{Jsonb, Nullable, Text},
+    QueryableByName,
+};
+use stheno_db::diesel_async::RunQueryDsl;
 use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, PgCrudRepository};
 use stheno_types::{Error, Id, Result};
+use ulid::Ulid;
 
 use crate::dto::*;
 use crate::models::{
@@ -15,6 +23,65 @@ use crate::models::{
     ShippingOptionRule, ShippingOptionType, ShippingProfile,
 };
 use crate::provider::FulfillmentProvider;
+
+fn is_provider_secret_key(key: &str) -> bool {
+    let canonical = key
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect::<String>();
+    canonical.contains("secret")
+        || canonical.contains("password")
+        || canonical.contains("authorization")
+        || canonical.contains("apikey")
+        || canonical.ends_with("token")
+}
+
+fn redact_provider_secrets(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(object) => {
+            object.retain(|key, child| {
+                let secret = is_provider_secret_key(key);
+                if !secret {
+                    redact_provider_secrets(child);
+                }
+                !secret
+            });
+        }
+        serde_json::Value::Array(values) => {
+            for child in values {
+                redact_provider_secrets(child);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn validate_reconciliation_text(value: &str, field: &'static str, max: usize) -> Result<()> {
+    if value.trim().is_empty() || value.len() > max || value.chars().any(char::is_control) {
+        return Err(Error::Invalid {
+            code: "fulfillment_reconciliation_input_invalid",
+            message: format!("{field} must contain 1–{max} printable characters."),
+            field: Some(field.to_string()),
+        });
+    }
+    Ok(())
+}
+
+fn validate_reconciliation_url(value: Option<&str>, field: &'static str) -> Result<()> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    validate_reconciliation_text(value, field, 2048)?;
+    if !value.starts_with("https://") || value.chars().any(char::is_whitespace) {
+        return Err(Error::Invalid {
+            code: "fulfillment_reconciliation_url_invalid",
+            message: format!("{field} must be an HTTPS URL."),
+            field: Some(field.to_string()),
+        });
+    }
+    Ok(())
+}
 
 #[derive(Clone)]
 pub struct FulfillmentService {
@@ -603,14 +670,9 @@ impl FulfillmentService {
                 .await?;
 
             for gz in geo_list {
-                if let (Some(target_prov), Some(gz_prov)) = (&ctx.province_code, &gz.province_code)
+                if Self::geo_zone_matches(&gz, ctx)
+                    && !eligible_zone_ids.contains(&gz.service_zone_id)
                 {
-                    if target_prov.to_lowercase() == gz_prov.to_lowercase()
-                        && !eligible_zone_ids.contains(&gz.service_zone_id)
-                    {
-                        eligible_zone_ids.push(gz.service_zone_id.clone());
-                    }
-                } else if !eligible_zone_ids.contains(&gz.service_zone_id) {
                     eligible_zone_ids.push(gz.service_zone_id.clone());
                 }
             }
@@ -637,28 +699,161 @@ impl FulfillmentService {
         rules: &[ShippingOptionRuleDTO],
         ctx: &EligibilityContext,
     ) -> bool {
-        for rule in rules {
-            match rule.attribute.as_str() {
-                "is_return" => {
-                    if let Some(expected) = rule.value.as_bool() {
-                        let actual = ctx.is_return.unwrap_or(false);
-                        if rule.operator == "eq" && actual != expected {
-                            return false;
-                        }
-                    }
-                }
-                "customer_id" => {
-                    if let Some(expected_id) = rule.value.as_str() {
-                        let actual_id = ctx.customer_id.as_deref().unwrap_or("");
-                        if rule.operator == "eq" && actual_id != expected_id {
-                            return false;
-                        }
-                    }
-                }
-                _ => {}
-            }
+        rules
+            .iter()
+            .all(|rule| Self::shipping_rule_matches(rule, ctx))
+    }
+
+    fn geo_zone_matches(zone: &GeoZone, ctx: &EligibilityContext) -> bool {
+        let Some(country) = ctx.country_code.as_deref() else {
+            return false;
+        };
+        if !zone.country_code.eq_ignore_ascii_case(country) {
+            return false;
         }
-        true
+        if zone.province_code.as_deref().is_some_and(|expected| {
+            !ctx.province_code
+                .as_deref()
+                .is_some_and(|actual| actual.eq_ignore_ascii_case(expected))
+        }) {
+            return false;
+        }
+
+        match zone.r#type.as_str() {
+            "country" => zone.province_code.is_none(),
+            "province" => zone
+                .province_code
+                .as_deref()
+                .zip(ctx.province_code.as_deref())
+                .is_some_and(|(expected, actual)| expected.eq_ignore_ascii_case(actual)),
+            "city" => zone
+                .city
+                .as_deref()
+                .zip(ctx.city.as_deref())
+                .is_some_and(|(expected, actual)| expected.eq_ignore_ascii_case(actual)),
+            "zip" => zone
+                .postal_expression
+                .as_ref()
+                .and_then(|expression| expression.get("pattern"))
+                .and_then(serde_json::Value::as_str)
+                .zip(ctx.postal_code.as_deref())
+                .is_some_and(|(pattern, postal_code)| {
+                    Self::postal_pattern_matches(pattern, postal_code)
+                }),
+            _ => false,
+        }
+    }
+
+    fn postal_pattern_matches(pattern: &str, postal_code: &str) -> bool {
+        if pattern.is_empty()
+            || pattern.chars().count() > 128
+            || postal_code.is_empty()
+            || postal_code.chars().count() > 32
+            || pattern.chars().any(char::is_control)
+            || postal_code.chars().any(char::is_control)
+        {
+            return false;
+        }
+        let pattern = pattern.to_ascii_lowercase();
+        let postal_code = postal_code.to_ascii_lowercase();
+        let value = postal_code.chars().collect::<Vec<_>>();
+        let mut previous = vec![false; value.len() + 1];
+        previous[0] = true;
+        for token in pattern.chars() {
+            let mut current = vec![false; value.len() + 1];
+            if token == '*' {
+                current[0] = previous[0];
+                for index in 1..=value.len() {
+                    current[index] = previous[index] || current[index - 1];
+                }
+            } else {
+                for index in 1..=value.len() {
+                    current[index] = previous[index - 1] && token == value[index - 1];
+                }
+            }
+            previous = current;
+        }
+        previous[value.len()]
+    }
+
+    fn shipping_rule_matches(rule: &ShippingOptionRuleDTO, ctx: &EligibilityContext) -> bool {
+        if matches!(
+            rule.attribute.as_str(),
+            "weight" | "total_weight" | "items_count"
+        ) {
+            let actual = match rule.attribute.as_str() {
+                "weight" | "total_weight" => ctx.total_weight,
+                "items_count" => ctx.items_count.map(Decimal::from),
+                _ => None,
+            };
+            let Some(actual) = actual else {
+                return false;
+            };
+            let parse_number = |value: &serde_json::Value| {
+                value
+                    .as_str()
+                    .map(str::to_string)
+                    .or_else(|| value.as_number().map(ToString::to_string))
+                    .and_then(|value| value.parse::<Decimal>().ok())
+            };
+            return match rule.operator.as_str() {
+                "eq" => parse_number(&rule.value).is_some_and(|expected| actual == expected),
+                "ne" => parse_number(&rule.value).is_some_and(|expected| actual != expected),
+                "gt" => parse_number(&rule.value).is_some_and(|expected| actual > expected),
+                "gte" => parse_number(&rule.value).is_some_and(|expected| actual >= expected),
+                "lt" => parse_number(&rule.value).is_some_and(|expected| actual < expected),
+                "lte" => parse_number(&rule.value).is_some_and(|expected| actual <= expected),
+                "in" => rule.value.as_array().is_some_and(|values| {
+                    values
+                        .iter()
+                        .any(|value| parse_number(value).is_some_and(|expected| actual == expected))
+                }),
+                _ => false,
+            };
+        }
+        let actual = match rule.attribute.as_str() {
+            "is_return" => Some(ctx.is_return.unwrap_or(false).to_string()),
+            "customer_id" => ctx.customer_id.clone(),
+            "customer_group_id" => ctx.customer_group_id.clone(),
+            "currency_code" => ctx.currency_code.clone(),
+            "sales_channel_id" => ctx.sales_channel_id.clone(),
+            "country_code" => ctx.country_code.clone(),
+            "province_code" => ctx.province_code.clone(),
+            "city" => ctx.city.clone(),
+            "postal_code" => ctx.postal_code.clone(),
+            _ => None,
+        };
+        let Some(actual) = actual else {
+            return false;
+        };
+        match rule.operator.as_str() {
+            "eq" => {
+                rule.value
+                    .as_str()
+                    .is_some_and(|expected| actual.eq_ignore_ascii_case(expected))
+                    || rule
+                        .value
+                        .as_bool()
+                        .is_some_and(|expected| actual == expected.to_string())
+            }
+            "ne" => {
+                rule.value
+                    .as_str()
+                    .is_some_and(|expected| !actual.eq_ignore_ascii_case(expected))
+                    || rule
+                        .value
+                        .as_bool()
+                        .is_some_and(|expected| actual != expected.to_string())
+            }
+            "in" => rule.value.as_array().is_some_and(|values| {
+                values.iter().any(|value| {
+                    value
+                        .as_str()
+                        .is_some_and(|expected| actual.eq_ignore_ascii_case(expected))
+                })
+            }),
+            _ => false,
+        }
     }
 
     // ── 4. Calculated Shipping Pricing (P5-12) ───────────────────────────────
@@ -674,15 +869,30 @@ impl FulfillmentService {
             .await?;
 
         if so.price_type == "flat" {
-            return Ok(so
+            let amount = so
                 .data
                 .as_ref()
-                .and_then(|d| {
-                    d.get("amount")
-                        .and_then(|a| a.as_str())
-                        .and_then(|s| s.parse::<Decimal>().ok())
+                .and_then(|data| data.get("amount").or_else(|| data.get("rate")))
+                .and_then(|value| {
+                    value
+                        .as_str()
+                        .map(str::to_string)
+                        .or_else(|| value.as_number().map(ToString::to_string))
                 })
-                .unwrap_or(Decimal::ZERO));
+                .and_then(|value| value.parse::<Decimal>().ok())
+                .ok_or_else(|| Error::Invalid {
+                    code: "invalid_flat_shipping_amount",
+                    message: "Flat shipping option requires a valid amount or rate.".to_string(),
+                    field: Some("amount".to_string()),
+                })?;
+            if amount.is_sign_negative() {
+                return Err(Error::Invalid {
+                    code: "invalid_flat_shipping_amount",
+                    message: "Flat shipping amount cannot be negative.".to_string(),
+                    field: Some("amount".to_string()),
+                });
+            }
+            return Ok(amount);
         }
 
         // Calculated pricing via Provider (P5-12)
@@ -731,7 +941,14 @@ impl FulfillmentService {
             .with_predicate("deleted_at", FilterOp::IsNull)
             .with_pagination(0, 1);
 
-        if let Some(req) = self.outbound_requests.list(None, &spec).await?.into_iter().next() {
+        let mut retried_reconciled_request = None;
+        if let Some(mut req) = self
+            .outbound_requests
+            .list(None, &spec)
+            .await?
+            .into_iter()
+            .next()
+        {
             if req.request_hash != request_hash {
                 return Err(Error::Invalid {
                     code: "idempotency_key_payload_mismatch",
@@ -740,48 +957,91 @@ impl FulfillmentService {
                 });
             }
             if req.state == "succeeded" {
-                if let Some(resp) = req.response {
-                    if let Ok(parsed) = serde_json::from_value::<T>(resp) {
+                if let Some(resp) = req.response.as_ref() {
+                    if let Ok(parsed) = serde_json::from_value::<T>(resp.clone()) {
                         return Ok(parsed);
                     }
                 }
             }
             // in_flight / unknown deliberately fall through to nothing: creating a second
-            // consignment is the failure this table exists to prevent. The row stays
-            // undecided until a human or a courier lookup settles it.
+            // consignment is the failure this table exists to prevent.
             if req.state == "in_flight" || req.state == "unknown" {
                 return Err(Error::Conflict {
                     code: "provider_request_unsettled",
                     message: format!(
-                        "A previous {operation} for {resource_id} is unsettled. Resolve it                          before retrying, or a duplicate consignment will be created."
+                        "A previous {operation} for {resource_id} is unsettled. Resolve it before retrying, or a duplicate consignment will be created."
+                    ),
+                });
+            }
+            if req.state == "failed" {
+                #[derive(QueryableByName)]
+                struct ClaimedRequest {
+                    #[diesel(sql_type = Text)]
+                    id: String,
+                }
+                let request_id = req.id.to_string();
+                let claim = stheno_db::tenant::with_tenant_conn(&self.pool, move |conn| {
+                    Box::pin(async move {
+                        diesel::sql_query(
+                            "UPDATE fulfillment.fulfillment_provider_request \
+                             SET state = 'in_flight', attempts = attempts + 1, settled_at = NULL \
+                             WHERE id = $1 AND state = 'failed' AND deleted_at IS NULL \
+                             RETURNING id",
+                        )
+                        .bind::<Text, _>(&request_id)
+                        .load::<ClaimedRequest>(conn)
+                        .await
+                        .map(|rows| rows.into_iter().next())
+                        .map_err(|error| Error::Database(error.to_string()))
+                    })
+                })
+                .await?;
+                if claim.is_none() {
+                    return Err(Error::Conflict {
+                        code: "provider_request_unsettled",
+                        message: "The reconciled courier request was claimed by another attempt. Reconcile it before retrying.".to_string(),
+                    });
+                }
+                req.state = "in_flight".to_string();
+                req.attempts = req.attempts.saturating_add(1);
+                req.settled_at = None;
+                retried_reconciled_request = Some(req);
+            } else if req.state != "succeeded" {
+                return Err(Error::Conflict {
+                    code: "provider_request_unsettled",
+                    message: format!(
+                        "A previous {operation} for {resource_id} is not in a retryable state."
                     ),
                 });
             }
         }
 
         let now = Utc::now();
-        let mut recorded = self
-            .outbound_requests
-            .create(
-                None,
-                FulfillmentProviderRequest {
-                    id: Id::new(),
-                    idempotency_key: idempotency_key.to_string(),
-                    provider_id: provider_id.to_string(),
-                    operation: operation.to_string(),
-                    resource_type: resource_type.to_string(),
-                    resource_id: resource_id.to_string(),
-                    request_hash,
-                    state: "in_flight".to_string(),
-                    response: None,
-                    error: None,
-                    attempts: 1,
-                    first_sent_at: now,
-                    settled_at: None,
-                    deleted_at: None,
-                },
-            )
-            .await?;
+        let mut recorded = if let Some(request) = retried_reconciled_request {
+            request
+        } else {
+            self.outbound_requests
+                .create(
+                    None,
+                    FulfillmentProviderRequest {
+                        id: Id::new(),
+                        idempotency_key: idempotency_key.to_string(),
+                        provider_id: provider_id.to_string(),
+                        operation: operation.to_string(),
+                        resource_type: resource_type.to_string(),
+                        resource_id: resource_id.to_string(),
+                        request_hash,
+                        state: "in_flight".to_string(),
+                        response: None,
+                        error: None,
+                        attempts: 1,
+                        first_sent_at: now,
+                        settled_at: None,
+                        deleted_at: None,
+                    },
+                )
+                .await?
+        };
 
         let result = call_fn().await;
 
@@ -793,7 +1053,9 @@ impl FulfillmentService {
             Err(e) => {
                 // Ambiguous, not failed. We do not know whether a parcel exists.
                 recorded.state = "unknown".to_string();
-                recorded.error = Some(serde_json::json!({ "error": format!("{e:?}") }));
+                if recorded.error.is_none() {
+                    recorded.error = Some(serde_json::json!({ "error": format!("{e:?}") }));
+                }
             }
         }
         recorded.settled_at = Some(Utc::now());
@@ -809,6 +1071,98 @@ impl FulfillmentService {
         &self,
         input: CreateFulfillmentInput,
     ) -> Result<FulfillmentDTO> {
+        self.create_fulfillment_with_key(input, None).await
+    }
+
+    /// Creates a fulfillment with a caller-supplied stable idempotency key.
+    ///
+    /// Use an order-derived key for human-confirmed social dispatch. Replays return the
+    /// first fulfillment record; an unresolved provider call remains blocked by the
+    /// outbound request ledger.
+    pub async fn create_fulfillment_idempotent(
+        &self,
+        input: CreateFulfillmentInput,
+        idempotency_key: &str,
+    ) -> Result<FulfillmentDTO> {
+        let idempotency_key = idempotency_key.trim();
+        if idempotency_key.is_empty()
+            || idempotency_key.len() > 256
+            || idempotency_key.chars().any(char::is_control)
+        {
+            return Err(Error::Invalid {
+                code: "fulfillment_idempotency_key_invalid",
+                message: "Fulfillment idempotency key must be 1–256 printable characters."
+                    .to_string(),
+                field: Some("idempotency_key".to_string()),
+            });
+        }
+        self.create_fulfillment_with_key(input, Some(idempotency_key))
+            .await
+    }
+
+    /// Creates a fulfillment while supplying per-tenant provider secrets only to the
+    /// outbound call. These values are deliberately excluded from persisted fulfillment
+    /// data and the durable request ledger payload.
+    pub async fn create_fulfillment_idempotent_with_provider_data(
+        &self,
+        input: CreateFulfillmentInput,
+        idempotency_key: &str,
+        provider_data: serde_json::Value,
+    ) -> Result<FulfillmentDTO> {
+        let idempotency_key = idempotency_key.trim();
+        if idempotency_key.is_empty()
+            || idempotency_key.len() > 256
+            || idempotency_key.chars().any(char::is_control)
+        {
+            return Err(Error::Invalid {
+                code: "fulfillment_idempotency_key_invalid",
+                message: "Fulfillment idempotency key must be 1–256 printable characters."
+                    .to_string(),
+                field: Some("idempotency_key".to_string()),
+            });
+        }
+        self.create_fulfillment_with_key_and_provider_data(
+            input,
+            Some(idempotency_key),
+            Some(provider_data),
+        )
+        .await
+    }
+
+    async fn create_fulfillment_with_key(
+        &self,
+        input: CreateFulfillmentInput,
+        stable_key: Option<&str>,
+    ) -> Result<FulfillmentDTO> {
+        self.create_fulfillment_with_key_and_provider_data(input, stable_key, None)
+            .await
+    }
+
+    async fn create_fulfillment_with_key_and_provider_data(
+        &self,
+        input: CreateFulfillmentInput,
+        stable_key: Option<&str>,
+        provider_data: Option<serde_json::Value>,
+    ) -> Result<FulfillmentDTO> {
+        let mut line_item_ids = std::collections::BTreeSet::new();
+        for item in &input.items {
+            if item.line_item_id.trim().is_empty() || item.quantity <= 0 {
+                return Err(Error::Invalid {
+                    code: "fulfillment_item_invalid",
+                    message: "Fulfillment items require a line item ID and positive quantity."
+                        .to_string(),
+                    field: Some("items".to_string()),
+                });
+            }
+            if !line_item_ids.insert(item.line_item_id.trim()) {
+                return Err(Error::Invalid {
+                    code: "fulfillment_item_duplicate",
+                    message: "A fulfillment cannot contain the same order line more than once."
+                        .to_string(),
+                    field: Some("items".to_string()),
+                });
+            }
+        }
         let provider = self.get_provider(&input.provider_id)?;
 
         // Keyed on the caller's reference when there is one. Without a stable reference
@@ -829,43 +1183,103 @@ impl FulfillmentService {
         // `CreateFulfillmentInput` carries no idempotency key, so there is no caller
         // reference to key on at all: withhold dedupe here too rather than invent one out
         // of a field that does not identify the request.
-        let idem_key = format!(
-            "create_fulfillment:{}:{}",
-            input.provider_id,
-            Id::<Fulfillment>::new()
-        );
+        // A caller-supplied key is tenant-scoped independently of provider. The provider
+        // ID is part of the payload hash, so editing the courier after an ambiguous call
+        // cannot create a second consignment under a different provider namespace.
+        let (fulfillment_id, key_suffix) = match stable_key {
+            Some(stable_key) => {
+                let tenant_id = stheno_db::tenant::current()?;
+                let mut hasher = sha2::Sha256::new();
+                hasher.update(tenant_id.as_bytes());
+                hasher.update([0]);
+                hasher.update(stable_key.as_bytes());
+                let digest = hasher.finalize();
+                let mut ulid_bytes = [0_u8; 16];
+                ulid_bytes.copy_from_slice(&digest[..16]);
+                let id = Id::<Fulfillment>::from_ulid(Ulid::from(u128::from_be_bytes(ulid_bytes)));
+                (id, stable_key.to_string())
+            }
+            None => {
+                let id = Id::<Fulfillment>::new();
+                (id, id.to_string())
+            }
+        };
+        let idem_key = match stable_key {
+            Some(_) => format!("create_fulfillment:{key_suffix}"),
+            None => format!("create_fulfillment:{}:{key_suffix}", input.provider_id),
+        };
+        let mut provider_payload_hash = provider_data
+            .clone()
+            .unwrap_or_else(|| input.data.clone().unwrap_or(serde_json::Value::Null));
+        redact_provider_secrets(&mut provider_payload_hash);
+        let mut input_data_hash = input.data.clone().unwrap_or(serde_json::Value::Null);
+        redact_provider_secrets(&mut input_data_hash);
         let payload = serde_json::json!({
-            "data": input.data,
+            "provider_id": input.provider_id,
+            "data": input_data_hash,
+            "provider_request": provider_payload_hash,
             "items": input.items,
             "location_id": input.location_id,
+            "shipping_option_id": input.shipping_option_id,
+            "delivery_address": input.delivery_address,
+            "labels": input.labels,
+            "metadata": input.metadata,
         });
-        let data_for_call = input.data.clone();
+        let data_for_call = provider_data.or_else(|| input.data.clone());
         let items_for_call = input.items.clone();
         let provider_for_call = provider.clone();
+        let ful_id_str = fulfillment_id.to_string();
         let response = self
             .idempotent_provider_call(
                 &idem_key,
                 &input.provider_id,
                 "create_fulfillment",
                 "fulfillment",
-                &idem_key,
+                &ful_id_str,
                 &payload,
                 move || async move {
-                    provider_for_call
+                    let mut response = provider_for_call
                         .create_fulfillment(data_for_call.as_ref(), &items_for_call, None)
-                        .await
+                        .await?;
+                    if let Some(data) = &mut response.data {
+                        redact_provider_secrets(data);
+                    }
+                    for label in &mut response.labels {
+                        if let Some(metadata) = &mut label.metadata {
+                            redact_provider_secrets(metadata);
+                        }
+                    }
+                    Ok(response)
                 },
             )
             .await?;
 
+        match self.get_fulfillment(&ful_id_str).await {
+            Ok(existing) => {
+                let labels = if !response.labels.is_empty() {
+                    response.labels.as_slice()
+                } else {
+                    input.labels.as_deref().unwrap_or_default()
+                };
+                self.ensure_fulfillment_children(&existing, &input.items, labels)
+                    .await?;
+                return self.get_fulfillment(&ful_id_str).await;
+            }
+            Err(Error::NotFound { .. }) => {}
+            Err(error) => return Err(error),
+        }
+
         let mut delivery_address_id = None;
         if let Some(addr_input) = input.delivery_address {
-            let addr = self.create_address_internal(addr_input).await?;
+            let address_id = Id::<Address>::from_ulid(fulfillment_id.ulid());
+            let addr = self
+                .create_address_internal_with_id(addr_input, address_id)
+                .await?;
             delivery_address_id = Some(addr.id.to_string());
         }
 
         let ful = Fulfillment {
-            id: Id::new(),
+            id: fulfillment_id,
             location_id: input.location_id,
             provider_id: input.provider_id,
             shipping_option_id: input.shipping_option_id,
@@ -881,14 +1295,13 @@ impl FulfillmentService {
             deleted_at: None,
         };
 
-        let ful_id_str = ful.id.to_string();
         let created_ful = self.fulfillments.create(None, ful).await?;
 
         // Add items
         let mut items = Vec::new();
         for item_input in input.items {
             let fi = FulfillmentItem {
-                id: Id::new(),
+                id: Self::child_id::<FulfillmentItem>(&fulfillment_id, &item_input.line_item_id),
                 fulfillment_id: ful_id_str.clone(),
                 title: item_input.title,
                 sku: item_input.sku,
@@ -913,9 +1326,23 @@ impl FulfillmentService {
             input.labels.unwrap_or_default()
         };
 
-        for l_input in all_labels {
+        let mut known_label_values = std::collections::BTreeSet::new();
+        for (index, l_input) in all_labels
+            .into_iter()
+            .filter(|label| {
+                known_label_values.insert((
+                    label.tracking_number.clone(),
+                    label.tracking_url.clone(),
+                    label.label_url.clone(),
+                ))
+            })
+            .enumerate()
+        {
             let fl = FulfillmentLabel {
-                id: Id::new(),
+                id: Self::child_id::<FulfillmentLabel>(
+                    &fulfillment_id,
+                    &format!("label:{index}:{}", l_input.tracking_number),
+                ),
                 fulfillment_id: ful_id_str.clone(),
                 tracking_number: l_input.tracking_number,
                 tracking_url: l_input.tracking_url,
@@ -1027,13 +1454,53 @@ impl FulfillmentService {
     }
 
     pub async fn lookup_by_reference(&self, reference: &str) -> Result<Option<FulfillmentDTO>> {
+        if reference.trim().is_empty()
+            || reference.len() > 256
+            || reference.chars().any(char::is_control)
+        {
+            return Err(Error::Invalid {
+                code: "fulfillment_reference_invalid",
+                message: "Fulfillment reference must be 1–256 printable characters.".to_string(),
+                field: Some("reference".to_string()),
+            });
+        }
+        #[derive(QueryableByName)]
+        struct FulfillmentIdRow {
+            #[diesel(sql_type = Text)]
+            id: String,
+        }
+        let reference = reference.to_string();
+        let reference_for_sql = reference.clone();
+        let found = stheno_db::tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                diesel::sql_query(
+                    "SELECT id FROM fulfillment.fulfillment \
+                      WHERE deleted_at IS NULL AND data ->> 'reference' = $1 \
+                      ORDER BY created_at DESC LIMIT 1",
+                )
+                .bind::<Text, _>(&reference_for_sql)
+                .load::<FulfillmentIdRow>(conn)
+                .await
+                .map(|rows| rows.into_iter().next().map(|row| row.id))
+                .map_err(|error| Error::Database(error.to_string()))
+            })
+        })
+        .await?;
+        if let Some(id) = found {
+            return self.get_fulfillment(&id).await.map(Some);
+        }
+
+        // Keep legacy merchant-reference and tracking-number lookups working while
+        // staff-confirmed social orders use the indexed stable `reference` field above.
         let spec = FilterSpec::new().with_predicate("deleted_at", FilterOp::IsNull);
         let list = self.fulfillments.list(None, &spec).await?;
         for ful in list {
             if let Some(data) = &ful.data {
-                if data.get("reference").and_then(|v| v.as_str()) == Some(reference)
-                    || data.get("merchant_reference").and_then(|v| v.as_str()) == Some(reference)
-                    || data.get("tracking_number").and_then(|v| v.as_str()) == Some(reference)
+                if data.get("reference").and_then(|v| v.as_str()) == Some(reference.as_str())
+                    || data.get("merchant_reference").and_then(|v| v.as_str())
+                        == Some(reference.as_str())
+                    || data.get("tracking_number").and_then(|v| v.as_str())
+                        == Some(reference.as_str())
                 {
                     return self.get_fulfillment(&ful.id.to_string()).await.map(Some);
                 }
@@ -1044,9 +1511,141 @@ impl FulfillmentService {
 
     // ── Internal Helpers ────────────────────────────────────────────────────
 
+    fn child_id<T: stheno_types::Prefixed>(fulfillment_id: &Id<Fulfillment>, key: &str) -> Id<T> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(fulfillment_id.ulid().to_string().as_bytes());
+        hasher.update([0]);
+        hasher.update(key.as_bytes());
+        let digest = hasher.finalize();
+        let mut bytes = [0_u8; 16];
+        bytes.copy_from_slice(&digest[..16]);
+        Id::from_ulid(Ulid::from(u128::from_be_bytes(bytes)))
+    }
+
+    async fn ensure_fulfillment_children(
+        &self,
+        fulfillment: &FulfillmentDTO,
+        expected_items: &[CreateFulfillmentItemInput],
+        expected_labels: &[CreateFulfillmentLabelInput],
+    ) -> Result<()> {
+        let fulfillment_id = Id::<Fulfillment>::from_string(&fulfillment.id)?;
+        let fulfillment_id_str = fulfillment.id.as_str();
+        let current_items = self
+            .fulfillment_items
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate(
+                        "fulfillment_id",
+                        FilterOp::Eq(fulfillment_id_str.to_string()),
+                    )
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT),
+            )
+            .await?;
+        let mut known_line_items = current_items
+            .iter()
+            .map(|item| item.line_item_id.clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        for expected in expected_items {
+            if !known_line_items.insert(expected.line_item_id.clone()) {
+                continue;
+            }
+            self.fulfillment_items
+                .create(
+                    None,
+                    FulfillmentItem {
+                        id: Self::child_id::<FulfillmentItem>(
+                            &fulfillment_id,
+                            &expected.line_item_id,
+                        ),
+                        fulfillment_id: fulfillment_id_str.to_string(),
+                        title: expected.title.clone(),
+                        sku: expected.sku.clone(),
+                        barcode: expected.barcode.clone(),
+                        line_item_id: expected.line_item_id.clone(),
+                        inventory_item_id: expected.inventory_item_id.clone(),
+                        quantity: expected.quantity,
+                        metadata: expected.metadata.clone(),
+                        created_at: Utc::now(),
+                        updated_at: Utc::now(),
+                        deleted_at: None,
+                    },
+                )
+                .await?;
+        }
+
+        let current_labels = self
+            .fulfillment_labels
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate(
+                        "fulfillment_id",
+                        FilterOp::Eq(fulfillment_id_str.to_string()),
+                    )
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT),
+            )
+            .await?;
+        let mut known_labels = current_labels
+            .iter()
+            .map(|label| {
+                (
+                    label.tracking_number.clone(),
+                    label.tracking_url.clone(),
+                    label.label_url.clone(),
+                )
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        for (index, expected) in expected_labels.iter().enumerate() {
+            if !known_labels.insert((
+                expected.tracking_number.clone(),
+                expected.tracking_url.clone(),
+                expected.label_url.clone(),
+            )) {
+                continue;
+            }
+            self.fulfillment_labels
+                .create(
+                    None,
+                    FulfillmentLabel {
+                        id: Self::child_id::<FulfillmentLabel>(
+                            &fulfillment_id,
+                            &format!("label:{index}:{}", expected.tracking_number),
+                        ),
+                        fulfillment_id: fulfillment_id_str.to_string(),
+                        tracking_number: expected.tracking_number.clone(),
+                        tracking_url: expected.tracking_url.clone(),
+                        label_url: expected.label_url.clone(),
+                        metadata: expected.metadata.clone(),
+                        created_at: Utc::now(),
+                        updated_at: Utc::now(),
+                        deleted_at: None,
+                    },
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
     async fn create_address_internal(&self, input: CreateAddressInput) -> Result<Address> {
+        self.create_address_internal_with_id(input, Id::new()).await
+    }
+
+    async fn create_address_internal_with_id(
+        &self,
+        input: CreateAddressInput,
+        address_id: Id<Address>,
+    ) -> Result<Address> {
+        let address_id_string = address_id.to_string();
+        match self.addresses.retrieve(None, &address_id_string).await {
+            Ok(existing) => return Ok(existing),
+            Err(Error::NotFound { .. }) => {}
+            Err(error) => return Err(error),
+        }
         let addr = Address {
-            id: Id::new(),
+            id: address_id,
             customer_id: input.customer_id,
             company: input.company,
             first_name: input.first_name,
@@ -1253,6 +1852,124 @@ impl FulfillmentService {
         .await
     }
 
+    /// Settles an ambiguous social courier request after an operator checks the courier record.
+    ///
+    /// The tenant-scoped request row is compare-and-swapped from `unknown`, so two operators
+    /// cannot settle one provider response differently. A confirmed acceptance stores only
+    /// canonical consignment/tracking fields; a confirmed absence leaves a retryable `failed`
+    /// row that the next stable-key dispatch claims in place.
+    pub async fn reconcile_unknown_social_dispatch(
+        &self,
+        stable_reference: &str,
+        actor_id: &str,
+        evidence_reference: &str,
+        resolution: SocialDispatchResolution,
+    ) -> Result<()> {
+        validate_reconciliation_text(stable_reference, "stable_reference", 256)?;
+        validate_reconciliation_text(actor_id, "actor_id", 128)?;
+        validate_reconciliation_text(evidence_reference, "evidence_reference", 256)?;
+
+        let idempotency_key = format!("create_fulfillment:{stable_reference}");
+        let spec = FilterSpec::new()
+            .with_predicate("idempotency_key", FilterOp::Eq(idempotency_key))
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_pagination(0, 1);
+        let request = self
+            .outbound_requests
+            .list(None, &spec)
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| Error::NotFound {
+                entity: "unsettled fulfillment request",
+                id: stable_reference.to_string(),
+            })?;
+        if request.operation != "create_fulfillment"
+            || request.resource_type != "fulfillment"
+            || request.state != "unknown"
+        {
+            return Err(Error::Conflict {
+                code: "provider_request_not_reconcilable",
+                message: "Only an unknown social courier creation can be reconciled.".to_string(),
+            });
+        }
+
+        let (state, response) = match resolution {
+            SocialDispatchResolution::Accepted {
+                courier_reference,
+                tracking_number,
+                tracking_url,
+                label_url,
+            } => {
+                validate_reconciliation_text(&courier_reference, "courier_reference", 128)?;
+                validate_reconciliation_text(&tracking_number, "tracking_number", 128)?;
+                validate_reconciliation_url(tracking_url.as_deref(), "tracking_url")?;
+                validate_reconciliation_url(label_url.as_deref(), "label_url")?;
+                let response = CreateFulfillmentResponse {
+                    data: Some(serde_json::json!({
+                        "reference": stable_reference,
+                        "consignment_id": courier_reference,
+                        "reconciled": true,
+                    })),
+                    labels: vec![CreateFulfillmentLabelInput {
+                        tracking_number,
+                        tracking_url,
+                        label_url,
+                        metadata: None,
+                    }],
+                };
+                (
+                    "succeeded",
+                    Some(serde_json::to_value(response).map_err(|error| {
+                        Error::Internal(
+                            format!("Could not encode courier reconciliation: {error}").into(),
+                        )
+                    })?),
+                )
+            }
+            SocialDispatchResolution::NotCreated => ("failed", None),
+        };
+        let audit = serde_json::json!({
+            "outcome": state,
+            "actor_id": actor_id,
+            "evidence_reference": evidence_reference,
+            "resolved_at": Utc::now(),
+        });
+
+        #[derive(QueryableByName)]
+        struct UpdatedRequest {
+            #[diesel(sql_type = Text)]
+            id: String,
+        }
+        let request_id = request.id.to_string();
+        let updated = stheno_db::tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                diesel::sql_query(
+                    "UPDATE fulfillment.fulfillment_provider_request \
+                     SET state = $1, response = $2, error = $3, settled_at = now() \
+                     WHERE id = $4 AND state = 'unknown' AND deleted_at IS NULL \
+                     RETURNING id",
+                )
+                .bind::<Text, _>(state)
+                .bind::<Nullable<Jsonb>, _>(response)
+                .bind::<Jsonb, _>(audit)
+                .bind::<Text, _>(&request_id)
+                .load::<UpdatedRequest>(conn)
+                .await
+                .map(|rows| rows.into_iter().next())
+                .map_err(|error| Error::Database(error.to_string()))
+            })
+        })
+        .await?;
+        if updated.is_none() {
+            return Err(Error::Conflict {
+                code: "provider_request_already_reconciled",
+                message: "The courier request changed while it was being reconciled. Refresh and inspect its current state.".to_string(),
+            });
+        }
+        Ok(())
+    }
+
     // ── Fulfillment Webhook Event Store & Replay Guard (P21-04) ────────────────
     pub async fn receive_webhook(
         &self,
@@ -1263,7 +1980,7 @@ impl FulfillmentService {
         let payload: serde_json::Value =
             serde_json::from_slice(raw_body).map_err(|e| Error::Invalid {
                 code: "invalid_webhook_payload",
-                message: format!("Malformed webhook payload: {}", e),
+                message: format!("Malformed webhook payload: {e}"),
                 field: None,
             })?;
 
@@ -1390,8 +2107,7 @@ impl FulfillmentService {
         if status.is_unknown() {
             data["unknown_status_alert"] = serde_json::json!(true);
             data["alert_reason"] = serde_json::json!(format!(
-                "Unrecognized courier status '{}' from provider '{}'",
-                raw_status, provider_id
+                "Unrecognized courier status '{raw_status}' from provider '{provider_id}'"
             ));
             tracing::warn!(
                 fulfillment_id = %ful.id,
@@ -1448,7 +2164,11 @@ impl FulfillmentService {
             .into_iter()
             .next()
         {
-            if let Ok(ful) = self.fulfillments.retrieve(None, &label.fulfillment_id).await {
+            if let Ok(ful) = self
+                .fulfillments
+                .retrieve(None, &label.fulfillment_id)
+                .await
+            {
                 return Ok(Some(ful));
             }
         }

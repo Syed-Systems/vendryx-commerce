@@ -41,7 +41,7 @@ impl Step for CreateTaxRegionStep {
         let parsed: CreateTaxRegionInput =
             serde_json::from_value(input).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse CreateTaxRegionInput: {}", e),
+                message: format!("Failed to parse CreateTaxRegionInput: {e}"),
                 field: None,
             })?;
 
@@ -85,7 +85,7 @@ impl Step for UpdateTaxRegionStep {
         let parsed: UpdateTaxRegionInput =
             serde_json::from_value(input["data"].clone()).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse UpdateTaxRegionInput: {}", e),
+                message: format!("Failed to parse UpdateTaxRegionInput: {e}"),
                 field: None,
             })?;
 
@@ -154,7 +154,7 @@ impl Step for CreateTaxRateStep {
         let parsed: CreateTaxRateInput =
             serde_json::from_value(input).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse CreateTaxRateInput: {}", e),
+                message: format!("Failed to parse CreateTaxRateInput: {e}"),
                 field: None,
             })?;
 
@@ -198,7 +198,7 @@ impl Step for UpdateTaxRateStep {
         let parsed: UpdateTaxRateInput =
             serde_json::from_value(input["data"].clone()).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse UpdateTaxRateInput: {}", e),
+                message: format!("Failed to parse UpdateTaxRateInput: {e}"),
                 field: None,
             })?;
 
@@ -275,7 +275,7 @@ impl Step for CreateTaxRateRuleStep {
         let parsed: CreateTaxRateRuleInput = serde_json::from_value(input["rule"].clone())
             .map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse CreateTaxRateRuleInput: {}", e),
+                message: format!("Failed to parse CreateTaxRateRuleInput: {e}"),
                 field: None,
             })?;
 
@@ -362,7 +362,7 @@ impl Step for ResolveTaxLinesStep {
     async fn invoke(&self, _ctx: &StepContext, input: Value) -> Result<Value> {
         let ctx: TaxContext = serde_json::from_value(input).map_err(|e| Error::Invalid {
             code: "invalid_tax_context",
-            message: format!("Failed to parse TaxContext: {}", e),
+            message: format!("Failed to parse TaxContext: {e}"),
             field: None,
         })?;
 

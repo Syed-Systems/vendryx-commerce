@@ -6,7 +6,7 @@
 //! the exact failure mode Phase 2 exists to remove.
 
 use std::time::Duration;
-use stheno_db::{create_pool, DbPool};
+use stheno_db::{DbPool, create_pool};
 use stheno_types::Error;
 
 /// Default pool size, overridable per deployment via `STHENO_DB_POOL_SIZE`.

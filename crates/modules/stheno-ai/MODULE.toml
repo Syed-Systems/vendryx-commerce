@@ -1,0 +1,6 @@
+[module]
+name = "stheno-ai"
+schema = "ai"
+owned_tables = ["knowledge_entry", "channel_event", "configuration", "webhook_registry", "channel_conversation", "chat_offer", "chat_offer_quote", "chat_offer_audit", "store_intelligence_review", "store_intelligence_review_audit", "store_intelligence_source_observation", "source_connection_audit", "search_console_oauth_state"]
+events = []
+links = []

@@ -1,6 +1,37 @@
 # Local development dependencies. CI provisions the same Postgres version as a
 # service container (.github/workflows/ci.yml).
 services:
+  proxy:
+    image: caddy:2.11.9
+    profiles: [production]
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - 'test -n "$$STHENO_ADMIN_DOMAIN_SUFFIX" || { echo "STHENO_ADMIN_DOMAIN_SUFFIX must be set" >&2; exit 1; }; exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile'
+    environment:
+      STHENO_ADMIN_DOMAIN_SUFFIX: ${STHENO_ADMIN_DOMAIN_SUFFIX}
+      STHENO_ENGINE_UPSTREAM: ${STHENO_ENGINE_UPSTREAM:-web:9000}
+      STHENO_STOREFRONT_UPSTREAM: ${STHENO_STOREFRONT_UPSTREAM:-storefront:3000}
+      STHENO_ADMIN_UPSTREAM: ${STHENO_ADMIN_UPSTREAM:-admin:4173}
+    expose:
+      - "8080"
+    volumes:
+      - ./deploy/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - origin
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.11.0
+    profiles: [production]
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - proxy
+    networks:
+      - origin
+
   postgres:
     image: postgres:16-alpine
     # Docker gives a container 64MB of /dev/shm, and Postgres allocates parallel-query
@@ -64,3 +95,8 @@ services:
 
 volumes:
   stheno-pgdata:
+
+networks:
+  origin:
+    external: true
+    name: ${STHENO_ORIGIN_NETWORK:-stheno-origin}

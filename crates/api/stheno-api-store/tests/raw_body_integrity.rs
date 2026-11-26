@@ -91,7 +91,7 @@ fn sign_stripe_payload(payload: &[u8], secret: &str, timestamp: i64) -> String {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
     mac.update(signed_payload.as_bytes());
     let sig = hex::encode(mac.finalize().into_bytes());
-    format!("t={},v1={}", timestamp, sig)
+    format!("t={timestamp},v1={sig}")
 }
 
 #[tokio::test]

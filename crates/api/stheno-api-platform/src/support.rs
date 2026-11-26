@@ -197,12 +197,15 @@ pub async fn get_tenant_errors(
     let mut errors: Vec<TenantErrorDTO> = Vec::new();
     if let Ok(audit_records) = ctx.platform.list_operator_audit(Some(&id), 50, None).await {
         for record in audit_records {
-            if record.action.contains("error") || record.action.contains("lock") || record.action.contains("fail") {
+            if record.action.contains("error")
+                || record.action.contains("lock")
+                || record.action.contains("fail")
+            {
                 errors.push(TenantErrorDTO {
                     id: record.id,
                     tenant_id: id.clone(),
                     message: format!("{}: {}", record.action, record.entity_type),
-                    endpoint: format!("/platform/tenants/{}", id),
+                    endpoint: format!("/platform/tenants/{id}"),
                     status_code: 500,
                     timestamp: record.created_at,
                 });
@@ -290,7 +293,11 @@ pub async fn list_platform_workflows(
             if record.action.starts_with("workflow.") || record.action.starts_with("job.") {
                 workflows.push(WorkflowExecutionDTO {
                     id: record.id,
-                    tenant_id: if record.entity_id.is_empty() { "platform".to_string() } else { record.entity_id },
+                    tenant_id: if record.entity_id.is_empty() {
+                        "platform".to_string()
+                    } else {
+                        record.entity_id
+                    },
                     workflow_name: record.action,
                     status: "completed".to_string(),
                     current_step: "done".to_string(),

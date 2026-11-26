@@ -4,6 +4,7 @@ schema = "order"
 
 tables = [
     "order",
+    "payment_proof",
     "order_item",
     "line_item",
     "line_item_adjustment",

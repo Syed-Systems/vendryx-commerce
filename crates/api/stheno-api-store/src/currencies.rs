@@ -1,9 +1,9 @@
 //! Store currency route handlers (Medusa v2 API parity).
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 use std::sync::Arc;
 use stheno_currency::CurrencyService;
@@ -38,7 +38,7 @@ pub async fn get_currency(
             StatusCode::NOT_FOUND,
             Json(json!({
                 "type": "not_found",
-                "message": format!("Currency with code '{}' not found", code)
+                "message": format!("Currency with code '{code}' not found")
             })),
         )),
         Err(e) => Err((

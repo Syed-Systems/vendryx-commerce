@@ -34,6 +34,36 @@ pub struct OrderDTO {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Shopper-submitted reference for a manual order payment. Submission is never evidence
+/// that funds were received; only a staff review can change this state to verified.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderPaymentProofDTO {
+    pub id: String,
+    pub order_id: String,
+    pub payment_method: String,
+    pub transaction_id: String,
+    pub proof_asset_url: Option<String>,
+    pub status: String,
+    pub submitted_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SubmitOrderPaymentProofInput {
+    pub order_id: String,
+    pub customer_id: String,
+    pub payment_method: String,
+    pub transaction_id: String,
+    pub proof_asset_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReviewOrderPaymentProofInput {
+    pub proof_id: String,
+    pub reviewer_id: String,
+    pub decision: String,
+    pub note: Option<String>,
+}
+
 /// Three distinct COD amounts carried on an order (P24-02, BP8):
 /// - order_total: gross order charge invoiced to customer
 /// - collected_amount: cash collected by courier rider
@@ -93,7 +123,9 @@ impl CodAmounts {
         if self.courier_fee > Decimal::ZERO && self.collected_amount == self.remitted_amount {
             return Err(stheno_types::Error::Invalid {
                 code: "cod_amounts_conflated",
-                message: "remitted amount conflated with collected amount despite courier fee deduction".to_string(),
+                message:
+                    "remitted amount conflated with collected amount despite courier fee deduction"
+                        .to_string(),
                 field: Some("remitted_amount".to_string()),
             });
         }
@@ -582,6 +614,28 @@ pub struct OrderFilter {
     pub display_id: Option<i64>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+}
+
+/// Privacy-safe product aggregates for store intelligence. These contain no buyer fields.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoreOrderSignal {
+    pub product_id: String,
+    pub product_name: String,
+    pub category: Option<String>,
+    pub current_units: i64,
+    pub comparison_units: i64,
+    pub current_orders: i64,
+    pub comparison_orders: i64,
+}
+
+/// Tenant-local category totals, counted independently from the product result cap.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoreCategoryOrderSignal {
+    pub category: String,
+    pub current_units: i64,
+    pub comparison_units: i64,
+    pub current_orders: i64,
+    pub comparison_orders: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

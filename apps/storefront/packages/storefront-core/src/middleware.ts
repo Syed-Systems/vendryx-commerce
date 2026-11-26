@@ -6,9 +6,9 @@ import {
   normalizeHost,
 } from "./lib/util/host-keyed-cache"
 
-const BACKEND_URL = process.env.STHENO_BACKEND_URL
 const PUBLISHABLE_API_KEY = process.env.NEXT_PUBLIC_STHENO_PUBLISHABLE_KEY
 const DEFAULT_REGION = process.env.NEXT_PUBLIC_DEFAULT_REGION || "us"
+const STHENO_BACKEND_URL = process.env.STHENO_BACKEND_URL || "http://localhost:9000"
 
 /**
  * Region maps, **keyed by host**.
@@ -30,25 +30,40 @@ const DEFAULT_REGION = process.env.NEXT_PUBLIC_DEFAULT_REGION || "us"
 const regionCaches = createHostKeyedCache(
   () => new Map<string, HttpTypes.StoreRegion>()
 )
+const regionTenantIds = createHostKeyedCache(() => "")
 
-async function getRegionMap(host: string) {
+async function getRegionMap(request: NextRequest) {
+  const merchantHost = request.headers.get("host")
+  if (!merchantHost) {
+    throw new Error("Storefront middleware requires the incoming Host header")
+  }
+  const host = normalizeHost(merchantHost, "__no_host")
   const entry = regionCaches.entryFor(host)
+  const tenantEntry = regionTenantIds.entryFor(host)
   const regionMap = entry.value
   const regionMapUpdated = entry.updatedAt
-
-  if (!BACKEND_URL) {
-    throw new Error(
-      "Middleware.ts: Error fetching regions. Did you set up regions in the Stheno dashboard and define a STHENO_BACKEND_URL environment variable?"
-    )
-  }
 
   if (
     !regionMap.keys().next().value ||
     regionMapUpdated < Date.now() - 3600 * 1000
   ) {
-    // Fetch regions from the backend. We can't use the JS client here because middleware is running on Edge and the client needs a Node environment.
-    const { regions } = await fetch(`${BACKEND_URL}/store/regions`, {
+    const configResponse = await fetch(engineRequestUrl("/store/config"), {
       headers: {
+        Host: merchantHost,
+        "x-publishable-api-key": PUBLISHABLE_API_KEY!,
+      },
+      cache: "no-store",
+    })
+    const config = await configResponse.json()
+    if (!configResponse.ok) {
+      throw new Error(config.message)
+    }
+    tenantEntry.value = tenantIdFromStoreConfig(config)
+
+    // Fetch regions from the backend. We can't use the JS client here because middleware is running on Edge and the client needs a Node environment.
+    const response = await fetch(engineRequestUrl("/store/regions"), {
+      headers: {
+        Host: merchantHost,
         "x-publishable-api-key": PUBLISHABLE_API_KEY!,
       },
       next: {
@@ -56,16 +71,14 @@ async function getRegionMap(host: string) {
         tags: [`regions-${host}`],
       },
       cache: "force-cache",
-    }).then(async (response) => {
-      const json = await response.json()
-
-      if (!response.ok) {
-        throw new Error(json.message)
-      }
-
-      return json
     })
+    const json = await response.json()
 
+    if (!response.ok) {
+      throw new Error(json.message)
+    }
+
+    const regions = json.regions as HttpTypes.StoreRegion[]
     if (!regions?.length) {
       throw new Error(
         "No regions found. Please set up regions in the Stheno dashboard."
@@ -82,7 +95,127 @@ async function getRegionMap(host: string) {
     entry.updatedAt = Date.now()
   }
 
-  return entry.value
+  return { regions: entry.value, tenantId: tenantEntry.value }
+}
+
+export function engineRequestUrl(
+  pathname: string,
+  backendUrl: string = STHENO_BACKEND_URL
+): URL {
+  return new URL(pathname, backendUrl)
+}
+
+export function tenantIdFromStoreConfig(value: unknown): string {
+  if (!value || typeof value !== "object" || !("tenant_id" in value)) return ""
+  const tenantId = (value as { tenant_id?: unknown }).tenant_id
+  return typeof tenantId === "string" && /^[A-Za-z0-9_-]{1,900}$/.test(tenantId)
+    ? tenantId
+    : ""
+}
+
+function tagAtom(value: string): string | null {
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(value)
+  } catch {
+    return null
+  }
+  const bytes = new TextEncoder().encode(decoded)
+  if (!bytes.length || bytes.length > 900) return null
+
+  let encoded = ""
+  bytes.forEach((byte) => {
+    if (
+      (byte >= 0x30 && byte <= 0x39) ||
+      (byte >= 0x41 && byte <= 0x5a) ||
+      (byte >= 0x61 && byte <= 0x7a) ||
+      byte === 0x5f ||
+      byte === 0x2d
+    ) {
+      encoded += String.fromCharCode(byte)
+    } else {
+      encoded += `%${byte.toString(16).toUpperCase().padStart(2, "0")}`
+    }
+  })
+  return encoded
+}
+
+export function cacheHeadersForPage(
+  pathname: string,
+  tenantId: string,
+  hasCredentials: boolean
+): Headers | null {
+  if (!tenantId || hasCredentials) return null
+
+  const [, , ...path] = pathname.split("/")
+  let tags: string[]
+  if (path[0] === "products" && path.length === 2 && path[1]) {
+    const product = tagAtom(path[1])
+    if (!product) return null
+    tags = [`tenant:${tenantId}:product:${product}`]
+  } else if (path[0] === "collections" && path.length === 2 && path[1]) {
+    const collection = tagAtom(path[1])
+    if (!collection) return null
+    tags = [
+      `tenant:${tenantId}:collection:${collection}`,
+      `tenant:${tenantId}:listing`,
+    ]
+  } else if (
+    path.length === 1 &&
+    (path[0] === "products" ||
+      path[0] === "collections" ||
+      path[0] === "categories")
+  ) {
+    tags = [`tenant:${tenantId}:listing`]
+  } else if (path[0] === "categories" && path.length > 1) {
+    const category = tagAtom(path[path.length - 1])
+    if (!category) return null
+    tags = [
+      `tenant:${tenantId}:category:${category}`,
+      `tenant:${tenantId}:listing`,
+    ]
+  } else if (
+    path.length === 0 ||
+    path[0] === "store"
+  ) {
+    tags = [`tenant:${tenantId}:listing`]
+  } else {
+    return null
+  }
+
+  if (
+    tags.some(
+      (tag) =>
+        tag.length > 1024 ||
+        !/^tenant:[A-Za-z0-9_-]+:(?:(?:product|collection|category):(?:[A-Za-z0-9_-]|%[0-9A-F]{2})+|listing)$/.test(
+          tag
+        )
+    )
+  ) {
+    return null
+  }
+
+  const headers = new Headers()
+  headers.set("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400")
+  headers.set("Cache-Tag", tags.join(","))
+  headers.set("Surrogate-Key", tags.join(" "))
+  headers.set("Vary", "Accept-Encoding")
+  return headers
+}
+
+export function countryCodeFromHeaders(headers: Headers): string | undefined {
+  return headers.get("x-country-code")?.toLowerCase()
+}
+
+function continueRequest(request: NextRequest, tenantId: string) {
+  const response = NextResponse.next()
+  const cacheHeaders = cacheHeadersForPage(
+    request.nextUrl.pathname,
+    tenantId,
+    request.headers.has("cookie") || request.headers.has("authorization")
+  )
+  cacheHeaders?.forEach((value, key) => response.headers.set(key, value))
+  return response
 }
 
 /**
@@ -97,16 +230,14 @@ async function getCountryCode(
   try {
     let countryCode
 
-    const vercelCountryCode = request.headers
-      .get("x-vercel-ip-country")
-      ?.toLowerCase()
+    const edgeCountryCode = countryCodeFromHeaders(request.headers)
 
     const urlCountryCode = request.nextUrl.pathname.split("/")[1]?.toLowerCase()
 
     if (urlCountryCode && regionMap.has(urlCountryCode)) {
       countryCode = urlCountryCode
-    } else if (vercelCountryCode && regionMap.has(vercelCountryCode)) {
-      countryCode = vercelCountryCode
+    } else if (edgeCountryCode && regionMap.has(edgeCountryCode)) {
+      countryCode = edgeCountryCode
     } else if (regionMap.has(DEFAULT_REGION)) {
       countryCode = DEFAULT_REGION
     } else if (regionMap.keys().next().value) {
@@ -136,9 +267,7 @@ export async function middleware(request: NextRequest) {
   // same reason tenant_layer.rs strips it: shop.example.com and shop.example.com:8443 are
   // one merchant. Falls back to a constant only so a request with no Host still resolves —
   // that path is single-tenant by definition, since there is nothing to tell tenants apart.
-  const host = normalizeHost(request.headers.get("host"), "__no_host")
-
-  const regionMap = await getRegionMap(host)
+  const { regions: regionMap, tenantId } = await getRegionMap(request)
 
   const countryCode = regionMap && (await getCountryCode(request, regionMap))
 
@@ -147,7 +276,7 @@ export async function middleware(request: NextRequest) {
 
   // If one of the country codes is already in the url, pass through immediately with zero cookie writes (ADR-024)
   if (urlHasCountryCode) {
-    return NextResponse.next()
+    return continueRequest(request, tenantId)
   }
 
   const redirectPath =
@@ -167,7 +296,7 @@ export async function middleware(request: NextRequest) {
     )
   }
 
-  return NextResponse.next()
+  return continueRequest(request, tenantId)
 }
 
 export const config = {

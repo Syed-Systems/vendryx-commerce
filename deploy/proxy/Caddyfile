@@ -1,0 +1,52 @@
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	@from_cloud_country header CF-IPCountry *
+	@without_cloud_country not header CF-IPCountry *
+	@admin_host host *.{$STHENO_ADMIN_DOMAIN_SUFFIX}
+	@admin_api path /admin /admin/* /auth/user /auth/user/* /auth/session /auth/mfa /auth/mfa/* /auth/token/refresh /store /store/*
+	@store_api path /store /store/* /auth/customer /auth/customer/* /auth/token/refresh /hooks/* /webhooks/meta/*
+
+	route {
+		request_header -X-Forwarded-Host
+		request_header -x-stheno-tenant-host
+		request_header @from_cloud_country x-country-code {http.request.header.CF-IPCountry}
+		request_header @without_cloud_country -x-country-code
+		request_header -CF-IPCountry
+
+		handle @admin_host {
+			header Content-Security-Policy "script-src 'self'; frame-ancestors 'none'"
+			handle @admin_api {
+				reverse_proxy {$STHENO_ENGINE_UPSTREAM} {
+					header_up Host {http.request.hostport}
+					header_up -X-Forwarded-Host
+					header_up -x-stheno-tenant-host
+				}
+			}
+			reverse_proxy {$STHENO_ADMIN_UPSTREAM} {
+				header_up Host {http.request.hostport}
+				header_up -X-Forwarded-Host
+				header_up -x-stheno-tenant-host
+			}
+		}
+
+		handle @store_api {
+			reverse_proxy {$STHENO_ENGINE_UPSTREAM} {
+				header_up Host {http.request.hostport}
+				header_up -X-Forwarded-Host
+				header_up -x-stheno-tenant-host
+			}
+		}
+
+		handle {
+			reverse_proxy {$STHENO_STOREFRONT_UPSTREAM} {
+				header_up Host {http.request.hostport}
+				header_up -X-Forwarded-Host
+				header_up -x-stheno-tenant-host
+			}
+		}
+	}
+}

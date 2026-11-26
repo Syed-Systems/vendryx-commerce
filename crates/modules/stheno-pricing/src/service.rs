@@ -656,7 +656,7 @@ impl PricingService {
             .cloned()
             .ok_or_else(|| Error::NotFound {
                 entity: "price",
-                id: format!("No price found for price_set_id {}", price_set_id),
+                id: format!("No price found for price_set_id {price_set_id}"),
             })
     }
 
@@ -852,8 +852,8 @@ impl PricingService {
                 let tax_inclusive = context
                     .region_id
                     .as_ref()
-                    .and_then(|r| prefs.get(&format!("region_id::{}", r)))
-                    .or_else(|| prefs.get(&format!("currency_code::{}", curr_lower)))
+                    .and_then(|r| prefs.get(&format!("region_id::{r}")))
+                    .or_else(|| prefs.get(&format!("currency_code::{curr_lower}")))
                     .map(|pref| pref.is_tax_inclusive)
                     .unwrap_or(false);
 

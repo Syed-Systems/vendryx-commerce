@@ -23,9 +23,9 @@ See [docs/BRAND.md](BRAND.md) for the complete design system specification and d
 The Vendryx UI color system is vibrant but flat, grounded by deep, trustworthy navys.
 
 ### Primary UI Colors (Solid Colors Only)
-- **Vendryx Indigo:** `#4F46E5` (Primary Brand Color for Buttons, active states, and highlights)
-- **Vendryx Violet:** `#5B21B6` (Hover states or deep accents)
-- **Vendryx Bright Blue:** `#3B82F6` (Success/Information subtle accents)
+- **Vendryx Orange:** `#FF7A00` (Brand accent, the mark, and highlights; pair with charcoal text)
+- **Orange Action:** `#C2410C` (Buttons with white text and active states)
+- **Orange Hover:** `#9A3412` (Hover and pressed states)
 
 ### Neutral & Background Colors
 - **Corporate Navy (Text & Dark Mode UI):** `#0F172A` (Rich, deep blue-black. Never use pure `#000000`)
@@ -45,9 +45,9 @@ These values must be mapped to our CSS variables in the root style files (`index
 
 ```css
 :root {
-  --brand-vendryx-primary: #4F46E5;
-  --brand-vendryx-violet: #5B21B6;
-  --brand-vendryx-bright: #3B82F6;
+  --brand-vendryx-primary: #FF7A00;
+  --brand-vendryx-action: #C2410C;
+  --brand-vendryx-hover: #9A3412;
   --brand-corporate-navy: #0F172A;
 
   --brand-font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;

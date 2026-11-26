@@ -72,7 +72,7 @@ pub async fn get_customer(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Customer with id {} was not found", id),
+                &format!("Customer with id {id} was not found"),
             )),
         )
             .into_response()),

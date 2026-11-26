@@ -19,7 +19,7 @@ async fn test_quota_step_atomic_enforcement() {
     // 1. Consume 3 units
     for i in 1..=3 {
         let res = saga
-            .execute(&format!("tx_{}", i), "check-quota", json!({ "count": 1 }))
+            .execute(&format!("tx_{i}"), "check-quota", json!({ "count": 1 }))
             .await;
         assert!(res.is_ok());
     }
@@ -31,7 +31,7 @@ async fn test_quota_step_atomic_enforcement() {
     // 2. Consume 2 more units (total 5 = limit)
     for i in 4..=5 {
         let res = saga
-            .execute(&format!("tx_{}", i), "check-quota", json!({ "count": 1 }))
+            .execute(&format!("tx_{i}"), "check-quota", json!({ "count": 1 }))
             .await;
         assert!(res.is_ok());
     }

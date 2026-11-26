@@ -1,5 +1,15 @@
 //! `stheno-query`: Cross-module graph read planner and batched level executor (Remote Join Engine with zero N+1 queries).
 
+mod consented_whatsapp;
+mod tenant_store_intelligence;
+
+pub use consented_whatsapp::{query_consented_whatsapp_aggregate, ConsentedWhatsAppAggregate};
+pub use tenant_store_intelligence::{
+    query_tenant_store_intelligence_export, RecommendationReviewAuditExport,
+    RecommendationReviewExport, SourceConnectionAuditExport, SourceConnectionExport,
+    SourceObservationExport, TenantStoreIntelligenceExport, WhatsAppAnalyticsConsentExport,
+};
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -34,8 +44,7 @@ impl FieldSelection {
                 return Err(Error::Invalid {
                     code: "query_depth_exceeded",
                     message: format!(
-                        "Query depth exceeded maximum allowed depth of {}",
-                        DEFAULT_MAX_DEPTH
+                        "Query depth exceeded maximum allowed depth of {DEFAULT_MAX_DEPTH}"
                     ),
                     field: Some(field_expr.to_string()),
                 });
@@ -122,7 +131,7 @@ impl QueryPlanner {
 
         let mut children = Vec::new();
         for (rel_name, rel_sel) in &selection.relations {
-            children.push(self.plan_child(rel_name, rel_sel)?);
+            children.push(Self::plan_child(rel_name, rel_sel)?);
         }
 
         Ok(FetchNode {
@@ -133,10 +142,10 @@ impl QueryPlanner {
         })
     }
 
-    fn plan_child(&self, rel_name: &str, selection: &FieldSelection) -> Result<FetchNode> {
+    fn plan_child(rel_name: &str, selection: &FieldSelection) -> Result<FetchNode> {
         let mut children = Vec::new();
         for (sub_rel, sub_sel) in &selection.relations {
-            children.push(self.plan_child(sub_rel, sub_sel)?);
+            children.push(Self::plan_child(sub_rel, sub_sel)?);
         }
 
         Ok(FetchNode {

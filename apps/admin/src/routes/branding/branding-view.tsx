@@ -13,8 +13,9 @@ import {
 import { Button, Container, Heading, Input, Select, Text, toast } from "@medusajs/ui"
 import React, { useEffect, useRef, useState } from "react"
 import { SingleColumnPage } from "../../components/layout/pages"
-import { useBranding, useUpsertBranding } from "../../hooks/api/branding"
+import { useBranding, useStorefrontAppearance, useUpsertBranding, useUpsertStorefrontAppearance, type StorefrontAppearance } from "../../hooks/api/branding"
 import { STHENO_STOREFRONT_URL } from "../../lib/storefront"
+import { extractLogoPalette, type LogoPaletteSuggestion } from "./logo-palette"
 
 export const CURATED_FONTS = [
   { key: "inter", label: "Inter (Clean Modern UI)", family: "'Inter', sans-serif" },
@@ -56,12 +57,22 @@ export const DEFAULT_BRANDING_VALUES: BrandingFormState = {
 
 export const BrandingView = () => {
   const { data: brandingData } = useBranding()
+  const { data: appearanceData } = useStorefrontAppearance()
   const { mutateAsync: upsertBranding, isPending: isSaving } = useUpsertBranding()
+  const { mutateAsync: upsertAppearance, isPending: isSavingAppearance } = useUpsertStorefrontAppearance()
 
   const [formState, setFormState] = useState<BrandingFormState>(DEFAULT_BRANDING_VALUES)
   const [previewMode, setPreviewMode] = useState<"storefront" | "component">("storefront")
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop")
   const [iframeKey, setIframeKey] = useState(0)
+  const [logoPalette, setLogoPalette] = useState<LogoPaletteSuggestion | null>(null)
+  const [appearance, setAppearance] = useState<StorefrontAppearance>({
+    storefront_archetype: "baseline" as const,
+    product_card_style: "standard" as const,
+    product_image_aspect: "portrait" as const,
+  })
+  const [isAnalyzingLogo, setIsAnalyzingLogo] = useState(false)
+  const logoAnalysisId = useRef(0)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const faviconInputRef = useRef<HTMLInputElement>(null)
@@ -84,6 +95,10 @@ export const BrandingView = () => {
     }
   }, [brandingData])
 
+  useEffect(() => {
+    if (appearanceData) setAppearance(appearanceData)
+  }, [appearanceData])
+
   const selectedFont = CURATED_FONTS.find((f) => f.key === formState.font_key) || CURATED_FONTS[0]
 
   // Broadcast live branding tokens to embedded storefront iframe in real-time
@@ -105,28 +120,69 @@ export const BrandingView = () => {
         store_name: formState.store_name,
         logo_url: formState.logo_url,
         favicon_url: formState.favicon_url,
+        appearance,
       },
       "*"
     )
-  }, [formState, selectedFont, iframeKey])
+  }, [formState, selectedFont, iframeKey, appearance])
 
   const handleFieldChange = (field: keyof BrandingFormState, value: string) => {
+    if (field === "logo_url") {
+      logoAnalysisId.current += 1
+      setLogoPalette(null)
+      setIsAnalyzingLogo(false)
+    }
     setFormState((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleAnalyzeLogo = async () => {
+    const analysisId = ++logoAnalysisId.current
+    setIsAnalyzingLogo(true)
+    setLogoPalette(null)
+    const palette = await extractLogoPalette(formState.logo_url)
+    if (analysisId !== logoAnalysisId.current) return
+    setIsAnalyzingLogo(false)
+    if (!palette) {
+      toast.error("Could not extract colors", { description: "Use a same-origin PNG, JPEG, or WebP logo under 5MB. SVG and remote logos are not analyzed." })
+      return
+    }
+    setLogoPalette(palette)
+  }
+
+  const handleApplyLogoPalette = () => {
+    if (!logoPalette) return
+    setFormState((previous) => ({
+      ...previous,
+      color_primary: logoPalette.primary,
+      color_secondary: logoPalette.secondary,
+      color_accent: logoPalette.accent,
+    }))
+    toast.success("Palette applied to the live preview", { description: "Review the preview and save your branding changes to publish them." })
   }
 
   const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!["image/png", "image/jpeg", "image/webp", "image/svg+xml"].includes(file.type)) {
+      toast.error("Unsupported logo file", { description: "Choose a PNG, JPEG, WebP, or SVG image." })
+      e.target.value = ""
+      return
+    }
     if (file.size > 5 * 1024 * 1024) {
       toast.error("Logo file exceeds 5MB limit")
+      e.target.value = ""
       return
     }
     const reader = new FileReader()
     reader.onload = () => {
       const dataUrl = reader.result as string
+      logoAnalysisId.current += 1
+      setLogoPalette(null)
+      setIsAnalyzingLogo(false)
       setFormState((prev) => ({ ...prev, logo_url: dataUrl }))
       toast.success("Logo uploaded to preview")
     }
+    reader.onerror = () => toast.error("Logo file could not be read")
     reader.readAsDataURL(file)
   }
 
@@ -161,6 +217,7 @@ export const BrandingView = () => {
         color_surface: formState.color_surface,
         color_text: formState.color_text,
       })
+      await upsertAppearance(appearance)
       toast.success("Branding updated successfully")
       setIframeKey((k) => k + 1)
     } catch (err: any) {
@@ -169,7 +226,11 @@ export const BrandingView = () => {
   }
 
   const handleReset = () => {
+    logoAnalysisId.current += 1
+    setLogoPalette(null)
+    setIsAnalyzingLogo(false)
     setFormState({ ...DEFAULT_BRANDING_VALUES })
+    setAppearance({ storefront_archetype: "baseline", product_card_style: "standard", product_image_aspect: "portrait" })
   }
 
   return (
@@ -184,10 +245,10 @@ export const BrandingView = () => {
             </Text>
           </div>
           <div className="flex items-center gap-x-2">
-            <Button variant="secondary" size="small" onClick={handleReset} disabled={isSaving}>
+            <Button variant="secondary" size="small" onClick={handleReset} disabled={isSaving || isSavingAppearance}>
               Reset Defaults
             </Button>
-            <Button variant="primary" size="small" onClick={handleSave} isLoading={isSaving}>
+            <Button variant="primary" size="small" onClick={handleSave} isLoading={isSaving || isSavingAppearance}>
               Save Changes
             </Button>
           </div>
@@ -198,6 +259,40 @@ export const BrandingView = () => {
           {/* Settings Form Column */}
           <div className="lg:col-span-6 flex flex-col gap-y-6">
             {/* 1. Core Brand Identity */}
+            <Container>
+              <div className="flex flex-col gap-y-4">
+                <div>
+                  <Heading level="h2" className="text-base font-semibold">Storefront Composition</Heading>
+                  <Text className="text-xs text-ui-fg-muted mt-1">Choosing an archetype sets matching card and image defaults. You can adjust either below; changes apply only after you save.</Text>
+                </div>
+                <label className="text-sm font-medium">Category archetype
+                  <Select value={appearance.storefront_archetype} onValueChange={(value) => setAppearance(value === "editorial"
+                    ? { storefront_archetype: "editorial", product_card_style: "editorial", product_image_aspect: "portrait" }
+                    : value === "dense_catalog"
+                      ? { storefront_archetype: "dense_catalog", product_card_style: "dense", product_image_aspect: "square" }
+                      : { storefront_archetype: "baseline", product_card_style: "standard", product_image_aspect: "portrait" })}>
+                    <Select.Trigger aria-label="Category archetype"><Select.Value /></Select.Trigger><Select.Content>
+                      <Select.Item value="baseline">Baseline</Select.Item><Select.Item value="editorial">Editorial</Select.Item><Select.Item value="dense_catalog">Dense catalog</Select.Item>
+                    </Select.Content>
+                  </Select>
+                </label>
+                <label className="text-sm font-medium">Product card style
+                  <Select value={appearance.product_card_style} onValueChange={(value) => setAppearance((p) => ({ ...p, product_card_style: value as typeof p.product_card_style }))}>
+                    <Select.Trigger aria-label="Product card style"><Select.Value /></Select.Trigger><Select.Content>
+                      <Select.Item value="standard">Standard</Select.Item><Select.Item value="editorial">Editorial</Select.Item><Select.Item value="dense">Dense</Select.Item>
+                    </Select.Content>
+                  </Select>
+                </label>
+                <label className="text-sm font-medium">Product image aspect
+                  <Select value={appearance.product_image_aspect} onValueChange={(value) => setAppearance((p) => ({ ...p, product_image_aspect: value as typeof p.product_image_aspect }))}>
+                    <Select.Trigger aria-label="Product image aspect"><Select.Value /></Select.Trigger><Select.Content>
+                      <Select.Item value="square">Square</Select.Item><Select.Item value="portrait">Portrait</Select.Item><Select.Item value="landscape">Landscape</Select.Item>
+                    </Select.Content>
+                  </Select>
+                </label>
+              </div>
+            </Container>
+
             <Container>
               <div className="flex flex-col gap-y-4">
                 <Heading level="h2" className="text-base font-semibold">
@@ -287,7 +382,7 @@ export const BrandingView = () => {
                     {formState.logo_url && (
                       <button
                         type="button"
-                        onClick={() => setFormState((p) => ({ ...p, logo_url: "" }))}
+                        onClick={() => handleFieldChange("logo_url", "")}
                         className="text-[11px] text-rose-600 hover:underline flex items-center gap-1"
                       >
                         <Trash className="w-3 h-3" />
@@ -358,6 +453,17 @@ export const BrandingView = () => {
                       placeholder="https://cdn.example.com/logo.svg"
                       className="text-xs font-mono h-7"
                     />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="secondary" size="small" onClick={handleAnalyzeLogo} isLoading={isAnalyzingLogo} disabled={!formState.logo_url}>
+                      Suggest logo colors
+                    </Button>
+                    {logoPalette && <>
+                      {[logoPalette.primary, logoPalette.secondary, logoPalette.accent].map((color, index) => (
+                        <span key={`${color}-${index}`} title={color} aria-label={`Suggested color ${index + 1}: ${color}`} className="h-6 w-6 rounded-full border border-ui-border-base" style={{ backgroundColor: color }} />
+                      ))}
+                      <Button type="button" variant="secondary" size="small" onClick={handleApplyLogoPalette}>Use suggested colors</Button>
+                    </>}
                   </div>
                 </div>
 

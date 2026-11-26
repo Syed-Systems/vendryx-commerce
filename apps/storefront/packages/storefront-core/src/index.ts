@@ -24,7 +24,7 @@ export { default as repeat } from "./lib/util/repeat"
 export { REF_PARAM_KEY } from "./lib/attribution"
 // A type is erased at build time, so exposing one is not a read path.
 export type { Locale } from "./lib/data/locales"
-export { isStripeLike, paymentInfoMap } from "./lib/constants"
+export { isManual, isStripeLike, paymentInfoMap } from "./lib/constants"
 
 // Branding & runtime tokens (P26-05)
 export {
@@ -54,6 +54,7 @@ export {
   addCustomerAddress,
   deleteCustomerAddress,
   login,
+  revokeCustomerWhatsAppConsent,
   signout,
   signup,
   transferCart,
@@ -64,6 +65,9 @@ export {
   acceptTransferRequest,
   createTransferRequest,
   declineTransferRequest,
+  retrieveOrderPaymentProof,
+  submitManualOrderPaymentProof,
 } from "./lib/data/orders"
+export type { OrderPaymentProof } from "./lib/data/orders"
 export { updateLocale } from "./lib/data/locale-actions"
 export { resetOnboardingState } from "./lib/data/onboarding"

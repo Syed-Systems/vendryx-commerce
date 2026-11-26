@@ -5,6 +5,7 @@ import ProfileBillingAddress from "@frontend/account/components/profile-billing-
 import ProfileEmail from "@frontend/account/components/profile-email"
 import ProfileName from "@frontend/account/components/profile-name"
 import ProfilePassword from "@frontend/account/components/profile-password"
+import WhatsAppNotifications from "@frontend/account/components/whatsapp-notifications"
 
 import { notFound } from "next/navigation"
 import { listRegions } from "@lib/data/regions"
@@ -39,6 +40,8 @@ export default async function Profile() {
         <ProfileEmail customer={customer} />
         <Divider />
         <ProfilePhone customer={customer} />
+        <Divider />
+        <WhatsAppNotifications />
         <Divider />
         {/* <ProfilePassword customer={customer} />
         <Divider /> */}

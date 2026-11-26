@@ -10,6 +10,7 @@ authors.workspace = true
 stheno-types = { workspace = true }
 stheno-db = { workspace = true }
 stheno-events = { workspace = true }
+diesel = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }

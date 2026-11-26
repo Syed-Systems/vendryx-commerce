@@ -28,7 +28,7 @@ async fn test_reporting_window_horizon_gate() {
         stheno_types::Error::Invalid { code, .. } => {
             assert_eq!(code, "reporting_window_exceeded");
         }
-        other => panic!("Expected Error::Invalid, got {:?}", other),
+        other => panic!("Expected Error::Invalid, got {other:?}"),
     }
 
     db.drop().await;

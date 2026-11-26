@@ -79,7 +79,7 @@ async fn test_ledger_concurrency_100_parallel_partial_captures() {
             }) => {
                 rejected_captures += 1;
             }
-            Err(e) => panic!("unexpected error during concurrency test: {:?}", e),
+            Err(e) => panic!("unexpected error during concurrency test: {e:?}"),
         }
     }
 

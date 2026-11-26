@@ -2,13 +2,16 @@
 #![allow(dead_code)]
 
 use chrono::Utc;
-use diesel::sql_types::BigInt;
 use diesel::QueryableByName;
+use diesel::result::OptionalExtension;
+use diesel::sql_types::{BigInt, Nullable, Text, Timestamptz};
 use diesel_async::RunQueryDsl;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
-use stheno_db::{tenant, CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
+use stheno_db::{
+    CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository, tenant,
+};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
@@ -17,6 +20,181 @@ use crate::dto::*;
 struct DisplayIdRow {
     #[diesel(sql_type = BigInt)]
     display_id: i64,
+}
+
+#[derive(QueryableByName)]
+struct SocialDraftIdRow {
+    #[diesel(sql_type = Text)]
+    id: String,
+}
+
+#[derive(QueryableByName)]
+struct SocialDraftCountRow {
+    #[diesel(sql_type = BigInt)]
+    count: i64,
+}
+
+#[derive(QueryableByName)]
+struct StoreOrderSignalRow {
+    #[diesel(sql_type = Text)]
+    product_id: String,
+    #[diesel(sql_type = Text)]
+    product_name: String,
+    #[diesel(sql_type = Nullable<Text>)]
+    category: Option<String>,
+    #[diesel(sql_type = BigInt)]
+    current_units: i64,
+    #[diesel(sql_type = BigInt)]
+    comparison_units: i64,
+    #[diesel(sql_type = BigInt)]
+    current_orders: i64,
+    #[diesel(sql_type = BigInt)]
+    comparison_orders: i64,
+}
+
+#[derive(QueryableByName)]
+struct StoreCategoryOrderSignalRow {
+    #[diesel(sql_type = Text)]
+    category: String,
+    #[diesel(sql_type = BigInt)]
+    current_units: i64,
+    #[diesel(sql_type = BigInt)]
+    comparison_units: i64,
+    #[diesel(sql_type = BigInt)]
+    current_orders: i64,
+    #[diesel(sql_type = BigInt)]
+    comparison_orders: i64,
+}
+
+fn validate_store_intelligence_window(
+    current_start: chrono::DateTime<Utc>,
+    comparison_start: chrono::DateTime<Utc>,
+    as_of: chrono::DateTime<Utc>,
+) -> Result<()> {
+    let seven_days = chrono::Duration::days(7);
+    if current_start >= as_of
+        || comparison_start >= current_start
+        || current_start.signed_duration_since(comparison_start) != seven_days
+        || as_of.signed_duration_since(current_start) > seven_days
+    {
+        return Err(Error::Invalid {
+            code: "store_intelligence_window_invalid",
+            message: "Store intelligence requires adjacent, bounded seven-day windows.".to_string(),
+            field: Some("window".to_string()),
+        });
+    }
+    Ok(())
+}
+
+#[derive(QueryableByName)]
+struct PaymentProofOrderRow {
+    #[diesel(sql_type = Text)]
+    tenant_id: String,
+    #[diesel(sql_type = Nullable<Text>)]
+    customer_id: Option<String>,
+    #[diesel(sql_type = Text)]
+    status: String,
+    #[diesel(sql_type = Text)]
+    payment_status: String,
+}
+
+#[derive(QueryableByName)]
+struct PaymentProofRow {
+    #[diesel(sql_type = Text)]
+    id: String,
+    #[diesel(sql_type = Text)]
+    order_id: String,
+    #[diesel(sql_type = Text)]
+    payment_method: String,
+    #[diesel(sql_type = Text)]
+    transaction_id: String,
+    #[diesel(sql_type = Nullable<Text>)]
+    proof_asset_url: Option<String>,
+    #[diesel(sql_type = Text)]
+    status: String,
+    #[diesel(sql_type = diesel::sql_types::Timestamptz)]
+    submitted_at: chrono::DateTime<Utc>,
+}
+
+#[derive(QueryableByName)]
+struct PaymentProofReviewRow {
+    #[diesel(sql_type = Text)]
+    id: String,
+    #[diesel(sql_type = Text)]
+    order_id: String,
+    #[diesel(sql_type = Text)]
+    payment_method: String,
+    #[diesel(sql_type = Text)]
+    transaction_id: String,
+    #[diesel(sql_type = Nullable<Text>)]
+    proof_asset_url: Option<String>,
+    #[diesel(sql_type = Text)]
+    status: String,
+    #[diesel(sql_type = diesel::sql_types::Timestamptz)]
+    submitted_at: chrono::DateTime<Utc>,
+    #[diesel(sql_type = Text)]
+    payment_status: String,
+}
+
+fn aggregate_return_receive_inputs(
+    items: Vec<ReceiveReturnItemsInput>,
+    return_item_quantities: &std::collections::HashMap<String, i32>,
+) -> Result<std::collections::HashMap<String, (i32, i32)>> {
+    let mut requested = std::collections::HashMap::<String, (i32, i32)>::new();
+    for input in items {
+        let damaged = input.damaged_quantity.unwrap_or(0);
+        if input.received_quantity < 0 || damaged < 0 || damaged > input.received_quantity {
+            return Err(Error::Invalid {
+                code: "invalid_return_receive_quantity",
+                message: "Received and damaged quantities must be non-negative, and damaged quantity cannot exceed received quantity".to_string(),
+                field: Some("items".to_string()),
+            });
+        }
+        if !return_item_quantities.contains_key(&input.item_id) {
+            return Err(Error::Invalid {
+                code: "return_item_not_found",
+                message: format!("Item {} is not part of this return", input.item_id),
+                field: Some("items".to_string()),
+            });
+        }
+        let totals = requested.entry(input.item_id).or_insert((0, 0));
+        totals.0 = totals
+            .0
+            .checked_add(input.received_quantity)
+            .ok_or_else(|| Error::Invalid {
+                code: "invalid_return_receive_quantity",
+                message: "Received quantity is too large".to_string(),
+                field: Some("items".to_string()),
+            })?;
+        totals.1 = totals
+            .1
+            .checked_add(damaged)
+            .ok_or_else(|| Error::Invalid {
+                code: "invalid_return_receive_quantity",
+                message: "Damaged quantity is too large".to_string(),
+                field: Some("items".to_string()),
+            })?;
+    }
+    for (item_id, (received, damaged)) in &requested {
+        if received > &return_item_quantities[item_id] {
+            return Err(Error::Invalid {
+                code: "return_receive_exceeds_requested",
+                message: format!(
+                    "Received quantity cannot exceed the {} units requested",
+                    return_item_quantities[item_id]
+                ),
+                field: Some("items".to_string()),
+            });
+        }
+        if damaged > received {
+            return Err(Error::Invalid {
+                code: "invalid_return_receive_quantity",
+                message: "Damaged quantity cannot exceed total received quantity".to_string(),
+                field: Some("items".to_string()),
+            });
+        }
+    }
+    Ok(requested)
 }
 
 use crate::models::{
@@ -162,7 +340,18 @@ impl OrderService {
         };
 
         let order_id_str = order.id.to_string();
-        self.orders.create(None, order).await?;
+        self.orders
+            .create(None, order)
+            .await
+            .map_err(|error| match error {
+                Error::Database(message) if message.contains("idx_order_social_ref_uq") => {
+                    Error::Conflict {
+                        code: "duplicate_social_ref",
+                        message: "The social order reference is already in use.".to_string(),
+                    }
+                }
+                other => other,
+            })?;
 
         // Add line items and initial order_item snapshot at version 1
         if let Some(items) = input.items {
@@ -189,6 +378,439 @@ impl OrderService {
     pub async fn get_order(&self, order_id: &str) -> Result<OrderDTO> {
         let order = self.orders.retrieve(None, order_id).await?;
         self.assemble_order_dto(&order, order.version).await
+    }
+
+    /// Records a shopper's manual-payment reference without marking the order paid.
+    pub async fn submit_manual_payment_proof(
+        &self,
+        input: SubmitOrderPaymentProofInput,
+    ) -> Result<OrderPaymentProofDTO> {
+        let payment_method = input.payment_method.trim().to_ascii_lowercase();
+        if !matches!(
+            payment_method.as_str(),
+            "bkash" | "nagad" | "rocket" | "bank_transfer"
+        ) {
+            return Err(Error::Invalid {
+                code: "invalid_payment_method",
+                message: "Payment method must be bKash, Nagad, Rocket, or bank transfer."
+                    .to_string(),
+                field: Some("payment_method".to_string()),
+            });
+        }
+
+        let transaction_id = input.transaction_id.trim().to_string();
+        if transaction_id.is_empty()
+            || transaction_id.chars().count() > 128
+            || transaction_id.chars().any(char::is_control)
+        {
+            return Err(Error::Invalid {
+                code: "invalid_transaction_id",
+                message: "Transaction ID must contain 1 to 128 visible characters.".to_string(),
+                field: Some("transaction_id".to_string()),
+            });
+        }
+
+        let proof_asset_url = input
+            .proof_asset_url
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        if proof_asset_url.as_ref().is_some_and(|value| {
+            value.chars().count() > 2048 || value.chars().any(char::is_control)
+        }) {
+            return Err(Error::Invalid {
+                code: "invalid_payment_proof_asset",
+                message: "Payment proof reference must contain at most 2048 visible characters."
+                    .to_string(),
+                field: Some("proof_asset_url".to_string()),
+            });
+        }
+
+        let input_order_id = input.order_id;
+        let customer_id = input.customer_id;
+        let proof_id = format!("oprf_{}", ulid::Ulid::new());
+        let now = Utc::now();
+        let result = tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                stheno_db::transaction::with_transaction(conn, move |conn| {
+                    Box::pin(async move {
+                    let order = diesel::sql_query(
+                        "SELECT tenant_id, customer_id, status, payment_status \
+                         FROM \"order\".\"order\" \
+                         WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+                    )
+                    .bind::<Text, _>(&input_order_id)
+                    .get_result::<PaymentProofOrderRow>(conn)
+                    .await
+                    .optional()
+                    .map_err(|error| Error::Database(error.to_string()))?
+                    .ok_or_else(|| Error::NotFound {
+                        entity: "order",
+                        id: input_order_id.clone(),
+                    })?;
+
+                    if order.customer_id.as_deref() != Some(customer_id.as_str()) {
+                        return Err(Error::NotFound {
+                            entity: "order",
+                            id: input_order_id,
+                        });
+                    }
+                    if order.status == "canceled"
+                        || order.status == "archived"
+                        || order.status == "draft"
+                    {
+                        return Err(Error::Conflict {
+                            code: "order_not_payable",
+                            message: "A canceled, archived, or draft order cannot accept payment proof."
+                                .to_string(),
+                        });
+                    }
+                    if !matches!(order.payment_status.as_str(), "not_paid" | "awaiting") {
+                        return Err(Error::Conflict {
+                            code: "order_payment_not_verifiable",
+                            message: "Payment proof cannot be submitted for an order that is already paid or in another payment state.".to_string(),
+                        });
+                    }
+
+                    diesel::sql_query(
+                        "UPDATE \"order\".\"order\" \
+                         SET payment_status = 'awaiting', updated_at = $2 \
+                         WHERE id = $1 AND payment_status IN ('not_paid', 'awaiting')",
+                    )
+                    .bind::<Text, _>(&input_order_id)
+                    .bind::<diesel::sql_types::Timestamptz, _>(now)
+                    .execute(conn)
+                    .await
+                    .map_err(|error| Error::Database(error.to_string()))?;
+
+                    let inserted = diesel::sql_query(
+                        "INSERT INTO \"order\".payment_proof \
+                         (id, tenant_id, order_id, payment_method, transaction_id, \
+                          proof_asset_url, status, submitted_at, created_at, updated_at) \
+                         VALUES ($1, $2, $3, $4, $5, $6, 'pending_verification', $7, $7, $7) \
+                         ON CONFLICT (tenant_id, order_id) \
+                           WHERE status = 'pending_verification' DO NOTHING",
+                    )
+                    .bind::<Text, _>(&proof_id)
+                    .bind::<Text, _>(&order.tenant_id)
+                    .bind::<Text, _>(&input_order_id)
+                    .bind::<Text, _>(&payment_method)
+                    .bind::<Text, _>(&transaction_id)
+                    .bind::<Nullable<Text>, _>(proof_asset_url.as_deref())
+                    .bind::<diesel::sql_types::Timestamptz, _>(now)
+                    .execute(conn)
+                    .await
+                    .map_err(|error| Error::Database(error.to_string()))?;
+                    if inserted == 0 {
+                        return Err(Error::Conflict {
+                            code: "payment_proof_already_pending",
+                            message: "A payment reference for this order is already under review."
+                                .to_string(),
+                        });
+                    }
+
+                    Ok(OrderPaymentProofDTO {
+                        id: proof_id,
+                        order_id: input_order_id,
+                        payment_method,
+                        transaction_id,
+                        proof_asset_url,
+                        status: "pending_verification".to_string(),
+                        submitted_at: now,
+                    })
+                    })
+                })
+                .await
+            })
+        })
+        .await?;
+        Ok(result)
+    }
+
+    /// Reads the latest payment proof only for the shopper who owns the order.
+    pub async fn get_manual_payment_proof(
+        &self,
+        order_id: &str,
+        customer_id: &str,
+    ) -> Result<Option<OrderPaymentProofDTO>> {
+        let order = self.orders.retrieve(None, order_id).await?;
+        if order.customer_id.as_deref() != Some(customer_id) {
+            return Err(Error::NotFound {
+                entity: "order",
+                id: order_id.to_string(),
+            });
+        }
+
+        let order_id = order_id.to_string();
+        let row = tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                diesel::sql_query(
+                    "SELECT id, order_id, payment_method, transaction_id, proof_asset_url, \
+                            status, submitted_at \
+                     FROM \"order\".payment_proof \
+                     WHERE order_id = $1 ORDER BY submitted_at DESC LIMIT 1",
+                )
+                .bind::<Text, _>(order_id)
+                .get_result::<PaymentProofRow>(conn)
+                .await
+                .optional()
+                .map_err(|error| Error::Database(error.to_string()))
+            })
+        })
+        .await?;
+
+        Ok(row.map(|proof| OrderPaymentProofDTO {
+            id: proof.id,
+            order_id: proof.order_id,
+            payment_method: proof.payment_method,
+            transaction_id: proof.transaction_id,
+            proof_asset_url: proof.proof_asset_url,
+            status: proof.status,
+            submitted_at: proof.submitted_at,
+        }))
+    }
+
+    /// Returns the latest payment reference for a tenant-scoped merchant order view.
+    pub async fn get_manual_payment_proof_for_order(
+        &self,
+        order_id: &str,
+    ) -> Result<Option<OrderPaymentProofDTO>> {
+        self.orders.retrieve(None, order_id).await?;
+        let order_id = order_id.to_string();
+        let row = tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                diesel::sql_query(
+                    "SELECT id, order_id, payment_method, transaction_id, proof_asset_url, \
+                            status, submitted_at \
+                     FROM \"order\".payment_proof \
+                     WHERE order_id = $1 ORDER BY submitted_at DESC LIMIT 1",
+                )
+                .bind::<Text, _>(order_id)
+                .get_result::<PaymentProofRow>(conn)
+                .await
+                .optional()
+                .map_err(|error| Error::Database(error.to_string()))
+            })
+        })
+        .await?;
+        Ok(row.map(|proof| OrderPaymentProofDTO {
+            id: proof.id,
+            order_id: proof.order_id,
+            payment_method: proof.payment_method,
+            transaction_id: proof.transaction_id,
+            proof_asset_url: proof.proof_asset_url,
+            status: proof.status,
+            submitted_at: proof.submitted_at,
+        }))
+    }
+
+    /// Lets an authenticated merchant resolve a pending shopper payment reference.
+    pub async fn review_manual_payment_proof(
+        &self,
+        input: ReviewOrderPaymentProofInput,
+    ) -> Result<OrderPaymentProofDTO> {
+        if !matches!(input.decision.as_str(), "verified" | "rejected") {
+            return Err(Error::Invalid {
+                code: "invalid_payment_proof_decision",
+                message: "Decision must be verified or rejected.".to_string(),
+                field: Some("decision".to_string()),
+            });
+        }
+        let reviewer_id = input.reviewer_id.trim().to_string();
+        if reviewer_id.is_empty() || reviewer_id.chars().any(char::is_control) {
+            return Err(Error::Invalid {
+                code: "invalid_payment_proof_reviewer",
+                message: "A valid reviewer identity is required.".to_string(),
+                field: Some("reviewer_id".to_string()),
+            });
+        }
+        let note = input
+            .note
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        if note.as_ref().is_some_and(|value| {
+            value.chars().count() > 1000 || value.chars().any(char::is_control)
+        }) {
+            return Err(Error::Invalid {
+                code: "invalid_payment_proof_note",
+                message: "Review note must contain at most 1000 visible characters.".to_string(),
+                field: Some("note".to_string()),
+            });
+        }
+
+        let proof_id = input.proof_id;
+        let decision = input.decision;
+        let now = Utc::now();
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                stheno_db::transaction::with_transaction(conn, move |conn| {
+                    Box::pin(async move {
+                        let proof = diesel::sql_query(
+                            "SELECT p.id, p.order_id, p.payment_method, p.transaction_id, \
+                                    p.proof_asset_url, p.status, p.submitted_at, \
+                                    o.payment_status \
+                             FROM \"order\".payment_proof p \
+                             JOIN \"order\".\"order\" o ON o.id = p.order_id \
+                             WHERE p.id = $1 FOR UPDATE OF p, o",
+                        )
+                        .bind::<Text, _>(&proof_id)
+                        .get_result::<PaymentProofReviewRow>(conn)
+                        .await
+                        .optional()
+                        .map_err(|error| Error::Database(error.to_string()))?
+                        .ok_or_else(|| Error::NotFound {
+                            entity: "order_payment_proof",
+                            id: proof_id.clone(),
+                        })?;
+
+                        if proof.status == decision {
+                            return Ok(OrderPaymentProofDTO {
+                                id: proof.id,
+                                order_id: proof.order_id,
+                                payment_method: proof.payment_method,
+                                transaction_id: proof.transaction_id,
+                                proof_asset_url: proof.proof_asset_url,
+                                status: proof.status,
+                                submitted_at: proof.submitted_at,
+                            });
+                        }
+                        if proof.status != "pending_verification" {
+                            return Err(Error::Conflict {
+                                code: "payment_proof_already_reviewed",
+                                message: "This payment reference has already been resolved."
+                                    .to_string(),
+                            });
+                        }
+                        if !matches!(proof.payment_status.as_str(), "not_paid" | "awaiting") {
+                            return Err(Error::Conflict {
+                                code: "order_payment_not_verifiable",
+                                message: "The order payment state changed before review."
+                                    .to_string(),
+                            });
+                        }
+
+                        diesel::sql_query(
+                            "UPDATE \"order\".payment_proof \
+                             SET status = $2, reviewed_at = $3, reviewed_by = $4, \
+                                 review_note = $5, updated_at = $3 \
+                             WHERE id = $1 AND status = 'pending_verification'",
+                        )
+                        .bind::<Text, _>(&proof_id)
+                        .bind::<Text, _>(&decision)
+                        .bind::<diesel::sql_types::Timestamptz, _>(now)
+                        .bind::<Text, _>(&reviewer_id)
+                        .bind::<Nullable<Text>, _>(note.as_deref())
+                        .execute(conn)
+                        .await
+                        .map_err(|error| Error::Database(error.to_string()))?;
+
+                        let payment_status = if decision == "verified" {
+                            "captured"
+                        } else {
+                            "not_paid"
+                        };
+                        diesel::sql_query(
+                            "UPDATE \"order\".\"order\" \
+                             SET payment_status = $2, updated_at = $3 WHERE id = $1",
+                        )
+                        .bind::<Text, _>(&proof.order_id)
+                        .bind::<Text, _>(payment_status)
+                        .bind::<diesel::sql_types::Timestamptz, _>(now)
+                        .execute(conn)
+                        .await
+                        .map_err(|error| Error::Database(error.to_string()))?;
+
+                        Ok(OrderPaymentProofDTO {
+                            id: proof.id,
+                            order_id: proof.order_id,
+                            payment_method: proof.payment_method,
+                            transaction_id: proof.transaction_id,
+                            proof_asset_url: proof.proof_asset_url,
+                            status: decision,
+                            submitted_at: proof.submitted_at,
+                        })
+                    })
+                })
+                .await
+            })
+        })
+        .await
+    }
+
+    /// Finds the tenant-owned social draft created for a provider event idempotency key.
+    pub async fn find_social_draft_by_event(&self, event_id: &str) -> Result<Option<OrderDTO>> {
+        if event_id.trim().is_empty() || event_id.len() > 256 {
+            return Err(Error::Invalid {
+                code: "social_event_id_invalid",
+                message: "Social event id is invalid.".to_string(),
+                field: Some("event_id".to_string()),
+            });
+        }
+        let event_id = event_id.to_string();
+        let id = tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                diesel::sql_query(
+                    "SELECT id FROM \"order\".\"order\" \
+                     WHERE is_draft_order = true AND deleted_at IS NULL \
+                       AND metadata->>'source' = 'social' \
+                       AND metadata->>'source_event_id' = $1 LIMIT 1",
+                )
+                .bind::<Text, _>(event_id)
+                .get_result::<SocialDraftIdRow>(conn)
+                .await
+                .optional()
+                .map(|row| row.map(|row| row.id))
+                .map_err(|error| Error::Database(error.to_string()))
+            })
+        })
+        .await?;
+        match id {
+            Some(id) => self.get_order(&id).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// Lists only unconfirmed social drafts, with stable pagination and tenant RLS.
+    pub async fn list_social_drafts(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(Vec<OrderDTO>, usize)> {
+        let limit = i64::try_from(limit.clamp(1, 100)).unwrap_or(100);
+        let offset = i64::try_from(offset).unwrap_or(i64::MAX);
+        let (ids, count) = tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let count = diesel::sql_query(
+                    "SELECT count(*) AS count FROM \"order\".\"order\" \
+                     WHERE deleted_at IS NULL AND is_draft_order = true AND status = 'draft' \
+                       AND metadata->>'source' = 'social'",
+                )
+                .get_result::<SocialDraftCountRow>(conn)
+                .await
+                .map_err(|error| Error::Database(error.to_string()))?
+                .count;
+                let ids = diesel::sql_query(
+                    "SELECT id FROM \"order\".\"order\" \
+                     WHERE deleted_at IS NULL AND is_draft_order = true AND status = 'draft' \
+                       AND metadata->>'source' = 'social' \
+                     ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2",
+                )
+                .bind::<BigInt, _>(limit)
+                .bind::<BigInt, _>(offset)
+                .load::<SocialDraftIdRow>(conn)
+                .await
+                .map_err(|error| Error::Database(error.to_string()))?
+                .into_iter()
+                .map(|row| row.id)
+                .collect::<Vec<_>>();
+                Ok((ids, count))
+            })
+        })
+        .await?;
+        let mut orders = Vec::with_capacity(ids.len());
+        for id in ids {
+            orders.push(self.get_order(&id).await?);
+        }
+        Ok((orders, usize::try_from(count).unwrap_or(usize::MAX)))
     }
 
     pub async fn list_orders(&self, filter: OrderFilter) -> Result<(Vec<OrderDTO>, usize)> {
@@ -226,6 +848,115 @@ impl OrderService {
         }
 
         Ok((dtos, total as usize))
+    }
+
+    /// Aggregates tenant-local product order activity for the last seven days against the
+    /// preceding seven days. It reads only the order module's own schema and returns no buyer data.
+    pub async fn store_intelligence_order_signals(
+        &self,
+        current_start: chrono::DateTime<Utc>,
+        comparison_start: chrono::DateTime<Utc>,
+        as_of: chrono::DateTime<Utc>,
+    ) -> Result<Vec<StoreOrderSignal>> {
+        validate_store_intelligence_window(current_start, comparison_start, as_of)?;
+
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let rows: Vec<StoreOrderSignalRow> = diesel::sql_query(
+                    r#"SELECT li.product_id AS product_id,
+                              (ARRAY_AGG(COALESCE(NULLIF(BTRIM(li.product_title), ''), NULLIF(BTRIM(li.title), ''), 'Unknown product') ORDER BY o.created_at DESC, li.id DESC))[1] AS product_name,
+                              (ARRAY_AGG(COALESCE(NULLIF(BTRIM(li.product_type), ''), NULLIF(BTRIM(li.product_collection), '')) ORDER BY o.created_at DESC, li.id DESC))[1] AS category,
+                              COALESCE(SUM(oi.quantity) FILTER (WHERE o.created_at >= $1 AND o.created_at < $3), 0)::bigint AS current_units,
+                              COALESCE(SUM(oi.quantity) FILTER (WHERE o.created_at >= $2 AND o.created_at < $1), 0)::bigint AS comparison_units,
+                              COUNT(DISTINCT o.id) FILTER (WHERE o.created_at >= $1 AND o.created_at < $3) AS current_orders,
+                              COUNT(DISTINCT o.id) FILTER (WHERE o.created_at >= $2 AND o.created_at < $1) AS comparison_orders
+                       FROM "order"."order" o
+                       JOIN "order".order_item oi
+                         ON oi.order_id = o.id AND oi.version = o.version AND oi.deleted_at IS NULL
+                       JOIN "order".line_item li
+                         ON li.id = oi.item_id AND li.deleted_at IS NULL
+                       WHERE o.created_at >= $2 AND o.created_at < $3
+                         AND o.deleted_at IS NULL AND o.canceled_at IS NULL
+                         AND o.status <> 'canceled' AND o.is_draft_order = FALSE
+                         AND NULLIF(BTRIM(li.product_id), '') IS NOT NULL AND oi.quantity > 0
+                       GROUP BY li.product_id
+                       ORDER BY current_orders DESC, current_units DESC, product_name ASC, li.product_id ASC
+                       LIMIT 101"#,
+                )
+                .bind::<Timestamptz, _>(current_start)
+                .bind::<Timestamptz, _>(comparison_start)
+                .bind::<Timestamptz, _>(as_of)
+                .load(conn)
+                .await
+                .map_err(|error| Error::Database(error.to_string()))?;
+
+                Ok(rows
+                    .into_iter()
+                    .map(|row| StoreOrderSignal {
+                        product_id: row.product_id,
+                        product_name: row.product_name,
+                        category: row.category,
+                        current_units: row.current_units,
+                        comparison_units: row.comparison_units,
+                        current_orders: row.current_orders,
+                        comparison_orders: row.comparison_orders,
+                    })
+                    .collect())
+            })
+        })
+        .await
+    }
+
+    /// Aggregates complete tenant-local category totals independently of the product top-N cap.
+    pub async fn store_intelligence_category_signals(
+        &self,
+        current_start: chrono::DateTime<Utc>,
+        comparison_start: chrono::DateTime<Utc>,
+        as_of: chrono::DateTime<Utc>,
+    ) -> Result<Vec<StoreCategoryOrderSignal>> {
+        validate_store_intelligence_window(current_start, comparison_start, as_of)?;
+
+        tenant::with_tenant_conn(&self.pool, move |conn| {
+            Box::pin(async move {
+                let rows: Vec<StoreCategoryOrderSignalRow> = diesel::sql_query(
+                    r#"SELECT COALESCE(NULLIF(BTRIM(li.product_type), ''), NULLIF(BTRIM(li.product_collection), ''), 'Uncategorized') AS category,
+                              COALESCE(SUM(oi.quantity) FILTER (WHERE o.created_at >= $1 AND o.created_at < $3), 0)::bigint AS current_units,
+                              COALESCE(SUM(oi.quantity) FILTER (WHERE o.created_at >= $2 AND o.created_at < $1), 0)::bigint AS comparison_units,
+                              COUNT(DISTINCT o.id) FILTER (WHERE o.created_at >= $1 AND o.created_at < $3) AS current_orders,
+                              COUNT(DISTINCT o.id) FILTER (WHERE o.created_at >= $2 AND o.created_at < $1) AS comparison_orders
+                       FROM "order"."order" o
+                       JOIN "order".order_item oi
+                         ON oi.order_id = o.id AND oi.version = o.version AND oi.deleted_at IS NULL
+                       JOIN "order".line_item li
+                         ON li.id = oi.item_id AND li.deleted_at IS NULL
+                       WHERE o.created_at >= $2 AND o.created_at < $3
+                         AND o.deleted_at IS NULL AND o.canceled_at IS NULL
+                         AND o.status <> 'canceled' AND o.is_draft_order = FALSE
+                         AND NULLIF(BTRIM(li.product_id), '') IS NOT NULL AND oi.quantity > 0
+                       GROUP BY COALESCE(NULLIF(BTRIM(li.product_type), ''), NULLIF(BTRIM(li.product_collection), ''), 'Uncategorized')
+                       ORDER BY current_units DESC, category ASC
+                       LIMIT 101"#,
+                )
+                .bind::<Timestamptz, _>(current_start)
+                .bind::<Timestamptz, _>(comparison_start)
+                .bind::<Timestamptz, _>(as_of)
+                .load(conn)
+                .await
+                .map_err(|error| Error::Database(error.to_string()))?;
+
+                Ok(rows
+                    .into_iter()
+                    .map(|row| StoreCategoryOrderSignal {
+                        category: row.category,
+                        current_units: row.current_units,
+                        comparison_units: row.comparison_units,
+                        current_orders: row.current_orders,
+                        comparison_orders: row.comparison_orders,
+                    })
+                    .collect())
+            })
+        })
+        .await
     }
 
     pub async fn get_order_at_version(&self, order_id: &str, version: i32) -> Result<OrderDTO> {
@@ -816,6 +1547,315 @@ impl OrderService {
 
         let created = self.order_change_actions.create(None, action).await?;
         Ok(Self::to_action_dto(&created))
+    }
+
+    /// Starts or resumes the durable receipt inspection change for one return.
+    pub async fn start_return_receipt(&self, return_id: &str) -> Result<OrderChangeDTO> {
+        let ret = self.get_return_dto(return_id).await?;
+        if matches!(ret.status.as_str(), "received" | "completed" | "canceled") {
+            return Err(Error::Conflict {
+                code: "return_receipt_not_open",
+                message: format!("Cannot stage receipt for return in status {}", ret.status),
+            });
+        }
+
+        let matching = self
+            .list_order_changes(Some(&ret.order_id))
+            .await?
+            .into_iter()
+            .filter(|change| {
+                matches!(change.status.as_str(), "pending" | "requested")
+                    && change.change_type == "return_receive"
+                    && change
+                        .metadata
+                        .as_ref()
+                        .and_then(|metadata| metadata.get("return_id"))
+                        .and_then(serde_json::Value::as_str)
+                        == Some(return_id)
+            })
+            .collect::<Vec<_>>();
+        match matching.as_slice() {
+            [change] => return self.get_order_change_with_actions(&change.id).await,
+            [] => {}
+            _ => {
+                return Err(Error::Conflict {
+                    code: "return_receipt_ambiguous",
+                    message: "More than one receipt inspection is open for this return."
+                        .to_string(),
+                });
+            }
+        }
+
+        let change = self
+            .create_order_change(CreateOrderChangeInput {
+                order_id: ret.order_id,
+                change_type: "return_receive".to_string(),
+                requested_by: None,
+                metadata: Some(serde_json::json!({ "return_id": return_id })),
+            })
+            .await?;
+        self.get_order_change_with_actions(&change.id).await
+    }
+
+    /// Returns one order change with its persisted actions.
+    pub async fn get_order_change_with_actions(&self, change_id: &str) -> Result<OrderChangeDTO> {
+        let change = self.order_changes.retrieve(None, change_id).await?;
+        let actions = self
+            .order_change_actions
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("order_change_id", FilterOp::Eq(change_id.to_string()))
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 100),
+            )
+            .await?;
+        Ok(Self::to_order_change_dto(
+            &change,
+            actions.iter().map(Self::to_action_dto).collect(),
+        ))
+    }
+
+    /// Persists an absolute received or damaged quantity on the open receipt change.
+    pub async fn stage_return_receipt_quantity(
+        &self,
+        return_id: &str,
+        item_id: &str,
+        quantity: i32,
+        damaged: bool,
+    ) -> Result<OrderChangeActionDTO> {
+        let ret = self.get_return_dto(return_id).await?;
+        let item = ret
+            .items
+            .iter()
+            .find(|item| item.item_id == item_id)
+            .ok_or_else(|| Error::NotFound {
+                entity: "return_item",
+                id: item_id.to_string(),
+            })?;
+        if quantity <= 0 || quantity > item.quantity {
+            return Err(Error::Invalid {
+                code: "invalid_return_receipt_quantity",
+                message:
+                    "Receipt quantity must be positive and no greater than the requested quantity."
+                        .to_string(),
+                field: Some("quantity".to_string()),
+            });
+        }
+
+        let change = self.start_return_receipt(return_id).await?;
+        let action_name = if damaged {
+            "RECEIVE_DAMAGED_RETURN_ITEM"
+        } else {
+            "RECEIVE_RETURN_ITEM"
+        };
+        if let Some(action) = change.actions.iter().find(|action| {
+            action.action == action_name && action.reference_id.as_deref() == Some(item_id)
+        }) {
+            let mut stored = self.order_change_actions.retrieve(None, &action.id).await?;
+            stored.details = Some(serde_json::json!({ "quantity": quantity }));
+            stored.updated_at = Utc::now();
+            let updated = self
+                .order_change_actions
+                .update(None, &action.id, stored)
+                .await?;
+            return Ok(Self::to_action_dto(&updated));
+        }
+        self.add_order_change_action(
+            &change.id,
+            CreateOrderChangeActionInput {
+                action: action_name.to_string(),
+                reference: Some("return_item".to_string()),
+                reference_id: Some(item_id.to_string()),
+                amount: None,
+                details: Some(serde_json::json!({ "quantity": quantity })),
+            },
+        )
+        .await
+    }
+
+    /// Updates one receipt action after verifying it belongs to this return's open change.
+    pub async fn update_staged_return_receipt_action(
+        &self,
+        return_id: &str,
+        action_id: &str,
+        quantity: i32,
+        damaged: bool,
+    ) -> Result<OrderChangeActionDTO> {
+        if quantity <= 0 {
+            return Err(Error::Invalid {
+                code: "invalid_return_receipt_quantity",
+                message: "Receipt quantity must be positive.".to_string(),
+                field: Some("quantity".to_string()),
+            });
+        }
+        let change = self.start_return_receipt(return_id).await?;
+        let expected_action = if damaged {
+            "RECEIVE_DAMAGED_RETURN_ITEM"
+        } else {
+            "RECEIVE_RETURN_ITEM"
+        };
+        let action = change
+            .actions
+            .iter()
+            .find(|action| action.id == action_id && action.action == expected_action)
+            .ok_or_else(|| Error::NotFound {
+                entity: "return_receipt_action",
+                id: action_id.to_string(),
+            })?;
+        let item_id = action
+            .reference_id
+            .as_deref()
+            .ok_or_else(|| Error::Invalid {
+                code: "invalid_return_receipt_action",
+                message: "The receipt action has no return item reference.".to_string(),
+                field: None,
+            })?;
+        let ret = self.get_return_dto(return_id).await?;
+        let item = ret
+            .items
+            .iter()
+            .find(|item| item.item_id == item_id)
+            .ok_or_else(|| Error::NotFound {
+                entity: "return_item",
+                id: item_id.to_string(),
+            })?;
+        if quantity > item.quantity {
+            return Err(Error::Invalid {
+                code: "invalid_return_receipt_quantity",
+                message: "Receipt quantity cannot exceed the requested quantity.".to_string(),
+                field: Some("quantity".to_string()),
+            });
+        }
+        let mut stored = self.order_change_actions.retrieve(None, action_id).await?;
+        stored.details = Some(serde_json::json!({ "quantity": quantity }));
+        stored.updated_at = Utc::now();
+        let updated = self
+            .order_change_actions
+            .update(None, action_id, stored)
+            .await?;
+        Ok(Self::to_action_dto(&updated))
+    }
+
+    /// Removes a staged received or damaged quantity from an open receipt change.
+    pub async fn remove_staged_return_receipt_quantity(
+        &self,
+        return_id: &str,
+        action_id: &str,
+        damaged: bool,
+    ) -> Result<()> {
+        let change = self.start_return_receipt(return_id).await?;
+        let expected_action = if damaged {
+            "RECEIVE_DAMAGED_RETURN_ITEM"
+        } else {
+            "RECEIVE_RETURN_ITEM"
+        };
+        if !change
+            .actions
+            .iter()
+            .any(|action| action.id == action_id && action.action == expected_action)
+        {
+            return Err(Error::NotFound {
+                entity: "return_receipt_action",
+                id: action_id.to_string(),
+            });
+        }
+        self.order_change_actions
+            .soft_delete(None, action_id)
+            .await?;
+        Ok(())
+    }
+
+    /// Confirms persisted receipt actions and completes their order-change record.
+    pub async fn confirm_staged_return_receipt(&self, return_id: &str) -> Result<ReturnDTO> {
+        let ret = self.get_return_dto(return_id).await?;
+        if ret.status == "received" {
+            if let Some(change) = self
+                .list_order_changes(Some(&ret.order_id))
+                .await?
+                .into_iter()
+                .find(|change| {
+                    matches!(change.status.as_str(), "pending" | "requested")
+                        && change.change_type == "return_receive"
+                        && change
+                            .metadata
+                            .as_ref()
+                            .and_then(|metadata| metadata.get("return_id"))
+                            .and_then(serde_json::Value::as_str)
+                            == Some(return_id)
+                })
+            {
+                let mut stored = self.order_changes.retrieve(None, &change.id).await?;
+                stored.status = "confirmed".to_string();
+                stored.confirmed_at = Some(Utc::now());
+                stored.updated_at = Utc::now();
+                self.order_changes.update(None, &change.id, stored).await?;
+            }
+            return Ok(ret);
+        }
+        let change = self.start_return_receipt(return_id).await?;
+        let mut requested = std::collections::HashMap::<String, (i32, i32)>::new();
+        for action in &change.actions {
+            let Some(item_id) = action.reference_id.as_ref() else {
+                return Err(Error::Invalid {
+                    code: "invalid_return_receipt_action",
+                    message: "A staged receipt action has no return item reference.".to_string(),
+                    field: None,
+                });
+            };
+            let quantity = action
+                .details
+                .as_ref()
+                .and_then(|details| details.get("quantity"))
+                .and_then(serde_json::Value::as_i64)
+                .and_then(|value| i32::try_from(value).ok())
+                .ok_or_else(|| Error::Invalid {
+                    code: "invalid_return_receipt_action",
+                    message: "A staged receipt quantity is invalid.".to_string(),
+                    field: Some("quantity".to_string()),
+                })?;
+            if quantity <= 0 {
+                return Err(Error::Invalid {
+                    code: "invalid_return_receipt_action",
+                    message: "A staged receipt quantity must be positive.".to_string(),
+                    field: Some("quantity".to_string()),
+                });
+            }
+            let counts = requested.entry(item_id.clone()).or_default();
+            match action.action.as_str() {
+                "RECEIVE_RETURN_ITEM" => counts.0 = quantity,
+                "RECEIVE_DAMAGED_RETURN_ITEM" => counts.1 = quantity,
+                _ => {
+                    return Err(Error::Invalid {
+                        code: "invalid_return_receipt_action",
+                        message: "The receipt change contains an unsupported action.".to_string(),
+                        field: None,
+                    });
+                }
+            }
+        }
+        let items = ret
+            .items
+            .iter()
+            .map(|item| {
+                let (received_quantity, damaged_quantity) =
+                    requested.get(&item.item_id).copied().unwrap_or_default();
+                ReceiveReturnItemsInput {
+                    item_id: item.item_id.clone(),
+                    received_quantity,
+                    damaged_quantity: Some(damaged_quantity),
+                }
+            })
+            .collect();
+        let received = self.receive_return_items(return_id, items).await?;
+        let mut change = self.order_changes.retrieve(None, &change.id).await?;
+        change.status = "confirmed".to_string();
+        change.confirmed_at = Some(Utc::now());
+        change.updated_at = Utc::now();
+        self.order_changes
+            .update(None, &change.id.to_string(), change)
+            .await?;
+        Ok(received)
     }
 
     /// Preview Order Change: evaluates pending actions against version-N snapshot in-memory (P5-02, DATA_MODEL §2.4 step 3).
@@ -1415,49 +2455,81 @@ impl OrderService {
         return_id: &str,
         items: Vec<ReceiveReturnItemsInput>,
     ) -> Result<ReturnDTO> {
-        let mut ret = self.returns.retrieve(None, return_id).await?;
+        let return_id = return_id.to_string();
+        let result_return_id = return_id.clone();
+        let pool = self.pool.clone();
+        let returns = self.returns.clone();
+        let return_items = self.return_items.clone();
+        tenant::with_tenant_conn(&pool, move |conn| {
+            let return_id = return_id.clone();
+            let returns = returns.clone();
+            let return_items = return_items.clone();
+            let items = items.clone();
+            Box::pin(async move {
+                stheno_db::transaction::with_transaction(conn, move |mut conn| {
+                    let return_id = return_id.clone();
+                    let returns = returns.clone();
+                    let return_items = return_items.clone();
+                    let items = items.clone();
+                    Box::pin(async move {
+                        diesel::sql_query(
+                            "SELECT id FROM \"order\".\"return\" WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+                        )
+                        .bind::<Text, _>(&return_id)
+                        .get_result::<SocialDraftIdRow>(conn)
+                        .await
+                        .optional()
+                        .map_err(|error| Error::Database(error.to_string()))?
+                        .ok_or_else(|| Error::NotFound {
+                            entity: "return",
+                            id: return_id.clone(),
+                        })?;
 
-        if ret.status == "canceled" || ret.status == "completed" {
-            return Err(Error::Conflict {
-                code: "return_immutable",
-                message: format!("Cannot receive items on return in status {}", ret.status),
-            });
-        }
+                        let mut ret = returns.retrieve(Some(&mut conn), &return_id).await?;
+                        if ret.status == "canceled" || ret.status == "completed" {
+                            return Err(Error::Conflict {
+                                code: "return_immutable",
+                                message: format!(
+                                    "Cannot receive items on return in status {}",
+                                    ret.status
+                                ),
+                            });
+                        }
 
-        let r_items = self
-            .return_items
-            .list(
-                None,
-                &FilterSpec::new()
-                    .with_predicate("return_id", FilterOp::Eq(return_id.to_string()))
-                    .with_predicate("deleted_at", FilterOp::IsNull)
-                    .with_pagination(0, 100),
-            )
-            .await?;
+                        let filter = FilterSpec::new()
+                            .with_predicate("return_id", FilterOp::Eq(return_id.clone()))
+                            .with_predicate("deleted_at", FilterOp::IsNull)
+                            .with_pagination(0, stheno_db::filter::MAX_PAGE_LIMIT);
+                        let mut return_rows = return_items.list(Some(&mut conn), &filter).await?;
+                        let quantities = return_rows
+                            .iter()
+                            .map(|item| (item.item_id.clone(), item.quantity))
+                            .collect::<std::collections::HashMap<_, _>>();
+                        let requested = aggregate_return_receive_inputs(items, &quantities)?;
 
-        for in_item in items {
-            if let Some(mut ri) = r_items
-                .iter()
-                .find(|r| r.item_id == in_item.item_id)
-                .cloned()
-            {
-                ri.received_quantity += in_item.received_quantity;
-                if let Some(dmg) = in_item.damaged_quantity {
-                    ri.damaged_quantity += dmg;
-                }
-                ri.updated_at = Utc::now();
-                self.return_items
-                    .update(None, &ri.id.to_string(), ri)
-                    .await?;
-            }
-        }
+                        for item in &mut return_rows {
+                            if let Some((received, damaged)) = requested.get(&item.item_id) {
+                                // Inputs are absolute receipt totals. A retry cannot
+                                // double-count the same physical units.
+                                item.received_quantity = *received;
+                                item.damaged_quantity = *damaged;
+                                item.updated_at = Utc::now();
+                                return_items.update(Some(&mut conn), &item.id.to_string(), item.clone()).await?;
+                            }
+                        }
 
-        ret.status = "received".to_string();
-        ret.received_at = Some(Utc::now());
-        ret.updated_at = Utc::now();
-
-        self.returns.update(None, return_id, ret).await?;
-        self.get_return_dto(return_id).await
+                        ret.status = "received".to_string();
+                        ret.received_at = Some(Utc::now());
+                        ret.updated_at = Utc::now();
+                        returns.update(Some(&mut conn), &return_id, ret).await?;
+                        Ok(())
+                    })
+                })
+                .await
+            })
+        })
+        .await?;
+        self.get_return_dto(&result_return_id).await
     }
 
     /// Reverses a receival, putting the return back to `requested`.
@@ -1472,6 +2544,31 @@ impl OrderService {
     /// issued, and unwinding that is a credit note, not a status change.
     pub async fn cancel_return_receipt(&self, return_id: &str) -> Result<ReturnDTO> {
         let mut ret = self.returns.retrieve(None, return_id).await?;
+
+        if ret.status == "requested" {
+            let matching = self
+                .list_order_changes(Some(&ret.order_id))
+                .await?
+                .into_iter()
+                .find(|change| {
+                    matches!(change.status.as_str(), "pending" | "requested")
+                        && change.change_type == "return_receive"
+                        && change
+                            .metadata
+                            .as_ref()
+                            .and_then(|metadata| metadata.get("return_id"))
+                            .and_then(serde_json::Value::as_str)
+                            == Some(return_id)
+                });
+            if let Some(change) = matching {
+                let mut stored = self.order_changes.retrieve(None, &change.id).await?;
+                stored.status = "canceled".to_string();
+                stored.canceled_at = Some(Utc::now());
+                stored.updated_at = Utc::now();
+                self.order_changes.update(None, &change.id, stored).await?;
+            }
+            return self.get_return_dto(return_id).await;
+        }
 
         if ret.status != "received" {
             return Err(Error::Conflict {
@@ -1501,7 +2598,29 @@ impl OrderService {
         ret.received_at = None;
         ret.updated_at = Utc::now();
 
+        let order_id = ret.order_id.clone();
         self.returns.update(None, return_id, ret).await?;
+        if let Some(change) = self
+            .list_order_changes(Some(&order_id))
+            .await?
+            .into_iter()
+            .find(|change| {
+                change.change_type == "return_receive"
+                    && change.status == "confirmed"
+                    && change
+                        .metadata
+                        .as_ref()
+                        .and_then(|metadata| metadata.get("return_id"))
+                        .and_then(serde_json::Value::as_str)
+                        == Some(return_id)
+            })
+        {
+            let mut stored = self.order_changes.retrieve(None, &change.id).await?;
+            stored.status = "canceled".to_string();
+            stored.canceled_at = Some(Utc::now());
+            stored.updated_at = Utc::now();
+            self.order_changes.update(None, &change.id, stored).await?;
+        }
         self.get_return_dto(return_id).await
     }
 
@@ -1519,31 +2638,30 @@ impl OrderService {
             });
         }
 
-        ret.status = "completed".to_string();
-        if let Some(amt) = refund_amount {
-            ret.refund_amount = Some(amt);
+        // Confirming receipt/inspection is not a payment-provider refund. Recording a
+        // guessed USD transaction here can corrupt order totals and falsely report money
+        // movement. Refunds must go through the payment service with the payment currency.
+        let refund_amount = refund_amount.or(ret.refund_amount);
+        if refund_amount.is_some_and(|amount| amount < Decimal::ZERO) {
+            return Err(Error::Invalid {
+                code: "invalid_refund_amount",
+                message: "Refund amount cannot be negative".to_string(),
+                field: Some("refund_amount".to_string()),
+            });
         }
+        if refund_amount.is_some_and(|amount| amount > Decimal::ZERO) {
+            return Err(Error::Invalid {
+                code: "refund_requires_payment_service",
+                message: "Issue refunds through the payment service before completing the return"
+                    .to_string(),
+                field: Some("refund_amount".to_string()),
+            });
+        }
+
+        ret.status = "completed".to_string();
         ret.updated_at = Utc::now();
 
         self.returns.update(None, return_id, ret.clone()).await?;
-
-        // If refund amount is set, record refund transaction on order
-        if let Some(amt) = ret.refund_amount {
-            if amt > Decimal::ZERO {
-                let _ = self
-                    .add_transaction(
-                        &ret.order_id,
-                        CreateTransactionInput {
-                            amount: amt,
-                            currency_code: "usd".to_string(),
-                            reference: "refund".to_string(),
-                            reference_id: return_id.to_string(),
-                            metadata: None,
-                        },
-                    )
-                    .await;
-            }
-        }
 
         self.get_return_dto(return_id).await
     }
@@ -1923,29 +3041,23 @@ impl OrderService {
     pub async fn confirm_claim(&self, claim_id: &str) -> Result<ClaimDTO> {
         let mut claim = self.claims.retrieve(None, claim_id).await?;
 
+        if claim.r#type == "refund"
+            && claim
+                .refund_amount
+                .is_some_and(|amount| amount != Decimal::ZERO)
+        {
+            return Err(Error::Invalid {
+                code: "refund_requires_payment_service",
+                message: "Issue a valid claim refund through the payment service before confirming the claim"
+                    .to_string(),
+                field: Some("refund_amount".to_string()),
+            });
+        }
+
         claim.status = "confirmed".to_string();
         claim.updated_at = Utc::now();
 
         self.claims.update(None, claim_id, claim.clone()).await?;
-
-        if claim.r#type == "refund" {
-            if let Some(amt) = claim.refund_amount {
-                if amt > Decimal::ZERO {
-                    let _ = self
-                        .add_transaction(
-                            &claim.order_id,
-                            CreateTransactionInput {
-                                amount: amt,
-                                currency_code: "usd".to_string(),
-                                reference: "refund".to_string(),
-                                reference_id: claim_id.to_string(),
-                                metadata: None,
-                            },
-                        )
-                        .await;
-                }
-            }
-        }
 
         self.get_claim_dto(claim_id).await
     }
@@ -2171,6 +3283,7 @@ impl OrderService {
         order.status = "pending".to_string();
         order.payment_status = "not_paid".to_string();
         order.fulfillment_status = "not_fulfilled".to_string();
+        order.is_draft_order = false;
         order.updated_at = Utc::now();
 
         let updated = self.orders.update(None, order_id, order).await?;
@@ -2762,5 +3875,121 @@ impl OrderService {
                 .await?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod return_receive_validation_tests {
+    use super::aggregate_return_receive_inputs;
+    use crate::dto::ReceiveReturnItemsInput;
+    use std::collections::HashMap;
+    use stheno_types::Error;
+
+    fn quantities() -> HashMap<String, i32> {
+        HashMap::from([("line-1".to_string(), 5)])
+    }
+
+    fn input(
+        item_id: &str,
+        received_quantity: i32,
+        damaged_quantity: Option<i32>,
+    ) -> ReceiveReturnItemsInput {
+        ReceiveReturnItemsInput {
+            item_id: item_id.to_string(),
+            received_quantity,
+            damaged_quantity,
+        }
+    }
+
+    #[test]
+    fn aggregates_duplicate_lines_and_damaged_subsets() {
+        let result = aggregate_return_receive_inputs(
+            vec![input("line-1", 2, Some(1)), input("line-1", 3, Some(1))],
+            &quantities(),
+        )
+        .unwrap();
+        assert_eq!(result.get("line-1"), Some(&(5, 2)));
+    }
+
+    #[test]
+    fn rejects_unknown_negative_damaged_and_oversized_receipts() {
+        let cases = [
+            (vec![input("unknown", 1, None)], "return_item_not_found"),
+            (
+                vec![input("line-1", -1, None)],
+                "invalid_return_receive_quantity",
+            ),
+            (
+                vec![input("line-1", 1, Some(2))],
+                "invalid_return_receive_quantity",
+            ),
+            (
+                vec![input("line-1", 6, None)],
+                "return_receive_exceeds_requested",
+            ),
+            (
+                vec![input("line-1", i32::MAX, None), input("line-1", 1, None)],
+                "invalid_return_receive_quantity",
+            ),
+        ];
+
+        for (items, expected_code) in cases {
+            assert!(matches!(
+                aggregate_return_receive_inputs(items, &quantities()),
+                Err(Error::Invalid { code, .. }) if code == expected_code
+            ));
+        }
+    }
+}
+
+#[cfg(test)]
+mod store_intelligence_window_tests {
+    use super::validate_store_intelligence_window;
+    use chrono::{Duration, TimeZone, Utc};
+    use stheno_types::Error;
+
+    #[test]
+    fn accepts_adjacent_seven_day_windows_at_inclusive_start_boundary() {
+        let as_of = Utc.with_ymd_and_hms(2026, 10, 24, 12, 0, 0).unwrap();
+        let current_start = as_of - Duration::days(7);
+        let comparison_start = current_start - Duration::days(7);
+
+        assert!(validate_store_intelligence_window(current_start, comparison_start, as_of).is_ok());
+    }
+
+    #[test]
+    fn rejects_non_adjacent_reversed_and_unbounded_windows() {
+        let as_of = Utc.with_ymd_and_hms(2026, 10, 24, 12, 0, 0).unwrap();
+        let current_start = as_of - Duration::days(7);
+        let comparison_start = current_start - Duration::days(7);
+        let invalid_windows = [
+            (as_of, comparison_start, as_of),
+            (current_start, current_start, as_of),
+            (
+                current_start,
+                comparison_start + Duration::seconds(1),
+                as_of,
+            ),
+            (
+                current_start - Duration::seconds(1),
+                comparison_start,
+                as_of,
+            ),
+            (
+                current_start,
+                comparison_start,
+                current_start - Duration::seconds(1),
+            ),
+        ];
+
+        for (current, comparison, end) in invalid_windows {
+            assert!(matches!(
+                validate_store_intelligence_window(current, comparison, end),
+                Err(Error::Invalid {
+                    code: "store_intelligence_window_invalid",
+                    ..
+                })
+            ));
+        }
     }
 }

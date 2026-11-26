@@ -51,3 +51,31 @@ export const useUpsertBranding = () => {
     },
   })
 }
+
+export interface StorefrontAppearance {
+  storefront_archetype: "baseline" | "editorial" | "dense_catalog"
+  product_card_style: "standard" | "editorial" | "dense"
+  product_image_aspect: "square" | "portrait" | "landscape"
+}
+
+export const APPEARANCE_QUERY_KEY = "storefront-appearance" as const
+
+export const useStorefrontAppearance = () => useQuery({
+  queryKey: [APPEARANCE_QUERY_KEY],
+  queryFn: async () => {
+    const res = await sdk.client.fetch<{ appearance: StorefrontAppearance }>(
+      "/admin/store/appearance", { method: "GET" }
+    )
+    return res.appearance
+  },
+})
+
+export const useUpsertStorefrontAppearance = () => useMutation({
+  mutationFn: async (payload: StorefrontAppearance) => {
+    const res = await sdk.client.fetch<{ appearance: StorefrontAppearance }>(
+      "/admin/store/appearance", { method: "POST", body: payload }
+    )
+    return res.appearance
+  },
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: [APPEARANCE_QUERY_KEY] }),
+})

@@ -223,7 +223,9 @@ impl UploadPipeline {
         if bytes.len() > max_bytes {
             return Err(Error::Invalid {
                 code: "file_too_large",
-                message: format!("Branding asset exceeds maximum allowed size of {} bytes", max_bytes),
+                message: format!(
+                    "Branding asset exceeds maximum allowed size of {max_bytes} bytes"
+                ),
                 field: Some("file".to_string()),
             });
         }

@@ -35,7 +35,7 @@ async fn test_distributed_locking_and_outage_fallback() {
         stheno_types::Error::Conflict { code, .. } => {
             assert_eq!(code, "lock_acquisition_timeout")
         }
-        other => panic!("Expected Conflict error, got {:?}", other),
+        other => panic!("Expected Conflict error, got {other:?}"),
     }
 
     // 3. Release lock

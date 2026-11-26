@@ -35,16 +35,20 @@ import {
   TotalCell,
   TotalHeader,
 } from "../../../components/table/table-cells/order/total-cell"
+import { SocialConfirmCell } from "../../../routes/orders/order-list/components/order-list-table/social-confirm-cell"
+import { PaymentProofReviewCell } from "../../../routes/orders/order-list/components/order-list-table/payment-proof-review-cell"
 
 // We have to use any here, as the type of Order is so complex that it lags the TS server
 const columnHelper = createColumnHelper<HttpTypes.AdminOrder>()
 
 type UseOrderTableColumnsProps = {
   exclude?: string[]
+  isSocial?: boolean
 }
 
 export const useOrderTableColumns = (props: UseOrderTableColumnsProps) => {
   const { exclude = [] } = props ?? {}
+  const { isSocial = false } = props ?? {}
 
   const columns = useMemo(
     () => [
@@ -126,8 +130,25 @@ export const useOrderTableColumns = (props: UseOrderTableColumnsProps) => {
           return <CountryCell country={country} />
         },
       }),
+      columnHelper.display({
+        id: "manual_payment_review",
+        header: "Manual payment",
+        cell: ({ row }) =>
+          row.original.payment_status === "awaiting" ? (
+            <PaymentProofReviewCell orderId={row.original.id} />
+          ) : null,
+      }),
+      ...(isSocial
+        ? [
+            columnHelper.display({
+              id: "social_confirmation",
+              header: "Action",
+              cell: ({ row }) => <SocialConfirmCell orderId={row.original.id} />,
+            }),
+          ]
+        : []),
     ],
-    []
+    [isSocial]
   )
 
   const isAccessorColumnDef = (

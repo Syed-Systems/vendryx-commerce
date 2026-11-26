@@ -23,6 +23,7 @@ stheno-promotion = { workspace = true }
 stheno-fulfillment = { workspace = true }
 stheno-tax = { workspace = true }
 stheno-region = { workspace = true }
+stheno-ai = { workspace = true }
 stheno-store = { workspace = true }
 stheno-customer = { workspace = true }
 stheno-auth = { workspace = true }

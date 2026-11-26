@@ -383,7 +383,7 @@ pub async fn get_stock_location(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Stock location {} not found", id),
+                &format!("Stock location {id} not found"),
             )),
         )
             .into_response())
@@ -447,7 +447,7 @@ pub async fn update_stock_location(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Stock location {} not found", id),
+                &format!("Stock location {id} not found"),
             )),
         )
             .into_response())

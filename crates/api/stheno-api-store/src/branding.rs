@@ -6,9 +6,9 @@
 //! File IDs stored in the database are resolved to public URLs via the file
 //! module before being emitted.  The JSON shape is a Store API contract.
 
+use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Serialize;
 use std::sync::Arc;
 use stheno_store::{BrandingDTO, StoreService};
@@ -32,6 +32,17 @@ pub async fn get_branding(State(ctx): State<BrandingContext>) -> impl IntoRespon
         Ok(branding) => Json(BrandingResponse { branding }).into_response(),
         Err(e) => {
             tracing::error!(error = %e, "failed to load tenant branding");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// GET /store/appearance — public presentation tokens for the current tenant.
+pub async fn get_appearance(State(ctx): State<BrandingContext>) -> impl IntoResponse {
+    match ctx.store_service.get_storefront_appearance().await {
+        Ok(appearance) => Json(serde_json::json!({ "appearance": appearance })).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to load tenant storefront appearance");
             axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }

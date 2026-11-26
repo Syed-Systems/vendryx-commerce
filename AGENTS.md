@@ -303,12 +303,46 @@ logic breaks. No frameworks, no fixture pyramids, no per-function suites unless 
 
 Trivial one-liners need no test. YAGNI applies to tests too.
 
+### Focused feature loop
+
+For feature work, build and test the changed package(s) and the directly affected consumers only.
+Cargo will compile the selected package's dependency closure; it must not compile unrelated
+workspace packages or test targets just because they share a workspace. Run every test that covers
+the changed behavior and its affected contracts, including the edge cases required by the table
+above. A passing focused set is the feature gate.
+
+Start by mapping changed files to Cargo packages, frontend apps, API contracts, and migration
+checks. Typical Rust commands are:
+
+```bash
+cargo check --locked -p <changed-package>
+cargo test --locked -p <changed-package> --lib
+cargo test --locked -p <changed-package> --test <relevant-test-target>
+cargo clippy --locked -p <changed-package> --all-targets -- -D warnings
+```
+
+Use only the commands needed for the changed behavior. Add directly affected downstream packages
+and their contract/parity tests when a public DTO, event, workflow, schema, or API changes. Run
+frontend checks only for the app that changed. Run repository-wide static boundary checks only when
+the change can affect the boundary they enforce. Do not add or run unrelated test targets.
+
+Use the persistent Space build cache and keep Cargo concurrency bounded to the available host
+capacity. Do not run duplicate builds concurrently or clear `target`/dependency caches as a routine
+step. Record each focused command and its real result; skipped checks must name the reason.
+
+The workspace-wide commands in §7 are **integration/release gates**, not the feature loop. Run them
+at an explicitly scheduled integration/release gate, or when a change to shared infrastructure,
+workspace configuration, or a cross-cutting public contract makes broad validation necessary. Do
+not use a workspace-wide run to compensate for not identifying the affected dependency closure.
+
 ---
 
 ## 7. Gate commands
 
-Run these before claiming anything is done. Quote real output — a summary of a test run you did
-not perform is worse than no claim at all.
+These are broad integration/release gates. They are not required for every feature change; use §6's
+focused feature loop during implementation. When a broad gate is scheduled or required by a
+cross-cutting change, run it on Space and report the real output. Never claim a gate passed if it
+was not run.
 
 ```bash
 cargo fmt --all -- --check
@@ -447,3 +481,36 @@ until it costs someone.
 A theme's hero shipped "120 references in stock · 24 month warranty · 48h authentication".
 All three were invented to balance a layout. See
 [FRONTEND_MATRIX.md §5](docs/archive/FRONTEND_MATRIX.md).
+
+
+<!-- BEGIN UNIVERSAL AGENT GUARDRAILS -->
+## Universal build, test, and artifact rules
+
+Apply these rules to every project under `D:\Syed Systems`, alongside the nearest project-specific `AGENTS.md` and documented workflow.
+
+1. **Inspect before running commands.** Check the repository instructions, package/build scripts, current Git status, and whether a relevant dev server or build is already running. Use the repository's actual package manager and commands; do not assume one stack's commands apply everywhere.
+2. **Use the shortest reliable feedback loop.** Start with formatting, lint, type checking, and the narrowest test that covers the change. Then check/test the changed package or module and its direct consumers as needed. UI changes can use the existing dev server, hot reload, or preview. Tests may compile the changed code and required dependencies; that is normal and does not mean the whole app must be packaged again.
+3. **Reuse incremental work.** Keep using the existing checkout, dependency installation, build directory, and supported local cache. Do not run `clean`, clear caches, reinstall dependencies, or rebuild unrelated packages/platforms as a reflex. Do not launch duplicate builds for the same checkout.
+4. **Run full builds when they answer a real requirement.** Use a full app/package build for packaging or deployment validation, release readiness, build-system/toolchain/dependency changes, or when the project's required CI/gate calls for it. A clean reproducibility build belongs at the appropriate CI/release boundary, not after every small edit. If a user or project gate explicitly requires a full build, follow it and report its disk/time implications where material.
+5. **Keep artifacts contained.** Put generated outputs, logs, reports, and packages in the project's documented build/output directories. Keep generated files and caches out of Git. Do not make extra project copies to test; use the current checkout, or a worktree only when isolation is required. Do not store redundant logs or packaged builds in source directories.
+6. **Treat caches as useful, disposable performance data.** Do not delete caches automatically or claim a check has zero disk cost. If disk pressure warrants cleanup, identify the exact generated/cache paths and their sizes, avoid paths used by active processes, and use the build tool's supported cleanup mechanism. Preserve source, user data, dependency stores, and release artifacts unless the user explicitly asks to remove them.
+7. **Keep CI reproducible.** CI should run the required checks from a clean checkout and may restore/save bounded caches keyed by relevant inputs. Avoid rebuilding the same target multiple times in one workflow when a prior job artifact or cache can serve the required validation.
+8. **Report what actually ran.** State the focused checks and broader gates run, skipped checks and why, and any build/cache cleanup performed. Never imply that a packaged app, another platform, or the full repository was validated when it was not.
+<!-- END UNIVERSAL AGENT GUARDRAILS -->
+
+## graphify
+
+Graphify links: [Interactive graph](graphify-out/graph.html) | [Architecture report](graphify-out/GRAPH_REPORT.md).
+- For source exploration, do not use grep/rg to locate files. Query the graph first, then open the exact paths it returns.
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+
+Rules:
+- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.

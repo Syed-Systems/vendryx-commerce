@@ -145,7 +145,7 @@ impl FidelityReport {
         out.push_str("          MEDUSA -> STHENO IMPORT FIDELITY REPORT       \n");
         out.push_str("========================================================\n");
         if let Some(ref src) = self.source_db {
-            out.push_str(&format!("Source Database: {}\n", src));
+            out.push_str(&format!("Source Database: {src}\n"));
         } else {
             out.push_str("Source Database: (mock/in-memory fixture)\n");
         }

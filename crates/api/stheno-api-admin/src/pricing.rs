@@ -70,7 +70,7 @@ pub async fn get_price_list(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Price list with id {} was not found", id),
+                &format!("Price list with id {id} was not found"),
             )),
         )
             .into_response()),
@@ -196,7 +196,7 @@ pub async fn get_price_preference(
                 StatusCode::NOT_FOUND,
                 Json(ErrorResponse::new(
                     "not_found",
-                    &format!("Price preference {} not found", id),
+                    &format!("Price preference {id} not found"),
                 )),
             )
                 .into_response()

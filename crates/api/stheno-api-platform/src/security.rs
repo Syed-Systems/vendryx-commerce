@@ -203,7 +203,7 @@ pub async fn setup_operator_mfa(
     Json(json!({
         "operator_id": id,
         "secret": secret,
-        "qr_uri": format!("otpauth://totp/SthenoPlatform:{}?secret={}&issuer=Stheno", id, secret),
+        "qr_uri": format!("otpauth://totp/SthenoPlatform:{id}?secret={secret}&issuer=Stheno"),
     }))
     .into_response()
 }

@@ -176,11 +176,17 @@ stheno/
 │   │   ├── stheno-rbac/ stheno-api-key/ stheno-sales-channel/ stheno-stock-location/
 │   │   ├── stheno-store/ stheno-currency/ stheno-file/ stheno-notification/
 │   │   ├── stheno-search/ stheno-index/ stheno-caching/ stheno-locking/
-│   │   └── stheno-analytics/ stheno-translation/ stheno-settings/ …
+│   │   ├── stheno-analytics/ stheno-translation/ stheno-settings/ …
+│   │   └── stheno-ai/              # Tenant-owned static social commerce knowledge (ADR-032)
 │   │
-│   ├── providers/                  # 16 crates. Each depends on ONE module (its trait owner)
-│   │   ├── stheno-payment-stripe/  stheno-file-s3/  stheno-file-local/
-│   │   └── stheno-notification-sendgrid/ stheno-auth-google/ …
+│   ├── providers/                  # 25 crates. Each depends on ONE module (its trait owner)
+│   │   ├── stheno-payment-stripe/  stheno-payment-{bkash,nagad,sslcommerz,offline}/
+│   │   ├── stheno-fulfillment-{manual,pathao,redx,steadfast}/
+│   │   ├── stheno-file-{s3,local}/  stheno-caching-redis/  stheno-search-local/
+│   │   ├── stheno-notification-{local,resend,sendgrid,webpush}/
+│   │   ├── stheno-auth-{emailpass,github,google,oidc}/
+│   │   ├── stheno-ai-openai-compatible/  stheno-cdn-cloudflare/
+│   │   └── stheno-meta-insights/  stheno-search-console/
 │   │
 │   ├── flows/                      # COMPOSITION LAYER for writes. Split by domain, not one crate
 │   │   ├── stheno-flows-common/    # shared steps: query, links, events, locking, transform

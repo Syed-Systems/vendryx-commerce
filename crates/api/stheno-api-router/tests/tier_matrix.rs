@@ -32,54 +32,45 @@ fn every_tier_boots() {
 
 #[test]
 fn each_tier_mounts_exactly_its_declared_features() {
-    // Branding is in the base set, not the paid one: ENTITLEMENTS.md lists the brand kit
-    // as Yes/Yes/Yes across Trial, Free and Pro. `custom_theme` stays Pro-only — a
-    // supported brand kit and a bespoke developer-built storefront are different products.
-    let base = vec![
+    // Merchant-owned domains are included in every tier. Trial receives the Pro feature
+    // set for its configured term; Free retains the no-marginal-cost feature set.
+    let mut base = vec![
         Feature::AnalyticsBasic,
         Feature::Branding,
         Feature::CsvExport,
+        Feature::CustomDomain,
         Feature::SpreadsheetImport,
         Feature::WebPush,
     ];
+    base.sort();
 
     let mut trial = base.clone();
+    trial.extend([
+        Feature::AiAssistant,
+        Feature::CourierDispatch,
+        Feature::CustomTheme,
+        Feature::FraudScore,
+        Feature::PaymentGateway,
+    ]);
     trial.sort();
     assert_eq!(mounted_features(&resolve(Tier::Trial)), trial);
 
-    let mut free = base.clone();
-    free.sort();
-    assert_eq!(mounted_features(&resolve(Tier::Free)), free);
+    assert_eq!(mounted_features(&resolve(Tier::Free)), base);
 
-    let mut pro = base;
-    pro.extend([
-        Feature::PaymentGateway,
-        Feature::CourierDispatch,
-        Feature::FraudScore,
-        Feature::CustomDomain,
-        // P35-01 added this to `[pro]` in config/tiers.toml and did not update this list,
-        // so the drift catcher was red from that moment — exactly as designed, and
-        // unnoticed because `cargo test --workspace` was not being run. It gates P26/P27,
-        // which do not exist yet; the gate shipping before the feature is deliberate.
-        Feature::CustomTheme,
-    ]);
-    pro.sort();
-    assert_eq!(mounted_features(&resolve(Tier::Pro)), pro);
+    assert_eq!(mounted_features(&resolve(Tier::Pro)), trial);
 }
 
 #[test]
-fn paid_only_features_never_leak_into_free_or_trial() {
-    for tier in [Tier::Trial, Tier::Free] {
-        let ent = resolve(tier);
-        for paid in [
-            Feature::PaymentGateway,
-            Feature::CourierDispatch,
-            Feature::FraudScore,
-            Feature::CustomDomain,
-            Feature::CustomTheme,
-        ] {
-            assert!(!ent.has(paid), "{:?} must not expose {:?}", tier, paid);
-        }
+fn pro_features_never_leak_into_free() {
+    let free = resolve(Tier::Free);
+    for pro_feature in [
+        Feature::AiAssistant,
+        Feature::PaymentGateway,
+        Feature::CourierDispatch,
+        Feature::FraudScore,
+        Feature::CustomTheme,
+    ] {
+        assert!(!free.has(pro_feature), "Free must not expose {pro_feature:?}");
     }
 }
 

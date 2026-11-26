@@ -1,8 +1,8 @@
 //! Store Order API handlers (TASKS P5-22, F6, F20).
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -19,6 +19,7 @@ pub struct StoreOrderContext {
     /// Resolves `links.link_order_payment_collection`.
     pub links: Arc<stheno_links::PgLinkStore>,
     pub payment_service: Arc<stheno_payment::PaymentService>,
+    pub notification_service: Arc<stheno_notification::NotificationService>,
     /// Resolves the caller from the bearer token so an order listing can be scoped to the
     /// shopper who owns it.
     pub auth_service: Arc<stheno_auth::AuthService>,
@@ -200,6 +201,14 @@ pub struct TransferActionRequest {
     pub order_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SubmitOrderPaymentProofRequest {
+    pub payment_method: String,
+    pub transaction_id: String,
+    pub proof_asset_url: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct TransferResponse {
     pub order_id: String,
@@ -277,6 +286,121 @@ pub async fn get_order(
     Ok(Json(OrderResponse {
         order: store_order_expanded(&ctx, order).await,
     }))
+}
+
+/// `POST /store/orders/{id}/payment-proof`
+///
+/// Requires the signed-in customer bound to the order. The transaction reference remains
+/// pending until merchant verification and never marks the order paid.
+pub async fn submit_order_payment_proof(
+    State(ctx): State<StoreOrderContext>,
+    headers: axum::http::HeaderMap,
+    Path(order_id): Path<String>,
+    Json(body): Json<SubmitOrderPaymentProofRequest>,
+) -> Result<Json<stheno_order::OrderPaymentProofDTO>, Response> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .ok_or_else(|| unauthorized("Missing Authorization bearer token"))?;
+    let claims = ctx
+        .auth_service
+        .verify_jwt(token)
+        .await
+        .map_err(|_| unauthorized("Invalid or expired token"))?;
+    let customer_id = claims
+        .actor_id
+        .ok_or_else(|| unauthorized("Token is not bound to a customer"))?;
+
+    let proof = ctx
+        .order_service
+        .submit_manual_payment_proof(stheno_order::SubmitOrderPaymentProofInput {
+            order_id,
+            customer_id: customer_id.clone(),
+            payment_method: body.payment_method,
+            transaction_id: body.transaction_id,
+            proof_asset_url: body.proof_asset_url,
+        })
+        .await
+        .map_err(map_error)?;
+
+    // The accepted proof remains pending verification; notification failure must not turn
+    // a committed proof into an apparent submission failure for the shopper.
+    match ctx.order_service.get_order(&proof.order_id).await {
+        Ok(order) if order.customer_id.as_deref() == Some(customer_id.as_str()) => {
+            if let Some(email) = order.email.filter(|email| email.contains('@')) {
+                let subject = format!(
+                    "Payment received for order #{} — verification pending",
+                    order.display_id
+                );
+                let body = format!(
+                    "<p>We received your payment reference for order <strong>#{}</strong>.</p>\
+                     <p>Your payment is <strong>pending verification</strong>. The order is not marked paid until the merchant verifies the transfer.</p>",
+                    order.display_id
+                );
+                let queued = ctx
+                    .notification_service
+                    .enqueue_notification_idempotent(
+                        stheno_notification::SendNotificationInput {
+                            to: email.clone(),
+                            channel: "email".to_string(),
+                            template: None,
+                            subject: Some(subject),
+                            body: Some(body),
+                            data: None,
+                            trigger_type: Some("order.payment_proof_submitted".to_string()),
+                            resource_id: Some(proof.order_id.clone()),
+                            resource_type: Some("order".to_string()),
+                            receiver_id: Some(email),
+                        },
+                        &format!("order-payment-proof-submitted/{}", proof.id),
+                    )
+                    .await;
+                if queued.is_err() {
+                    tracing::warn!(
+                        order_id = %proof.order_id,
+                        "payment proof was accepted but its customer email could not be queued"
+                    );
+                }
+            }
+        }
+        Ok(_) => tracing::warn!(
+            order_id = %proof.order_id,
+            "payment proof was accepted but order ownership changed before notification"
+        ),
+        Err(_) => tracing::warn!(
+            order_id = %proof.order_id,
+            "payment proof was accepted but order details could not be loaded for notification"
+        ),
+    }
+    Ok(Json(proof))
+}
+
+/// `GET /store/orders/{id}/payment-proof`
+pub async fn get_order_payment_proof(
+    State(ctx): State<StoreOrderContext>,
+    headers: axum::http::HeaderMap,
+    Path(order_id): Path<String>,
+) -> Result<Json<serde_json::Value>, Response> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .ok_or_else(|| unauthorized("Missing Authorization bearer token"))?;
+    let claims = ctx
+        .auth_service
+        .verify_jwt(token)
+        .await
+        .map_err(|_| unauthorized("Invalid or expired token"))?;
+    let customer_id = claims
+        .actor_id
+        .ok_or_else(|| unauthorized("Token is not bound to a customer"))?;
+    let proof = ctx
+        .order_service
+        .get_manual_payment_proof(&order_id, &customer_id)
+        .await
+        .map_err(map_error)?;
+    Ok(Json(serde_json::json!({ "payment_proof": proof })))
 }
 
 /// `POST /store/orders/transfer`

@@ -10,7 +10,7 @@ The Vendryx engine (`stheno-*`) is designed as a **modular monolith** with build
 - **Compile-Time Extensibility ([ADR-001](../docs/DECISIONS.md#adr-001)):** Modules and providers are compiled Rust crates wired into the application root at compile time. No dynamic runtime plugin containers.
 - **Postgres Multi-Tenancy with RLS ([ADR-012](../docs/DECISIONS.md#adr-012)):** A single database instance serves all merchants. Isolation is enforced at the database layer via `FORCE ROW LEVEL SECURITY` and `tenant_id` scoping on every table.
 - **Durable SAGA Engine on Postgres ([ADR-003](../docs/DECISIONS.md#adr-003)):** Multi-module transactions run on a custom Postgres SAGA orchestrator with compensation stacks and idempotency guarantees.
-- **Diesel Compile-Time Persistence ([ADR-004](../docs/DECISIONS.md#adr-004)):** Type-safe persistence with zero runtime reflection across 127 entities.
+- **Diesel Compile-Time Persistence ([ADR-004](../docs/DECISIONS.md#adr-004)):** Type-safe persistence with zero runtime reflection across 128 domain entities.
 - **Exact Decimal Money ([ADR-006](../docs/DECISIONS.md#adr-006)):** Money arithmetic uses `rust_decimal::Decimal`. No floating-point numbers (`f32`/`f64`) anywhere in domain calculations.
 
 ---
@@ -29,12 +29,13 @@ crates/
 │   ├── stheno-http/                      # Axum HTTP utilities, auth extractors, owned DTOs
 │   └── stheno-registry/                  # Compile-time service and provider registry
 │
-├── modules/                              # 33 leaf domain modules (independent schemas)
+├── modules/                              # 34 leaf domain modules (independent schemas)
 │   ├── stheno-product/                   # Products, variants, collections, categories
 │   ├── stheno-cart/                      # Cart state machine, shipping methods, adjustments
 │   ├── stheno-payment/                   # Payment sessions, collections, ledger & refunds
 │   ├── stheno-order/                     # Order lifecycle, line items, fulfillment state
 │   ├── stheno-inventory/                 # Stock levels, reservations, warehouse channels
+│   ├── stheno-ai/                        # Tenant-owned static merchant knowledge (ADR-032)
 │   ├── stheno-pricing/                   # Price sets, money rules, currency conversions
 │   ├── ...                               # customer, auth, tax, region, rbac, file, etc.
 │
@@ -46,6 +47,7 @@ crates/
 │   └── stheno-subscribers/               # Outbox event consumers (search indexing, audit)
 │
 ├── providers/                            # External service adapters
+│   ├── stheno-ai-openai-compatible/      # Bounded DeepSeek/Qwen-compatible chat completions
 │   ├── stheno-payment-stripe/            # Stripe Elements & payment intent provider
 │   ├── stheno-payment-sslcommerz/        # SSLCommerz hosted gateway adapter
 │   ├── stheno-payment-bkash/             # bKash tokenized payment provider

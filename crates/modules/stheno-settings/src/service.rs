@@ -301,7 +301,7 @@ impl SettingsService {
         let list = self.property_labels.list(None, &filter).await?;
         let pl = list.into_iter().next().ok_or_else(|| Error::NotFound {
             entity: "property_label",
-            id: format!("{}:{}", entity_type, property_key),
+            id: format!("{entity_type}:{property_key}"),
         })?;
 
         Ok(PropertyLabelDTO {
@@ -372,7 +372,7 @@ impl SettingsService {
         let list = self.layout_preferences.list(None, &filter).await?;
         let pref = list.into_iter().next().ok_or_else(|| Error::NotFound {
             entity: "layout_preference",
-            id: format!("{}:{}", user_id, layout_key),
+            id: format!("{user_id}:{layout_key}"),
         })?;
 
         Ok(LayoutPreferenceDTO {

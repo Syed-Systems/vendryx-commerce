@@ -199,7 +199,7 @@ pub async fn rollout_theme_version(
         return deny();
     };
 
-    let flag_key = format!("theme.rollout.{}", id);
+    let flag_key = format!("theme.rollout.{id}");
     let reason = format!(
         "target_version: {}, percentage: {}",
         body.target_version, body.percentage

@@ -173,10 +173,10 @@ async fn test_search_convergence_after_bulk_update() {
     let mut bulk_docs = Vec::with_capacity(1000);
     for i in 0..1000 {
         bulk_docs.push(SearchDocument {
-            id: format!("prod_bulk_{:04}", i),
-            title: format!("Bulk Product SKU-{:04} Special Edition", i),
-            description: Some(format!("High quality variant description for item {}", i)),
-            handle: Some(format!("bulk-prod-{}", i)),
+            id: format!("prod_bulk_{i:04}"),
+            title: format!("Bulk Product SKU-{i:04} Special Edition"),
+            description: Some(format!("High quality variant description for item {i}")),
+            handle: Some(format!("bulk-prod-{i}")),
             sales_channel_ids: vec!["sc_global".to_string()],
             category_ids: vec!["cat_bulk".to_string()],
             tags: vec!["bulk".to_string(), format!("batch_{}", i % 10)],
@@ -211,8 +211,7 @@ async fn test_search_convergence_after_bulk_update() {
     assert_eq!(query_res.hits[0].document.id, "prod_bulk_0500");
     assert!(
         elapsed.as_secs() < 5,
-        "1,000-product indexing and search took {:?}, expected < 5s",
-        elapsed
+        "1,000-product indexing and search took {elapsed:?}, expected < 5s"
     );
 }
 

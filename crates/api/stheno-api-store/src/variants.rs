@@ -1,9 +1,9 @@
 //! Store Product Variant API handlers (Medusa v2 byte-compatible).
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Serialize;
 use std::sync::Arc;
 use stheno_product::{ProductService, ProductVariantDTO};
@@ -25,7 +25,7 @@ pub async fn get_variant(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 r#type: "not_found".to_string(),
-                message: format!("Product variant with id {} was not found", id),
+                message: format!("Product variant with id {id} was not found"),
             }),
         )
             .into_response()),

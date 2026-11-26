@@ -137,6 +137,28 @@ export const FONT_STACKS: Record<string, string> = {
   cinzel: "Cinzel, 'Times New Roman', serif",
 }
 
+const SAFE_HEX_COLOR = /^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i
+const SAFE_RGB_COLOR = /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i
+const SAFE_LENGTH = /^(?:0|\d{1,3}(?:\.\d+)?(?:px|rem|em|%))$/i
+
+function safeColor(value: string | null | undefined, fallback: string): string {
+  const candidate = value?.trim()
+  return candidate && (SAFE_HEX_COLOR.test(candidate) || SAFE_RGB_COLOR.test(candidate))
+    ? candidate
+    : fallback
+}
+
+function safeLength(value: string | null | undefined, fallback: string): string {
+  const candidate = value?.trim()
+  return candidate && SAFE_LENGTH.test(candidate) ? candidate : fallback
+}
+
+function safeMaterial(value: string | null | undefined): string {
+  return value === "glass" || value === "flat" || value === "border" || value === "shadow"
+    ? value
+    : DEFAULT_BRANDING.material_style
+}
+
 /**
  * Resolves raw tenant branding data into concrete token values, applying documented defaults.
  */
@@ -153,16 +175,16 @@ export function resolveBrandingTokens(
     font_heading: branding?.font_heading?.trim().toLowerCase() || fontKey,
     font_body: branding?.font_body?.trim().toLowerCase() || fontKey,
     font_mono: branding?.font_mono?.trim().toLowerCase() || fontKey,
-    color_primary: branding?.color_primary?.trim() || DEFAULT_BRANDING.color_primary,
-    color_secondary: branding?.color_secondary?.trim() || DEFAULT_BRANDING.color_secondary,
-    color_accent: branding?.color_accent?.trim() || DEFAULT_BRANDING.color_accent,
-    color_background: branding?.color_background?.trim() || DEFAULT_BRANDING.color_background,
-    color_surface: branding?.color_surface?.trim() || DEFAULT_BRANDING.color_surface,
-    color_text: branding?.color_text?.trim() || DEFAULT_BRANDING.color_text,
-    radius_card: branding?.radius_card?.trim() || DEFAULT_BRANDING.radius_card,
-    radius_input: branding?.radius_input?.trim() || DEFAULT_BRANDING.radius_input,
-    radius_button: branding?.radius_button?.trim() || DEFAULT_BRANDING.radius_button,
-    material_style: branding?.material_style?.trim() || DEFAULT_BRANDING.material_style,
+    color_primary: safeColor(branding?.color_primary, DEFAULT_BRANDING.color_primary),
+    color_secondary: safeColor(branding?.color_secondary, DEFAULT_BRANDING.color_secondary),
+    color_accent: safeColor(branding?.color_accent, DEFAULT_BRANDING.color_accent),
+    color_background: safeColor(branding?.color_background, DEFAULT_BRANDING.color_background),
+    color_surface: safeColor(branding?.color_surface, DEFAULT_BRANDING.color_surface),
+    color_text: safeColor(branding?.color_text, DEFAULT_BRANDING.color_text),
+    radius_card: safeLength(branding?.radius_card, DEFAULT_BRANDING.radius_card),
+    radius_input: safeLength(branding?.radius_input, DEFAULT_BRANDING.radius_input),
+    radius_button: safeLength(branding?.radius_button, DEFAULT_BRANDING.radius_button),
+    material_style: safeMaterial(branding?.material_style),
   }
 }
 

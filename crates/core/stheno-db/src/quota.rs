@@ -63,7 +63,7 @@ impl QuotaCounter {
         } else {
             Err(Error::Conflict {
                 code: "quota_exceeded",
-                message: format!("Quota limit reached for resource: {}", resource),
+                message: format!("Quota limit reached for resource: {resource}"),
             })
         }
     }

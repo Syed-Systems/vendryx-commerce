@@ -21,9 +21,33 @@ impl Default for SteadfastConfig {
     fn default() -> Self {
         Self {
             base_url: "https://portal.packzy.com/api/v1".to_string(),
-            api_key: "test_steadfast_api_key".to_string(),
-            secret_key: "test_steadfast_secret_key".to_string(),
+            api_key: String::new(),
+            secret_key: String::new(),
         }
+    }
+}
+
+fn required_text<'a>(
+    data: Option<&'a serde_json::Value>,
+    field: &str,
+    label: &str,
+) -> Result<&'a str> {
+    data.and_then(|value| value.get(field))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| Error::Invalid {
+            code: "steadfast_shipment_field_missing",
+            message: format!("Steadfast {label} is required to create a shipment."),
+            field: Some(field.to_string()),
+        })
+}
+
+fn value_to_id(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(value) if !value.trim().is_empty() => Some(value.clone()),
+        serde_json::Value::Number(value) => Some(value.to_string()),
+        _ => None,
     }
 }
 
@@ -62,8 +86,14 @@ impl SteadfastFulfillmentProvider {
                     if let Some(bal) = json
                         .get("current_balance")
                         .or_else(|| json.get("balance"))
-                        .and_then(|b| b.as_str().and_then(|s| s.parse::<Decimal>().ok())
-                            .or_else(|| b.as_f64().and_then(|f| Decimal::from_str_exact(&f.to_string()).ok())))
+                        .and_then(|b| {
+                            b.as_str()
+                                .and_then(|s| s.parse::<Decimal>().ok())
+                                .or_else(|| {
+                                    b.as_f64()
+                                        .and_then(|f| Decimal::from_str_exact(&f.to_string()).ok())
+                                })
+                        })
                     {
                         return Ok(bal);
                     }
@@ -188,57 +218,110 @@ impl FulfillmentProvider for SteadfastFulfillmentProvider {
         _items: &[CreateFulfillmentItemInput],
         _order_data: Option<&serde_json::Value>,
     ) -> Result<CreateFulfillmentResponse> {
+        let api_key = data
+            .and_then(|value| value.get("api_key"))
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or(&self.config.api_key);
+        let secret_key = data
+            .and_then(|value| value.get("secret_key"))
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or(&self.config.secret_key);
+        if api_key.trim().is_empty() || secret_key.trim().is_empty() {
+            return Err(Error::Invalid {
+                code: "steadfast_credentials_missing",
+                message: "Steadfast merchant credentials are not configured.".to_string(),
+                field: None,
+            });
+        }
         let url = format!("{}/create_order", self.config.base_url);
 
         let invoice = data
-            .and_then(|d| d.get("invoice").or_else(|| d.get("merchant_order_id")).or_else(|| d.get("reference")))
+            .and_then(|d| {
+                d.get("invoice")
+                    .or_else(|| d.get("merchant_order_id"))
+                    .or_else(|| d.get("reference"))
+            })
             .and_then(|v| v.as_str())
-            .unwrap_or("INV-001");
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| Error::Invalid {
+                code: "steadfast_invoice_missing",
+                message: "Steadfast shipment requires a stable merchant invoice reference."
+                    .to_string(),
+                field: Some("invoice".to_string()),
+            })?;
+        let recipient_name = required_text(data, "recipient_name", "recipient name")?;
+        let recipient_phone = required_text(data, "recipient_phone", "recipient phone")?;
+        let recipient_address = required_text(data, "recipient_address", "recipient address")?;
 
         let cod_amount = data
             .and_then(|d| d.get("cod_amount").or_else(|| d.get("amount_to_collect")))
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+            .map_or(Ok(0), |value| value.as_u64().ok_or_else(|| Error::Invalid {
+                code: "steadfast_cod_amount_invalid",
+                message: "Steadfast cash collection amount must be a non-negative integer in minor currency units.".to_string(),
+                field: Some("cod_amount".to_string()),
+            }))?;
 
         let order_payload = serde_json::json!({
             "invoice": invoice,
-            "recipient_name": data.and_then(|d| d.get("recipient_name")).and_then(|v| v.as_str()).unwrap_or("Recipient"),
-            "recipient_phone": data.and_then(|d| d.get("recipient_phone")).and_then(|v| v.as_str()).unwrap_or("01700000000"),
-            "recipient_address": data.and_then(|d| d.get("recipient_address")).and_then(|v| v.as_str()).unwrap_or("Address"),
+            "recipient_name": recipient_name,
+            "recipient_phone": recipient_phone,
+            "recipient_address": recipient_address,
             "cod_amount": cod_amount,
         });
 
         let resp = self
             .client
             .post(&url)
-            .header("Api-Key", &self.config.api_key)
-            .header("Secret-Key", &self.config.secret_key)
+            .header("Api-Key", api_key)
+            .header("Secret-Key", secret_key)
             .json(&order_payload)
             .send()
             .await;
 
-        let (cid_str, tracking_code) = match resp {
-            Ok(r) if r.status().is_success() => {
-                let json: serde_json::Value = r.json().await.unwrap_or_default();
-                let cid = json
-                    .get("consignment")
-                    .and_then(|c| c.get("consignment_id"))
-                    .map(|v| v.to_string())
-                    .unwrap_or_else(|| format!("STDF-CNS-{}", invoice));
-                let track = json
-                    .get("consignment")
-                    .and_then(|c| c.get("tracking_code"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| cid.clone());
-                (cid, track)
-            }
-            _ => {
-                let cid = format!("STDF-CNS-{}", invoice);
-                let track = format!("STDF-TRK-{}", invoice);
-                (cid, track)
-            }
-        };
+        let response = resp.map_err(|_| Error::Invalid {
+            code: "steadfast_create_request_failed",
+            message: "Steadfast shipment request failed; shipment status is unknown.".to_string(),
+            field: None,
+        })?;
+        if !response.status().is_success() {
+            return Err(Error::Invalid {
+                code: "steadfast_create_rejected",
+                message: format!(
+                    "Steadfast rejected shipment creation with HTTP {}.",
+                    response.status()
+                ),
+                field: None,
+            });
+        }
+        let body: serde_json::Value = response.json().await.map_err(|_| Error::Invalid {
+            code: "steadfast_create_response_invalid",
+            message: "Steadfast shipment response was invalid; shipment status is unknown."
+                .to_string(),
+            field: None,
+        })?;
+        let consignment = body.get("consignment");
+        let cid_str = consignment
+            .and_then(|value| value.get("consignment_id"))
+            .and_then(value_to_id)
+            .ok_or_else(|| Error::Invalid {
+                code: "steadfast_consignment_id_missing",
+                message: "Steadfast accepted the request but returned no consignment ID; shipment status is unknown.".to_string(),
+                field: None,
+            })?;
+        let tracking_code = consignment
+            .and_then(|value| value.get("tracking_code"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| Error::Invalid {
+                code: "steadfast_tracking_code_missing",
+                message: "Steadfast accepted the request but returned no tracking code; shipment status is unknown.".to_string(),
+                field: None,
+            })?;
 
         let mut res_data = data.cloned().unwrap_or_else(|| serde_json::json!({}));
         if !res_data.is_object() {
@@ -254,8 +337,12 @@ impl FulfillmentProvider for SteadfastFulfillmentProvider {
         let labels = vec![CreateFulfillmentLabelInput {
             tracking_number: tracking_code.clone(),
             tracking_url: Some(tracking_url),
-            label_url: Some(format!("https://portal.packzy.com/labels/{tracking_code}.pdf")),
-            metadata: Some(serde_json::json!({ "provider": "steadfast", "consignment_id": cid_str })),
+            label_url: Some(format!(
+                "https://portal.packzy.com/labels/{tracking_code}.pdf"
+            )),
+            metadata: Some(
+                serde_json::json!({ "provider": "steadfast", "consignment_id": cid_str }),
+            ),
         }];
 
         Ok(CreateFulfillmentResponse {
@@ -327,7 +414,12 @@ impl FulfillmentProvider for SteadfastFulfillmentProvider {
             .get("consignment_id")
             .or_else(|| payload.get("tracking_code"))
             .or_else(|| payload.get("invoice"))
-            .and_then(|v| v.as_str().or_else(|| v.as_i64().map(|n| Box::leak(n.to_string().into_boxed_str()) as &str)));
+            .and_then(|v| {
+                v.as_str().or_else(|| {
+                    v.as_i64()
+                        .map(|n| Box::leak(n.to_string().into_boxed_str()) as &str)
+                })
+            });
 
         let raw_status = payload
             .get("status")

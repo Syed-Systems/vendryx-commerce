@@ -115,23 +115,26 @@ impl EventSubscriber for IdentityCreatedSubscriber {
             )
         };
 
-        let _ = self
-            .notification_service
-            .send_notification(SendNotificationInput {
-                to: email.to_string(),
-                channel: "email".to_string(),
-                template: None,
-                subject: Some(subject),
-                body: Some(body),
-                data: Some(payload.clone()),
-                trigger_type: Some("auth.identity_created".to_string()),
-                resource_id: payload
-                    .get("identity_id")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-                resource_type: Some("auth_identity".to_string()),
-                receiver_id: Some(email.to_string()),
-            })
+        self.notification_service
+            .enqueue_notification_idempotent_for_tenant(
+                SendNotificationInput {
+                    to: email.to_string(),
+                    channel: "email".to_string(),
+                    template: None,
+                    subject: Some(subject),
+                    body: Some(body),
+                    data: Some(payload.clone()),
+                    trigger_type: Some("auth.identity_created".to_string()),
+                    resource_id: payload
+                        .get("identity_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    resource_type: Some("auth_identity".to_string()),
+                    receiver_id: Some(email.to_string()),
+                },
+                &format!("identity-created/{}", event.id),
+                &event.tenant_id,
+            )
             .await?;
 
         Ok(())
@@ -284,23 +287,26 @@ impl EventSubscriber for UserInviteSubscriber {
             self.store_name, role, token, token, self.store_name
         );
 
-        let _ = self
-            .notification_service
-            .send_notification(SendNotificationInput {
-                to: email.to_string(),
-                channel: "email".to_string(),
-                template: None,
-                subject: Some(subject),
-                body: Some(body),
-                data: Some(payload.clone()),
-                trigger_type: Some("user.invite_created".to_string()),
-                resource_id: payload
-                    .get("invite_id")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-                resource_type: Some("user_invite".to_string()),
-                receiver_id: Some(email.to_string()),
-            })
+        self.notification_service
+            .enqueue_notification_idempotent_for_tenant(
+                SendNotificationInput {
+                    to: email.to_string(),
+                    channel: "email".to_string(),
+                    template: None,
+                    subject: Some(subject),
+                    body: Some(body),
+                    data: Some(payload.clone()),
+                    trigger_type: Some("user.invite_created".to_string()),
+                    resource_id: payload
+                        .get("invite_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    resource_type: Some("user_invite".to_string()),
+                    receiver_id: Some(email.to_string()),
+                },
+                &format!("user-invite/{}", event.id),
+                &event.tenant_id,
+            )
             .await?;
 
         Ok(())
@@ -356,10 +362,7 @@ impl EventSubscriber for OrderConfirmationEmailSubscriber {
             .and_then(|v| v.as_str())
             .unwrap_or("$0.00");
 
-        let subject = format!(
-            "Order Confirmation #{}: Thank you for your purchase",
-            order_id
-        );
+        let subject = format!("Order Confirmation #{order_id}: Thank you for your purchase");
         let body = format!(
             "<div style=\"background-color: #FCFBF9; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;\">\
                 <div style=\"max-width: 560px; margin: 0 auto; background-color: #FFFFFF; border: 1px solid #E6E0D8; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(24, 24, 27, 0.04);\">\
@@ -390,18 +393,22 @@ impl EventSubscriber for OrderConfirmationEmailSubscriber {
 
         let _ = self
             .notification_service
-            .send_notification(SendNotificationInput {
-                to: email.to_string(),
-                channel: "email".to_string(),
-                template: None,
-                subject: Some(subject),
-                body: Some(body),
-                data: Some(payload.clone()),
-                trigger_type: Some("order.placed".to_string()),
-                resource_id: Some(order_id.to_string()),
-                resource_type: Some("order".to_string()),
-                receiver_id: Some(email.to_string()),
-            })
+            .enqueue_notification_idempotent_for_tenant(
+                SendNotificationInput {
+                    to: email.to_string(),
+                    channel: "email".to_string(),
+                    template: None,
+                    subject: Some(subject),
+                    body: Some(body),
+                    data: Some(payload.clone()),
+                    trigger_type: Some("order.placed".to_string()),
+                    resource_id: Some(order_id.to_string()),
+                    resource_type: Some("order".to_string()),
+                    receiver_id: Some(email.to_string()),
+                },
+                &format!("order-confirmation/{}", event.id),
+                &event.tenant_id,
+            )
             .await?;
 
         Ok(())

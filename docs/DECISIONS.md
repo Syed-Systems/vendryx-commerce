@@ -3,39 +3,48 @@
 Each record states what was decided, what it costs, and what would reverse it. A decision without
 a stated cost is a preference wearing a suit.
 
-| # | Decision | Status |
-|---|---|---|
-| [ADR-001](#adr-001) | Extensibility is compile-time; no runtime plugins | Accepted |
-| [ADR-002](#adr-002) | Full wire compatibility, Store **and** Admin. Fork the dashboard | Accepted · **amended by [ADR-027](#adr-027)** |
-| [ADR-003](#adr-003) | Durable workflows run on a custom Postgres SAGA engine | Accepted |
-| [ADR-004](#adr-004) | Diesel + diesel-async for persistence | Accepted |
-| [ADR-005](#adr-005) | Postgres only; no other database backends | Accepted |
-| [ADR-006](#adr-006) | Money is decimal, never float or integer minor units | Accepted |
-| [ADR-007](#adr-007) | Modular monolith with build-enforced boundaries | Accepted (expanded) |
-| [ADR-008](#adr-008) | RBAC and SSO are clean-room, not ported — they are Medusa Enterprise | Accepted |
-| [ADR-009](#adr-009) | Plan tiers by entitlements on single-tenant deployments, not multi-tenancy | **Superseded by [ADR-012](#adr-012)** |
-| [ADR-010](#adr-010) | `Id<T>` carries its Medusa prefix as a compile-time constant | Accepted |
-| [ADR-011](#adr-011) | `FilterSpec` stays single-entity; joins belong to the query engine | Accepted |
-| [ADR-012](#adr-012) | One database, `tenant_id` on every row, isolation enforced by Postgres RLS | Accepted |
-| [ADR-013](#adr-013) | Storefront presentation is swappable; commerce logic is not | **Superseded by [ADR-031](#adr-031)** |
-| [ADR-014](#adr-014) | A line item's price comes from the catalogue, never from the request | Accepted |
-| [ADR-015](#adr-015) | Wire-shape expansion lives in the API layer, not in module DTOs | Accepted |
-| [ADR-016](#adr-016) | Plan definitions are data the control plane owns, not config baked into the image | Accepted · **Refined by [ADR-030](#adr-030)** |
-| [ADR-017](#adr-017) | Subscription billing is first-party, collected on the gateways already integrated | Accepted |
-| [ADR-018](#adr-018) | Support impersonation: time-boxed, scope-limited, fully audited, secret-opaque | Accepted |
-| [ADR-019](#adr-019) | Provider credentials are tenant-owned, encrypted, and resolved through factories | Accepted |
-| [ADR-020](#adr-020) | Content pages a design needs are core routes fed by a theme slot | **Superseded by [ADR-031](#adr-031)** |
-| [ADR-021](#adr-021) | AI-authored storefront content is data against a closed schema, never code | Accepted |
-| [ADR-022](#adr-022) | Tenant identity is the Host header; the Store API is served same-origin | Accepted |
-| [ADR-023](#adr-023) | One storefront build per theme, routed by host | **Superseded by [ADR-031](#adr-031)** |
-| [ADR-024](#adr-024) | Compute next to the data; delivery by CDN over an origin that speaks HTTP caching | Accepted |
-| [ADR-025](#adr-025) | Connection pooling is transaction-mode, with a session-mode route | Accepted |
-| [ADR-026](#adr-026) | Docker Compose now, Kubernetes at scale | Accepted |
-| [ADR-027](#adr-027) | Medusa compatibility is an implementation detail, never a product claim | Accepted |
-| [ADR-028](#adr-028) | Customer-facing brand is Vendryx; internal identifiers remain `stheno-*` | Accepted |
-| [ADR-029](#adr-029) | Merchant Admin Truth Contract & Apple HIG Information Architecture | Accepted |
-| [ADR-030](#adr-030) | Company Control Plane extracted to standalone 'Space' project | Accepted |
-| [ADR-031](#adr-031) | Dynamic multi-tenant visual theming on a unified default storefront runtime | Accepted |
+| # | Decision | Decision Status | Implementation State |
+|---|---|---|---|
+| [ADR-001](#adr-001) | Extensibility is compile-time; no runtime plugins | Accepted | **Implemented** (`crates/stheno-*`) |
+| [ADR-002](#adr-002) | Full wire compatibility, Store **and** Admin. Fork the dashboard | Accepted · amended by [ADR-027](#adr-027) | **Implemented** (Core API contracts) |
+| [ADR-003](#adr-003) | Durable workflows run on a custom Postgres SAGA engine | Accepted | **Implemented** (`crates/core/stheno-workflow`) |
+| [ADR-004](#adr-004) | Diesel + diesel-async for persistence | Accepted | **Implemented** (`crates/core/stheno-db`) |
+| [ADR-005](#adr-005) | Postgres only; no other database backends | Accepted | **Implemented** (PostgreSQL 16) |
+| [ADR-006](#adr-006) | Money is decimal, never float or integer minor units | Accepted | **Implemented** (`stheno-types::Money`) |
+| [ADR-007](#adr-007) | Modular monolith with build-enforced boundaries | Accepted | **Implemented** (34 module crates) |
+| [ADR-008](#adr-008) | RBAC and SSO are clean-room, not ported — they are Medusa Enterprise | Accepted | **Implemented** (`stheno-rbac`, `stheno-auth`) |
+| [ADR-009](#adr-009) | Plan tiers by entitlements on single-tenant deployments, not multi-tenancy | **Superseded by [ADR-012](#adr-012)** | **Superseded** |
+| [ADR-010](#adr-010) | `Id<T>` carries its Medusa prefix as a compile-time constant | Accepted | **Implemented** (`stheno-types`) |
+| [ADR-011](#adr-011) | `FilterSpec` stays single-entity; joins belong to the query engine | Accepted | **Implemented** (`stheno-query`) |
+| [ADR-012](#adr-012) | One database, `tenant_id` on every row, isolation enforced by Postgres RLS | Accepted | **Implemented** (Postgres RLS) |
+| [ADR-013](#adr-013) | Storefront presentation is swappable; commerce logic is not | **Superseded by [ADR-031](#adr-031)** | **Superseded** |
+| [ADR-014](#adr-014) | A line item's price comes from the catalogue, never from the request | Accepted | **Implemented** (`stheno-cart`) |
+| [ADR-015](#adr-015) | Wire-shape expansion lives in the API layer, not in module DTOs | Accepted | **Implemented** (API layer) |
+| [ADR-016](#adr-016) | Plan definitions are data the control plane owns, not config baked into the image | Accepted · refined by [ADR-030](#adr-030) | **Implemented** (`platform.tier_definition`) |
+| [ADR-017](#adr-017) | Subscription billing is first-party, collected on the gateways already integrated | Accepted | **Partially Implemented** (Manual proofs active; recurring in P30) |
+| [ADR-018](#adr-018) | Support impersonation: time-boxed, scope-limited, fully audited, secret-opaque | Accepted | **Implemented** (`stheno-platform`) |
+| [ADR-019](#adr-019) | Provider credentials are tenant-owned, encrypted, and resolved through factories | Accepted | **Implemented** (`stheno-payment`) |
+| [ADR-020](#adr-020) | Content pages a design needs are core routes fed by a theme slot | **Superseded by [ADR-031](#adr-031)** | **Superseded** |
+| [ADR-021](#adr-021) | AI-authored storefront content is data against a closed schema, never code | Accepted | **Implemented** (`apps/storefront`) |
+| [ADR-022](#adr-022) | Tenant identity is the Host header; the Store API is served same-origin | Accepted | **Implemented** (`middleware.ts`) |
+| [ADR-023](#adr-023) | One storefront build per theme, routed by host | **Superseded by [ADR-031](#adr-031)** | **Superseded** |
+| [ADR-024](#adr-024) | Compute next to the data; delivery by CDN over an origin that speaks HTTP caching | Accepted · amended by [ADR-037](#adr-037) | **Implemented** (Edge CDN headers) |
+| [ADR-025](#adr-025) | Connection pooling is transaction-mode, with a session-mode route | Accepted | **Implemented** (PgBouncer/Supavisor) |
+| [ADR-026](#adr-026) | Docker Compose now, Kubernetes at scale | Accepted | **Implemented** (Deploy configs) |
+| [ADR-027](#adr-027) | Medusa compatibility is an implementation detail, never a product claim | Accepted | **Implemented** (Clean room engine) |
+| [ADR-028](#adr-028) | Customer-facing brand is Vendryx; internal identifiers remain `stheno-*` | Accepted | **Implemented** (Brand inventory) |
+| [ADR-029](#adr-029) | Merchant Admin Truth Contract & Apple HIG Information Architecture | Accepted | **Implemented** (`apps/admin`) |
+| [ADR-030](#adr-030) | Company Control Plane extracted to standalone 'Space' project | Accepted | **Implemented** (`D:/Syed Systems/Space`) |
+| [ADR-031](#adr-031) | Dynamic multi-tenant visual theming on a unified default storefront runtime | Accepted | **Implemented** (Phase 3 GA) |
+| [ADR-032](#adr-032) | AI-powered social commerce automation: OKF architecture, tool calling & safe draft intake | Accepted · amended 2026-11-14 | **Partially Implemented** (amendment for knowledge prompting, conversation states, store modes and 30-day transcripts is not implemented, see [OKF_PLAN.md](OKF_PLAN.md); 32.1–32.4 implemented; 32.6 owner-authorized chat offer flow is wired but acceptance gates remain; 32.5 confirmation-time dispatch is wired, with focused build and acceptance gates still pending) |
+| [ADR-033](#adr-033) | Commercial entitlements overhaul: Free & 7-day Pro trial packaging | Accepted | **Partially Implemented** (trial resolution/lifecycle, verified-owner day-3/day-6 reminders, durable idempotency-aware notification outbox, subscription/grace UI, and persisted-expiry trial banner are wired; web push, quota matrices, and billing journey acceptance remain) |
+| [ADR-034](#adr-034) | Manual payment "in verification" truth contract & email/WhatsApp notification pipeline | Accepted | **Partially Implemented** (manual-transfer/COD split, proof ledgers/review and pending/decision emails, cancellation and fulfillment status notices, encrypted cart cookie, durable order/welcome/invite outbox, opt-in order confirmation, consent ledger/STOP revocation, central-vs-merchant WhatsApp routing, and atomic Free daily email/WhatsApp caps are wired; remaining transaction events, deployed WABA/template setup, and focused gates remain) |
+| [ADR-035](#adr-035) | Architecture implementation distance & readiness audit | Accepted | **Partially Implemented** (readiness matrix reconciled to code; implementation and acceptance evidence remains open in ADR-032–036 plan) |
+| [ADR-036](#adr-036) | Space provides dedicated build execution and shared build caches | Accepted · pairs with Space SPACE-ADR-016 | **Partially Implemented** (scoped caches and hosted CI selector are implemented; current Space SSH check reports rootful Docker, so isolated manual execution and full gate parity are not verified; trusted CI routing remains off) |
+| [ADR-037](#adr-037) | Cloudflare is the edge layer only; vendor calls are confined to one provider crate and Space | Accepted · amends [ADR-024](#adr-024) | **Not Implemented** (spec at `.orchestration/task-cloudflare-edge/spec.md`) |
+
+Ordered phases, dependencies, edge cases, and acceptance evidence for ADRs 032–036 are tracked in
+[ADR_IMPLEMENTATION_PLAN.md](ADR_IMPLEMENTATION_PLAN.md).
 
 <a id="adr-001"></a>
 
@@ -55,7 +64,7 @@ stable host ABI, or out-of-process providers over gRPC.
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **Compile-time crates** (chosen) | Zero dispatch cost, full type safety, simplest architecture, smallest attack surface | No drop-in plugins; customisation means recompiling |
 | WASM component plugins | Third-party plugins without recompiling; sandboxed | A host ABI is a permanent compatibility burden; every host type crosses a serialisation boundary; substantial design cost |
 | gRPC sidecar providers | Plugins in any language | N processes to operate; network latency inside the checkout path; hardest operational story of the three |
@@ -175,7 +184,7 @@ or Restate.
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **Custom on Postgres** (chosen) | No extra infrastructure; exact semantic parity with Medusa's step options; full control; `SKIP LOCKED` is genuinely sufficient | We own the correctness of a distributed state machine |
 | Temporal | Proven durability, excellent UI, replay determinism | A mandatory cluster in every deployment, including a one-merchant VPS. Its execution model is replay-based, not compensation-stack-based, so all 249 workflows would need semantic mapping rather than porting |
 | Pluggable driver | Flexibility | Two engines to test and keep semantically identical. The abstraction costs more than either engine |
@@ -229,7 +238,7 @@ every day, and is expensive to reverse.
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **Diesel + diesel-async** (chosen) | Strongest compile-time schema guarantees available; mature; fast; `schema.rs` diffing catches migration drift at build time | Dynamic filtering needs `into_boxed()` and a macro layer; async is a bolt-on rather than native |
 | SQLx | Compile-time-checked raw SQL; async-native; full control on hot paths | Verification needs a live database at build time; no schema-drift detection; hand-written SQL for 127 entities of CRUD |
 | SeaORM | Fast CRUD scaffolding; ergonomic dynamic queries | Weaker compile-time guarantees; you drop to raw SQL for the hard pricing and promotion queries anyway |
@@ -513,7 +522,7 @@ Two questions had to be answered together: how customers are isolated, and how f
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **One deployment per store** (chosen) | Physical data isolation — a gating bug leaks a feature, never another customer's orders. Entitlements are simple config. **Affordable precisely because the binary is small** (§ below) | N deployments to operate and upgrade |
 | Multi-tenant, one deployment | Cheapest per customer at scale, one thing to operate | All 127 entities need `tenant_id`; every query needs scoping; +12 weeks minimum touching all 252 tasks; a cross-tenant leak is company-ending |
 | Single-tenant now, multi-tenant later | Ships on schedule, door open | Pays discipline cost for a maybe; the retrofit stays expensive regardless |
@@ -776,7 +785,7 @@ test (below) rather than trusting review.
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **One DB + `tenant_id` + RLS** (chosen) | One database to operate. Enforcement in the database, so a missed filter returns zero rows rather than another tenant's. Entity structs unchanged | Every table grows a column and a policy; advisory locks are not covered; boot-time route gating stops working |
 | One DB + application-level scoping | No database features required | This *is* ADR-009's rejected option. A forgotten filter is a silent leak with nothing beneath it to catch the mistake |
 | Keep one DB per store, add a control plane above | No engine change at all | Does not solve the problem that prompted the change — N databases remain |
@@ -883,7 +892,7 @@ Both pressures reduce to one question: *what varies per merchant, and what must 
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | Fork the storefront per merchant | Trivial to start. Total freedom per store | N checkouts, N PCI surfaces, N sets of the same bug. Every engine change becomes an N-way migration. The cost arrives at merchant three, not merchant one |
 | Runtime theme registry — components resolved per tenant per request | One deploy. A merchant switches design instantly | Dynamic imports throughout, no tree-shaking, and a component API that can never change once three merchants depend on it. It is [ADR-001](#adr-001)'s rejected runtime-plugin model, rewritten in TypeScript |
 | **Core/theme split — branding at runtime, themes at build time, commerce logic fixed** (chosen) | One checkout, one compliance surface, one set of commerce bugs. The tenth theme costs what the second did | Themes must be versioned against core. A bespoke design is a deploy, not a toggle |
@@ -1124,7 +1133,7 @@ one merchant" had no answer short of putting them on Pro and giving away the res
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **DB row overrides the shipped TOML** (chosen) | The TOML stays the shipped default, so an untouched deployment behaves exactly as before. Editable from the control plane. One source of truth per tier at any moment | A tier the operator edits stops tracking the defaults a future release ships — stated in the UI as `edited` rather than left to be discovered |
 | Move tier definitions into the database entirely | One place to look | An empty or unreachable table means every plan is undefined. The failure mode of the storage layer becomes "nobody has any features" |
 | Merge the row into the TOML per key | Smaller writes | Needs an answer for *"the row omits `max_products` — unlimited, or unspecified?"*, and every answer to that is a plan silently granting more than the operator believes |
@@ -1218,7 +1227,7 @@ Subscription collection is the same rails pointed at ourselves.
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **First-party, on the existing gateways** (chosen) | Collects in the currency and wallets the customers actually hold. Reuses the outbound ledger, idempotency and reconciliation already built. One invoice, in one database, next to the subscription it bills | We own dunning, proration and VAT correctness. This is real money-handling code and it is ours to get right |
 | Hosted billing vendor (Stripe Billing, Chargebee, Paddle) | Dunning, proration, revenue reporting and tax as someone else's problem | **Cannot collect BDT from bKash or Nagad.** We write the collection path anyway and pay for a duplicate invoice record. Also puts every merchant's billing identity in a third party under [ADR-012](#adr-012) |
 | Collect manually — invoice by hand, reconcile in a spreadsheet | Zero code today | Fails at the third merchant. It is also the state we are in, and it is why `suspended` is unwritten |
@@ -1347,7 +1356,7 @@ instance and therefore the same secret-bearing client.
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **Per-tenant provider instance built by a factory** (chosen) | Keeps credentials inside the tenant boundary; changes one resolution point; supports provider-specific credential shapes; cache keys can include credential version | Adds a factory trait and credential schema contract |
 | Pass credential context into every provider method | Makes credentials explicit at every call site | Rewrites every provider trait method and every provider implementation for no extra isolation |
 | Mutate one provider instance's credentials per call | Small diff | Shared mutable secret state is unsafe under concurrency and makes tenant leaks a timing bug |
@@ -1444,7 +1453,7 @@ design's own pages to stop and get a decision rather than route for itself. This
 The Matrix Hours ships six routes. Four already have a core equivalent, at a different URL:
 
 | Source route | Core route | Gap |
-|---|---|---|
+|---|---|---|---|
 | `/` | `/[countryCode]` | none |
 | `/shop` | `/[countryCode]/store` | URL shape only |
 | `/product/[id]` | `/[countryCode]/products/[handle]` | URL shape only, and core's is handle-based |
@@ -1525,7 +1534,7 @@ recorded rather than absorbed quietly into ADR-013.
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **Branding record + typed section list** (chosen) | No build, no deploy; regenerating a store is an UPDATE. Reviewable by an operator in seconds | A schema per section type; core changes when a theme wants a new kind of section |
 | Generated components per merchant | Maximum visual uniqueness | Forks the storefront per merchant with unreviewed code — the exact cost [ADR-013](#adr-013) rejected — and collides with the `/checkout/*` script allowlist |
 | Theme and palette only, no content | Smallest surface; needs no new ADR | Every free store shares one silhouette; the brief's answers go unused |
@@ -1582,7 +1591,7 @@ storefront process therefore serves exactly one tenant, which is incompatible wi
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **Serve the API same-origin at `merchant.<domain>/api/*`** (chosen) | Host is already correct for both browser and SSR. **No application code.** Makes CORS moot. `/api` is already excluded from the storefront route matcher | SSR hairpins through the ingress; the rewrite annotation must be right |
 | Forward the buyer's host on a trusted internal header | Slightly faster for SSR | Needs a second mechanism for the browser path, which posts to the API directly. Adds a forgeable tenant path if an edge strip-rule is ever wrong |
 | Publishable API key identifies the tenant | Already sent on every store request | The key is a build-time public env var, so this reimposes one build per merchant — see [ADR-023](#adr-023) |
@@ -1636,7 +1645,7 @@ With two themes this is invisible; it becomes a manual release checklist at five
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | **N builds, host → build routing table** (chosen) | Deploy count is O(themes). Ten thousand merchants, still N builds | A routing table to maintain; a tenant column to keep honest |
 | One deploy per merchant | Total per-store freedom | O(merchants) projects and env sets; every engine change is an N-way redeploy. Rejected by [ADR-013](#adr-013) |
 | Single build, themes resolved at runtime | One deploy | Dynamic imports throughout, no tree-shaking, and a component API that can never change. [ADR-001](#adr-001) in TypeScript |
@@ -1956,7 +1965,7 @@ Merchants navigate a predictable, polished, Apple HIG-compliant configuration su
 **Bad.** Some incomplete auxiliary mock screens (like fake ticket simulators) are removed or simplified
 to knowledge hubs until genuine service contracts exist.
 
-**Cost of the exception.** None.
+**Cost of the exception.** Free-tier platform-funded notifications are capped at the daily allowance above; outbound provider charges above that allowance cannot be incurred on Free traffic.
 
 ---
 
@@ -2036,7 +2045,7 @@ The reference package `frontend-default` contains a battle-tested, mature DOM st
 ### Options considered
 
 | Option | For | Against |
-|---|---|---|
+|---|---|---|---|
 | Deploy separate Next.js servers per merchant/theme | Complete DOM isolation per store | Severe server proliferation, high infrastructure costs, complex deployment orchestrations, version drift |
 | Runtime dynamic module loading / component plugins | Can swap React components per request | Requires dynamic imports, defeats tree-shaking, unstable component ABI. Rejected by [ADR-001](#adr-001) and [ADR-013](#adr-013) |
 | **Unified default storefront with runtime design tokens & visual variant modifiers** (chosen) | One Next.js server serves all merchants. Battle-tested mature DOM retained. Instant zero-deploy styling changes | Visual variations must be expressed through parameterized tokens, CSS custom properties, and variant data attributes rather than arbitrary freeform JSX forks |
@@ -2070,3 +2079,673 @@ The reference package `frontend-default` contains a battle-tested, mature DOM st
 - Merchants wanting fundamentally incompatible commerce paradigms (such as live auction bidding or multi-step quote builders) cannot be satisfied by CSS/variant tokens alone and require custom service engagements per ADR-013.
 
 **Cost of the exception.** None. This replaces operational server proliferation with a scalable token-driven multi-tenant architecture.
+
+---
+
+<a id="adr-032"></a>
+
+## ADR-032 — AI-Powered Social Commerce Automation: OKF Architecture, Tool Calling & Safe Draft Intake
+
+**Status:** Accepted · **Date:** 2026-10-22 · **Amended:** 2026-11-14 (see Amendment below) · **Relates to:** [ADR-012](#adr-012), [ADR-014](#adr-014), [ADR-019](#adr-019), [ADR-021](#adr-021), [ADR-031](#adr-031)
+
+### Context
+
+Merchants operating on social channels (Facebook Messenger, WhatsApp, Instagram) lose substantial revenue when customer inquiries go unanswered during off-hours or peak volume. Introducing conversational AI into e-commerce operations creates severe failure modes if unconstrained:
+1. **Model Hallucinations:** Unbounded language models invent non-existent products, hallucinate discounted prices, or promise delivery terms that contradict merchant policy.
+2. **Vector Embedding Stale Data Trap:** Embedding live inventory counts or prices into vector stores causes critical race conditions where out-of-stock items are sold or outdated prices are quoted.
+3. **Runaway Operational Inference Costs:** Using premium frontier models ($15–$60 per million tokens) for high-frequency e-commerce chatter burns platform margin on a $20/month subscription.
+4. **Unauthorized Direct Commitments:** Permitting an autonomous agent to directly deduct inventory, charge credit cards, or dispatch couriers without human verification creates massive liability from malicious buyer inputs or prompt injection.
+
+### Decision
+
+1. **Proprietary Open Knowledge Framework (OKF) with Tenant Isolation:**
+   - Each merchant owns a proprietary knowledge base (store policies, FAQs, sizing charts, returns, delivery timelines, business hours) stored in PostgreSQL with strict `tenant_id` Row-Level Security (RLS).
+   - Zero multi-tenant leakage: Knowledge retrieval queries are scoped strictly to the current tenant. No merchant's proprietary customer data or business rules enter a shared general-purpose corpus.
+2. **Separation of Static Policy Knowledge vs. Dynamic Live Commerce:**
+   - Static knowledge (policies, FAQs, shipping guidelines) is retrieved via keyword/vector search within the tenant's OKF.
+   - Dynamic live commerce data (product variants, live prices, stock levels) is **never vectorized or guessed**. The AI brain interacts with the catalog strictly through typed function tools executing against the Rust engine:
+     - `search_catalog(query)`
+     - `get_product_details(variant_id)`
+     - `check_variant_stock(variant_id)`
+     - `calculate_shipping_rates(zone)`
+   - Server-side price authority ([ADR-014](#adr-014)): the AI model may never choose, calculate, negotiate, or invent a price. The live published price remains authoritative unless the merchant explicitly configures a chat-only offer in the admin dashboard. A server-side offer tool may return an exact authorized price only for its configured published variant, currency, quantity, and validity window; the model may quote that returned amount and terms exactly. Customer messages and OKF knowledge cannot create or change offers. If no offer qualifies, use the live published price and sell on verified fit and benefits without pressure or deception.
+3. **Ultra-Low-Cost Brain Architecture:**
+   - The platform standardizes on cost-effective, high-throughput LLMs (DeepSeek V3/R1, Qwen 2.5, or equivalent ultra-low-cost API endpoints) costing <$0.50 per million tokens.
+   - Keeps inference costs under fractions of a cent per conversation, preserving the profitability of the $20/month Pro tier even under heavy chat volume.
+4. **Safe Draft-Order Intake Boundary (Human-in-the-Loop):**
+   - The AI assistant handles intake and information gathering; it **never executes final order commitments, captures payments, deducts warehouse inventory, or dispatches couriers**.
+   - Upon gathering buyer details (Name, Phone, Delivery Address, Variant, Quantity, Payment Preference), the AI calls `create_social_draft_order`.
+   - Generates a human-friendly short code (`Ref: #VX-XXXX`) avoiding ambiguous characters (`0/O`, `1/I`).
+   - The draft order is deposited into the Merchant Admin **Social Queue** (`/admin/orders?status=draft&is_social=true`).
+   - The merchant reviews and clicks "Confirm" in their dashboard, which revalidates price and availability, then triggers standard inventory reservation and courier dispatch. A chat offer must remain valid at confirmation or the order is held for staff price review; confirmation cannot silently charge above the shopper-visible quoted price.
+5. **Pro Dedicated AI & Messaging Panel:**
+   - Pro merchants configure their Meta Webhook credentials (WhatsApp Cloud API Phone ID & Token, Messenger Page ID & Token, Instagram Account ID) inside `/admin/ai`.
+   - Credentials are encrypted at rest with tenant secret keys ([ADR-019](#adr-019)).
+6. **Courier ambiguity is reconciled before any retry:**
+   - A courier timeout or lost response remains `unknown`; neither staff nor a retry may infer failure from the absence of a local fulfillment row.
+   - An authenticated staff member records a required courier evidence reference after checking the courier's authoritative record by the stable merchant order reference. `accepted` requires a courier consignment reference and tracking number; the server stores only those bounded canonical fields and uses them to finish the interrupted local fulfillment writes without calling the courier again.
+   - `not_created` is allowed only after the courier's authoritative lookup confirms that no consignment exists. The same durable request row is claimed for the next attempt, so concurrent replays cannot dispatch twice. Every resolution records the actor, outcome, evidence reference, and timestamp. The route is tenant-scoped and never accepts credentials or arbitrary provider payloads.
+
+### Consequences
+
+**Good.**
+- 24/7 sales intake on WhatsApp, Messenger, and Instagram without merchant fatigue.
+- Zero price hallucinations and zero out-of-stock commitments via live tool calling.
+- Strict tenant data isolation under Postgres RLS.
+- Human confirmation eliminates risk of prompt injection causing unauthorized shipments.
+- Predictable ultra-low operational inference costs.
+
+**Bad.**
+- Orders require merchant manual confirmation before dispatch rather than being 100% autonomous.
+- Merchants must complete Meta Business API setup for white-labeled social inboxes.
+
+**Cost of the exception.** None. This replaces risky autonomous agent spending with a safe, verified human-in-the-loop commerce pipeline.
+
+### Amendment (2026-11-14)
+
+Accepted by the owner on 2026-11-14. The design, acceptance criteria and order of work are in
+[OKF_PLAN.md](OKF_PLAN.md). None of this is implemented yet.
+
+1. **Static knowledge is sent whole, not retrieved.** This replaces the retrieval half of
+   decision 2. All of a tenant's enabled knowledge entries are sent to the model on every call,
+   in a stable order, up to a size cap. Keyword search remains only for a tenant above the cap.
+   Reason: a merchant's policies are a few pages, and keyword search cannot match a Banglish
+   question to a policy written in English or Bangla script. Live commerce data is unchanged:
+   it still comes only from typed tools and is never placed in the knowledge prompt.
+   Cost: more input tokens per call, so the per-conversation token budget must be raised and
+   re-priced before this ships.
+2. **Every conversation has one state, and a human takeover silences the assistant.** States
+   are `assistant`, `suggesting`, `human` and `closed`. A buyer asking for a person, a
+   non-text message, a provider failure, an exhausted budget, repeated fallback answers, a
+   complaint, or any staff reply moves the conversation to `human`, where the assistant sends
+   nothing and drafts nothing until staff release it. A reply generated before the state
+   changed is discarded before sending.
+3. **Each store runs in one mode: `off`, `suggest` or `autonomous`.** New stores start `off`.
+   In `suggest` the assistant drafts and staff send. `autonomous` is offered only after the
+   store has used suggestions. A platform operator can force any store, or all stores, to
+   `off`; this is the kill switch and it takes effect on the next inbound message.
+4. **Merchant-visible transcripts are kept for 30 days.** This replaces the 24-hour expiry for
+   history the merchant can read; the model's working context stays a short recent window.
+   Transcripts are encrypted, tenant-scoped under RLS, included in tenant export and removed by
+   tenant erasure. Reason: a merchant must be able to check what the assistant told a buyer
+   when a dispute arrives days later.
+   Cost: buyer messages are held 30 times longer, which raises the stakes of any breach and
+   must be stated in merchant and buyer terms.
+
+Decision 4 (human-confirmed draft intake) and the server-side price authority in decision 2 are
+not changed by this amendment.
+
+Implementation sequencing and edge-case acceptance checks are tracked in
+[ADR_IMPLEMENTATION_PLAN.md](ADR_IMPLEMENTATION_PLAN.md#adr-032--social-commerce-and-okf).
+
+---
+
+<a id="adr-033"></a>
+
+## ADR-033 — Commercial Entitlements Overhaul: Free & 7-Day Pro Trial Packaging
+
+**Status:** Accepted · **Date:** 2026-10-22 · **Relates to:** [ADR-009](#adr-009), [ADR-012](#adr-012), [ADR-016](#adr-016), [ADR-017](#adr-017), [ADR-031](#adr-031), [ADR-032](#adr-032)
+
+### Context
+
+The platform previously documented a 14-day trial, an indefinite Free tier, and a $20/month Pro tier, but required formal rationalization of feature allocations, trial lengths, anti-tamper mechanisms, and upgrade UX.
+
+### Decision
+
+1. **Streamlined Two-Tier Model with 7-Day Pro Trial:**
+   - **Free Tier (Indefinite):** 100 products, 3 staff seats, 30-day analytics, standard Apple HIG chassis with automated logo/category styling, custom domain mapping (no Vendryx connection fee), Cash on Delivery (COD) & manual bKash/Nagad paywall, manual social chat links (WhatsApp wa.me link & Messenger/IG clipboard copy), Web Push & Mobile App Push notifications, plus platform-funded email/WhatsApp notifications capped at 200 emails and 300 WhatsApp messages per tenant per UTC day.
+   - **Pro Tier ($20/month, with 7-Day Free Trial):** Unlimited products, 10 staff seats, full historical analytics, online automated payment gateways (Stripe, bKash automated tokenized, Nagad direct, SSLCommerz), automated courier dispatch (Pathao, Steadfast, RedX), 24/7 AI Sales Automation & OKF, AI predictive restock insights, cart analytics (guest checkout tracking by IP/session), bespoke theme selection & variant modifiers (`data-*`), and fraud risk signal scoring.
+2. **Pro is a Strict Superset:**
+   - Pro merchants inherit 100% of Free tier features. Pro never removes, restricts, or replaces any capability available on the Free tier.
+3. **Database-Baked Entitlements & 7-Day Grace Period:**
+   - Entitlements are resolved per-request from `platform.subscription` and `platform.tier_definition`.
+   - On subscription expiry (`term_ends_at < now()`), status transitions to `grace` for 7 days.
+   - Admin displays a persistent countdown warning banner.
+   - At day 8, status shifts to `free`. Grandfathering rule: Existing products and store remain online; creates over 100 and Pro-only capabilities lock down.
+4. **Anti-Tamper & Console Immunity:**
+   - Server-side token emission on Next.js SSR ensures unentitled Pro theme CSS is never sent to the browser.
+   - Rust backend API validates `ctx.entitlements.has(...)` on every write; local DevTools edits cannot save Pro tokens or trigger Pro webhooks.
+5. **Engaging Pro UI Teaser:**
+   - Free merchants see Pro features labeled with a glowing orange `[PRO]` pill.
+   - Clicking opens an interactive blurred frosted-glass paywall modal with a $20/mo upgrade CTA.
+
+### Consequences
+
+**Good.**
+- Clear commercial boundary: Free remains indefinite, and platform-funded email/WhatsApp costs have a hard per-tenant daily ceiling.
+- Shortened 7-day trial accelerates paid conversion velocity.
+- Impossible for free users to unlock paid themes or AI features via browser console tampering.
+- Zero data loss or product deactivation on downgrade preserves merchant trust.
+
+**Bad.**
+- Merchants on Free cannot customize store layout positioning or use automated payment gateways.
+
+**Cost of the exception.** The platform funds at most 200 Free-tier emails and 300 Free-tier WhatsApp messages per tenant per UTC day. Trial and Pro are uncapped by this allowance.
+
+---
+
+<a id="adr-034"></a>
+
+## ADR-034 — Manual Payment "In Verification" Truth Contract & Email/WhatsApp Channel Pipeline
+
+**Status:** Accepted · **Date:** 2026-10-22 · **Relates to:** [ADR-002](#adr-002), [ADR-013](#adr-013), [ADR-017](#adr-017), [ADR-028](#adr-028), [ADR-033](#adr-033)
+
+### Context
+
+Manual payment methods (bKash, Nagad, Rocket, Bank Transfer) represent the majority of retail commerce in South Asia. In manual checkout, a buyer transfers funds and submits their Transaction ID (TrxID).
+Two major defects frequently plague commerce platforms handling this flow:
+1. **Deceptive Verification UX:** Displaying "Payment Verified" immediately upon user submission of a TrxID confuses customers and causes disputes before a merchant has checked their bank/bKash statement.
+2. **Telco SMS Friction & Aggregator Costs:** Outbound SMS requires expensive local aggregator contracts, masking fees, and regulatory overhead.
+
+### Decision
+
+1. **Zero SMS Policy — Email & WhatsApp Exclusively:**
+   - All customer transaction updates, order confirmations, and verification notices are transmitted strictly via **Email** and **WhatsApp**. Outbound telco SMS aggregators are eliminated platform-wide.
+2. **Manual Payment Paywall & Refresh Resilience:**
+   - Free and Pro merchants can display manual mobile banking instructions ("Send ৳X to 017XXXXXXXX").
+   - The cart session is persisted in an encrypted cookie (`stheno_cart_id`) and PostgreSQL. If the buyer refreshes or switches apps to check their banking SMS, the checkout reloads directly to the TrxID submission step without losing cart state or address.
+3. **Truth Contract — "Payment In Verification":**
+   - When the buyer submits their TrxID, the status is set to `pending_verification` (NEVER `paid` or `verified`).
+   - Screen displays: *"Payment Under Verification — Your Transaction ID has been submitted and is currently being verified by our team. You will receive a confirmation message once verification is complete."*
+4. **WhatsApp Sender Identity Split:**
+   - **Free Tier:** Dispatched from Vendryx central verified WhatsApp Business account (`Vendryx Notifications on behalf of [Store Name]`).
+   - **Pro Tier:** 100% white-labeled! Sent directly from the merchant's own connected WhatsApp Business Account (WABA) with their store name, logo avatar, and phone number.
+5. **Free-Tier Platform-Funded Notification Allowance:**
+   - Free merchants may send at most **300 WhatsApp messages and 200 emails per UTC calendar day** through platform-funded delivery. The allowance is shared across all dispatch paths and enforced atomically per tenant/channel, including concurrent workers. When an outbox reaches its cap, it remains queued for the next UTC day; direct sends fail with a stable quota error. Trial and Pro subscriptions are not subject to these Free-tier caps.
+
+### Consequences
+
+**Good.**
+- Completely eliminates SMS aggregator fees and masking red tape.
+- Eliminates buyer confusion over unverified payments.
+- Free merchants get automated WhatsApp confirmations without setting up Meta developer accounts.
+- Pro merchants get a fully white-labeled branded sender identity.
+
+**Bad.**
+- Buyers without email or WhatsApp must rely on storefront order status receipts.
+
+**Cost of the exception.** None.
+
+---
+
+<a id="adr-035"></a>
+
+## ADR-035 — Architecture Implementation Distance & Readiness Audit
+
+**Status:** Accepted · **Date:** 2026-10-22 · **Relates to:** [ADR-031](#adr-031), [ADR-032](#adr-032), [ADR-033](#adr-033), [ADR-034](#adr-034)
+
+### Context
+
+Following the consolidation of ADR-031 through ADR-034, an authoritative accounting is required to record what is already completed versus the exact implementation distance remaining for production readiness.
+
+### Decision
+
+Record the authoritative platform readiness matrix and implementation delta:
+
+#### 1. Completed Baseline (GA Ready):
+- **Commerce Engine Core:** 34 modules, 249 workflows, Diesel async, single Postgres database with Row-Level Security (`tenant_id`), connection pooling (P0–P20 complete).
+- **Phase 3 GA Hardening (95 / 95 Tasks Verified):**
+  - Provider platform & Bangladesh payment gateways (P21–P22).
+  - Courier integrations: Pathao, Steadfast, RedX (P23).
+  - COD / Offline settlement provider (`stheno-payment-offline`) (P24).
+  - Storefront Core/Theme separation & Unified Next.js runtime (ADR-031, P25).
+  - Branding tier & `/store/branding` endpoint (P26).
+  - Theme conformance suite & Apple HIG baseline (P27).
+  - PCI SAQ-A & security audit gates (P28).
+- **Database Schema:** `platform.subscription`, `platform.tier_definition`, `platform.invoice_payment_proof` migrations applied.
+
+#### 2. Implementation Distance (reconciled 2026-10-24):
+
+The matrix records source evidence, not test completion. No percentage or calendar estimate is
+assigned; outstanding gates and implementation boundaries live in
+[ADR_IMPLEMENTATION_PLAN.md](ADR_IMPLEMENTATION_PLAN.md).
+
+| Workstream | Source evidence present | Remaining implementation or acceptance work |
+|---|---|---|
+| **A: AI Sales & OKF** | Tenant-isolated knowledge, bounded catalog/shipping tools, constrained LLM orchestration, Meta webhook ingress, social draft handoff, staff confirmation, owner-configured chat offers and fail-closed pricing checks are wired. | Phase edge matrices and isolated Space gates; complete any missing authorization/recovery cases recorded in phases 32.5–32.6. |
+| **B: Manual payment** | Invoice and customer-order proof ledgers, encrypted cart cookie rotation, customer TrxID submit/reload UI, merchant review, truth-preserving pending/approved/rejected email notices, and a separately configured encrypted `pp_manual` provider with checkout instructions are wired. The `pp_system_default` COD provider is distinct and does not request a TrxID. | End-to-end refresh recovery and authorization/concurrency acceptance. |
+| **C: Transaction notifications** | Durable outbox covers trial warnings, customer order confirmation, account welcome/invite, payment-proof lifecycle, successful payment capture/refund and admin-recorded payment-collection paid status, return receipt/cancellation, order cancellation, and fulfillment preparation/shipped/delivered/canceled notices. Fulfillment preparation is announced only after the order status write succeeds and says explicitly that shipment has not happened yet. Return receive/confirm/cancel-receipt handlers now execute the order service transition rather than returning a fabricated status; received notices use stable per-return/status keys and state that receipt remains under review and does not mean a refund was issued. Capture/refund notices verify the payment collection's unique order association before notifying. Store return creation and reads require customer authentication and verify order ownership. Return completion cannot create a synthetic USD refund ledger entry; positive refunds must use the payment service and actual payment currency. WhatsApp consent is tenant-scoped and rechecked at send; authenticated customers can revoke all consent linked to their customer id, including a prior phone number. Free uses the central sender, entitled Pro/trial uses the configured merchant sender, approved-template payloads are validated, merchant credentials are encrypted, and Meta ambiguity is dead-lettered. Atomic Free caps enforce 200 emails and 300 WhatsApp messages per tenant per UTC day across direct and queued sends. A tenant-scoped admin API and dashboard now show sent, reserved, remaining, and unlimited daily allowance states. | Additional lifecycle events identified by the acceptance matrix, WABA/template deployment configuration, and focused provider/quota gates. |
+| **D: Entitlement/admin** | Seven-day trial lifecycle and warning scheduling, `/admin/ai`, subscription status/countdown/upgrade surfaces, chat-offer controls, server-side Free notification caps, and tenant-scoped notification usage reporting in the admin dashboard are wired. | Product quota and route matrices, billing/browser journeys, and acceptance gates for tier transitions and credential handling. |
+| **E: Store intelligence** | ADR-031's unified runtime and dynamic theme-token path provide the rendering foundation. A deterministic, token-free first-party order trend endpoint and owner dashboard are wired for product/category units across consecutive 7-day windows. The dashboard generates bounded next-step candidates, retrieves up to three tenant-owned knowledge excerpts with source IDs and lookup status, and can explicitly request a citation-validated, no-tools ranking from a fixed loopback Ollama endpoint. Ranking is optional, locally hosted, concurrency-limited, and abstains on invalid evidence/output. Owner/admin review, dismiss, and revert decisions persist to tenant-RLS state with append-only actor-attributed audit events and an owner-only bounded history view; review never executes commerce changes. Branding settings can sample a bounded same-origin raster logo palette into an explicitly applied preview/save path. An owner/admin can configure and on-demand query a Google Search Console property using encrypted, merchant-authorized refresh credentials; its date-only aggregates remain separate from order-derived demand, report partial coverage, persist tenant-RLS metric observations keyed by source/property/window for a 400-day API window, and expose exact basis-point comparisons only across complete compatible adjacent windows. Connect/update/disable/disconnect events record the owner/admin actor without credentials, and disconnect clears credentials and observations atomically. Read-only Facebook Page and Instagram professional-account insights now fetch only account-level aggregates through owner/admin routes, store source-specific metric definitions, and expose bounded history with compatible adjacent-window comparisons. WhatsApp analytics requires a separate explicit opt-in ledger, distinct from transactional order-update consent; customer revocation and WhatsApp STOP withdraw both. The cross-schema query returns only counts for processed inbound events after the current analytics consent and marks the result partial; no phone number or sender hash leaves the query layer. | Read-only Facebook Page and Instagram professional-account insights adapters now fetch only account aggregates through owner/admin routes, retain source-specific definitions, and persist bounded observations; Meta permission failures and partial pagination fail closed. Cross-source count aggregation is limited to identical normalized definitions on complete disjoint partitions. Owner/admin Google OAuth consent now signs state against tenant, actor, and property, consumes a one-time ten-minute tenant-RLS nonce, exchanges the code using the configured exact callback, and persists the read-only refresh token encrypted with actor audit. Deployment credentials can be referenced from existing Kubernetes Secrets through the Helm chart; live callback/property acceptance remains unverified. Distinct Meta Insights credentials and owner/admin controls, plus the cross-schema export/delete workflow, are implemented. The server export/erasure and owner-role target and the platform purge regression compile on Space but have not yet run against PostgreSQL because the Space service-capacity preflight is below its required memory. Schema-drift, broader API authorization, dashboard journey, live Search Console/Meta scope acceptance, and production acceptance remain outstanding. WhatsApp analytics implementation and fixtures are present. The new cross-schema lifecycle acceptance is queued for Space PostgreSQL execution after the service-capacity preflight passes; schema-drift acceptance remains pending. Search Console provider fixtures and the `configuration_secrets` persistence/audit/disconnect target passed on Space; the dedicated Meta Insights configuration target also passed 2/2. The new cross-schema export/purge and owner-role target compiles on Space, but its database execution is pending the service-capacity preflight. Deployment configuration and live Google property/Meta token permission acceptance have not run. Unconnected sources must never be presented as measured data. |
+
+#### Store Intelligence scope and trust rules
+
+Store Intelligence is an evidence-backed decision-support system. Its initial source is the
+tenant's own non-draft, non-canceled order snapshots. It compares the latest rolling 168 hours
+to the preceding seven days and reports product/category units, direction, and a bounded,
+deterministic evidence-volume label (low: fewer than 5 product-order observations, medium: 5–19,
+high: 20+; these are not statistical confidence intervals). Aggregation is tenant-scoped, excludes
+buyer identity and message content, uses integer arithmetic, and costs no model tokens. Missing
+history yields an explicitly missing percentage baseline; it must not be reported as a measured
+percentage increase.
+
+Facebook, Instagram, WhatsApp, and public online-search trends may be added only through
+authorized platform APIs, merchant-authorized exports, or other documented/licensed data sources.
+Meta post-insight APIs can support account-level content engagement; WhatsApp can support the
+merchant's own consented aggregate inquiry/conversion signals, not a claim about market-wide
+product demand. Search Console-like sources describe the merchant's own search impressions, while
+broad keyword demand requires a separately licensed source. These meanings must not be blended.
+The system must record source, scope, observation window, ingestion time, and freshness; handle
+revoked credentials, permission loss, rate limits, partial pages, duplicate events, delayed data,
+deleted posts, platform outages, locale mismatch, and unavailable history; and show incomplete or
+stale coverage instead of filling gaps with estimates. It must not scrape private content, infer
+individual customer attributes, merge tenant identities, or treat message contents as market
+signals. Platform signals and store conversion data remain separately attributable.
+
+Cross-source aggregation is opt-in per normalized metric definition. Only complete additive
+`count` observations with identical tenant, metric definition, unit, window, timezone, and explicitly
+disjoint scope partitions may be summed. Overlapping account/content scopes, ratios, averages,
+currency values, and incompatible attribution windows are not additive. Ratios must be recomputed
+from compatible numerator and denominator observations; weighted averages require their original
+weights. A provider must document the attribution window and prove partition disjointness before it
+uses the shared exact-decimal aggregation helper. Until an adapter establishes that contract, its
+observations remain source-specific and cannot be blended.
+
+The OKF/RAG path may retrieve approved trend evidence and product facts. A configured model may
+rank or explain candidate next actions only from that evidence and must return source references,
+time window, uncertainty, and a safe abstention when evidence is insufficient. Model choice is
+provider-neutral and may use an operator-hosted model so recommendations do not depend on a
+metered API; when inference is unavailable, deterministic signals remain available. Ranking is
+advisory: it cannot change price, publish content, contact customers, alter inventory, or make a
+purchase commitment. Existing owner-authorized chat-price offers remain the only authority for
+discounts, including a specific lower price configured by the owner; the model cannot invent,
+extend, stack, or negotiate a discount. Logo-derived colors, category-to-archetype mapping, and
+storefront styling are recommendations until the owner previews and applies them. Manual theme
+tokens and logo settings take precedence, invalid or inaccessible logo assets fall back to the
+current theme, and applying an archetype must not alter routes, content, product facts, price, or
+accessibility behavior.
+
+### Consequences
+
+**Good.**
+- The readiness record separates implemented source from unverified acceptance and names the remaining work without unsupported completion percentages or time estimates.
+- Prevents architectural drift and keeps engineering focused on the exact delta.
+
+**Bad.**
+- Requires coordinating Meta Cloud API app reviews for the central Vendryx WhatsApp notification profile.
+
+**Cost of the exception.** None.
+
+---
+
+<a id="adr-036"></a>
+
+## ADR-036 — Space provides dedicated build execution and shared build caches
+
+**Status:** Accepted · **Date:** 2026-10-22 · **Related:** [ADR-030](#adr-030), Space ADR-016 in the separate Space project
+
+### Context
+
+Store and Space both compile Rust workspaces and build JavaScript frontends. Local build output
+consumes disk and repeated clean CI jobs duplicate expensive compilation. Space is already the
+company-level operations project, but its production control-plane service must remain separate
+from build workloads.
+
+### Decision
+
+1. Space will provide a dedicated build host for Store and Space build jobs. This is build
+   infrastructure managed alongside Space; it is not the Space application server and does not
+   become a product runtime.
+2. Build jobs may use persistent, remote compiler and package caches. Cache contents are
+   disposable performance data; they are never an authority for source, dependencies, test
+   results, or release artifacts. Jobs must validate outputs through the repository's normal
+   gates.
+3. Cache namespaces are separated by repository, toolchain, target, and relevant build profile.
+   Concurrent jobs must not mutate the same Cargo target directory. Use a cache service designed
+   for sharing (such as `sccache`) rather than mounting one writable `target/` directory across
+   machines.
+4. Secrets and deployment credentials are not placed in caches. Untrusted pull-request jobs do
+   not receive privileged runner access or write access to caches used by trusted release jobs.
+5. Existing CI remains the required source of gate results. Migration to the dedicated host is
+   staged; until the host and its access controls are provisioned and verified, current CI
+   runners remain the fallback.
+
+### Implementation plan
+
+This ADR is implemented in phases. A phase advances only when its acceptance evidence is recorded
+in `docs/WORK_LOG.md`; the hosted `CI` status remains the merge and release authority until Phase 4.
+
+1. **Manual Store build on Space.** Run Store's `scripts/build-on-space.ps1`; it delegates to
+   Space's `scripts/build-on-space.ps1` with `-Project store`. Package a source snapshot without
+   credentials or generated output, mount source read-only, use the pinned Rust image, and run
+   `cargo check --workspace --locked` with the Store target cache. Record cold and warm durations.
+   This is an additional build check, not a replacement for Store's CI gates.
+   **2026-10-22 evidence:** the cold Store check passed in 5m47s; warm Cargo checks passed in
+   2m21s and 2m50s (5m00s and 5m14s end-to-end including source packaging and transfer). All used
+   the pinned Rust 1.88 image and Store target volume. This validates compile-cache reuse only; no
+   Store CI job has been routed to the host. These historical runs used the current shared host;
+   they do not prove the required runner/daemon trust isolation. The builder now runs a fail-closed
+   isolation preflight before packaging or transferring source, and the current host is expected to
+   fail that preflight until a separate build account/daemon or dedicated host is provisioned. The
+   preflight fixture covers a shared runner UID, rootful Docker, a data root outside the build
+   account's home, and unavailable Docker. A real Store invocation was rejected because the active
+   Actions listener and SSH account both use UID 1000; no source archive was made or transferred.
+   **2026-10-23 cache isolation:** provisioned and label-verified Store-only Cargo registry/Git
+   volumes and a target volume named for Store, Rust 1.88, `x86_64-unknown-linux-gnu`, and `dev`.
+   The cold isolated-cache check passed in 4m36s (6m37s end-to-end). The warm check passed in
+   5m33s (9m41s end-to-end) with no dependency downloads, but did not show a wall-time improvement:
+   the shared host was under heavy concurrent load. Treat cache correctness as verified and cache
+   performance as inconclusive until measured on a quiet host. Neither run includes clippy, tests,
+   Postgres/Redis integration, frontend, or release gates.
+   **Cold-cache recovery:** Space's `ensure-build-cache-volumes.sh` creates only absent Store/Space
+   Cargo volumes with the exact ownership labels before a build. The mocked-Docker fixture passed
+   cold creation and verified fail-closed behavior for foreign labels, Docker inspection/creation
+   failures, unexpected volume names, and invalid project input. Corruption detection remains
+   manual and cache-volume deletion requires an operator command. Ownership validation now
+   requires the expected cache purpose, builder identity, and project labels; the fixture rejects
+   same-named volumes carrying a foreign manager or project label.
+   **2026-10-23 ownership check:** the extended mocked-Docker fixture passed cold creation and
+   rejection of mismatched purpose, manager, and project labels, plus daemon and argument failure
+   cases. The fixture does not touch the remote Docker daemon.
+   **Scoped cache recovery:** `reset-build-cache-volume.sh` now provides an operator recovery path
+   for suspected cache corruption. It defaults to dry-run, selects only one exact project cache,
+   validates purpose/manager/project labels, and requires the shared build-host lock for deletion.
+   Its fixture passed dry-run, missing-volume, lock contention, cross-project/manager, exact-volume,
+   and invalid-input cases. This proves the recovery command's scope against a mocked Docker CLI;
+   remote deletion and cold rebuild have not been exercised.
+   **Web static parity slice:** the hosted workflow previously selected Node 20, which reached
+   end-of-life on 2026-03-24. The three hosted Node jobs now pin Node 24.22.1, and Space's
+   `-Mode web-static` uses the matching digest-pinned official Node image. The Store npm cache volume
+   name and ownership label include a 16-character hash of both frontend lockfiles, so either
+   lockfile change selects a cold cache. Admin and Storefront dependency installs and typechecks,
+   per-theme typechecks, and frontend boundary checks passed locally under Node 24.22.1. The Space
+   host run is intentionally blocked by the isolation preflight; this does not yet count as remote
+   web-static parity. [Node's release table](https://nodejs.org/en/about/previous-releases) lists
+   Node 20 as EOL; [Node 24.22.1](https://nodejs.org/en/blog/release/v24.22.1/) is the current LTS
+   security release. **2026-10-23 local verification:** strict installs passed under Node 24.22.1 /
+   npm 11.19.1 for both apps; the Admin typecheck and production build passed. The Admin unit suite
+   ran 168 tests with 167 passing and one existing route-smoke assertion failing because the home
+   page does not render the test's expected “Overview” heading. Storefront's root TypeScript check
+   passed, but its production build cannot start because `apps/storefront/scripts/frontend.js` is
+   absent, and the configured `tsconfig.*.json` theme checks have no matching files in the checkout.
+   Space now has a separate `-Mode web-test` path matching the hosted Admin test/build and
+   Storefront build commands, using the same Node image and lockfile-keyed npm cache as `web-static`.
+   The Store wrapper accepts this mode. Its live invocation stopped at the separate-UID isolation
+   preflight before source packaging or cache setup, so the mode has not run remotely. The known
+   application failures remain blockers to full web parity and are not counted as passed ADR gates.
+2. **Store runner isolation.** Before scheduling CI work, give the runner a repository-scoped
+   identity or a runner group limited to Store and Space. The current organization-wide runner
+   group is not an acceptable trust boundary. Do not allow pull-request or fork code onto a
+   persistent runner. Builds receive no deployment credentials; use only ephemeral test-service
+   credentials generated for that job. **Observed 2026-10-23:** the sole `syed-build` runner is in
+   the organization `Default` group, which allows all private repositories, and was busy with
+   another repository's job during this work. An organization runner group named `Store and Space
+   Build Host` has been created with selected-repository access limited to `Syed-Systems/space` and
+   `Syed-Systems/vendryx-commerce`; the existing runner has not yet been moved into it. The runner
+   remains in `Default`, so isolation is not complete and Store CI must not be routed to it. The
+   current runner also carries `android` and `godot` labels; identify its existing consumers and
+   provide a safe transition or a separate isolated runner before moving it.
+3. **Trusted CI parity.** The current `-Mode rust-ci` is a partial Rust diagnostic. Full parity
+   means all seven workflow jobs—`rust-static`, `web-static`, `rust-test`, `web-test`, `e2e`,
+   `container`, and `compliance`—plus the aggregate `ci` rule that fails on any failed or skipped
+   job. Run each corresponding host stage manually and compare its commands, toolchain versions,
+   service images, permissions, timeouts, and failure behavior against `.github/workflows/ci.yml`.
+   Only then add a trusted-main/manual host job. Keep the hosted jobs required and authoritative
+   while measuring cold/warm results and runner recovery. A queued, busy, offline, or failed host
+   job must never turn a skipped stage into a green result or hold the hosted merge gate hostage.
+   The host builder serializes all projects behind one host-capacity lock and keeps the per-cache
+   target lock; busy waits, daemon calls, image pulls, and service health waits have finite limits.
+4. **Selective migration.** Move only a Rust build stage after parity, cancellation cleanup,
+   restart recovery, concurrency, cache-loss recovery, and offline behavior have been exercised.
+   Retain a bounded hosted fallback and promote the Space result to required only after the
+   fallback is proven on an unavailable host.
+5. **Operations and retirement.** Add disk/inode and memory monitoring, runner heartbeat and
+   credential rotation, and a tested cold-cache recovery procedure. Per-volume cache growth
+   ceilings, scoped source-snapshot cleanup, and orphan-resource cleanup are implemented;
+   cache-volume deletion and periodic host-wide cleanup remain disabled until their retention and
+   recovery policies are tested. The manual builder's resource recovery runs only after host
+   isolation passes, holds the
+   shared build lock, and removes stopped containers and unattached networks older than 24 hours
+   only when their purpose, manager, and project labels match. It never touches running containers,
+   attached networks, images, or volumes. Its mocked-Docker fixture covers dry-run, age, label and
+   project mismatch, lock contention, daemon failure, and the no-volume-pruning guarantee. Rollback
+   restores the prior hosted `runs-on` configuration; caches and build workspaces are disposable
+   and are not rollback data.
+   **Workspace retention implementation:** the manual builder now assigns every source snapshot a
+   unique UTC/run identifier, so concurrent builds of identical source cannot extract into the
+   same directory. After host isolation passes and before capacity is checked, it invokes Space's
+   scoped cleanup helpers for that repository: retain at most the newest 20 snapshots and remove
+   snapshots older than 7 days, while skipping active workspaces; remove only stale, stopped build
+   containers and unattached networks with exact ownership labels. The helpers default to dry-run;
+   the builder explicitly requests apply. Workspace cleanup only examines recognized names beneath
+   `~/.cache/syed-build/workspaces/<project>` and never runs Docker prune or touches cache volumes.
+   This lets safe retention reclaim space before a capacity rejection; a periodic monitor/sweeper
+   and cache-size trend reporting remain outstanding.
+   **2026-10-23 verification:** `scripts/test-cleanup-build-workspaces.sh` passed against an
+   explicitly isolated temporary `HOME`, covering dry-run, age and count retention, active-lock
+   preservation, project scoping, symlink safety, and invalid project rejection. PowerShell and
+   Bash syntax checks passed. This validates the cleanup helper; the full remote `rust-ci` mode
+   and real-host restart recovery remain unverified.
+   **Orphan-resource recovery:** Space's `cleanup-build-resources.sh` is now called after the
+   isolation preflight and before source packaging. It applies the 24-hour retention threshold
+   while holding the host lock and validates purpose, manager, and project labels before removal.
+   It only removes stopped job containers and networks without attached containers; images,
+   volumes, and live or attached resources are excluded. The mocked-Docker fixture passed dry-run,
+   ownership mismatch, age, lock contention, daemon failure, and no-volume-pruning cases. This is
+   scoped recovery evidence only; no cleanup was run against the remote Docker daemon.
+   **Per-volume cache ceilings:** Space's `check-build-cache-sizes.sh` runs before Rust or frontend
+   build commands inside the isolated container. Initial hard limits are 8 GiB for Cargo registry,
+   2 GiB for Cargo Git sources, 50 GiB for the Rust target, and 8 GiB for npm's package cache.
+   It measures allocated bytes with a 120-second bound, fails closed on missing/unreadable sizes or
+   an exceeded limit, and never deletes cache data. The mocked-size fixture passed normal and exact-
+   limit cases, over-limit cases, invalid input, and measurement failure. These are operator policy
+   ceilings to be reviewed against measured cache trends; no legacy rootful volume was measured or
+   modified, and the current host still fails isolation before the size check can run. The six
+   pre-existing Store and Space volumes on the current rootful daemon carry the legacy
+   `prepare-build-host.sh` manager label and no project-ownership label, so they do not satisfy
+   the new builder's ownership contract. Do not relabel or delete them. A separately provisioned
+   rootless daemon has its own volume namespace; it will create correctly labeled cold caches
+   there rather than reuse these rootful volumes. Space's
+   `check-build-host-capacity.sh` checks disk free space, inodes, and available memory before
+   source packaging and again before starting the build container: Rust jobs require 70 GiB and
+   100,000 free inodes, web-static requires 20 GiB, workspace builds require 4.25 GiB available
+   memory, and Rust CI requires 5.5 GiB before starting its Postgres and Redis services, then
+   checks for 4.25 GiB before the build. Package-scoped Rust checks use one CPU/Cargo job and a
+   3 GiB container cap with a 3.5 GiB host preflight. They do not start Postgres/Redis unless
+   `-CargoTestServices` is explicitly selected. A cold package-test attempt at 2 GiB was killed
+   while compiling Diesel (rustc reached about 2.4 GiB RSS); the 3 GiB retry compiled Diesel but
+   was blocked at its second capacity check when another Android build reduced host availability
+   below 3.5 GiB. This is not yet a passing package test. The separate `syed-build` account and
+   rootless Docker service are provisioned on Space; user lingering keeps only the small systemd
+   user manager alive, while the builder stops Docker after each run. No GitHub runner registration
+   or workflow routing changed.
+   Persistent cache sizes are checked again after the gate so a cache that grows beyond its limit
+   cannot produce a passing result. Thresholds are policy safeguards; monitoring and trend alerts
+   are not installed.
+
+### Edge cases and required behavior
+
+| Condition | Required behavior |
+|---|---|
+| Fork or untrusted pull request | Run hosted CI only; do not expose the Space runner or its writable caches. |
+| Runner offline, busy, restarting, or disconnected | Hosted CI remains runnable and authoritative; a host result is never inferred from a timeout or skipped job. |
+| Cache missing, corrupt, stale, or owned by another service | Create only the missing exact namespaced volume and rebuild cold; fail closed on ownership mismatch. Never prune, relabel, or delete unrelated data. Corruption still requires a scoped operator recovery procedure. |
+| Concurrent or canceled Store builds | Use unique source workspaces and containers; serialize writes to a persistent Cargo target; hold a per-workspace lock so retention skips active snapshots; remove the job container on exit, signal, or timeout. |
+| Toolchain, target, profile, features, or relevant flags change | Use a distinct cache namespace or cold cache. Lockfile checks and all repository gates still run. |
+| Host disk/inodes, memory, or CPU are pressured | Check disk, inode, and memory headroom before image pulls and container start; enforce per-container resource limits; fail with capacity diagnostics without deleting unrelated Docker data; keep hosted CI available. |
+| Registry outage, image pull failure, or throttling | Retry only within bounded limits, then fail the host job clearly; hosted CI remains the fallback. |
+| Test database/service startup or migration fails | Treat it as a failed gate; use per-job isolated services, health checks, and cleanup. Never reuse production data or credentials. |
+| Cache poisoning or partial artifacts | Treat cache data as untrusted acceleration only; source, lockfile checksums, tests, and artifacts must be tied to the checked-out commit. |
+| Host restart or job timeout | Re-run from source with a cold or warm cache. On the next isolated build, source snapshots older than 7 days or outside the newest 20 are removed while active snapshots are skipped; stale stopped build containers and unused build networks older than 24 hours are removed only by exact ownership labels under the host lock. Running containers, attached networks, volumes, images, and unrelated projects remain untouched. |
+| Runner credential leak or unexpected repository access | Revoke the runner registration, rotate credentials, inspect job access, and return to hosted-only builds. |
+
+### Consequences
+
+**Good.** Rust and frontend builds can reuse expensive compilation and package downloads across
+the two company repositories, while build execution stays separate from customer-facing services.
+
+**Bad.** The host adds maintenance, capacity, availability, and access-control work. A cache outage
+must not block correctness checks or release gates; cold-cache builds remain supported.
+
+### Reversal condition
+
+If measured build-time savings do not justify operating the host, or if its isolation cannot meet
+the repository trust boundaries, return builds to managed CI runners and retain only safe
+provider-native caches.
+
+**Cost of the exception.** Dedicated build-host and cache operations are accepted as shared
+engineering infrastructure for Store and Space.
+
+---
+
+<a id="adr-037"></a>
+
+## ADR-037 — Cloudflare is the edge layer only; vendor calls are confined to one provider crate and Space
+
+**Status:** Accepted · **Date:** 2026-11-13 · **Amends:** [ADR-024](#adr-024) · **Relates to:** [ADR-012](#adr-012), [ADR-022](#adr-022), [ADR-026](#adr-026), [ADR-030](#adr-030)
+
+### Context
+
+[ADR-024](#adr-024) fixed the shape — compute beside Postgres, delivery by a CDN that only needs
+correct HTTP caching — but named no vendor and left four things unbuilt. A review on 2026-11-13
+found:
+
+1. **No reverse proxy exists.** `docker-compose.yml` runs Postgres, Redis and PgBouncer only, yet
+   `tenant_layer.rs` states tenant identity is safe only behind a proxy that controls `Host`.
+2. **Nothing purges the edge.** The origin emits `Surrogate-Key` and `Cache-Tag`, but no code
+   calls a purge, so an edited product stays stale for up to `s-maxage=3600`.
+3. **The emitted tags are shared across tenants** (`products`, `catalog`, `collections`). A tag
+   purge is zone-wide on every CDN, so one merchant's edit would flush every store.
+4. **Custom-domain certificates have no issuer.** The admin domain screen reports an SSL status
+   and tells merchants to CNAME to `shops.vendryx.com`, but nothing issues the certificate.
+5. **Geo routing reads a vendor header.** Storefront `middleware.ts` reads `x-vercel-ip-country`.
+6. **`Cache-Tag` is emitted space-separated**, the `Surrogate-Key` convention. Cloudflare reads
+   `Cache-Tag` as a comma-separated list, so today's value is not a usable tag list there.
+7. **The admin dashboard is specified to share an origin with the storefront**
+   ([ARCHITECTURE.md](ARCHITECTURE.md) section 4). The dashboard uses cookie session auth, so a
+   script injected into any storefront page could call the admin API as the signed-in merchant;
+   CSRF protection does not stop a same-origin script. Platforms that host merchant-authored
+   content keep the admin on an origin that serves none.
+8. **The development proxy lets the client pick the tenant.** `apps/admin/vite.config.cts`
+   rewrites `Host` from a `stheno_tenant_host` cookie or an `x-stheno-tenant-host` header. That
+   is correct for local tenant switching and would be a tenant-impersonation hole in production.
+
+Items 2 and 4 cannot be solved by headers alone: a purge and a certificate order are API calls.
+[ADR-024](#adr-024) decision 2 ("No CDN-specific code, ever") forbids them as written.
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| **Cloudflare as edge only: DNS, CDN, WAF, Tunnel, R2, custom hostnames, static marketing** (chosen) | Matches ADR-024. Origin stays portable. Zero-egress media. Certificates for merchant domains without running an ACME fleet | Two vendor API calls must exist somewhere |
+| Run the engine or storefront on Workers | One vendor, no origin host | Rejected by ADR-024: every uncached request must reach the single Postgres, and the edge Next.js adapter can serve another merchant's theme ([TRD](TRD.md)) |
+| No CDN; origin serves everything | No vendor at all | Egress and latency scale with page views; no certificate path for merchant domains |
+
+### Decision
+
+1. **Cloudflare is used only as the edge.** DNS, CDN cache, WAF, Tunnel, R2 object storage,
+   custom hostnames for merchant domains, and static hosting for `apps/marketing`. The Rust
+   engine, Postgres, Redis, PgBouncer, the storefront SSR process and the admin dashboard run on
+   the origin. No Workers, Pages Functions, D1, KV or Durable Objects carry application logic.
+2. **ADR-024 decision 2 is amended, not dropped.** Request handling still contains no
+   CDN-specific code. Exactly two vendor API calls are permitted, each in one place:
+   - **Cache purge** lives in a single provider crate, `crates/providers/stheno-cdn-cloudflare`,
+     invoked from a subscriber. Unconfigured, it is a no-op and the engine behaves as before.
+   - **Custom-hostname registration and certificate status** live in Space, which
+     [ADR-030](#adr-030) already makes the owner of domain and SSL orchestration.
+   Replacing the vendor means replacing that crate and that Space adapter, and nothing else.
+3. **Purge is by tenant-scoped tag; hostname purge is reserved for store-wide changes.**
+   - Every cache tag carries the tenant id as a prefix. An unprefixed tag is never emitted, so a
+     zone-wide tag purge cannot reach another tenant.
+   - Tags are entity-level where the entity is known (one product, one collection, one category)
+     plus one listing tag per tenant for pages that enumerate the catalog. Storefront HTML
+     responses carry the same tags as the API responses they are built from; a tag purge that
+     clears JSON but leaves the rendered page is not a purge.
+   - A catalog edit purges the edited entity's tags and the tenant's listing tag. Other product
+     pages of the same store stay cached.
+   - Changes that alter every page of a store — branding, appearance, domain changes,
+     suspension, closure — purge by that tenant's hostnames instead. A suspended or closed store
+     must not keep serving from the edge.
+   - `Cache-Tag` is comma-separated and `Surrogate-Key` is space-separated, each in its own
+     vendor's format.
+   - Purge requests are durable: they are written to the existing leased outbox in the same
+     transaction as the change, coalesced per tenant, batched, and retried until the vendor
+     accepts them. A purge that cannot be delivered is visible to operators, never silently
+     dropped. Purge APIs are rate limited per zone, which is why coalescing is a requirement and
+     not an optimisation.
+4. **A purge runs only after the origin's own caches are invalidated** (the in-memory L1 cache
+   and the Next.js route cache). Otherwise the edge refills itself with the stale response and
+   holds it for another hour.
+5. **The origin is reachable only through a Cloudflare Tunnel.** No public ingress port. A
+   reverse-proxy container behind the tunnel does the path routing and is the proxy
+   `tenant_layer.rs` assumes. It lands in Compose and in the chart ([ADR-026](#adr-026)). The
+   production proxy never derives `Host` from a cookie, header or parameter, and strips
+   `x-stheno-tenant-host` and `X-Forwarded-Host` from every inbound request. The cookie-driven
+   `Host` rewrite stays in the development server only.
+6. **The proxy owns vendor header translation, into a vendor-neutral name.** The proxy sets
+   `x-country-code` from `CF-IPCountry`, overwrites any client-supplied value, and removes the
+   header when the vendor did not supply one. The storefront reads `x-country-code`; the
+   reference to `x-vercel-ip-country` is removed. No application code names a CDN vendor.
+7. **Edge caching is opt-in per response.** The cache rule is "use the origin `Cache-Control`
+   if present, bypass if absent", with an explicit bypass for admin, cart, checkout and account
+   paths. No edge TTL override is ever configured, because an override caches responses the
+   origin never marked public.
+8. **Media is split by bucket.** Public product media is an R2 bucket on a media hostname.
+   Payment proofs and other private documents are a second bucket with no public hostname,
+   reached only through authenticated, time-limited URLs
+   ([COMMERCIAL_IMPLEMENTATION_PLAN.md](COMMERCIAL_IMPLEMENTATION_PLAN.md) section 8).
+9. **The admin dashboard is served from its own origin, never from a storefront hostname.**
+   - Each tenant gets one admin hostname under a registrable domain that serves no
+     merchant-authored content. The storefront zone and merchant custom domains do not qualify.
+   - The admin hostname is registered in the same domain registry, so `Host` remains the only
+     source of tenant identity ([ADR-022](#adr-022)) and no second identity path is added.
+   - The proxy serves the dashboard and `/admin/*` only on admin hostnames. On every storefront
+     hostname and custom domain `/admin/*` returns the same 404 an unknown route returns.
+   - The admin session cookie is host-only, `Secure`, `HttpOnly`, `SameSite=Lax` or stricter,
+     and uses the `__Host-` prefix so a sibling hostname cannot overwrite it.
+   - Admin responses send a `Content-Security-Policy` that allows scripts only from the admin
+     origin, and `frame-ancestors 'none'`.
+   - The dashboard is still served by the origin and cached as static assets; it does not move
+     to third-party static hosting.
+   This supersedes the same-origin admin route formerly described in
+   [ARCHITECTURE.md](ARCHITECTURE.md) section 4.
+   **Owner confirmation (2026-11-13):** one admin hostname per store was chosen over a single
+   shared admin hostname. Each store's dashboard is `<store>.dashboard.vendryx.com`.
+   `dashboard.vendryx.com` itself is only a sign-in entry point that redirects a merchant to
+   their own store's hostname; it holds no session and serves no store data.
+   `admin.vendryx.com` is reserved for the platform operator. Storefronts stay on the merchant's
+   own domain or the default store subdomain. Two-level hostnames need a certificate that
+   covers `*.dashboard.vendryx.com`, which is an acceptance check at setup.
+10. **The edge firewall has a written baseline, and machine callers are exempt from challenges.**
+    - Rate limits apply at the edge to sign-in, password reset, account creation, checkout
+      submission and payment-proof submission, keyed by client address and hostname.
+    - Payment-provider callbacks, courier callbacks and Meta webhooks are never given a browser
+      challenge or bot check: a challenged callback is a lost payment confirmation. They are
+      protected by the signature verification the engine already performs and by a rate limit.
+    - The engine's own rate limits and signature checks stay. The edge is a second layer, not a
+      replacement, so the origin remains correct behind any other CDN.
+
+### Consequences
+
+**Good.** The bill scales with cache misses. An edit clears only the pages it changed. Merchant
+domains get certificates without operating certificate infrastructure. Media egress is free. The
+origin has no public attack surface. A compromised storefront page cannot act as the merchant.
+Vendor choice stays reversible at the cost of one crate and one Space adapter.
+
+**Bad.** Every tenant needs a second registered hostname, and merchants sign in at an address
+that is not their store's. Tag correctness becomes a standing obligation: a page that renders an
+entity without carrying its tag goes stale until `s-maxage` expires. The tenant id becomes
+visible in the `Surrogate-Key` response header. Custom hostnames beyond the vendor's free
+allowance are a per-merchant cost.
+
+**Not decided here.** The origin host, its region, backups, failover and recovery targets. One
+origin is a single point of failure, and that needs its own record once a host is chosen.
+
+**Unverified at decision time.** Tag and hostname purge availability and rate limits on the
+chosen plan tier, the `Cache-Tag` list format and size limits, `stale-while-revalidate`
+behaviour, custom-hostname pricing, wildcard certificate depth for admin hostnames, wildcard
+Tunnel routing preserving `Host`, and `stheno-file-s3` against R2 have not been tested. Each is
+an acceptance check in the spec, not an assumption.
+
+### Reversal condition
+
+If tag purge is unavailable or too tightly rate limited on an affordable tier, fall back to
+hostname purge for every change inside the same provider crate; the tenant-scoped tags stay,
+because they cost nothing and keep the path back open. If one admin hostname per tenant proves
+unworkable, a single shared admin hostname is the alternative, and it requires a new record:
+tenant identity for `/admin/*` would then come from the authenticated session, which is a second
+identity path [ADR-022](#adr-022) does not currently allow. If Cloudflare itself is dropped, any
+CDN that honours `Cache-Control` replaces it with a DNS change plus the two adapters.
+
+**Cost of the exception.** Two vendor-specific API integrations are accepted, confined as stated
+in decision 2.

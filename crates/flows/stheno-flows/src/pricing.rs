@@ -43,7 +43,7 @@ impl Step for CreatePriceSetStep {
         let parsed: CreatePriceSetInput =
             serde_json::from_value(input).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse CreatePriceSetInput: {}", e),
+                message: format!("Failed to parse CreatePriceSetInput: {e}"),
                 field: None,
             })?;
 
@@ -87,7 +87,7 @@ impl Step for UpdatePriceSetStep {
         let parsed: UpdatePriceSetInput =
             serde_json::from_value(input["data"].clone()).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse UpdatePriceSetInput: {}", e),
+                message: format!("Failed to parse UpdatePriceSetInput: {e}"),
                 field: None,
             })?;
 
@@ -156,7 +156,7 @@ impl Step for CreatePriceListStep {
         let parsed: CreatePriceListInput =
             serde_json::from_value(input).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse CreatePriceListInput: {}", e),
+                message: format!("Failed to parse CreatePriceListInput: {e}"),
                 field: None,
             })?;
 
@@ -200,7 +200,7 @@ impl Step for UpdatePriceListStep {
         let parsed: UpdatePriceListInput =
             serde_json::from_value(input["data"].clone()).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse UpdatePriceListInput: {}", e),
+                message: format!("Failed to parse UpdatePriceListInput: {e}"),
                 field: None,
             })?;
 
@@ -277,7 +277,7 @@ impl Step for BatchPriceListPricesStep {
         let parsed: BatchPriceListPricesInput = serde_json::from_value(input["data"].clone())
             .map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse BatchPriceListPricesInput: {}", e),
+                message: format!("Failed to parse BatchPriceListPricesInput: {e}"),
                 field: None,
             })?;
 
@@ -314,7 +314,7 @@ impl Step for CreatePricePreferenceStep {
         let parsed: CreatePricePreferenceInput =
             serde_json::from_value(input).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse CreatePricePreferenceInput: {}", e),
+                message: format!("Failed to parse CreatePricePreferenceInput: {e}"),
                 field: None,
             })?;
 
@@ -416,14 +416,14 @@ impl Step for CalculatePricesStep {
         let price_set_ids: Vec<String> = serde_json::from_value(input["price_set_ids"].clone())
             .map_err(|e| Error::Invalid {
                 code: "invalid_price_set_ids",
-                message: format!("Failed to parse price_set_ids: {}", e),
+                message: format!("Failed to parse price_set_ids: {e}"),
                 field: Some("price_set_ids".to_string()),
             })?;
 
         let context: PricingContext =
             serde_json::from_value(input["context"].clone()).map_err(|e| Error::Invalid {
                 code: "invalid_pricing_context",
-                message: format!("Failed to parse PricingContext: {}", e),
+                message: format!("Failed to parse PricingContext: {e}"),
                 field: Some("context".to_string()),
             })?;
 

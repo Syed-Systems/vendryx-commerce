@@ -12,15 +12,15 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use stheno_flows_order::{
-    generate_ref_code, render_social_message, SocialDraftInput, SocialDraftWorkflow,
-    SocialMessageLine,
+    SocialDraftInput, SocialDraftWorkflow, SocialMessageLine, generate_ref_code,
+    render_social_message,
 };
 use stheno_order::CreateLineItemInput;
 
@@ -147,6 +147,10 @@ pub async fn create_social_draft(
                 .collect(),
             buyer_name: body.buyer_name,
             buyer_phone: body.buyer_phone,
+            delivery_address: None,
+            shipping_method: None,
+            payment_preference: None,
+            source_event_id: None,
             // The ref travels in metadata, which is how the admin queue finds it.
             source_ref: Some(
                 body.source_ref

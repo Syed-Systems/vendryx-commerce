@@ -418,6 +418,14 @@ Every store of personal data must be known, or erasure is a guess:
 | `payment.data`, `payment_session.data` | provider payloads, last4, name | Redact to non-identifying fields |
 | **`payment_webhook_event.payload`** | full provider payload | **90-day retention, then purge (F16)** |
 | **`workflow_execution.context`** | step inputs: addresses, emails, names | **Retention window + erasure cascade (F17)** |
+| `ai.channel_conversation` | social messages and assistant replies; AES-GCM ciphertext, sender identifier hashed | Encrypted; inaccessible after 24-hour expiry; removed on the tenant's next conversation write |
+| `ai.channel_event` | provider event IDs and hashed sender/conversation identifiers | Tenant RLS; bounded replay/idempotency state |
+| `ai.configuration` | AI and Meta provider credentials | AES-GCM encryption with tenant/purpose-bound associated data; redacted reads only |
+| `ai.search_console_oauth_state` | tenant, initiating actor, property, opaque OAuth nonce | Tenant RLS; signed, single-use state; ten-minute expiry; expired rows pruned on the next connect attempt |
+| `notification.whatsapp_analytics_consent` | hashed recipient identifier, optional customer id, explicit opt-in/revocation timestamps | Separate from transactional message consent; tenant RLS; hash only; customer revocation and WhatsApp STOP withdraw it |
+| `ai.chat_offer` | Merchant-configured exact chat price | Tenant RLS; admin-only writes; exact decimal strings; one enabled policy per variant/currency; no customer data |
+| `ai.chat_offer_quote` | Short-lived quote binding | Tenant RLS; hashed channel/account/sender binding; 10-minute expiry; offer/version/price/region/quantity binding; no plaintext message or buyer PII |
+| `ai.chat_offer_audit` | Owner/admin offer change history | Tenant RLS; actor ID, action, offer ID, and version only; no customer data or credentials |
 | `index_data` | denormalised projections of the above | Rebuild after erasure |
 | `search_index` | names, emails | Reindex after erasure |
 | Logs, traces | request context | Redaction at write; 30-day retention |
@@ -521,8 +529,9 @@ with database access can rewrite is not evidence.
 
 **Secrets.** Environment variables only; never in the database, never in `metadata`. `JWT_SECRET`
 and `COOKIE_SECRET` at least 32 bytes, boot fails otherwise (already specified). Rotation is
-supported via `JWT_SECRET_PREVIOUS`, honoured for verification during an overlap window — otherwise
-rotation logs every operator out.
+supported via `JWT_SECRET_PREVIOUS` for token verification and `COOKIE_SECRET_PREVIOUS` for
+encrypted storefront cart cookies during an overlap window — otherwise token rotation logs every
+operator out and cookie rotation invalidates active carts.
 
 **Encryption at rest (F23).** Beyond full-disk: application-level AEAD (XChaCha20-Poly1305) with a
 key from `ENCRYPTION_KEY`, for MFA secrets, recovery codes, provider credentials, `account_holder.data`,

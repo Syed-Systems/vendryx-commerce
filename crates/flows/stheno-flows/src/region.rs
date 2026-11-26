@@ -32,7 +32,7 @@ impl Step for CreateRegionStep {
         let parsed: CreateRegionInput =
             serde_json::from_value(input).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse CreateRegionInput: {}", e),
+                message: format!("Failed to parse CreateRegionInput: {e}"),
                 field: None,
             })?;
 
@@ -76,7 +76,7 @@ impl Step for UpdateRegionStep {
         let parsed: UpdateRegionInput =
             serde_json::from_value(input["data"].clone()).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse UpdateRegionInput: {}", e),
+                message: format!("Failed to parse UpdateRegionInput: {e}"),
                 field: None,
             })?;
 

@@ -23,8 +23,8 @@ async fn test_batch_product_ops_1000_items_with_per_row_errors() {
             });
         } else {
             batch.push(CreateProductInput {
-                title: format!("Batch Product #{}", i),
-                handle: Some(format!("batch-prod-{}", i)),
+                title: format!("Batch Product #{i}"),
+                handle: Some(format!("batch-prod-{i}")),
                 subtitle: None,
                 description: None,
                 discountable: Some(true),

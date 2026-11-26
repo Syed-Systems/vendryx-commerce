@@ -86,7 +86,7 @@ async fn test_concurrent_completion_of_same_cart_produces_exactly_one_order() {
         .expect("shipping added");
 
     let cart_id = cart.id.clone();
-    let idempotency_key = format!("idem_race_{}", cart_id);
+    let idempotency_key = format!("idem_race_{cart_id}");
 
     // Spawn 10 concurrent requests to complete the exact same cart
     let mut handles = Vec::new();

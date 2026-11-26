@@ -160,7 +160,7 @@ impl CompleteCartWorkflowEngine {
                 return Ok(CompleteCartOutput {
                     order: existing_order.clone(),
                     resumed_from_step: None,
-                    execution_id: format!("exec_{}", key),
+                    execution_id: format!("exec_{key}"),
                 });
             }
         }
@@ -182,7 +182,7 @@ impl CompleteCartWorkflowEngine {
                 return Ok(CompleteCartOutput {
                     order: existing_order.clone(),
                     resumed_from_step: None,
-                    execution_id: format!("exec_{}", key),
+                    execution_id: format!("exec_{key}"),
                 });
             }
         }
@@ -589,7 +589,7 @@ impl CompleteCartWorkflowEngine {
             } else {
                 None
             },
-            execution_id: format!("exec_{}", key),
+            execution_id: format!("exec_{key}"),
         })
     }
 

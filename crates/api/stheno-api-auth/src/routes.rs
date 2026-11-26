@@ -1,13 +1,15 @@
 //! Medusa v2 wire-compatible Auth API handlers and route definitions (P7-22).
 
-use axum::extract::{Path, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::IntoResponse;
+use axum::extract::{Path, Request, State};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::{Json, Router, middleware};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use stheno_auth::{
     AuthenticateInput, CreateIdentityInput, PasswordResetConfirmInput, PasswordResetRequestInput,
     UpdatePasswordInput,
@@ -426,7 +428,37 @@ pub fn auth_routes(ctx: AuthApiContext) -> Router {
             "/auth/{actor_type}/{provider_id}/confirm-reset-password",
             post(confirm_reset_password),
         )
+        .layer(middleware::from_fn(auth_cookie_csrf))
         .with_state(ctx)
+}
+
+fn auth_cookie_origin_is_valid(method: &axum::http::Method, headers: &HeaderMap) -> bool {
+    let has_bearer = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("Bearer "));
+    let has_session_cookie = headers
+        .get(header::COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|cookies| {
+            cookies.split(';').any(|cookie| {
+                cookie
+                    .trim()
+                    .split_once('=')
+                    .is_some_and(|(name, value)| name == ADMIN_SESSION_COOKIE && !value.is_empty())
+            })
+        });
+
+    !has_session_cookie
+        || has_bearer
+        || stheno_http::csrf::validate_origin_host(method, headers).is_ok()
+}
+
+async fn auth_cookie_csrf(request: Request, next: Next) -> Response {
+    if !auth_cookie_origin_is_valid(request.method(), request.headers()) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    next.run(request).await
 }
 
 // ── Multi-factor authentication ──────────────────────────────────────────────
@@ -441,20 +473,16 @@ pub fn auth_routes(ctx: AuthApiContext) -> Router {
 // codes checked first, then a time-window TOTP check, `Unauthorized` on failure. These
 // call it.
 
-/// The verified claims behind the bearer token, or the 401 the client expects.
+/// The verified claims behind the bearer token or the admin session cookie.
 async fn claims_from_token(
     ctx: &AuthApiContext,
     headers: &HeaderMap,
 ) -> Result<stheno_auth::JwtClaims, HttpError> {
-    let token = headers
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or_else(|| {
-            HttpError(stheno_types::Error::Unauthorized(
-                "Missing Authorization bearer token".to_string(),
-            ))
-        })?;
+    let token = token_from_headers(headers).ok_or_else(|| {
+        HttpError(stheno_types::Error::Unauthorized(
+            "Missing admin session".to_string(),
+        ))
+    })?;
     Ok(ctx.auth_flows.verify_jwt(token).await?)
 }
 
@@ -720,6 +748,44 @@ pub async fn generate_recovery_codes(
 // no token at all — a status endpoint that always says "yes" is worse than none, because
 // a client is entitled to trust it.
 
+const ADMIN_SESSION_COOKIE: &str = "__Host-stheno-admin-session";
+
+fn token_from_headers(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .or_else(|| {
+            headers
+                .get(header::COOKIE)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|cookies| {
+                    cookies.split(';').find_map(|cookie| {
+                        let (name, value) = cookie.trim().split_once('=')?;
+                        (name == ADMIN_SESSION_COOKIE && !value.is_empty()).then_some(value)
+                    })
+                })
+        })
+}
+
+fn session_cookie(token: &str, expires_at: i64) -> Result<HeaderValue, HttpError> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or_default();
+    let max_age = expires_at.saturating_sub(now).max(0);
+    HeaderValue::from_str(&format!(
+        "{ADMIN_SESSION_COOKIE}={token}; Path=/; Max-Age={max_age}; Secure; HttpOnly; SameSite=Lax"
+    ))
+    .map_err(|_| {
+        HttpError(stheno_types::Error::Invalid {
+            code: "invalid_session_cookie",
+            message: "The authenticated session could not be issued".to_string(),
+            field: None,
+        })
+    })
+}
+
 /// GET /auth/session
 ///
 /// 401 when the token is missing or invalid. The dashboard distinguishes "signed out"
@@ -745,15 +811,19 @@ pub async fn get_session(
 
 /// POST /auth/session
 ///
-/// Medusa exchanges a bearer token for a cookie session here. There is no session store to
-/// write to, so this confirms the token and returns the identity it belongs to — the same
-/// answer as GET, which is the honest one for a stateless scheme.
+/// Medusa exchanges a bearer token for a host-only admin cookie. Older bearer sessions
+/// remain valid until their normal JWT expiry; this exchange does not invalidate them.
 pub async fn create_session(
     State(ctx): State<AuthApiContext>,
     headers: HeaderMap,
-) -> Result<impl IntoResponse, HttpError> {
+) -> Result<Response, HttpError> {
     let claims = claims_from_token(&ctx, &headers).await?;
-    Ok((
+    let token = token_from_headers(&headers).ok_or_else(|| {
+        HttpError(stheno_types::Error::Unauthorized(
+            "Missing admin session".to_string(),
+        ))
+    })?;
+    let mut response = (
         StatusCode::OK,
         Json(json!({
             "authenticated": true,
@@ -763,7 +833,12 @@ pub async fn create_session(
                 "actor_type": claims.actor_type,
             },
         })),
-    ))
+    )
+        .into_response();
+    response
+        .headers_mut()
+        .insert(header::SET_COOKIE, session_cookie(token, claims.exp)?);
+    Ok(response)
 }
 
 /// DELETE /auth/session
@@ -776,5 +851,97 @@ pub async fn end_session(
 ) -> Result<impl IntoResponse, HttpError> {
     let claims = claims_from_token(&ctx, &headers).await?;
     ctx.auth_flows.invalidate_tokens(&claims.sub).await?;
-    Ok((StatusCode::OK, Json(json!({ "success": true }))))
+    let mut response = (StatusCode::OK, Json(json!({ "success": true }))).into_response();
+    response.headers_mut().insert(
+        header::SET_COOKIE,
+        HeaderValue::from_static(
+            "__Host-stheno-admin-session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax",
+        ),
+    );
+    Ok(response)
+}
+
+#[cfg(test)]
+mod admin_session_cookie_tests {
+    use super::{
+        ADMIN_SESSION_COOKIE, auth_cookie_origin_is_valid, session_cookie, token_from_headers,
+    };
+    use axum::http::{HeaderMap, HeaderValue, Method, header};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn session_cookie_is_host_only_and_protected() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock is after the Unix epoch")
+            .as_secs() as i64;
+        let cookie = session_cookie("jwt-token", now + 60)
+            .expect("a JWT token forms a valid cookie header")
+            .to_str()
+            .expect("cookie header is valid text")
+            .to_string();
+
+        assert!(cookie.starts_with(&format!("{ADMIN_SESSION_COOKIE}=")));
+        assert!(cookie.contains("Path=/"));
+        assert!(cookie.contains("Secure"));
+        assert!(cookie.contains("HttpOnly"));
+        assert!(cookie.contains("SameSite=Lax"));
+        assert!(!cookie.contains("Domain="));
+    }
+
+    #[test]
+    fn session_lookup_reads_the_host_scoped_cookie() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static("other=x; __Host-stheno-admin-session=jwt-token"),
+        );
+        assert_eq!(token_from_headers(&headers), Some("jwt-token"));
+    }
+
+    fn cookie_request(origin: Option<&str>, bearer: Option<&str>) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::HOST, HeaderValue::from_static("admin.example.test"));
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static("__Host-stheno-admin-session=jwt-token"),
+        );
+        if let Some(origin) = origin {
+            headers.insert(
+                header::ORIGIN,
+                HeaderValue::from_str(origin).expect("valid test Origin"),
+            );
+        }
+        if let Some(bearer) = bearer {
+            headers.insert(
+                header::AUTHORIZATION,
+                HeaderValue::from_str(bearer).expect("valid test Authorization"),
+            );
+        }
+        headers
+    }
+
+    #[test]
+    fn cookie_post_requires_origin_matching_the_request_host() {
+        assert!(!auth_cookie_origin_is_valid(
+            &Method::POST,
+            &cookie_request(None, None)
+        ));
+        assert!(!auth_cookie_origin_is_valid(
+            &Method::POST,
+            &cookie_request(Some("https://sibling.admin.example.test"), None)
+        ));
+        assert!(auth_cookie_origin_is_valid(
+            &Method::POST,
+            &cookie_request(Some("https://admin.example.test"), None)
+        ));
+    }
+
+    #[test]
+    fn bearer_post_does_not_require_origin() {
+        assert!(auth_cookie_origin_is_valid(
+            &Method::POST,
+            &cookie_request(None, Some("Bearer signed-token"))
+        ));
+    }
 }

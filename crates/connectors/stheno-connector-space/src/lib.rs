@@ -160,11 +160,11 @@ impl std::fmt::Display for WebhookVerifyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::TimestampExpired { skew_seconds } => {
-                write!(f, "Webhook timestamp expired (skew: {}s)", skew_seconds)
+                write!(f, "Webhook timestamp expired (skew: {skew_seconds}s)")
             }
             Self::InvalidHeaderFormat => write!(f, "Invalid signature header format"),
             Self::SignatureMismatch => write!(f, "Signature verification failed (digest mismatch)"),
-            Self::MalformedPayload(msg) => write!(f, "Malformed webhook payload: {}", msg),
+            Self::MalformedPayload(msg) => write!(f, "Malformed webhook payload: {msg}"),
         }
     }
 }
@@ -174,11 +174,11 @@ impl std::error::Error for WebhookVerifyError {}
 /// Generates standard HMAC-SHA256 signature header: `t={timestamp},v1={hex_digest}`.
 pub fn sign_space_webhook(secret: &[u8], timestamp: u64, payload: &[u8]) -> String {
     let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC can take key of any size");
-    let signed_content = format!("{}.", timestamp);
+    let signed_content = format!("{timestamp}.");
     mac.update(signed_content.as_bytes());
     mac.update(payload);
     let signature_hex = hex::encode(mac.finalize().into_bytes());
-    format!("t={},v1={}", timestamp, signature_hex)
+    format!("t={timestamp},v1={signature_hex}")
 }
 
 /// Verifies incoming Space webhook with replay-attack timestamp window protection.
@@ -208,7 +208,7 @@ pub fn verify_space_webhook(
     let received_sig = expected_v1.ok_or(WebhookVerifyError::InvalidHeaderFormat)?;
 
     let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC accepts any key size");
-    let signed_content = format!("{}.", timestamp);
+    let signed_content = format!("{timestamp}.");
     mac.update(signed_content.as_bytes());
     mac.update(payload);
     let expected_bytes = mac.finalize().into_bytes();
@@ -238,17 +238,17 @@ pub enum SpaceConnectorError {
 impl std::fmt::Display for SpaceConnectorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Http(e) => write!(f, "Space HTTP error: {}", e),
+            Self::Http(e) => write!(f, "Space HTTP error: {e}"),
             Self::ApiError {
                 status,
                 title,
                 detail,
             } => {
-                write!(f, "Space API error ({}): {} - {}", status, title, detail)
+                write!(f, "Space API error ({status}): {title} - {detail}")
             }
-            Self::Webhook(e) => write!(f, "Space Webhook error: {}", e),
-            Self::Serialization(e) => write!(f, "Space serialization error: {}", e),
-            Self::InvalidConfig(msg) => write!(f, "Invalid Space config: {}", msg),
+            Self::Webhook(e) => write!(f, "Space Webhook error: {e}"),
+            Self::Serialization(e) => write!(f, "Space serialization error: {e}"),
+            Self::InvalidConfig(msg) => write!(f, "Invalid Space config: {msg}"),
         }
     }
 }

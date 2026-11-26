@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 
 use chrono::{Duration, Months, Utc};
 use rand::Rng;
@@ -13,20 +15,19 @@ use stheno_types::{Error, Id, Money, Result};
 use crate::dto::{
     ApplyInvoiceCreditsInput, BillingAttemptDTO, BillingPlanPrice, BillingRunDTO, BillingRunInput,
     CalculateProrationInput, CalculateVatInput, ChurnCohortDTO, CrossTenantAggregateDTO, DomainDTO,
-    DomainVerificationDTO, DunningInput, DunningNotificationDTO, FunnelMetricsDTO,
+    DomainVerificationDTO, DunningInput, DunningNotificationDTO, FunnelMetricsDTO, FxRateDTO,
     GenerateInvoiceInput, GmvMetricsDTO, InvoiceDTO, IssuedOperator, LaunchRequestDTO,
     LaunchRequestEventDTO, MerchantAccountDTO, MerchantHealthDTO, NewOperatorAudit, NewTenant,
     OnboardingFunnelDTO, OperatorAuditDTO, OperatorDTO, PagedTenantsDTO, PlanDistributionItemDTO,
     ProrationDTO, ProrationLineDTO, QuotaHeadroomDTO, RevenueMetricsDTO, RevenueMetricsInput,
     StartBillingAttemptInput, SubmitLaunchRequestInput, SubscriptionDTO, SubscriptionPatch,
     TenantDTO, TenantExportBundleDTO, TenantListQuery, TenantPurgeResultDTO, TierDefinitionDTO,
-    TopMerchantGmvDTO, VatLineDTO, FxRateDTO,
+    TopMerchantGmvDTO, VatLineDTO,
 };
 use crate::models::{
-    Announcement, BillingAttempt, DeploymentConfig, GlobalFlag, ImpersonationSession, Invoice,
-    FxRate,
-    InvoiceLine, LaunchRequest, LaunchRequestEvent, MerchantAccount, MerchantTenantOwner, Operator,
-    OperatorAudit, Subscription, Tenant, TenantDomain, TenantTheme, TierDefinitionRow,
+    Announcement, BillingAttempt, DeploymentConfig, FxRate, GlobalFlag, ImpersonationSession,
+    Invoice, InvoiceLine, LaunchRequest, LaunchRequestEvent, MerchantAccount, MerchantTenantOwner,
+    Operator, OperatorAudit, Subscription, Tenant, TenantDomain, TenantTheme, TierDefinitionRow,
 };
 
 /// Every issued control-plane token starts with this, so one found in a log or a paste is
@@ -41,6 +42,7 @@ fn hash_token(plain: &str) -> String {
 
 #[derive(Clone)]
 pub struct PlatformService {
+    trial_duration_days: i64,
     pool: DbPool,
     tenants: PgCrudRepository<Tenant>,
     domains: PgCrudRepository<TenantDomain>,
@@ -66,8 +68,12 @@ pub struct PlatformService {
 }
 
 impl PlatformService {
+    /// Number of trial days used when configuration omits an explicit duration.
+    pub const DEFAULT_TRIAL_DURATION_DAYS: u64 = 7;
+
     pub fn new(pool: DbPool) -> Self {
         Self {
+            trial_duration_days: Self::DEFAULT_TRIAL_DURATION_DAYS as i64,
             pool: pool.clone(),
             tenants: PgCrudRepository::new(pool.clone()),
             domains: PgCrudRepository::new(pool.clone()),
@@ -90,6 +96,30 @@ impl PlatformService {
             fx_rates: PgCrudRepository::new(pool.clone()),
             payment_proofs: PgCrudRepository::new(pool),
         }
+    }
+
+    /// Provides the shared pool to API-level module orchestration.
+    ///
+    /// Callers that access tenant-owned modules must use `tenant::with_tenant_conn` so
+    /// their module queries run under the tenant RLS role and transaction scope.
+    pub fn db_pool(&self) -> DbPool {
+        self.pool.clone()
+    }
+
+    /// Sets the configured duration for newly provisioned trials.
+    ///
+    /// Existing subscriptions keep their persisted `trial_ends_at` value. Durations are
+    /// bounded so an invalid operator configuration cannot overflow timestamp arithmetic.
+    pub fn with_trial_duration_days(mut self, days: u64) -> Result<Self> {
+        if !(1..=3650).contains(&days) {
+            return Err(Error::Invalid {
+                code: "trial_duration_invalid",
+                message: "Trial duration must be between 1 and 3650 days.".to_string(),
+                field: Some("duration_days".to_string()),
+            });
+        }
+        self.trial_duration_days = days as i64;
+        Ok(self)
     }
 
     /// Creates or refreshes the account-level record which exists before a tenant deployment.
@@ -560,12 +590,12 @@ impl PlatformService {
             )
             .await?;
         if tier == "trial" {
-            let started = Utc::now();
+            let started = request.submitted_at.to_owned();
             self.update_subscription(
                 &tenant_id,
                 SubscriptionPatch {
                     trial_started_at: Some(Some(started)),
-                    trial_ends_at: Some(Some(started + Duration::days(14))),
+                    trial_ends_at: Some(Some(started + Duration::days(self.trial_duration_days))),
                     ..Default::default()
                 },
             )
@@ -627,6 +657,40 @@ impl PlatformService {
             .map(SubscriptionDTO::from)
     }
 
+    /// Resolves a tenant's verified account owner for operational lifecycle notices.
+    pub async fn trial_warning_recipient(
+        &self,
+        tenant_id: &str,
+    ) -> Result<Option<crate::dto::TrialWarningRecipient>> {
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            let tenant = match self.tenants.retrieve(None, tenant_id).await {
+                Ok(row) => row,
+                Err(Error::NotFound { .. }) => return Ok(None),
+                Err(error) => return Err(error),
+            };
+            let owner = match self.merchant_tenant_owners.retrieve(None, tenant_id).await {
+                Ok(row) if row.deleted_at.is_none() => row,
+                Ok(_) | Err(Error::NotFound { .. }) => return Ok(None),
+                Err(error) => return Err(error),
+            };
+            let account = match self
+                .merchant_accounts
+                .retrieve(None, &owner.merchant_id)
+                .await
+            {
+                Ok(row) if row.email_verified_at.is_some() => row,
+                Ok(_) | Err(Error::NotFound { .. }) => return Ok(None),
+                Err(error) => return Err(error),
+            };
+            Ok(Some(crate::dto::TrialWarningRecipient {
+                tenant_id: tenant.id,
+                tenant_name: tenant.name,
+                email: account.email,
+            }))
+        })
+        .await
+    }
+
     /// The stored row, for the read-modify-write in [`Self::update_subscription`]. Private:
     /// the entity is a persistence detail and does not cross the module boundary.
     async fn subscription_row(&self, tenant_id: &str) -> Result<Subscription> {
@@ -643,6 +707,66 @@ impl PlatformService {
         })
         .await
         .map(|rows| rows.into_iter().map(SubscriptionDTO::from).collect())
+    }
+
+    /// Persists trial and paid-term lifecycle transitions so a later backward clock
+    /// adjustment cannot restore access after expiry has already been observed.
+    pub async fn reconcile_expired_subscriptions(
+        &self,
+        now: chrono::DateTime<Utc>,
+    ) -> Result<usize> {
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            let mut offset = 0usize;
+            let limit = stheno_db::filter::MAX_PAGE_LIMIT;
+            let mut transitioned = 0usize;
+            loop {
+                let spec = FilterSpec::new()
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_order("tenant_id", OrderDirection::Asc)
+                    .with_pagination(offset, limit);
+                let rows = self.subscriptions.list(None, &spec).await?;
+                let count = rows.len();
+                for mut sub in rows {
+                    let trial_expired =
+                        sub.tier == "trial" && sub.trial_ends_at.map_or(true, |end| now >= end);
+                    let term_end = (sub.tier == "pro").then_some(sub.term_ends_at).flatten();
+                    let grace_end =
+                        term_end.and_then(|end| end.checked_add_signed(Duration::days(7)));
+                    let paid_term_expired = grace_end.is_some_and(|end| now >= end);
+                    let paid_term_in_grace = term_end.is_some_and(|end| now >= end)
+                        && !paid_term_expired
+                        && matches!(sub.status.as_str(), "active" | "past_due");
+
+                    if trial_expired || paid_term_expired {
+                        let was_paid_term = paid_term_expired;
+                        sub.tier = "free".to_string();
+                        if matches!(sub.status.as_str(), "grace" | "past_due") {
+                            sub.status = "active".to_string();
+                        }
+                        if was_paid_term {
+                            sub.dunning_attempts = 0;
+                            sub.next_attempt_at = None;
+                        }
+                        sub.updated_at = now;
+                        let tenant_id = sub.tenant_id.clone();
+                        self.subscriptions.update(None, &tenant_id, sub).await?;
+                        transitioned += 1;
+                    } else if paid_term_in_grace {
+                        sub.status = "grace".to_string();
+                        sub.updated_at = now;
+                        let tenant_id = sub.tenant_id.clone();
+                        self.subscriptions.update(None, &tenant_id, sub).await?;
+                        transitioned += 1;
+                    }
+                }
+                if count < limit {
+                    break;
+                }
+                offset += count;
+            }
+            Ok(transitioned)
+        })
+        .await
     }
 
     /// Changes a tenant's plan. The tier name is validated against the effective tier
@@ -1004,7 +1128,15 @@ impl PlatformService {
 
     // -- Tenant Purge & Data Export (P31-05, P31-06) ---------------------------------
 
-    pub async fn purge_closed_tenants(&self, retention_days: i64) -> Result<TenantPurgeResultDTO> {
+    /// Purges eligible closed tenants after running module-owned cleanup for each tenant.
+    pub async fn purge_closed_tenants_with<F>(
+        &self,
+        retention_days: i64,
+        before_delete: F,
+    ) -> Result<TenantPurgeResultDTO>
+    where
+        F: Fn(String) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>> + Send,
+    {
         tenant::scope(tenant::PLATFORM_SCOPE, async {
             let threshold = Utc::now() - chrono::Duration::days(retention_days);
             let tenants = self
@@ -1019,6 +1151,7 @@ impl PlatformService {
             for t in tenants {
                 if t.updated_at <= threshold {
                     let id = t.id.clone();
+                    before_delete(id.clone()).await?;
                     let domains = self
                         .domains
                         .list(
@@ -1612,7 +1745,7 @@ impl PlatformService {
                 .await?
                 .is_some();
             let billing_country = "BD"; // Hardcoded for now until tenant address is available
-            
+
             // Fetch FX metadata if needed (for BD)
             let fx_metadata = if billing_country == "BD" {
                 let dto = self.get_fx_rate("USD/BDT").await?;
@@ -1625,10 +1758,10 @@ impl PlatformService {
             } else {
                 None
             };
-            
+
             // Assume discount starts at 12 months, 10%
             let discount_percent = Some(rust_decimal::Decimal::new(1000, 2));
-            
+
             let calculated = crate::calculator::SubscriptionInvoiceCalculator::calculate(
                 price.amount.amount,
                 discount_percent,
@@ -1636,9 +1769,10 @@ impl PlatformService {
                 price.interval_months as i32,
                 billing_country,
                 fx_metadata,
-            ).map_err(|e| Error::Invalid {
+            )
+            .map_err(|e| Error::Invalid {
                 code: "calculator_error",
-                message: format!("Calculator error: {:?}", e),
+                message: format!("Calculator error: {e:?}"),
                 field: None,
             })?;
 
@@ -1647,9 +1781,17 @@ impl PlatformService {
                 tier: sub.tier.clone(),
                 period_start,
                 period_end,
-                amount: stheno_types::money::Money::new(calculated.total_usd, stheno_types::currency::CurrencyCode::Usd),
-                fx_metadata: Some(serde_json::to_value(calculated.fx_metadata).unwrap_or(serde_json::json!({}))),
-                payable_amount: Some(stheno_types::money::Money::new(calculated.payable_amount, calculated.presentment_currency)),
+                amount: stheno_types::money::Money::new(
+                    calculated.total_usd,
+                    stheno_types::currency::CurrencyCode::Usd,
+                ),
+                fx_metadata: Some(
+                    serde_json::to_value(calculated.fx_metadata).unwrap_or(serde_json::json!({})),
+                ),
+                payable_amount: Some(stheno_types::money::Money::new(
+                    calculated.payable_amount,
+                    calculated.presentment_currency,
+                )),
             })
             .await?;
             if !existed {
@@ -1710,17 +1852,53 @@ impl PlatformService {
         invoice_id: &str,
         paid_at: chrono::DateTime<Utc>,
     ) -> Result<InvoiceDTO> {
-        let invoice = tenant::scope(tenant::PLATFORM_SCOPE, async {
-            let mut row = self.invoices.retrieve(None, invoice_id).await?;
-            row.status = "paid".to_string();
-            row.paid_at = Some(paid_at);
-            row.updated_at = paid_at;
-            self.invoices.update(None, invoice_id, row).await
-        })
-        .await?;
+        let mut conn = self
+            .pool
+            .get()
+            .await
+            .map_err(|error| Error::Database(error.to_string()))?;
+        let invoices = self.invoices.clone();
+        let subscriptions = self.subscriptions.clone();
+        let invoice_id = invoice_id.to_string();
+        tenant::scope(tenant::PLATFORM_SCOPE, async {
+            stheno_db::transaction::with_transaction(&mut conn, move |conn| {
+                Box::pin(async move {
+                    let mut tx = conn;
+                    let mut invoice = invoices.retrieve(Some(&mut tx), &invoice_id).await?;
+                    invoice.status = "paid".to_string();
+                    invoice.paid_at = Some(paid_at);
+                    invoice.updated_at = paid_at;
+                    let invoice = invoices.update(Some(&mut tx), &invoice_id, invoice).await?;
 
-        self.mark_invoice_paid(&invoice.tenant_id).await?;
-        Ok(InvoiceDTO::from(invoice))
+                    let mut subscription = subscriptions
+                        .retrieve(Some(&mut tx), &invoice.tenant_id)
+                        .await?;
+                    subscription.status = "active".to_string();
+                    subscription.dunning_attempts = 0;
+                    subscription.next_attempt_at = None;
+                    // A collected subscription invoice renews through its covered period.
+                    // The max keeps a late collection of an older invoice from shortening
+                    // a newer term. Keeping this in the same transaction as collection
+                    // prevents a paid invoice from being committed without its renewal.
+                    if invoice.tier == "pro" {
+                        subscription.term_ends_at = Some(
+                            subscription
+                                .term_ends_at
+                                .map_or(invoice.period_end, |current| {
+                                    current.max(invoice.period_end)
+                                }),
+                        );
+                    }
+                    subscription.updated_at = paid_at;
+                    subscriptions
+                        .update(Some(&mut tx), &invoice.tenant_id, subscription)
+                        .await?;
+                    Ok::<_, Error>(InvoiceDTO::from(invoice))
+                })
+            })
+            .await
+        })
+        .await
     }
 
     /// Computes revenue from paid invoice rows, never from plan assignment.
@@ -2142,6 +2320,17 @@ impl PlatformService {
         tenant::scope(tenant::PLATFORM_SCOPE, async {
             let mut sub = self.subscriptions.retrieve(None, &input.tenant_id).await?;
 
+            if matches!(sub.tier.as_str(), "free" | "trial") {
+                return Ok(SubscriptionDTO::from(sub));
+            }
+
+            // Contract term grace is a calendar window from `term_ends_at`, not another
+            // rung in payment dunning. Advancing it here could suspend a Pro tenant before
+            // the full seven days have elapsed.
+            if sub.tier == "pro" && sub.term_ends_at.is_some_and(|end| input.now >= end) {
+                return Ok(SubscriptionDTO::from(sub));
+            }
+
             if sub.next_attempt_at.is_some_and(|at| input.now < at) {
                 return Ok(SubscriptionDTO::from(sub));
             }
@@ -2242,7 +2431,7 @@ impl PlatformService {
             }
         };
 
-        Ok(["email", "sms"]
+        Ok(["email", "whatsapp"]
             .into_iter()
             .map(|channel| DunningNotificationDTO {
                 channel: channel.to_string(),
@@ -2970,7 +3159,7 @@ impl PlatformService {
             updated_at: now,
             deleted_at: None,
         };
-        
+
         let audit = OperatorAudit {
             id: Id::new(),
             actor_id: operator_id.to_string(),
@@ -2985,7 +3174,11 @@ impl PlatformService {
         let operator_audit = self.operator_audit.clone();
         let fx_rates = self.fx_rates.clone();
         tenant::scope(tenant::PLATFORM_SCOPE, async {
-            let mut conn = self.pool.get().await.map_err(|e| Error::Database(e.to_string()))?;
+            let mut conn = self
+                .pool
+                .get()
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
             stheno_db::transaction::with_transaction(&mut conn, move |conn| {
                 Box::pin(async move {
                     let mut tx = conn;
@@ -2993,7 +3186,8 @@ impl PlatformService {
                     let upserted = fx_rates.upsert(Some(&mut tx), row).await?;
                     Ok(upserted)
                 })
-            }).await
+            })
+            .await
         })
         .await
         .map(FxRateDTO::from)
@@ -3005,10 +3199,48 @@ impl PlatformService {
         invoice_id: &str,
         input: crate::dto::UploadPaymentProofInput,
     ) -> Result<crate::dto::InvoicePaymentProofDTO> {
+        let payment_method = input.payment_method.trim().to_ascii_lowercase();
+        let transaction_id = input.transaction_id.trim().to_string();
+        let proof_asset_url = input.proof_asset_url.trim().to_string();
+        if payment_method.chars().count() > 32
+            || !matches!(
+                payment_method.as_str(),
+                "bkash" | "nagad" | "rocket" | "bank_transfer"
+            )
+        {
+            return Err(Error::Invalid {
+                code: "unsupported_manual_payment_method",
+                message: "payment method must be bKash, Nagad, Rocket, or bank transfer"
+                    .to_string(),
+                field: Some("payment_method".to_string()),
+            });
+        }
+        if transaction_id.is_empty()
+            || transaction_id.chars().count() > 128
+            || transaction_id.chars().any(char::is_control)
+        {
+            return Err(Error::Invalid {
+                code: "invalid_transaction_id",
+                message: "transaction ID must contain 1 to 128 visible characters".to_string(),
+                field: Some("transaction_id".to_string()),
+            });
+        }
+        if proof_asset_url.is_empty()
+            || proof_asset_url.chars().count() > 2048
+            || proof_asset_url.chars().any(char::is_control)
+        {
+            return Err(Error::Invalid {
+                code: "invalid_payment_proof_asset",
+                message: "payment proof reference must contain 1 to 2048 visible characters"
+                    .to_string(),
+                field: Some("proof_asset_url".to_string()),
+            });
+        }
+
         let now = Utc::now();
         let invoices = self.invoices.clone();
         let payment_proofs = self.payment_proofs.clone();
-        
+
         let tenant_id = tenant_id.to_string();
         let invoice_id = invoice_id.to_string();
 
@@ -3017,22 +3249,47 @@ impl PlatformService {
             stheno_db::transaction::with_transaction(&mut conn, move |conn| {
                 Box::pin(async move {
                     let mut tx = conn;
-                    
+
                     // Verify the invoice exists and belongs to the tenant
                     let mut invoice = invoices.retrieve(Some(&mut tx), &invoice_id).await?;
                     if invoice.tenant_id != tenant_id {
                         return Err(Error::NotFound { entity: "invoice", id: invoice_id.clone() });
                     }
-                    
+
+                    match invoice.status.as_str() {
+                        "open" | "needs_more_info" => {}
+                        "pending_verification" => {
+                            return Err(Error::Conflict {
+                                code: "payment_verification_pending",
+                                message: "this invoice already has a payment proof under review"
+                                    .to_string(),
+                            });
+                        }
+                        "paid" => {
+                            return Err(Error::Conflict {
+                                code: "invoice_already_paid",
+                                message: "a payment proof cannot be submitted for a paid invoice"
+                                    .to_string(),
+                            });
+                        }
+                        status => {
+                            return Err(Error::Invalid {
+                                code: "invoice_not_payable",
+                                message: format!("invoice in {status} state cannot accept payment proof"),
+                                field: Some("invoice_id".to_string()),
+                            });
+                        }
+                    }
+
                     // Duplicate check inside the same method/tenant. We don't rely solely on DB constraint to give a good error.
                     // Instead, we just let the DB unique index fail.
                     let row = crate::models::InvoicePaymentProof {
                         id: Id::new(),
                         invoice_id: invoice_id.clone(),
                         tenant_id: tenant_id.clone(),
-                        payment_method: input.payment_method,
-                        transaction_id: input.transaction_id,
-                        proof_asset_url: input.proof_asset_url,
+                        payment_method: payment_method.clone(),
+                        transaction_id: transaction_id.clone(),
+                        proof_asset_url: proof_asset_url.clone(),
                         operator_id: None,
                         reviewed_at: None,
                         status: "pending".to_string(),
@@ -3041,24 +3298,22 @@ impl PlatformService {
                         updated_at: now,
                         deleted_at: None,
                     };
-                    
-                    let created = payment_proofs.create(Some(&mut tx), row).await.map_err(|e| {
-                        if let Error::Conflict { .. } = e {
-                            Error::Invalid {
-                                code: "duplicate_transaction",
-                                message: "This transaction ID has already been submitted for this payment method.".to_string(),
-                                field: Some("transaction_id".to_string()),
-                            }
-                        } else {
-                            e
+
+                    let created = payment_proofs.create(Some(&mut tx), row).await.map_err(|error| {
+                        match error {
+                            Error::Conflict { .. } => Error::Conflict {
+                                code: "payment_proof_conflict",
+                                message: "this transaction ID was already submitted or a proof is under review".to_string(),
+                            },
+                            other => other,
                         }
                     })?;
-                    
+
                     // Update invoice status
                     invoice.status = "pending_verification".to_string();
                     invoice.updated_at = now;
                     invoices.update(Some(&mut tx), &invoice_id, invoice).await?;
-                    
+
                     Ok(created)
                 })
             }).await
@@ -3076,16 +3331,20 @@ impl PlatformService {
         let now = Utc::now();
         let payment_proofs = self.payment_proofs.clone();
         let invoices = self.invoices.clone();
-        
+
         let proof_id = proof_id.to_string();
         let operator_id = operator_id.to_string();
 
         tenant::scope(tenant::PLATFORM_SCOPE, async move {
-            let mut conn = self.pool.get().await.map_err(|e| Error::Database(e.to_string()))?;
+            let mut conn = self
+                .pool
+                .get()
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
             stheno_db::transaction::with_transaction(&mut conn, move |conn| {
                 Box::pin(async move {
                     let mut tx = conn;
-                    
+
                     let mut proof = payment_proofs.retrieve(Some(&mut tx), &proof_id).await?;
                     if proof.status != "pending" {
                         return Err(Error::Invalid {
@@ -3098,7 +3357,7 @@ impl PlatformService {
                     proof.operator_id = Some(operator_id.clone());
                     proof.reviewed_at = Some(now);
                     proof.updated_at = now;
-                    
+
                     let mut invoice = invoices.retrieve(Some(&mut tx), &proof.invoice_id).await?;
 
                     if input.approved {
@@ -3111,12 +3370,17 @@ impl PlatformService {
                         invoice.status = "needs_more_info".to_string();
                     }
 
-                    invoices.update(Some(&mut tx), &proof.invoice_id, invoice).await?;
-                    let updated_proof = payment_proofs.update(Some(&mut tx), &proof_id, proof).await?;
-                    
+                    invoices
+                        .update(Some(&mut tx), &proof.invoice_id, invoice)
+                        .await?;
+                    let updated_proof = payment_proofs
+                        .update(Some(&mut tx), &proof_id, proof)
+                        .await?;
+
                     Ok(updated_proof)
                 })
-            }).await
+            })
+            .await
         })
         .await
         .map(crate::dto::InvoicePaymentProofDTO::from)

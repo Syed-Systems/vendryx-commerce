@@ -1,6 +1,6 @@
 # Vendryx Commerce — Master Architecture Specification
 
-> **Authority:** This document is the definitive master architecture specification for the Vendryx Commerce platform (engine repository `stheno-*`). It codifies the architectural decisions established in [docs/DECISIONS.md](DECISIONS.md) (ADR-001 through ADR-030) and the engineering laws defined in [AGENTS.md](../AGENTS.md).
+> **Authority:** This document is the definitive master architecture specification for the Vendryx Commerce platform (engine repository `stheno-*`). It codifies the architectural decisions established in [docs/DECISIONS.md](DECISIONS.md) (ADR-001 through ADR-037) and the engineering laws defined in [AGENTS.md](../AGENTS.md).
 
 ---
 
@@ -11,7 +11,7 @@ Vendryx Commerce is a high-performance, multi-tenant commerce platform tailored 
 1. **Two-Block Symmetrical Architecture**: The presentation tier (storefront) and the commerce engine (backend) are completely decoupled, symmetrical blocks communicating exclusively over clean, versioned HTTP APIs. Any storefront design can be plugged in without modifying the engine, and the engine can be upgraded or scaled without impacting storefront rendering.
 2. **Zero-Cost Egress & Zero-DB-Hit Navigation**: Public catalog browsing incurs zero egress costs and zero database hits during normal shopper navigation. Read traffic is terminated at the CDN cache edge and origin in-memory cache layers.
 3. **True Multi-Tenancy in a Single Database**: Every merchant shares a single PostgreSQL database instance and a single Rust backend binary, strictly isolated via PostgreSQL Row-Level Security (`FORCE ROW LEVEL SECURITY`) and transaction-scoped tenant context (`SET LOCAL app.current_tenant_id`).
-4. **Enforced Modularity & Correctness**: The engine kernel is composed of 33 isolated module crates with zero lateral dependencies, strict per-module SQL schemas, SAGA workflows with compensations, and zero-float decimal money arithmetic.
+4. **Enforced Modularity & Correctness**: The engine kernel is composed of 34 isolated module crates with zero lateral dependencies, strict per-module SQL schemas, SAGA workflows with compensations, and zero-float decimal money arithmetic.
 
 ```
                                   [Shopper Browser]
@@ -128,8 +128,8 @@ To eliminate CORS preflight overhead, protect against third-party cookie blockin
 - The reverse proxy maps each incoming domain (e.g., `store.brand.com`) to the tenant:
   - `store.brand.com/` → Storefront SSR container (`apps/storefront`)
   - `store.brand.com/store/*` → Backend Engine (`stheno-server`)
-  - `store.brand.com/admin/*` → Merchant Dashboard (`apps/admin`)
-- Because all three applications share the same origin, authentication cookies (`_stheno_jwt`) flow seamlessly without cross-origin credentials configuration.
+- The storefront and the Store API share that origin, so shopper cookies flow without cross-origin credentials configuration.
+- The Merchant Dashboard (`apps/admin`) and `/admin/*` are **not** served on storefront hostnames. Each store has its own admin hostname on a domain that carries no merchant-authored content, and `/admin/*` returns 404 everywhere else ([ADR-037](DECISIONS.md#adr-037) decision 9). The static proxy rules live in [`deploy/proxy/Caddyfile`](../deploy/proxy/Caddyfile) and are also packaged by the Helm chart; see [DEPLOYMENT.md §8](DEPLOYMENT.md#8-cloudflare-edge) for edge setup.
 
 ---
 

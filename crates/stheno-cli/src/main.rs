@@ -58,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Commands::NewModule { name } => {
             let clean_name = name.trim_start_matches("stheno-");
-            let crate_name = format!("stheno-{}", clean_name);
+            let crate_name = format!("stheno-{clean_name}");
             let schema_name = clean_name.replace('-', "_");
             let module_dir = Path::new("crates/modules").join(&crate_name);
 
@@ -276,8 +276,8 @@ async fn test_{clean_name}_service_lifecycle() {{
 
             // 9. Auto-register member in root Cargo.toml
             if let Ok(root_cargo) = fs::read_to_string("Cargo.toml") {
-                let member_line = format!("    \"crates/modules/{}\",\n", crate_name);
-                if !root_cargo.contains(&format!("crates/modules/{}", crate_name)) {
+                let member_line = format!("    \"crates/modules/{crate_name}\",\n");
+                if !root_cargo.contains(&format!("crates/modules/{crate_name}")) {
                     if let Some(pos) =
                         root_cargo.find("    \"crates/providers/stheno-payment-stripe\",")
                     {
@@ -288,7 +288,7 @@ async fn test_{clean_name}_service_lifecycle() {{
                 }
             }
 
-            println!("==> Successfully scaffolded {}", crate_name);
+            println!("==> Successfully scaffolded {crate_name}");
         }
         Commands::Openapi { check } => {
             if check {
@@ -366,10 +366,7 @@ fn handle_provider_docs(check: bool, write: bool) -> Result<(), Box<dyn std::err
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        table.push_str(&format!(
-            "| `{}` | {} | {} | {} | {} |\n",
-            id, name, fields_str, envs, verif
-        ));
+        table.push_str(&format!("| `{id}` | {name} | {fields_str} | {envs} | {verif} |\n"));
     }
     table.push_str("<!-- END GENERATED PROVIDER CATALOG -->");
 
@@ -395,7 +392,7 @@ fn handle_provider_docs(check: bool, write: bool) -> Result<(), Box<dyn std::err
         new_c.push_str(&content[pos..]);
         new_c
     } else {
-        format!("{}\n\n{}", content, table)
+        format!("{content}\n\n{table}")
     };
 
     if check {
@@ -410,7 +407,7 @@ fn handle_provider_docs(check: bool, write: bool) -> Result<(), Box<dyn std::err
         fs::write(doc_path, updated_content)?;
         println!("==> Successfully wrote compiled provider catalog to {}", doc_path.display());
     } else {
-        println!("{}", table);
+        println!("{table}");
     }
 
     Ok(())

@@ -208,11 +208,15 @@ impl PaymentProvider for SslcommerzPaymentProvider {
             .form(&params)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("SSLCommerz initiate network error: {}", e).into()))?;
+            .map_err(|e| {
+                Error::Internal(
+                    format!("SSLCommerz initiate network error: {e}").into(),
+                )
+            })?;
 
         let status_code = resp.status();
         let mut body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse SSLCommerz initiate response: {}", e).into())
+            Error::Internal(format!("Failed to parse SSLCommerz initiate response: {e}").into())
         })?;
 
         if !status_code.is_success() || body["status"].as_str() != Some("SUCCESS") {
@@ -291,10 +295,16 @@ impl PaymentProvider for SslcommerzPaymentProvider {
                 .get(&url)
                 .send()
                 .await
-                .map_err(|e| Error::Internal(format!("SSLCommerz validation network error: {}", e).into()))?;
+                .map_err(|e| {
+                    Error::Internal(
+                        format!("SSLCommerz validation network error: {e}").into(),
+                    )
+                })?;
 
             let body: serde_json::Value = resp.json().await.map_err(|e| {
-                Error::Internal(format!("Failed to parse SSLCommerz validation response: {}", e).into())
+                Error::Internal(
+                    format!("Failed to parse SSLCommerz validation response: {e}").into(),
+                )
             })?;
 
             let status = body["status"].as_str().unwrap_or_default();
@@ -368,10 +378,10 @@ impl PaymentProvider for SslcommerzPaymentProvider {
             .get(&url)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("SSLCommerz refund network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("SSLCommerz refund network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse SSLCommerz refund response: {}", e).into())
+            Error::Internal(format!("Failed to parse SSLCommerz refund response: {e}").into())
         })?;
 
         let status = body["status"].as_str().unwrap_or_default();
@@ -406,10 +416,10 @@ impl PaymentProvider for SslcommerzPaymentProvider {
             .get(&url)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("SSLCommerz query network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("SSLCommerz query network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse SSLCommerz query response: {}", e).into())
+            Error::Internal(format!("Failed to parse SSLCommerz query response: {e}").into())
         })?;
 
         let status = match body["status"].as_str().unwrap_or_default() {

@@ -46,7 +46,7 @@ fn steadfast_every_documented_status_mapped() {
             .expect("mapped");
 
         assert_eq!(mapped.0, "987654");
-        assert_eq!(mapped.1, expected, "Mismatch for status '{}'", raw);
+        assert_eq!(mapped.1, expected, "Mismatch for status '{raw}'");
     }
 }
 

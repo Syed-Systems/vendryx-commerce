@@ -474,8 +474,8 @@ impl WorkflowStore {
                     return Err(Error::Invalid {
                         code: "invalid_step_state_transition",
                         message: format!(
-                            "Cannot transition step '{}' from {:?} to {:?}",
-                            step_key, current_step, new_state
+                            "Cannot transition step '{step_key}' from \
+                            {current_step:?} to {new_state:?}"
                         ),
                         field: None,
                     });
@@ -544,8 +544,7 @@ impl WorkflowStore {
             return Err(Error::Invalid {
                 code: "invalid_step_state_transition",
                 message: format!(
-                    "Cannot transition step '{}' from {:?} to {:?}",
-                    step_key, current, new_state
+                    "Cannot transition step '{step_key}' from {current:?} to {new_state:?}"
                 ),
                 field: None,
             });

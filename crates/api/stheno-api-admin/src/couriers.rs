@@ -21,8 +21,12 @@ use std::sync::Arc;
 use std::time::Instant;
 use stheno_api_core::ErrorResponse;
 use stheno_fulfillment::FulfillmentService;
+use stheno_payment::{
+    decrypt_credential_map, encrypt_credential_map, CredentialMap, EncryptedCredential,
+};
 use stheno_settings::dto::SetStoreSettingInput;
 use stheno_settings::SettingsService;
+use stheno_types::Error;
 
 #[derive(Clone)]
 pub struct CourierContext {
@@ -32,6 +36,167 @@ pub struct CourierContext {
 
 fn failed(status: StatusCode, code: &'static str, message: String) -> Response {
     (status, Json(ErrorResponse::new(code, &message))).into_response()
+}
+
+const ENCRYPTED_CREDENTIALS_FIELD: &str = "_encrypted_credentials_v1";
+
+fn credential_error(_error: Error) -> Response {
+    failed(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "courier_credentials_unavailable",
+        "Courier credentials could not be securely loaded. Check the encryption key and stored credential record.".to_string(),
+    )
+}
+
+fn decode_encrypted_credentials(
+    value: &serde_json::Value,
+) -> Result<Option<EncryptedCredential>, Error> {
+    let Some(envelope) = value.get(ENCRYPTED_CREDENTIALS_FIELD) else {
+        return Ok(None);
+    };
+    let ciphertext = envelope
+        .get("ciphertext")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| Error::Invalid {
+            code: "courier_credentials_envelope_invalid",
+            message: "Encrypted courier credential envelope is invalid.".to_string(),
+            field: None,
+        })?;
+    let nonce = envelope
+        .get("nonce")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| Error::Invalid {
+            code: "courier_credentials_envelope_invalid",
+            message: "Encrypted courier credential envelope is invalid.".to_string(),
+            field: None,
+        })?;
+    let ciphertext = hex::decode(ciphertext).map_err(|_| Error::Invalid {
+        code: "courier_credentials_envelope_invalid",
+        message: "Encrypted courier credential envelope is invalid.".to_string(),
+        field: None,
+    })?;
+    let nonce = hex::decode(nonce).map_err(|_| Error::Invalid {
+        code: "courier_credentials_envelope_invalid",
+        message: "Encrypted courier credential envelope is invalid.".to_string(),
+        field: None,
+    })?;
+    Ok(Some(EncryptedCredential { ciphertext, nonce }))
+}
+
+fn encode_encrypted_credentials(encrypted: EncryptedCredential) -> serde_json::Value {
+    json!({
+        ENCRYPTED_CREDENTIALS_FIELD: {
+            "ciphertext": hex::encode(encrypted.ciphertext),
+            "nonce": hex::encode(encrypted.nonce),
+        }
+    })
+}
+
+pub(crate) fn destination_mappings_valid(provider_id: &str, credentials: &CredentialMap) -> bool {
+    let Some(raw) = credentials
+        .get("destination_mappings")
+        .and_then(serde_json::Value::as_str)
+    else {
+        return false;
+    };
+    let Ok(mappings) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return false;
+    };
+    let Some(mappings) = mappings.as_object().filter(|mappings| !mappings.is_empty()) else {
+        return false;
+    };
+    let mut seen_keys = std::collections::BTreeSet::new();
+    mappings.iter().all(|(key, mapping)| {
+        let parts = key.split('|').map(str::trim).collect::<Vec<_>>();
+        if parts.len() != 3 || !parts[0].eq_ignore_ascii_case("bd") || parts[2].is_empty() {
+            return false;
+        }
+        let canonical_key = parts
+            .iter()
+            .map(|part| part.to_lowercase())
+            .collect::<Vec<_>>()
+            .join("|");
+        if !seen_keys.insert(canonical_key) {
+            return false;
+        }
+        match provider_id {
+            "pathao" => ["city_id", "zone_id"].iter().all(|field| {
+                mapping
+                    .get(field)
+                    .and_then(serde_json::Value::as_u64)
+                    .is_some_and(|value| value > 0)
+            }),
+            "redx" => {
+                mapping
+                    .get("area_id")
+                    .and_then(serde_json::Value::as_u64)
+                    .is_some_and(|value| value > 0)
+                    && mapping
+                        .get("parcel_weight")
+                        .and_then(serde_json::Value::as_u64)
+                        .is_some_and(|value| value > 0)
+                    && mapping
+                        .get("area_name")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|value| !value.trim().is_empty())
+            }
+            _ => false,
+        }
+    })
+}
+
+pub(crate) async fn load_courier_credentials(
+    settings: &SettingsService,
+    provider_id: &str,
+) -> Result<CredentialMap, Error> {
+    let key = format!("courier_{provider_id}");
+    let setting = match settings.get_setting(&key).await {
+        Ok(setting) => setting,
+        Err(Error::NotFound { .. }) => return Ok(CredentialMap::new()),
+        Err(error) => return Err(error),
+    };
+    let tenant_id = stheno_db::tenant::current()?;
+    let value = setting.value;
+    if let Some(encrypted) = decode_encrypted_credentials(&value)? {
+        return decrypt_credential_map(&tenant_id, provider_id, &encrypted);
+    }
+
+    // Existing deployments stored courier secrets as plain JSON. Encrypt and persist
+    // them on first access before returning them to the caller.
+    let legacy = value.as_object().cloned().ok_or_else(|| Error::Invalid {
+        code: "courier_credentials_record_invalid",
+        message: "Stored courier credential record is invalid.".to_string(),
+        field: None,
+    })?;
+    let credentials = legacy.into_iter().collect::<CredentialMap>();
+    let encrypted = encrypt_credential_map(&tenant_id, provider_id, &credentials)?;
+    settings
+        .set_setting(SetStoreSettingInput {
+            key,
+            value: encode_encrypted_credentials(encrypted),
+            category: "couriers".to_string(),
+            is_secret: Some(true),
+        })
+        .await?;
+    Ok(credentials)
+}
+
+async fn store_courier_credentials(
+    settings: &SettingsService,
+    provider_id: &str,
+    credentials: &CredentialMap,
+) -> Result<(), Error> {
+    let tenant_id = stheno_db::tenant::current()?;
+    let encrypted = encrypt_credential_map(&tenant_id, provider_id, credentials)?;
+    settings
+        .set_setting(SetStoreSettingInput {
+            key: format!("courier_{provider_id}"),
+            value: encode_encrypted_credentials(encrypted),
+            category: "couriers".to_string(),
+            is_secret: Some(true),
+        })
+        .await?;
+    Ok(())
 }
 
 // ── Models ────────────────────────────────────────────────────────────────────
@@ -136,8 +301,15 @@ fn provider_metadata(id: &str) -> Option<(&'static str, Vec<CourierFieldMeta>)> 
                     key: "store_id".to_string(),
                     label: "Store ID".to_string(),
                     kind: "text".to_string(),
-                    required: false,
+                    required: true,
                     placeholder: Some("e.g. 10243".to_string()),
+                },
+                CourierFieldMeta {
+                    key: "destination_mappings".to_string(),
+                    label: "Destination mappings (JSON)".to_string(),
+                    kind: "text".to_string(),
+                    required: true,
+                    placeholder: Some("{\"BD|Dhaka|Dhaka\":{\"city_id\":1,\"zone_id\":101}}".to_string()),
                 },
                 CourierFieldMeta {
                     key: "sandbox_mode".to_string(),
@@ -184,6 +356,13 @@ fn provider_metadata(id: &str) -> Option<(&'static str, Vec<CourierFieldMeta>)> 
                     required: false,
                     placeholder: None,
                 },
+                CourierFieldMeta {
+                    key: "destination_mappings".to_string(),
+                    label: "Destination mappings (JSON)".to_string(),
+                    kind: "text".to_string(),
+                    required: true,
+                    placeholder: Some("{\"BD|Dhaka|Dhaka\":{\"area_id\":1,\"area_name\":\"Dhanmondi\",\"parcel_weight\":500}}".to_string()),
+                },
             ],
         )),
         _ => None,
@@ -205,18 +384,12 @@ pub async fn list_couriers(
             None => continue,
         };
 
-        let cred_key = format!("courier_{id}");
         let rate_key = format!("courier_rates_{id}");
         let probe_key = format!("courier_probe_{id}");
 
-        // Load credentials from settings service
-        let stored_creds = ctx
-            .settings_service
-            .get_setting(&cred_key)
+        let stored_creds = load_courier_credentials(&ctx.settings_service, id)
             .await
-            .ok()
-            .and_then(|s| s.value.as_object().cloned())
-            .unwrap_or_default();
+            .map_err(credential_error)?;
 
         let is_enabled = stored_creds
             .get("is_enabled")
@@ -235,12 +408,7 @@ pub async fn list_couriers(
                 if field.kind == "secret" {
                     let str_val = val.as_str().unwrap_or("");
                     if !str_val.is_empty() {
-                        let masked = if str_val.len() > 4 {
-                            format!("••••••••{}", &str_val[str_val.len() - 4..])
-                        } else {
-                            "••••••••".to_string()
-                        };
-                        masked_creds.insert(field.key.clone(), json!(masked));
+                        masked_creds.insert(field.key.clone(), json!("••••••••"));
                     } else {
                         masked_creds.insert(field.key.clone(), json!(""));
                     }
@@ -301,7 +469,7 @@ pub async fn upsert_courier_credentials(
     Path(id): Path<String>,
     Json(payload): Json<UpsertCourierCredentialsRequest>,
 ) -> Result<impl IntoResponse, Response> {
-    let (_, _fields) = provider_metadata(&id).ok_or_else(|| {
+    let (_, fields) = provider_metadata(&id).ok_or_else(|| {
         failed(
             StatusCode::NOT_FOUND,
             "not_found",
@@ -309,24 +477,37 @@ pub async fn upsert_courier_credentials(
         )
     })?;
 
-    let cred_key = format!("courier_{id}");
-
     // Load existing credentials so masked fields aren't overwritten with literal bullet points
-    let existing_creds = ctx
-        .settings_service
-        .get_setting(&cred_key)
+    let existing_creds = load_courier_credentials(&ctx.settings_service, &id)
         .await
-        .ok()
-        .and_then(|s| s.value.as_object().cloned())
-        .unwrap_or_default();
+        .map_err(credential_error)?;
 
     let mut merged = existing_creds;
     for (k, v) in payload.credentials {
+        let Some(field) = fields.iter().find(|field| field.key == k) else {
+            return Err(failed(
+                StatusCode::BAD_REQUEST,
+                "credential_field_unknown",
+                format!("Unknown courier credential field '{k}'."),
+            ));
+        };
         if let Some(s) = v.as_str() {
             // If the client submitted masked dots, preserve existing value
             if s.contains('•') {
                 continue;
             }
+        }
+        let valid = match field.kind.as_str() {
+            "text" | "secret" => v.is_string(),
+            "bool" => v.is_boolean(),
+            _ => false,
+        };
+        if !valid {
+            return Err(failed(
+                StatusCode::BAD_REQUEST,
+                "credential_field_invalid",
+                format!("Courier credential field '{k}' has an invalid value."),
+            ));
         }
         merged.insert(k, v);
     }
@@ -335,20 +516,41 @@ pub async fn upsert_courier_credentials(
         merged.insert("is_enabled".to_string(), json!(enabled));
     }
 
-    // Save to settings
-    ctx.settings_service
-        .set_setting(SetStoreSettingInput {
-            key: cred_key,
-            value: json!(merged),
-            category: "couriers".to_string(),
-            is_secret: Some(true),
-        })
+    let enabled = merged
+        .get("is_enabled")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(true);
+    let required_missing = fields.iter().filter(|field| field.required).any(|field| {
+        merged
+            .get(&field.key)
+            .and_then(serde_json::Value::as_str)
+            .map_or(true, |value| value.trim().is_empty())
+    });
+    if enabled && required_missing {
+        return Err(failed(
+            StatusCode::BAD_REQUEST,
+            "courier_credentials_incomplete",
+            "Required credentials must be configured before enabling this courier.".to_string(),
+        ));
+    }
+    if enabled
+        && matches!(id.as_str(), "pathao" | "redx")
+        && !destination_mappings_valid(&id, &merged)
+    {
+        return Err(failed(
+            StatusCode::BAD_REQUEST,
+            "courier_destination_mappings_invalid",
+            "Destination mappings must be a non-empty JSON object keyed by country|province|city, with valid provider IDs and shipment details.".to_string(),
+        ));
+    }
+
+    store_courier_credentials(&ctx.settings_service, &id, &merged)
         .await
-        .map_err(|e| {
+        .map_err(|_| {
             failed(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "storage_error",
-                e.to_string(),
+                "Courier credentials could not be securely stored. Check the encryption key and database availability.".to_string(),
             )
         })?;
 
@@ -394,16 +596,11 @@ pub async fn probe_courier(
         )
     })?;
 
-    let cred_key = format!("courier_{id}");
     let probe_key = format!("courier_probe_{id}");
 
-    let creds = ctx
-        .settings_service
-        .get_setting(&cred_key)
+    let creds = load_courier_credentials(&ctx.settings_service, &id)
         .await
-        .ok()
-        .and_then(|s| s.value.as_object().cloned())
-        .unwrap_or_default();
+        .map_err(credential_error)?;
 
     if creds.is_empty() {
         return Err(failed(
@@ -469,7 +666,9 @@ pub async fn probe_courier(
                     Ok(r) => {
                         if r.status().is_success() {
                             verified = true;
-                            message = "Gateway handshake successful: Pathao issued authorization token.".to_string();
+                            message =
+                                "Gateway handshake successful: Pathao issued authorization token."
+                                    .to_string();
                         } else {
                             message = format!(
                                 "Pathao gateway rejected credentials with HTTP status {}",
@@ -651,6 +850,73 @@ pub async fn update_courier_rates(
         })?;
 
     Ok((StatusCode::OK, Json(json!({ "id": id, "rates": rates }))))
+}
+
+#[cfg(test)]
+mod credential_envelope_tests {
+    use super::{
+        decode_encrypted_credentials, destination_mappings_valid, encode_encrypted_credentials,
+        CredentialMap,
+    };
+    use stheno_payment::EncryptedCredential;
+
+    #[test]
+    fn encrypted_envelope_round_trips_as_ciphertext_and_nonce() {
+        let encrypted = EncryptedCredential {
+            ciphertext: vec![0x10, 0x20, 0x30],
+            nonce: vec![0x40, 0x50, 0x60],
+        };
+        let encoded = encode_encrypted_credentials(encrypted.clone());
+        assert!(encoded.get("api_key").is_none());
+        assert_eq!(
+            decode_encrypted_credentials(&encoded).expect("decode envelope"),
+            Some(encrypted)
+        );
+    }
+
+    #[test]
+    fn malformed_encrypted_envelope_fails_closed() {
+        let malformed =
+            serde_json::json!({ "_encrypted_credentials_v1": { "ciphertext": "not-hex" } });
+
+        assert!(decode_encrypted_credentials(&malformed).is_err());
+    }
+
+    #[test]
+    fn destination_mappings_require_exact_owner_configured_locations() {
+        let mut credentials = CredentialMap::new();
+        credentials.insert(
+            "destination_mappings".to_string(),
+            serde_json::json!(r#"{"dhaka":{"city_id":1,"zone_id":2}}"#),
+        );
+        assert!(!destination_mappings_valid("pathao", &credentials));
+
+        credentials.insert(
+            "destination_mappings".to_string(),
+            serde_json::json!(r#"{"bd|dhaka|dhaka":{"city_id":1,"zone_id":2}}"#),
+        );
+        assert!(destination_mappings_valid("pathao", &credentials));
+        credentials.insert(
+            "destination_mappings".to_string(),
+            serde_json::json!(r#"{"bd|dhaka|dhaka":{"city_id":1,"zone_id":2},"BD|Dhaka|Dhaka":{"city_id":3,"zone_id":4}}"#),
+        );
+        assert!(!destination_mappings_valid("pathao", &credentials));
+
+        credentials.insert(
+            "destination_mappings".to_string(),
+            serde_json::json!(
+                r#"{"bd|dhaka|dhaka":{"area_id":3,"area_name":"Dhanmondi","parcel_weight":500}}"#
+            ),
+        );
+        assert!(destination_mappings_valid("redx", &credentials));
+        credentials.insert(
+            "destination_mappings".to_string(),
+            serde_json::json!(
+                r#"{"bd|dhaka|dhaka":{"area_id":3,"area_name":"Dhanmondi","parcel_weight":0}}"#
+            ),
+        );
+        assert!(!destination_mappings_valid("redx", &credentials));
+    }
 }
 
 /// `GET /admin/couriers/{id}/rates`

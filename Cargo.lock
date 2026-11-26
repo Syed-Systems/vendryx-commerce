@@ -2817,6 +2817,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "stheno-ai"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "async-trait",
+ "chrono",
+ "diesel",
+ "hex",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "stheno-db",
+ "stheno-types",
+ "tokio",
+ "ulid",
+ "url",
+]
+
+[[package]]
+name = "stheno-ai-openai-compatible"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "stheno-ai",
+ "stheno-types",
+ "tokio",
+ "wiremock",
+]
+
+[[package]]
 name = "stheno-analytics"
 version = "0.1.0"
 dependencies = [
@@ -2841,12 +2875,17 @@ dependencies = [
  "chrono",
  "form_urlencoded",
  "garde",
+ "hex",
+ "hmac 0.12.1",
  "reqwest",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",
  "serde_json",
  "serde_yaml",
+ "sha2 0.10.9",
+ "stheno-ai",
+ "stheno-ai-openai-compatible",
  "stheno-analytics",
  "stheno-api-core",
  "stheno-api-key",
@@ -2856,11 +2895,13 @@ dependencies = [
  "stheno-db",
  "stheno-file",
  "stheno-flows",
+ "stheno-flows-order",
  "stheno-fulfillment",
  "stheno-fulfillment-manual",
  "stheno-http",
  "stheno-inventory",
  "stheno-links",
+ "stheno-meta-insights",
  "stheno-notification",
  "stheno-order",
  "stheno-order-change",
@@ -2871,11 +2912,13 @@ dependencies = [
  "stheno-pricing",
  "stheno-product",
  "stheno-promotion",
+ "stheno-query",
  "stheno-rbac",
  "stheno-region",
  "stheno-registry",
  "stheno-reporting",
  "stheno-sales-channel",
+ "stheno-search-console",
  "stheno-settings",
  "stheno-stock-location",
  "stheno-store",
@@ -2887,6 +2930,7 @@ dependencies = [
  "tower 0.4.13",
  "tracing",
  "ulid",
+ "url",
  "utoipa",
 ]
 
@@ -2895,6 +2939,7 @@ name = "stheno-api-admin-platform"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "chrono",
  "garde",
  "serde",
  "serde_json",
@@ -2975,6 +3020,7 @@ dependencies = [
  "stheno-api-core",
  "stheno-auth",
  "stheno-db",
+ "stheno-flows",
  "stheno-fulfillment",
  "stheno-payment",
  "stheno-payment-bkash",
@@ -2982,6 +3028,7 @@ dependencies = [
  "stheno-payment-sslcommerz",
  "stheno-payment-stripe",
  "stheno-platform",
+ "stheno-query",
  "stheno-types",
  "tokio",
  "tower 0.4.13",
@@ -3014,6 +3061,7 @@ dependencies = [
 name = "stheno-api-store"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum",
  "chrono",
  "form_urlencoded",
@@ -3025,6 +3073,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "stheno-ai",
  "stheno-auth",
  "stheno-caching",
  "stheno-cart",
@@ -3037,6 +3086,7 @@ dependencies = [
  "stheno-http",
  "stheno-inventory",
  "stheno-links",
+ "stheno-notification",
  "stheno-order",
  "stheno-payment",
  "stheno-payment-offline",
@@ -3205,6 +3255,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "stheno-cdn-cloudflare"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "wiremock",
+]
+
+[[package]]
 name = "stheno-cli"
 version = "0.1.0"
 dependencies = [
@@ -3363,13 +3424,17 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "hex",
+ "hmac 0.12.1",
+ "reqwest",
  "serde",
  "serde_json",
- "stheno-db",
+ "sha2 0.10.9",
  "stheno-file",
  "stheno-types",
  "tokio",
  "tracing",
+ "wiremock",
 ]
 
 [[package]]
@@ -3383,6 +3448,7 @@ dependencies = [
  "rust_decimal_macros",
  "serde",
  "serde_json",
+ "stheno-ai",
  "stheno-analytics",
  "stheno-api-key",
  "stheno-auth",
@@ -3432,10 +3498,12 @@ dependencies = [
  "rust_decimal_macros",
  "serde",
  "serde_json",
+ "stheno-ai",
  "stheno-customer",
  "stheno-db",
  "stheno-flows",
  "stheno-inventory",
+ "stheno-links",
  "stheno-order",
  "stheno-product",
  "stheno-types",
@@ -3632,18 +3700,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "stheno-meta-insights"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "hmac 0.12.1",
+ "reqwest",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "stheno-ai",
+ "tokio",
+ "url",
+ "wiremock",
+]
+
+[[package]]
 name = "stheno-notification"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "diesel",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "stheno-db",
  "stheno-events",
  "stheno-types",
  "tokio",
  "tracing",
+ "ulid",
 ]
 
 [[package]]
@@ -3966,8 +4055,11 @@ name = "stheno-query"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
+ "rust_decimal",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "stheno-db",
  "stheno-links",
  "stheno-types",
@@ -4072,6 +4164,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "stheno-search-console"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "reqwest",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "stheno-ai",
+ "stheno-types",
+ "tokio",
+ "url",
+ "wiremock",
+]
+
+[[package]]
 name = "stheno-search-local"
 version = "0.1.0"
 dependencies = [
@@ -4098,7 +4206,11 @@ dependencies = [
  "reqwest",
  "rust_decimal",
  "rust_decimal_macros",
+ "serde",
  "serde_json",
+ "sha2 0.10.9",
+ "stheno-ai",
+ "stheno-ai-openai-compatible",
  "stheno-api-admin",
  "stheno-api-admin-platform",
  "stheno-api-auth",
@@ -4283,6 +4395,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "diesel",
  "serde",
  "serde_json",
  "stheno-db",

@@ -67,7 +67,7 @@ impl NotificationProvider for SendGridNotificationProvider {
         if channel != "email" {
             return Err(Error::Invalid {
                 code: "unsupported_channel",
-                message: format!("SendGrid provider does not support channel '{}'", channel),
+                message: format!("SendGrid provider does not support channel '{channel}'"),
                 field: Some("channel".to_string()),
             });
         }
@@ -75,7 +75,7 @@ impl NotificationProvider for SendGridNotificationProvider {
         if !to.contains('@') {
             return Err(Error::Invalid {
                 code: "invalid_email_recipient",
-                message: format!("Invalid email recipient '{}'", to),
+                message: format!("Invalid email recipient '{to}'"),
                 field: Some("to".to_string()),
             });
         }

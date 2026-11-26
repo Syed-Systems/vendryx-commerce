@@ -13,6 +13,7 @@ stheno-links = { workspace = true }
 stheno-http = { workspace = true }
 stheno-registry = { workspace = true }
 stheno-flows = { workspace = true }
+stheno-flows-order = { workspace = true }
 stheno-api-core = { workspace = true }
 stheno-product = { workspace = true }
 stheno-inventory = { workspace = true }
@@ -40,6 +41,11 @@ stheno-notification = { workspace = true }
 stheno-analytics = { workspace = true }
 stheno-order-change = { workspace = true }
 stheno-reporting = { workspace = true }
+stheno-ai = { workspace = true }
+stheno-query = { workspace = true }
+stheno-ai-openai-compatible = { workspace = true }
+stheno-search-console = { workspace = true }
+stheno-meta-insights = { workspace = true }
 axum = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }
@@ -52,6 +58,10 @@ garde = { workspace = true }
 tracing = { workspace = true }
 ulid = { workspace = true }
 utoipa = { workspace = true }
+hex = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+url = { workspace = true }
 
 [dev-dependencies]
 stheno-db = { workspace = true, features = ["testing"] }

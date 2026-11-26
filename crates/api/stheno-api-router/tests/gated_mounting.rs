@@ -57,8 +57,7 @@ async fn core_routes_mount_on_every_tier() {
         assert_eq!(
             status(app(tier), "/store/products").await,
             StatusCode::OK,
-            "core commerce must never be gated on {:?}",
-            tier
+            "core commerce must never be gated on {tier:?}"
         );
     }
 }
@@ -70,14 +69,12 @@ async fn gated_routes_are_absent_when_the_feature_is_off() {
         assert_eq!(
             status(app(tier), "/store/payment-gateway").await,
             StatusCode::NOT_FOUND,
-            "payment gateway must be unmounted on {:?}",
-            tier
+            "payment gateway must be unmounted on {tier:?}"
         );
         assert_eq!(
             status(app(tier), "/admin/courier-dispatch").await,
             StatusCode::NOT_FOUND,
-            "courier dispatch must be unmounted on {:?}",
-            tier
+            "courier dispatch must be unmounted on {tier:?}"
         );
     }
 }

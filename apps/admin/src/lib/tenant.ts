@@ -15,7 +15,7 @@ export const AVAILABLE_TENANTS: TenantDefinition[] = [
     name: "Vendryx Appliances",
     genre: "appliance",
     tier: "trial",
-    tierLabel: "14-Day Free Trial",
+    tierLabel: "7-Day Free Trial",
     host: "trial-appliance.localhost",
     defaultEmail: "owner@trial-appliance.localhost",
     description: "Industrial luxury appliances, active trial lifecycle",

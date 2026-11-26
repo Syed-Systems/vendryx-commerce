@@ -1,4 +1,4 @@
-import { retrieveOrder } from "@lib/data/orders"
+import { retrieveOrder, retrieveOrderPaymentProof } from "@lib/data/orders"
 import { cookies as nextCookies } from "next/headers"
 import OrderCompletedTemplate from "@frontend/order/templates/order-completed-template"
 import { Metadata } from "next"
@@ -22,6 +22,15 @@ export default async function OrderConfirmedPage(props: Props) {
 
   const cookies = await nextCookies()
   const isOnboarding = cookies.get("_stheno_onboarding")?.value === "true"
+  const paymentProof = order.customer_id
+    ? await retrieveOrderPaymentProof(order.id)
+    : null
 
-  return <OrderCompletedTemplate order={order} isOnboarding={isOnboarding} />
+  return (
+    <OrderCompletedTemplate
+      order={order}
+      isOnboarding={isOnboarding}
+      paymentProof={paymentProof}
+    />
+  )
 }

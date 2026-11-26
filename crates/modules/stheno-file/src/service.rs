@@ -32,8 +32,8 @@ impl FileService {
                 return Err(Error::Invalid {
                     code: "mime_mismatch",
                     message: format!(
-                        "Claimed MIME type '{}' does not match sniffed binary MIME type '{}'",
-                        claimed, mime_type_str
+                        "Claimed MIME type '{claimed}' does not match sniffed \
+                        binary MIME type '{mime_type_str}'"
                     ),
                     field: Some("content_type".to_string()),
                 });

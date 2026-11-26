@@ -72,7 +72,7 @@ pub async fn get_promotion(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Promotion with id {} was not found", id),
+                &format!("Promotion with id {id} was not found"),
             )),
         )
             .into_response()),
@@ -181,7 +181,7 @@ pub async fn get_campaign(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Campaign with id {} was not found", id),
+                &format!("Campaign with id {id} was not found"),
             )),
         )
             .into_response()),
@@ -369,5 +369,8 @@ pub async fn add_campaign_promotions(
 
     let updated_campaign = service.get_campaign(&id).await.unwrap_or(campaign);
 
-    Ok((StatusCode::OK, Json(json!({ "campaign": updated_campaign }))))
+    Ok((
+        StatusCode::OK,
+        Json(json!({ "campaign": updated_campaign })),
+    ))
 }

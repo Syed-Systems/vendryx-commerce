@@ -852,6 +852,39 @@ impl PaymentService {
         Fut: Future<Output = Result<T>>,
         T: Serialize + for<'de> Deserialize<'de> + Clone,
     {
+        self.idempotent_call_with_reconciliation(
+            idempotency_key,
+            provider_id,
+            operation,
+            resource_type,
+            resource_id,
+            payload,
+            call_fn,
+            |_| async { Ok(None) },
+        )
+        .await
+    }
+
+    /// Runs an outbound operation with a provider-specific read path for ambiguous results.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn idempotent_call_with_reconciliation<F, Fut, RF, RFut, T>(
+        &self,
+        idempotency_key: &str,
+        provider_id: &str,
+        operation: &str,
+        resource_type: &str,
+        resource_id: &str,
+        payload: &serde_json::Value,
+        call_fn: F,
+        reconcile_fn: RF,
+    ) -> Result<T>
+    where
+        F: FnOnce(String) -> Fut,
+        Fut: Future<Output = Result<T>>,
+        RF: FnOnce(String) -> RFut,
+        RFut: Future<Output = Result<Option<T>>>,
+        T: Serialize + for<'de> Deserialize<'de> + Clone,
+    {
         let request_hash = compute_sha256(payload);
 
         let spec = FilterSpec::new()
@@ -874,7 +907,7 @@ impl PaymentService {
                 if let Some(resp_val) = req.response {
                     let parsed: T = serde_json::from_value(resp_val).map_err(|e| {
                         Error::Internal(
-                            format!("Failed to deserialize cached response: {}", e).into(),
+                            format!("Failed to deserialize cached response: {e}").into(),
                         )
                     })?;
                     return Ok(parsed);
@@ -886,7 +919,34 @@ impl PaymentService {
                     field: None,
                 });
             } else if req.state == "in_flight" || req.state == "unknown" {
-                // Ambiguous timeout recovery path (P4-18, PAYMENTS §6 step 5)
+                // Ambiguous timeout recovery path (P4-18, PAYMENTS §6 step 5).
+                if operation == "refund" {
+                    if let Ok(Some(output)) = reconcile_fn(idempotency_key.to_string()).await {
+                        let response = serde_json::to_value(&output).map_err(|error| {
+                            Error::Internal(
+                                format!(
+                                    "Could not serialize reconciled provider response: {error}"
+                                )
+                                .into(),
+                            )
+                        })?;
+                        let req_id = req.id.to_string();
+                        let mut updated_req = req;
+                        updated_req.state = "succeeded".to_string();
+                        updated_req.response = Some(response);
+                        updated_req.settled_at = Some(Utc::now());
+                        self.outbound_requests
+                            .update(None, &req_id, updated_req)
+                            .await?;
+                        return Ok(output);
+                    }
+                    return Err(Error::Conflict {
+                        code: "provider_request_unknown",
+                        message: format!(
+                            "Refund request {idempotency_key} has an unknown provider outcome and requires reconciliation"
+                        ),
+                    });
+                }
                 if let Ok(tenant_id) = stheno_db::tenant::current() {
                     if let Ok(provider) = self.get_provider(&tenant_id, provider_id).await {
                         let ret_res = provider
@@ -956,7 +1016,7 @@ impl PaymentService {
             Err(e) => {
                 // Ambiguous timeout/failure -> set to 'unknown' to trigger retrieve() reconciliation on retry
                 recorded.state = "unknown".to_string();
-                recorded.error = Some(serde_json::json!({ "error": format!("{:?}", e) }));
+                recorded.error = Some(serde_json::json!({ "error": format!("{e:?}") }));
                 recorded.settled_at = Some(Utc::now());
             }
         }
@@ -1419,18 +1479,30 @@ impl PaymentService {
         };
         let refund_payload = serde_json::to_value(&refund_input).unwrap_or_default();
         let refund_provider = provider.clone();
+        let reconcile_provider = provider.clone();
+        let reconcile_input = refund_input.clone();
+        let idempotency_key = format!(
+            "refund:{}:{}:{}",
+            payment.id, current_refunded, input.amount
+        );
         let _refund_out = self
-            .idempotent_call(
-                &format!(
-                    "refund:{}:{}:{}",
-                    payment.id, current_refunded, input.amount
-                ),
+            .idempotent_call_with_reconciliation(
+                &idempotency_key,
                 &payment.provider_id,
                 "refund",
                 "payment",
                 &payment.id,
                 &refund_payload,
-                move |_key| async move { refund_provider.refund(refund_input).await },
+                move |key| async move {
+                    refund_provider
+                        .refund_with_idempotency_key(refund_input, &key)
+                        .await
+                },
+                move |key| async move {
+                    reconcile_provider
+                        .reconcile_refund(&reconcile_input, &key)
+                        .await
+                },
             )
             .await?;
 
@@ -1912,7 +1984,7 @@ impl PaymentService {
                             }
                             .to_string(),
                             psp_value: psp_item.status.clone(),
-                            description: format!("Status mismatch for payment {}", payment_id_str),
+                            description: format!("Status mismatch for payment {payment_id_str}"),
                         });
                     }
 
@@ -1987,8 +2059,7 @@ impl PaymentService {
             return Err(Error::Conflict {
                 code: "cod_order_canceled",
                 message: format!(
-                    "Cannot capture delivery for canceled or returned COD payment {}",
-                    payment_id
+                    "Cannot capture delivery for canceled or returned COD payment {payment_id}"
                 ),
             });
         }

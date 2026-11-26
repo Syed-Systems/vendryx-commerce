@@ -1,8 +1,8 @@
 //! Store Shipping Options API handlers (TASKS P5-22).
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use stheno_fulfillment::{FulfillmentService, ShippingOptionDTO, ShippingOptionFilter};

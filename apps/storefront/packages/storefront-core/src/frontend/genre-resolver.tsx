@@ -28,9 +28,9 @@ export function getLifecycleState(tier?: string | null, daysRemaining?: number |
 }
 
 /**
- * High-aesthetic banner for 14-Day Free Trial merchants.
+ * High-aesthetic banner for 7-Day Free Trial merchants.
  */
-export function TrialBanner({ daysRemaining = 14 }: { daysRemaining?: number }) {
+export function TrialBanner({ daysRemaining = 7 }: { daysRemaining?: number }) {
   return (
     <aside
       aria-label="Trial status"
@@ -39,7 +39,7 @@ export function TrialBanner({ daysRemaining = 14 }: { daysRemaining?: number }) 
       <div className="flex items-center gap-2 mx-auto">
         <span className="inline-block w-2 h-2 rounded-full bg-zinc-950 animate-ping" />
         <span className="font-semibold uppercase tracking-wider text-[11px]">
-          14-Day Full-Access Trial Active
+          7-Day Full-Access Trial Active
         </span>
         <span className="hidden sm:inline text-zinc-800">•</span>
         <span className="hidden sm:inline text-zinc-900">

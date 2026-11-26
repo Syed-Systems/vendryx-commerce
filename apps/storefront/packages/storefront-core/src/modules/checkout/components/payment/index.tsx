@@ -202,6 +202,7 @@ const Payment = ({
 
         <div className={isOpen ? "hidden" : "block"}>
           {cart && paymentReady && activeSession ? (
+            <div className="flex flex-col gap-y-3 w-full">
             <div className="flex items-start gap-x-1 w-full">
               <div className="flex flex-col w-1/3">
                 <Text className="txt-medium-plus text-ui-fg-base mb-1">
@@ -235,6 +236,19 @@ const Payment = ({
                   </Text>
                 </div>
               </div>
+            </div>
+            {activeSession.provider_id === "pp_manual" &&
+              typeof activeSession.data?.payment_account === "string" && (
+                <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4">
+                  <Text className="font-medium">Manual transfer instructions</Text>
+                  <Text className="mt-1">
+                    Send {activeSession.data.amount ?? "the order total"} {activeSession.data.currency_code?.toUpperCase()} to {activeSession.data.payment_account} using your selected transfer method.
+                  </Text>
+                  {typeof activeSession.data.payment_instructions === "string" && (
+                    <Text className="mt-1">{activeSession.data.payment_instructions}</Text>
+                  )}
+                </div>
+              )}
             </div>
           ) : paidByGiftcard ? (
             <div className="flex flex-col w-1/3">

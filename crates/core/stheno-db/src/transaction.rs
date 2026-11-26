@@ -31,21 +31,21 @@ where
     // is checked rather than bound.
     let savepoint_name = crate::sql::ident(savepoint_name)?;
 
-    sql_query(format!("SAVEPOINT {}", savepoint_name))
+    sql_query(format!("SAVEPOINT {savepoint_name}"))
         .execute(conn)
         .await
         .map_err(|e| Error::Database(e.to_string()))?;
 
     match f(conn).await {
         Ok(val) => {
-            sql_query(format!("RELEASE SAVEPOINT {}", savepoint_name))
+            sql_query(format!("RELEASE SAVEPOINT {savepoint_name}"))
                 .execute(conn)
                 .await
                 .map_err(|e| Error::Database(e.to_string()))?;
             Ok(val)
         }
         Err(err) => {
-            let _ = sql_query(format!("ROLLBACK TO SAVEPOINT {}", savepoint_name))
+            let _ = sql_query(format!("ROLLBACK TO SAVEPOINT {savepoint_name}"))
                 .execute(conn)
                 .await;
             Err(err)

@@ -11,7 +11,7 @@ impl EgressGuard {
     pub fn validate_url(raw_url: &str) -> Result<Url> {
         let parsed = Url::parse(raw_url).map_err(|e| Error::Invalid {
             code: "invalid_egress_url",
-            message: format!("Malformed URL: {}", e),
+            message: format!("Malformed URL: {e}"),
             field: Some("url".to_string()),
         })?;
 
@@ -130,7 +130,7 @@ impl EgressGuard {
             .join(next_location)
             .map_err(|e| Error::Invalid {
                 code: "invalid_redirect_url",
-                message: format!("Failed to parse redirect location: {}", e),
+                message: format!("Failed to parse redirect location: {e}"),
                 field: Some("redirect_location".to_string()),
             })?;
 

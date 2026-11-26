@@ -1,5 +1,10 @@
 //! `stheno-api-admin`: Medusa v2 wire-compatible Admin API routes.
+//!
+//! Axum's response value is the established endpoint error type; its body is already boxed, and
+//! wrapping every handler error in another box would add allocations across this compatibility API.
+#![allow(clippy::result_large_err)]
 
+pub mod ai;
 pub mod api_keys;
 pub mod auth_guard;
 pub mod catalog;
@@ -30,8 +35,10 @@ pub use reconciliation::admin_reconciliation_routes;
 use axum::routing::{get, post};
 use axum::Router;
 use std::sync::Arc;
+use stheno_api_core::{Entitlements, QuotaKey};
 use stheno_currency::CurrencyService;
 use stheno_customer::CustomerService;
+use stheno_db::QuotaCounter;
 use stheno_fulfillment::FulfillmentService;
 use stheno_inventory::InventoryService;
 use stheno_links::PgLinkStore;
@@ -68,6 +75,21 @@ pub struct AdminApiContext {
     pub sales_channel_service: Arc<SalesChannelService>,
     pub links: Arc<PgLinkStore>,
     pub reporting_service: Option<Arc<stheno_reporting::ReportingService>>,
+}
+
+/// Tenant-bound limits and counter operations used by quota-bearing Admin resource writes.
+#[derive(Clone)]
+pub struct AdminQuotaContext {
+    pub entitlements: Arc<Entitlements>,
+    pub counter: QuotaCounter,
+}
+
+impl AdminQuotaContext {
+    pub fn limit(&self, key: QuotaKey) -> Option<i64> {
+        self.entitlements
+            .quota(key)
+            .map(|limit| i64::try_from(limit).unwrap_or(i64::MAX))
+    }
 }
 
 /// Mounts admin catalog API routes (products, categories, variants).
@@ -370,12 +392,96 @@ pub fn admin_order_routes(
     fulfillment_service: Arc<FulfillmentService>,
     payment_service: Arc<PaymentService>,
 ) -> Router {
-    let ctx = AdminOrderContext {
+    admin_order_routes_with_social_flows(
+        order_service.clone(),
+        fulfillment_service,
+        payment_service,
+        Arc::new(stheno_flows_order::SocialDraftWorkflow::new(order_service)),
+    )
+}
+
+/// Mounts admin order routes with the application-configured social confirmation workflow.
+pub fn admin_order_routes_with_social_flows(
+    order_service: Arc<OrderService>,
+    fulfillment_service: Arc<FulfillmentService>,
+    payment_service: Arc<PaymentService>,
+    social_flows: Arc<stheno_flows_order::SocialDraftWorkflow>,
+) -> Router {
+    admin_order_routes_with_social_flows_inner(
         order_service,
         fulfillment_service,
         payment_service,
+        social_flows,
+        None,
+        None,
+        None,
+    )
+}
+
+/// Mounts admin order routes with the settings needed for confirmed courier dispatch.
+pub fn admin_order_routes_with_social_flows_and_settings(
+    order_service: Arc<OrderService>,
+    fulfillment_service: Arc<FulfillmentService>,
+    payment_service: Arc<PaymentService>,
+    social_flows: Arc<stheno_flows_order::SocialDraftWorkflow>,
+    settings_service: Arc<stheno_settings::SettingsService>,
+    notification_service: Arc<stheno_notification::NotificationService>,
+) -> Router {
+    admin_order_routes_with_social_flows_inner(
+        order_service,
+        fulfillment_service,
+        payment_service,
+        social_flows,
+        Some(settings_service),
+        Some(notification_service),
+        None,
+    )
+}
+
+/// Mounts admin order routes with payment-link verification for customer notices.
+pub fn admin_order_routes_with_social_flows_settings_and_links(
+    order_service: Arc<OrderService>,
+    fulfillment_service: Arc<FulfillmentService>,
+    payment_service: Arc<PaymentService>,
+    social_flows: Arc<stheno_flows_order::SocialDraftWorkflow>,
+    settings_service: Arc<stheno_settings::SettingsService>,
+    notification_service: Arc<stheno_notification::NotificationService>,
+    links: Arc<stheno_links::PgLinkStore>,
+) -> Router {
+    admin_order_routes_with_social_flows_inner(
+        order_service,
+        fulfillment_service,
+        payment_service,
+        social_flows,
+        Some(settings_service),
+        Some(notification_service),
+        Some(links),
+    )
+}
+
+fn admin_order_routes_with_social_flows_inner(
+    order_service: Arc<OrderService>,
+    fulfillment_service: Arc<FulfillmentService>,
+    payment_service: Arc<PaymentService>,
+    social_flows: Arc<stheno_flows_order::SocialDraftWorkflow>,
+    settings_service: Option<Arc<stheno_settings::SettingsService>>,
+    notification_service: Option<Arc<stheno_notification::NotificationService>>,
+    links: Option<Arc<stheno_links::PgLinkStore>>,
+) -> Router {
+    let ctx = AdminOrderContext {
+        social_flows,
+        order_service,
+        fulfillment_service,
+        payment_service,
+        links,
+        settings_service,
+        notification_service,
     };
     Router::new()
+        .route(
+            "/admin/notifications/usage",
+            get(orders::get_notification_usage),
+        )
         .route(
             "/admin/orders",
             get(orders::list_orders).post(orders::create_order),
@@ -394,6 +500,14 @@ pub fn admin_order_routes(
         )
         .route("/admin/orders/{id}/captures", post(orders::capture_payment))
         .route("/admin/orders/{id}/refunds", post(orders::refund_payment))
+        .route(
+            "/admin/orders/{id}/payment-proof",
+            get(orders::get_order_payment_proof),
+        )
+        .route(
+            "/admin/orders/payment-proofs/{proof_id}/review",
+            post(orders::review_order_payment_proof),
+        )
         .route("/admin/payments", get(orders::list_payments))
         .route(
             "/admin/payments/payment-providers",
@@ -707,6 +821,10 @@ pub fn admin_order_routes(
         .route(
             "/admin/draft-orders/{id}/convert-to-order",
             post(orders::convert_draft_order_to_order),
+        )
+        .route(
+            "/admin/orders/{id}/courier-dispatch/reconcile",
+            post(orders::reconcile_social_courier_dispatch),
         )
         .route(
             "/admin/draft-orders/{id}/edit",
@@ -1096,7 +1214,105 @@ pub fn admin_store_routes(
             "/admin/store/branding",
             get(store::get_branding).post(store::upsert_branding),
         )
+        .route(
+            "/admin/store/appearance",
+            get(store::get_storefront_appearance).post(store::upsert_storefront_appearance),
+        )
         .with_state(ctx)
+}
+
+/// Mounts tenant-scoped, redacted AI provider and social channel configuration routes.
+pub fn admin_ai_routes(
+    service: Arc<stheno_ai::AiConfigurationService>,
+    users: Arc<stheno_user::UserService>,
+    pool: stheno_db::DbPool,
+    order_service: Arc<OrderService>,
+) -> Router {
+    let context = ai::AiAdminContext {
+        service,
+        pool,
+        knowledge: stheno_ai::KnowledgeService,
+        chat_offers: stheno_ai::ChatOfferService,
+        users,
+        order_service,
+        intelligence_reviews: stheno_ai::StoreIntelligenceReviewService,
+        intelligence_sources: stheno_ai::StoreIntelligenceSourceService,
+    };
+    Router::new()
+        .route(
+            "/admin/ai/configurations",
+            get(ai::list_configurations).post(ai::save_configuration),
+        )
+        .route(
+            "/admin/ai/search-console/configuration",
+            axum::routing::delete(ai::disconnect_search_console),
+        )
+        .route(
+            "/admin/ai/meta-insights/configuration",
+            axum::routing::delete(ai::disconnect_meta_insights),
+        )
+        .route(
+            "/admin/ai/search-console/oauth/start",
+            axum::routing::post(ai::start_search_console_oauth),
+        )
+        .route(
+            "/admin/ai/search-console/oauth/complete",
+            axum::routing::post(ai::complete_search_console_oauth),
+        )
+        .route(
+            "/admin/ai/search-console/insights",
+            get(ai::get_search_console_insights),
+        )
+        .route(
+            "/admin/ai/search-console/snapshots",
+            get(ai::get_search_console_snapshots),
+        )
+        .route(
+            "/admin/ai/search-console/audit",
+            get(ai::get_search_console_audit),
+        )
+        .route("/admin/ai/meta-insights", get(ai::get_meta_insights))
+        .route(
+            "/admin/ai/meta-insights/snapshots",
+            get(ai::get_meta_insights_snapshots),
+        )
+        .route(
+            "/admin/ai/meta-insights/audit",
+            get(ai::get_meta_insights_audit),
+        )
+        .route(
+            "/admin/ai/whatsapp-insights",
+            get(ai::get_whatsapp_insights),
+        )
+        .route(
+            "/admin/ai/store-intelligence",
+            get(ai::get_store_intelligence),
+        )
+        .route(
+            "/admin/ai/store-intelligence/recommendations/{recommendation_id}/review",
+            axum::routing::post(ai::review_store_intelligence_recommendation),
+        )
+        .route(
+            "/admin/ai/store-intelligence/recommendations/{recommendation_id}/review-history",
+            get(ai::list_store_intelligence_review_history),
+        )
+        .route(
+            "/admin/ai/chat-offers",
+            get(ai::list_chat_offers).post(ai::save_chat_offer),
+        )
+        .route(
+            "/admin/ai/chat-offers/{id}",
+            axum::routing::delete(ai::delete_chat_offer),
+        )
+        .route(
+            "/admin/ai/knowledge",
+            get(ai::list_knowledge).post(ai::create_knowledge),
+        )
+        .route(
+            "/admin/ai/knowledge/{id}",
+            axum::routing::put(ai::update_knowledge).delete(ai::delete_knowledge),
+        )
+        .with_state(context)
 }
 
 /// Mounts the view-configuration routes the dashboard's data tables read.

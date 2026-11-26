@@ -16,6 +16,7 @@ use crate::products::ErrorResponse;
 
 #[derive(Clone)]
 pub struct StoreCartContext {
+    pub store_name: String,
     pub cart_service: Arc<CartService>,
     pub promotion_service: Option<Arc<PromotionService>>,
     /// Prices line items server-side.
@@ -31,6 +32,7 @@ pub struct StoreCartContext {
     pub fulfillment_service: Arc<stheno_fulfillment::FulfillmentService>,
     pub links: Arc<stheno_links::PgLinkStore>,
     pub payment_service: Arc<stheno_payment::PaymentService>,
+    pub notification_service: Arc<stheno_notification::NotificationService>,
     /// Runs the complete-cart SAGA.
     pub complete_flows: Arc<stheno_flows::CompleteCartWorkflowEngine>,
 }
@@ -490,7 +492,7 @@ pub async fn apply_promotions(
                 code: "promotions_disabled",
                 message: "Promotions not configured".into(),
                 field: None,
-            }))
+            }));
         }
     };
 
@@ -724,7 +726,16 @@ fn map_error(e: Error) -> Response {
 pub async fn complete_cart(
     State(ctx): State<StoreCartContext>,
     Path(cart_id): Path<String>,
+    request: Option<Json<CompleteCartRequest>>,
 ) -> Result<Json<serde_json::Value>, Response> {
+    let (whatsapp_opt_in, whatsapp_analytics_opt_in) = request
+        .map(|Json(request)| {
+            (
+                request.whatsapp_opt_in.unwrap_or(false),
+                request.whatsapp_analytics_opt_in.unwrap_or(false),
+            )
+        })
+        .unwrap_or((false, false));
     let output = ctx
         .complete_flows
         .execute(
@@ -739,6 +750,113 @@ pub async fn complete_cart(
         .await
         .map_err(map_error)?;
 
+    if whatsapp_opt_in {
+        if let Some(phone) = output.order.shipping_address.as_ref().and_then(|address| {
+            address
+                .phone
+                .as_deref()
+                .and_then(|phone| normalize_checkout_phone(phone, address.country_code.as_deref()))
+        }) {
+            let Ok(tenant_id) = stheno_db::tenant::current() else {
+                tracing::warn!(order_id = %output.order.id, "WhatsApp opt-in was not recorded because tenant scope was missing");
+                return Ok(Json(serde_json::json!({
+                    "type": "order",
+                    "order": crate::orders::store_order_public(output.order),
+                })));
+            };
+            match ctx
+                .notification_service
+                .record_whatsapp_consent(
+                    &tenant_id,
+                    &phone,
+                    "checkout",
+                    output.order.customer_id.as_deref(),
+                )
+                .await
+            {
+                Ok(()) => {
+                    if let (Some(template), Some(language)) = (
+                        non_empty_env("WHATSAPP_ORDER_CONFIRMATION_TEMPLATE"),
+                        non_empty_env("WHATSAPP_ORDER_CONFIRMATION_LANGUAGE"),
+                    ) {
+                        let total = output
+                            .order
+                            .summary
+                            .as_ref()
+                            .map(|summary| summary.current_order_total.to_string())
+                            .unwrap_or_else(|| "See your receipt".to_string());
+                        let params = vec![
+                            ctx.store_name.clone(),
+                            output.order.id.clone(),
+                            format!("{} {}", total, output.order.currency_code),
+                        ];
+                        let data = serde_json::json!({
+                            "whatsapp_template": template,
+                            "whatsapp_language": language,
+                            "whatsapp_parameters": params,
+                        });
+                        let idempotency_key =
+                            format!("order-confirmation-whatsapp/{}", output.order.id);
+                        if let Err(error) = ctx
+                            .notification_service
+                            .enqueue_notification_idempotent_for_tenant(
+                                stheno_notification::SendNotificationInput {
+                                    to: phone.clone(),
+                                    channel: "whatsapp".to_string(),
+                                    template: None,
+                                    subject: None,
+                                    body: Some("Order confirmation".to_string()),
+                                    data: Some(data),
+                                    trigger_type: Some("order.placed".to_string()),
+                                    resource_id: Some(output.order.id.clone()),
+                                    resource_type: Some("order".to_string()),
+                                    receiver_id: output.order.customer_id.clone(),
+                                },
+                                &idempotency_key,
+                                &tenant_id,
+                            )
+                            .await
+                        {
+                            tracing::warn!(order_id = %output.order.id, error = %error, "WhatsApp order confirmation could not be queued");
+                        }
+                    } else {
+                        tracing::warn!(order_id = %output.order.id, "WhatsApp opt-in was recorded, but the approved order template is not configured");
+                    }
+                }
+                Err(error) => {
+                    tracing::warn!(order_id = %output.order.id, error = %error, "WhatsApp consent could not be recorded");
+                }
+            }
+        } else {
+            tracing::warn!(order_id = %output.order.id, "WhatsApp opt-in was not recorded because the shipping phone is not a supported international number");
+        }
+    }
+
+    if whatsapp_analytics_opt_in {
+        let phone = output.order.shipping_address.as_ref().and_then(|address| {
+            address
+                .phone
+                .as_deref()
+                .and_then(|phone| normalize_checkout_phone(phone, address.country_code.as_deref()))
+        });
+        if let (Some(phone), Ok(tenant_id)) = (phone, stheno_db::tenant::current()) {
+            if let Err(error) = ctx
+                .notification_service
+                .record_whatsapp_analytics_consent(
+                    &tenant_id,
+                    &phone,
+                    output.order.customer_id.as_deref(),
+                    &output.order.id,
+                )
+                .await
+            {
+                tracing::warn!(order_id = %output.order.id, error = %error, "WhatsApp analytics consent could not be recorded");
+            }
+        } else {
+            tracing::warn!(order_id = %output.order.id, "WhatsApp analytics consent was not recorded because a supported checkout phone or tenant scope was unavailable");
+        }
+    }
+
     // Medusa's shape: `{ type, order }` on success, so the client can tell an order from a
     // cart that came back needing more input. Expanded exactly as the order endpoints
     // return it, so the confirmation page renders from this response without refetching.
@@ -746,4 +864,40 @@ pub async fn complete_cart(
         "type": "order",
         "order": crate::orders::store_order_public(output.order),
     })))
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CompleteCartRequest {
+    pub whatsapp_opt_in: Option<bool>,
+    pub whatsapp_analytics_opt_in: Option<bool>,
+}
+
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn normalize_checkout_phone(phone: &str, country_code: Option<&str>) -> Option<String> {
+    if !phone.chars().all(|character| {
+        character.is_ascii_digit() || matches!(character, '+' | ' ' | '-' | '(' | ')')
+    }) {
+        return None;
+    }
+    let normalized: String = phone
+        .chars()
+        .filter(|character| character.is_ascii_digit() || *character == '+')
+        .collect();
+    if normalized.starts_with('+') {
+        return Some(normalized);
+    }
+    if country_code.is_some_and(|code| code.eq_ignore_ascii_case("bd")) {
+        let local = normalized.strip_prefix("0").unwrap_or(&normalized);
+        if local.len() == 10 && local.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Some(format!("+880{local}"));
+        }
+    }
+    None
 }

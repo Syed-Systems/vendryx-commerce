@@ -44,6 +44,7 @@ members = [
     "crates/modules/stheno-order-change",
     "crates/modules/stheno-reporting",
     "crates/modules/stheno-demo",
+    "crates/modules/stheno-ai",
     "crates/providers/stheno-payment-stripe",
     "crates/providers/stheno-payment-sslcommerz",
     "crates/providers/stheno-payment-bkash",
@@ -55,10 +56,14 @@ members = [
     "crates/providers/stheno-fulfillment-redx",
     "crates/providers/stheno-file-local",
     "crates/providers/stheno-file-s3",
+    "crates/providers/stheno-cdn-cloudflare",
     "crates/providers/stheno-notification-local",
     "crates/providers/stheno-notification-sendgrid",
     "crates/providers/stheno-notification-resend",
     "crates/providers/stheno-notification-webpush",
+    "crates/providers/stheno-ai-openai-compatible",
+    "crates/providers/stheno-search-console",
+    "crates/providers/stheno-meta-insights",
     "crates/providers/stheno-auth-emailpass",
     "crates/providers/stheno-auth-google",
     "crates/providers/stheno-auth-github",
@@ -133,6 +138,10 @@ stheno-settings = { path = "crates/modules/stheno-settings", version = "0.1.0" }
 stheno-analytics = { path = "crates/modules/stheno-analytics", version = "0.1.0" }
 stheno-order-change = { path = "crates/modules/stheno-order-change", version = "0.1.0" }
 stheno-reporting = { path = "crates/modules/stheno-reporting", version = "0.1.0" }
+stheno-ai = { path = "crates/modules/stheno-ai", version = "0.1.0" }
+stheno-ai-openai-compatible = { path = "crates/providers/stheno-ai-openai-compatible", version = "0.1.0" }
+stheno-search-console = { path = "crates/providers/stheno-search-console", version = "0.1.0" }
+stheno-meta-insights = { path = "crates/providers/stheno-meta-insights", version = "0.1.0" }
 stheno-payment-offline = { path = "crates/providers/stheno-payment-offline", version = "0.1.0" }
 stheno-payment-stripe = { path = "crates/providers/stheno-payment-stripe", version = "0.1.0" }
 stheno-payment-sslcommerz = { path = "crates/providers/stheno-payment-sslcommerz", version = "0.1.0" }
@@ -143,6 +152,7 @@ stheno-fulfillment-pathao = { path = "crates/providers/stheno-fulfillment-pathao
 stheno-fulfillment-steadfast = { path = "crates/providers/stheno-fulfillment-steadfast", version = "0.1.0" }
 stheno-fulfillment-redx = { path = "crates/providers/stheno-fulfillment-redx", version = "0.1.0" }
 stheno-file-local = { path = "crates/providers/stheno-file-local", version = "0.1.0" }
+stheno-cdn-cloudflare = { path = "crates/providers/stheno-cdn-cloudflare", version = "0.1.0" }
 stheno-notification-resend = { path = "crates/providers/stheno-notification-resend", version = "0.1.0" }
 stheno-notification-webpush = { path = "crates/providers/stheno-notification-webpush", version = "0.1.0" }
 
@@ -187,7 +197,7 @@ ulid = { version = "1.1", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # Database & ORM
-diesel = { version = "2.2", default-features = false, features = ["postgres_backend", "chrono", "serde_json", "numeric", "uuid", "r2d2", "32-column-tables", "64-column-tables"] }
+diesel = { version = "2.2", default-features = false, features = ["postgres_backend", "chrono", "serde_json", "numeric", "uuid", "r2d2", "32-column-tables"] }
 diesel-async = { version = "0.5", features = ["postgres", "deadpool", "async-connection-wrapper"] }
 diesel_migrations = { version = "2.2", default-features = false }
 deadpool = "0.12"

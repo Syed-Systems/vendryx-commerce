@@ -84,6 +84,23 @@ pub struct UpsertBrandingInput {
     pub color_text: Option<String>,
 }
 
+/// Tenant's explicit storefront composition choices. Kept on a separate endpoint so the
+/// existing Store API branding response remains byte-for-byte compatible.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct StorefrontAppearanceDTO {
+    pub storefront_archetype: Option<String>,
+    pub product_card_style: Option<String>,
+    pub product_image_aspect: Option<String>,
+}
+
+/// Allowlisted appearance selections submitted by an authorized store administrator.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpsertStorefrontAppearanceInput {
+    pub storefront_archetype: Option<String>,
+    pub product_card_style: Option<String>,
+    pub product_image_aspect: Option<String>,
+}
+
 // Medusa id prefixes for this module's entities (ADR-010).
 stheno_types::prefixed_id! {
     StoreDTO => "store",

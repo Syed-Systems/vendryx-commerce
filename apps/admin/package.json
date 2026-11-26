@@ -76,5 +76,9 @@
   },
   "overrides": {
     "@tanstack/react-table": "8.20.5"
+  },
+  "allowScripts": {
+    "@clerk/shared@3.47.8": true,
+    "esbuild@0.21.5": true
   }
 }
