@@ -8,7 +8,9 @@ export type StorefrontAppearance = {
   product_image_aspect: "square" | "portrait" | "landscape"
 }
 
-export const DEFAULT_STOREFRONT_APPEARANCE: StorefrontAppearance = {
+// Not exported: a "use server" module may only export async functions, and Next's
+// build rejects the whole route tree if it finds anything else.
+const DEFAULT_STOREFRONT_APPEARANCE: StorefrontAppearance = {
   storefront_archetype: "baseline",
   product_card_style: "standard",
   product_image_aspect: "portrait",
