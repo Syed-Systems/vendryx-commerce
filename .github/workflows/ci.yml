@@ -217,6 +217,9 @@ jobs:
         working-directory: apps/storefront
         env:
           STHENO_BACKEND_URL: http://localhost:9000
+          # check-env-variables.js refuses to build without it; this is the
+          # placeholder from .env.template that the e2e suite also sends.
+          NEXT_PUBLIC_STHENO_PUBLISHABLE_KEY: pk_test
         run: npm ci --strict-allow-scripts && npm run build
 
   # ───────────────────────────── Stage 3 · end-to-end ─────────────────────────────
