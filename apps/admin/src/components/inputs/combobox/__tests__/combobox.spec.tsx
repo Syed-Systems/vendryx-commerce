@@ -114,11 +114,14 @@ describe("Combobox", () => {
     await user.click(input)
     await typeInto(user, input, "App")
 
-    expect((input as HTMLInputElement).value).toBe("App")
+    // Uncontrolled mode renders a `useDeferredValue` of the search text, so on a slow
+    // runner the last keystroke can still be pending when the assertion runs (CI saw
+    // "Ap"). Wait for the deferred render instead of reading it mid-flight.
+    await waitFor(() => expect((input as HTMLInputElement).value).toBe("App"))
 
     // Apple should be visible, Banana should not be visible
+    await waitFor(() => expect(screen.queryByText("Banana")).toBeNull())
     expect(screen.queryByText("Apple")).not.toBeNull()
-    expect(screen.queryByText("Banana")).toBeNull()
   })
 
   it("should clear search value upon value selection", async () => {
