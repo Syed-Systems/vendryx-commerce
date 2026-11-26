@@ -1,5 +1,8 @@
 # Vendryx Unified Storefront
 
+> [!NOTE]
+> **ADR-038 (accepted 2026-11-27) replaces this storefront.** The engine will render storefronts from `minijinja` template themes (`themes/<theme-id>/` plus `theme.json`), and the Next.js storefront is deleted at task T4.7. What follows describes the storefront that serves until then. Plan: [STOREFRONT_THEME_ENGINE_PLAN.md](../../docs/STOREFRONT_THEME_ENGINE_PLAN.md).
+
 > High-performance, multi-tenant e-commerce storefront for Vendryx Commerce, built on Next.js 15, React 19, Tailwind CSS, and TypeScript. Governed by [ADR-031](../../docs/DECISIONS.md#adr-031) and [AGENTS.md §12](../../AGENTS.md#12-frontends-visual-theming).
 
 ---

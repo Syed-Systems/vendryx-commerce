@@ -18,6 +18,7 @@ Merchants receive an Apple Human Interface Guidelines (HIG) dashboard, a customi
 - **We host it. Merchants do not.** A single compiled Rust binary and PostgreSQL cluster serve every merchant. Multi-tenant isolation is enforced at the database engine level (`tenant_id` on every row, `FORCE ROW LEVEL SECURITY`), not as separate container deployments. → [ADR-012](docs/DECISIONS.md#adr-012)
 - **First-party subscription billing.** Indefinite Free tier (100 products, 3 staff seats) and Pro tier ($20.00 USD/mo or local ৳1500 BDT, 10% flat discount on 12+ months) collected directly. → [ADR-017](docs/DECISIONS.md#adr-017), [COMMERCIAL_IMPLEMENTATION_PLAN.md](docs/COMMERCIAL_IMPLEMENTATION_PLAN.md)
 - **Unified Multi-Tenant Storefront ([ADR-031](docs/DECISIONS.md#adr-031)).** A single Next.js 15 App Router runtime serves all merchant storefronts. Styling and layout variations are driven by dynamic SSR design token injection and semantic variant modifiers, eliminating separate frontend container fleets.
+- **Storefront themes rendered by the engine ([ADR-038](docs/DECISIONS.md#adr-038), in progress).** The Rust engine renders every store from `minijinja` template themes; each theme is one `themes/<theme-id>/` folder whose `theme.json` tokenizes every visual and copy choice, edited by merchants in the admin. No Node.js storefront and no Cloudflare Workers. The Next.js storefront below serves until the cut-over. Plan: [STOREFRONT_THEME_ENGINE_PLAN.md](docs/STOREFRONT_THEME_ENGINE_PLAN.md).
 - **Merchant Admin Truth Contract ([ADR-029](docs/DECISIONS.md#adr-029)).** Zero mock storage and zero fake timers across admin routes. Every card and toggle binds directly to a verified Rust backend API.
 - **Enterprise Control Plane extracted to Space ([ADR-030](docs/DECISIONS.md#adr-030)).** Permanent cross-product enterprise SaaS operations live in `D:\Syed Systems\Space`. In-repo `apps/platform` provides the transitional commerce console and connector baseline.
 - **Wire compatibility with Medusa v2 Admin API ([ADR-002](docs/DECISIONS.md#adr-002), [ADR-027](docs/DECISIONS.md#adr-027)).** An internal engineering economy that allows forking the dashboard rather than rebuilding it from scratch. Public surfaces never mention legacy codenames.
@@ -197,6 +198,7 @@ Key architectural decisions governed by [docs/DECISIONS.md](docs/DECISIONS.md):
 | [ADR-029](docs/DECISIONS.md#adr-029) | Merchant Admin Truth Contract & Apple HIG | Accepted | Zero mock storage; Apple HIG 7 Settings categories. |
 | [ADR-030](docs/DECISIONS.md#adr-030) | Space Standalone Control Plane | Accepted | Enterprise SaaS extracted to standalone `D:\Syed Systems\Space`. |
 | [ADR-031](docs/DECISIONS.md#adr-031) | Unified Multi-Tenant Storefront Runtime | Accepted | Single Next.js runtime; dynamic SSR tokens & variant modifiers. Supersedes ADR-013, 020, 023. |
+| [ADR-038](docs/DECISIONS.md#adr-038) | Engine-rendered template themes | Accepted | Rust engine renders `minijinja` themes; every visual choice a `theme.json` token; supersedes ADR-031. |
 
 ---
 

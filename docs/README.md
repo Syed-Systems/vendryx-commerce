@@ -100,6 +100,7 @@ docs/
 ### 🎨 Frontend Engineers (Storefront, Admin, Marketing)
 1. [AGENTS.md §12](../AGENTS.md#12-frontends-visual-theming) — Visual theming rules and forbidden frontend forks.
 2. [DECISIONS.md ADR-031](DECISIONS.md#adr-031) — Dynamic Multi-Tenant Visual Theming on the Unified Default Storefront.
+   [DECISIONS.md ADR-038](DECISIONS.md#adr-038) — Engine-rendered template themes (replaces ADR-031), with [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md) and [THEME_AUTHORING.md](THEME_AUTHORING.md).
 3. [DECISIONS.md ADR-029](DECISIONS.md#adr-029) — Merchant Admin Truth Contract & Apple HIG Information Architecture.
 4. [BRAND.md](BRAND.md) — Authoritative brand tokens, typography, and asset inventory.
 5. [API_SPEC.md](API_SPEC.md) & [SITEMAP.md](SITEMAP.md) — Wire contracts and URL taxonomy.

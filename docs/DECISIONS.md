@@ -25,8 +25,8 @@ a stated cost is a preference wearing a suit.
 | [ADR-018](#adr-018) | Support impersonation: time-boxed, scope-limited, fully audited, secret-opaque | Accepted | **Implemented** (`stheno-platform`) |
 | [ADR-019](#adr-019) | Provider credentials are tenant-owned, encrypted, and resolved through factories | Accepted | **Implemented** (`stheno-payment`) |
 | [ADR-020](#adr-020) | Content pages a design needs are core routes fed by a theme slot | **Superseded by [ADR-031](#adr-031)** | **Superseded** |
-| [ADR-021](#adr-021) | AI-authored storefront content is data against a closed schema, never code | Accepted | **Implemented** (`apps/storefront`) |
-| [ADR-022](#adr-022) | Tenant identity is the Host header; the Store API is served same-origin | Accepted | **Implemented** (`middleware.ts`) |
+| [ADR-021](#adr-021) | AI-authored storefront content is data against a closed schema, never code | Accepted · amended by [ADR-038](#adr-038) | **Implemented** (`apps/storefront`) |
+| [ADR-022](#adr-022) | Tenant identity is the Host header; the Store API is served same-origin | Accepted · amended by [ADR-038](#adr-038) | **Implemented** (`middleware.ts`) |
 | [ADR-023](#adr-023) | One storefront build per theme, routed by host | **Superseded by [ADR-031](#adr-031)** | **Superseded** |
 | [ADR-024](#adr-024) | Compute next to the data; delivery by CDN over an origin that speaks HTTP caching | Accepted · amended by [ADR-037](#adr-037) | **Implemented** (Edge CDN headers) |
 | [ADR-025](#adr-025) | Connection pooling is transaction-mode, with a session-mode route | Accepted | **Implemented** (PgBouncer/Supavisor) |
@@ -35,13 +35,14 @@ a stated cost is a preference wearing a suit.
 | [ADR-028](#adr-028) | Customer-facing brand is Vendryx; internal identifiers remain `stheno-*` | Accepted | **Implemented** (Brand inventory) |
 | [ADR-029](#adr-029) | Merchant Admin Truth Contract & Apple HIG Information Architecture | Accepted | **Implemented** (`apps/admin`) |
 | [ADR-030](#adr-030) | Company Control Plane extracted to standalone 'Space' project | Accepted | **Implemented** (`D:/Syed Systems/Space`) |
-| [ADR-031](#adr-031) | Dynamic multi-tenant visual theming on a unified default storefront runtime | Accepted | **Implemented** (Phase 3 GA) |
+| [ADR-031](#adr-031) | Dynamic multi-tenant visual theming on a unified default storefront runtime | **Superseded by [ADR-038](#adr-038)** (runtime and chassis; token principle carried forward) | **Implemented, being replaced** (Next.js runtime serves until the ADR-038 cut-over) |
 | [ADR-032](#adr-032) | AI-powered social commerce automation: OKF architecture, tool calling & safe draft intake | Accepted · amended 2026-11-14 | **Partially Implemented** (amendment for knowledge prompting, conversation states, store modes and 30-day transcripts is not implemented, see [OKF_PLAN.md](OKF_PLAN.md); 32.1–32.4 implemented; 32.6 owner-authorized chat offer flow is wired but acceptance gates remain; 32.5 confirmation-time dispatch is wired, with focused build and acceptance gates still pending) |
 | [ADR-033](#adr-033) | Commercial entitlements overhaul: Free & 7-day Pro trial packaging | Accepted | **Partially Implemented** (trial resolution/lifecycle, verified-owner day-3/day-6 reminders, durable idempotency-aware notification outbox, subscription/grace UI, and persisted-expiry trial banner are wired; web push, quota matrices, and billing journey acceptance remain) |
 | [ADR-034](#adr-034) | Manual payment "in verification" truth contract & email/WhatsApp notification pipeline | Accepted | **Partially Implemented** (manual-transfer/COD split, proof ledgers/review and pending/decision emails, cancellation and fulfillment status notices, encrypted cart cookie, durable order/welcome/invite outbox, opt-in order confirmation, consent ledger/STOP revocation, central-vs-merchant WhatsApp routing, and atomic Free daily email/WhatsApp caps are wired; remaining transaction events, deployed WABA/template setup, and focused gates remain) |
 | [ADR-035](#adr-035) | Architecture implementation distance & readiness audit | Accepted | **Partially Implemented** (readiness matrix reconciled to code; implementation and acceptance evidence remains open in ADR-032–036 plan) |
 | [ADR-036](#adr-036) | Space provides dedicated build execution and shared build caches | Accepted · pairs with Space SPACE-ADR-016 | **Partially Implemented** (scoped caches and hosted CI selector are implemented; current Space SSH check reports rootful Docker, so isolated manual execution and full gate parity are not verified; trusted CI routing remains off) |
 | [ADR-037](#adr-037) | Cloudflare is the edge layer only; vendor calls are confined to one provider crate and Space | Accepted · amends [ADR-024](#adr-024) | **Not Implemented** (spec at `.orchestration/task-cloudflare-edge/spec.md`) |
+| [ADR-038](#adr-038) | The engine renders the storefront from tokenized template themes; no Node.js storefront | Accepted · supersedes [ADR-031](#adr-031) | **Not Implemented** (plan: [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md)) |
 
 Ordered phases, dependencies, edge cases, and acceptance evidence for ADRs 032–036 are tracked in
 [ADR_IMPLEMENTATION_PLAN.md](ADR_IMPLEMENTATION_PLAN.md).
@@ -2029,7 +2030,13 @@ multi-product architecture.
 
 ## ADR-031 — Dynamic Multi-Tenant Visual Theming on a Unified Default Storefront Runtime
 
-**Status:** Accepted · **Date:** 2026-09-09 · **Relates to:** [ADR-012](#adr-012), [ADR-013](#adr-013), [ADR-022](#adr-022), [ADR-023](#adr-023)
+> [!WARNING]
+> **Superseded by [ADR-038](#adr-038) on 2026-11-27.** The Next.js runtime and the single
+> `frontend-default` chassis are replaced by engine-rendered template themes. The token principle,
+> the Apple HIG baseline (as the Default theme) and instant admin preview carry forward. This record
+> still describes the storefront that serves until the ADR-038 cut-over.
+
+**Status:** Superseded by [ADR-038](#adr-038) · Originally accepted 2026-09-09 · **Date:** 2026-09-09 · **Relates to:** [ADR-012](#adr-012), [ADR-013](#adr-013), [ADR-022](#adr-022), [ADR-023](#adr-023)
 
 ### Context
 
@@ -2749,3 +2756,123 @@ CDN that honours `Cache-Control` replaces it with a DNS change plus the two adap
 
 **Cost of the exception.** Two vendor-specific API integrations are accepted, confined as stated
 in decision 2.
+
+---
+
+<a id="adr-038"></a>
+
+## ADR-038 — The engine renders the storefront from tokenized template themes; no Node.js storefront
+
+**Status:** Accepted · **Date:** 2026-11-27 · **Supersedes:** [ADR-031](#adr-031) (runtime and chassis) · **Amends:** [ADR-021](#adr-021), [ADR-022](#adr-022) · **Relates to:** [ADR-006](#adr-006), [ADR-012](#adr-012), [ADR-024](#adr-024), [ADR-037](#adr-037)
+
+### Context
+
+[ADR-031](#adr-031) put every merchant on one Next.js runtime with `frontend-default` as the
+only DOM, varied by design tokens and data attributes. Three things have changed since:
+
+1. **New designs arrive from AI design tools as whole storefronts.** Commit `12203039`
+   (2026-11-27) added three storefronts built in Google AI Studio: Maison Véla
+   (`maison-cuir`), KOVA (`hydro-vessel`) and Homedine (`homedine-eco`). Each has its own
+   layout, typography and interaction design. They do not fit `frontend-default`'s DOM, and
+   ADR-031 gives them no legal home.
+2. **That push replaced the engine-connected storefront instead of extending it.** Its tenants,
+   domains, products, prices and reviews are literals in `src/core/tenant-resolver.ts` and
+   `themes/homedine-eco/catalog.ts`; its checkout computes a receipt in the browser and creates
+   no order. Homedine alone carries 233 colour literals and no tokens. A design channel that
+   can produce this needs a contract that makes it impossible, not a review that catches it.
+3. **The owner set the operating constraints on 2026-11-27:** one server (the Rust engine), no
+   Node.js storefront process, no nginx for the storefront, no Cloudflare Workers; every visual
+   and copy choice tokenized and managed from the admin center; data only from the engine;
+   heavy edge caching to save database compute; and the AI tools only design and tokenize.
+
+ADR-031's token principle survives all three. Its runtime (Next.js) and its single chassis
+(`frontend-default`) do not.
+
+### Options considered
+
+| Option | For | Against |
+|---|---|---|
+| Keep ADR-031: Next.js runtime, `frontend-default` chassis | Already built. React designs need no conversion | A second server and language to run and patch. AI Studio designs cannot be expressed as tokens on one DOM, so every design becomes a fork or a refusal |
+| Static React app built once, data fetched by the browser from the engine | One server. Designs stay React | Pages arrive empty, so search ranking and link previews (WhatsApp, Facebook) suffer, which a store cannot afford. Moves server code into browser calls |
+| Engine renders Liquid templates (Shopify's model) | The format Shopify has run on since 2006. Templates cannot run code | The Rust `liquid` crate's last release is 0.26.11 (February 2025), pre-1.0, and it lacks the `{% liquid %}` and `{% echo %}` tags modern themes use |
+| **Engine renders `minijinja` templates; each theme is a folder of templates plus `theme.json`** (chosen) | One server. Full HTML for search and previews. Sandboxed templates. `minijinja` 3.1.0 released 2026-11-07, actively maintained by the author of Jinja. Same model as Liquid | The six existing themes are rewritten from React into templates. A rendering layer is built in the engine |
+
+### Decision
+
+1. **The Rust engine renders every storefront page.** A new crate, `stheno-storefront`, maps
+   storefront routes to loaders and `minijinja` templates and returns HTML. No Node.js or
+   Next.js storefront process exists once the cut-over in the spec completes. No storefront
+   code runs on Cloudflare Workers or Pages Functions ([ADR-037](#adr-037) decision 1).
+2. **A theme is one folder, `themes/<theme-id>/`:** templates, one stylesheet, interaction
+   scripts and theme art, plus `theme.json`. Adding a theme touches nothing outside its folder.
+   Theme folders load from `STHENO_THEMES_DIR` at runtime, so shipping a theme is a file
+   release, not an engine build.
+3. **Everything visual and every piece of copy is a token declared in `theme.json`.** Token
+   types are a closed set: `color`, `range`, `select`, `font`, `text`, `richtext`, `image`,
+   `url`, `boolean`. Colour, font, radius, shadow and spacing literals outside `theme.json` are
+   a gate failure. Fonts are keys into the curated self-hosted set, never URLs
+   ([ADR-021](#adr-021) decision 2).
+4. **A theme contains no data.** Products, prices, stock, collections, reviews, policies and
+   store identity reach templates only as read-only objects built by engine loaders. A figure
+   that does not come from a loader does not render (AGENTS.md, "no unsourced figures").
+   Money is `stheno-types::Money` throughout and is formatted by the engine
+   ([ADR-006](#adr-006)).
+5. **Templates are sandboxed.** They receive only the documented objects and filters, cannot
+   fetch, query or execute code, and render with autoescaping on. Interaction scripts call only
+   same-origin `/store/*` endpoints and never compute money.
+6. **Commerce boundaries stay core-owned.** Checkout, payment, sign-in and account forms and the
+   Free-plan "Powered by Vendryx" attribution are core partials a theme includes and cannot
+   override. This is what ADR-031 protected by forbidding DOM forks, kept by a narrower rule.
+7. **Merchants change token values in the admin center.** The admin lists installed themes and
+   renders the Appearance form from the active theme's `theme.json`. The engine validates every
+   value against that schema before saving; nothing partial is stored. A token added to
+   `theme.json` appears in the admin with no admin code change.
+8. **Caching follows [ADR-037](#adr-037) unchanged.** Public pages carry tenant-prefixed tags and
+   `public, s-maxage, stale-while-revalidate`. Cart, checkout, account and order pages are never
+   cached. Personalised fragments (cart count, signed-in state) load through interaction scripts
+   so public pages stay shareable from the edge. Appearance and branding saves purge the
+   tenant's hostnames.
+9. **The storefront and the Store API share an origin because one process serves both.** This
+   satisfies [ADR-022](#adr-022) without the `/api/*` hairpin, and its middleware region-cache
+   landmine disappears with the middleware.
+10. **One automated gate, `scripts/check-theme-pack.sh`, admits a theme.** It fails on any
+    literal from decision 3, any data from decision 4, any forbidden capability from decision 5,
+    an override of a decision 6 partial, a file outside the theme folder, an invalid
+    `theme.json`, or default tokens that fail WCAG 2.2 AA contrast.
+
+### Consequences
+
+**Good.** One process to run, patch and debug. Search engines and link previews get finished
+HTML. A new design from an AI tool lands as one folder and cannot reach data, prices or
+checkout. Merchants restyle their store from the admin without a deploy, and the edge serves
+most traffic without touching Postgres.
+
+**Bad.** The six existing themes (Maison Véla, KOVA, Homedine, Mahal, Lustre, Matrix) are
+rewritten from React to templates, keeping their look. The engine gains a rendering layer and a
+schema validator. Rich interactions (KOVA's WebGL hero, drawers, galleries) are written as
+small scripts, not components. Until the cut-over, the Next.js storefront keeps serving, so two
+storefront implementations coexist for one migration.
+
+**Not decided here.** Whether [ADR-037](#adr-037) decision 5's reverse-proxy duties (stripping
+tenant-override headers, translating `CF-IPCountry`, the admin and storefront host split) move
+into the engine now that the engine serves the storefront itself. That needs its own record.
+
+**Unverified at decision time.** Tag-purge availability on the owner's Cloudflare plan (already
+open under ADR-037), Lighthouse targets on the converted themes, and `minijinja` template load
+time with all themes installed. Each is an acceptance check in the spec, not an assumption.
+
+### Implementation
+
+Specified task by task in [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md): phase 0 unblocks main,
+then renderer and contract, admin Appearance and storage, theme conversion, route and checkout
+parity followed by deletion of `apps/storefront`, and the authoring kit
+([THEME_AUTHORING.md](THEME_AUTHORING.md)).
+
+### Reversal condition
+
+If engine rendering cannot meet the spec's performance or parity checks, the fallback is
+ADR-031's Next.js runtime with the same `theme.json` contract and gate. Tokens, the admin
+Appearance screen and the no-data rule carry over unchanged, because none of them depend on the
+renderer.
+
+**Cost of the exception.** A one-time rewrite of six themes, paid to remove a server permanently.

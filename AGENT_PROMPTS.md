@@ -10,6 +10,8 @@ This guide translates **what you want to do** into **what you should tell the ag
 
 Stheno uses a **Unified Runtime** (`frontend-default`). We never fork the frontend for new stores.
 
+> **New storefront designs (ADR-038):** ask for a theme folder, not a frontend. "Build this design as `themes/<theme-id>/` following docs/THEME_AUTHORING.md: templates plus `theme.json`, every colour, font, radius, spacing value and piece of copy as a token, no data or figures in the theme, core partials for checkout and sign-in." Work items are on the board in docs/STOREFRONT_THEME_ENGINE_PLAN.md. The rows below apply to the Next.js storefront until its cut-over.
+
 | If you want to... | Tell the agent to... | Why? |
 | :--- | :--- | :--- |
 | **Change colors/fonts/corners across the whole site** | *"Update the **Design Tokens** in the core branding configuration."* | Instructs the agent to update CSS Custom Properties injected at runtime, not hardcoded CSS. |
