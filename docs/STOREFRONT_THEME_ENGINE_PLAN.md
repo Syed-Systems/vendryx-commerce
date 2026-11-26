@@ -214,7 +214,7 @@ Status values: `todo`, `in progress (<branch>, <date>)`, `blocked: <reason>`, `d
 
 | ID | Task | Depends on | Status |
 |---|---|---|---|
-| T0.1 | Merge `main` into PR #4 and park the AI Studio storefront as design source | — | todo |
+| T0.1 | Merge `main` into PR #4 and park the AI Studio storefront as design source | — | done (PR #4, merge commit `905a33d2`) |
 | T0.2 | Land the docs for ADR-038 (this plan, AGENTS.md, ADR index, authoring contract) | — | in progress (docs/storefront-theme-engine, 2026-11-27) |
 | T1.1 | `stheno-storefront` crate skeleton, mounted in the engine | T0.1 | todo |
 | T1.2 | `theme.json` schema, Rust types and validator | T0.1 | todo |
@@ -558,3 +558,4 @@ marketplace or merchant-uploaded themes.
 | Date | Change |
 |---|---|
 | 2026-11-27 | Plan written for ADR-038. Supersedes the draft in `.orchestration/task-storefront-theme-engine/spec.md`. |
+| 2026-11-27 | T0.1 done: `main` at `12203039` merged into PR #4; AI Studio files parked in `design-source/ai-studio-2026-11-27/`; `bun.lock` removed. |
