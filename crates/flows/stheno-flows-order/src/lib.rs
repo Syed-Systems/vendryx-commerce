@@ -17,7 +17,7 @@
 //!    push logic would notify the merchant about an order their own staff just accepted.
 
 pub mod social_message;
-pub use social_message::{SocialMessageLine, generate_ref_code, render_social_message};
+pub use social_message::{generate_ref_code, render_social_message, SocialMessageLine};
 
 use std::{str::FromStr, sync::Arc};
 

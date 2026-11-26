@@ -97,9 +97,7 @@ async fn manual_transfer_provider_exposes_configured_instructions_not_cod() {
         })
         .await
         .expect_err("manual transfer cannot quote a non-BDT total");
-    assert!(
-        wrong_currency
-            .to_string()
-            .contains("manual_payment_currency_unsupported")
-    );
+    assert!(wrong_currency
+        .to_string()
+        .contains("manual_payment_currency_unsupported"));
 }

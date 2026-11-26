@@ -67,18 +67,16 @@ async fn test_inventory_reservation_release_and_fulfill() {
         7,
         "retry must not reserve the quantity twice"
     );
-    assert!(
-        service
-            .reserve(CreateReservationInput {
-                line_item_id: Some("item_123".to_string()),
-                inventory_item_id: item_id.clone(),
-                location_id: location_id.to_string(),
-                quantity: 4,
-                description: None,
-            })
-            .await
-            .is_err()
-    );
+    assert!(service
+        .reserve(CreateReservationInput {
+            line_item_id: Some("item_123".to_string()),
+            inventory_item_id: item_id.clone(),
+            location_id: location_id.to_string(),
+            quantity: 4,
+            description: None,
+        })
+        .await
+        .is_err());
 
     // 2. Release reservation (e.g. cart expired or order cancelled)
     service

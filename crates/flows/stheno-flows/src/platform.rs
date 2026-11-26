@@ -383,7 +383,9 @@ impl RetentionJobWorkflow {
         // Check stores for staleness
         let stores_checked = 5; // e.g. cart, order, customer, token, event
         if purged_count > 10_000 {
-            alerts.push(format!("High volume of expired carts purged: {purged_count}"));
+            alerts.push(format!(
+                "High volume of expired carts purged: {purged_count}"
+            ));
         }
 
         Ok(RetentionJobResult {

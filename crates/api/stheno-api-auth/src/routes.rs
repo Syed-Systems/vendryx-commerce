@@ -1,11 +1,11 @@
 //! Medusa v2 wire-compatible Auth API handlers and route definitions (P7-22).
 
 use axum::extract::{Path, Request, State};
-use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::{Json, Router, middleware};
+use axum::{middleware, Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -288,17 +288,6 @@ pub async fn auth_callback(
     ))
 }
 
-
-
-
-
-
-
-
-
-
-
-
 /// POST /auth/user/{auth_provider}/update
 /// POST /auth/user/{auth_provider}/update
 ///
@@ -436,7 +425,10 @@ pub fn auth_routes(ctx: AuthApiContext) -> Router {
         .route("/auth/{actor_type}/providers", get(list_providers))
         .route("/auth/{actor_type}/{provider_id}", post(authenticate))
         .route("/auth/{actor_type}/{provider_id}/register", post(register))
-        .route("/auth/{actor_type}/{provider_id}/callback", post(auth_callback))
+        .route(
+            "/auth/{actor_type}/{provider_id}/callback",
+            post(auth_callback),
+        )
         .route("/auth/token/refresh", post(refresh_token))
         .route(
             "/auth/session",
@@ -444,19 +436,31 @@ pub fn auth_routes(ctx: AuthApiContext) -> Router {
         )
         .route("/auth/mfa/generate", post(generate_mfa))
         .route("/auth/mfa/verify", post(verify_mfa))
-        .route("/auth/mfa/factors", get(list_mfa_factors).post(create_mfa_factor))
+        .route(
+            "/auth/mfa/factors",
+            get(list_mfa_factors).post(create_mfa_factor),
+        )
         .route(
             "/auth/mfa/factors/{id}",
             axum::routing::delete(delete_mfa_factor),
         )
         .route("/auth/mfa/factors/{id}/verify", post(verify_mfa_factor))
-        .route("/auth/mfa/challenges/{id}/verify", post(verify_mfa_challenge))
+        .route(
+            "/auth/mfa/challenges/{id}/verify",
+            post(verify_mfa_challenge),
+        )
         .route("/auth/mfa/recovery-codes", post(generate_recovery_codes))
         .route("/auth/user/providers", get(list_providers))
         .route("/auth/user/{auth_provider}", post(authenticate_user))
-        .route("/auth/user/{auth_provider}/callback", post(auth_callback_user))
+        .route(
+            "/auth/user/{auth_provider}/callback",
+            post(auth_callback_user),
+        )
         .route("/auth/user/{auth_provider}/register", post(register_user))
-        .route("/auth/user/{auth_provider}/reset-password", post(reset_password_user))
+        .route(
+            "/auth/user/{auth_provider}/reset-password",
+            post(reset_password_user),
+        )
         .route("/auth/user/{auth_provider}/update", post(update_user_auth))
         .route("/auth/{auth_provider}/user", post(auth_provider_user))
         .route(
@@ -903,9 +907,9 @@ pub async fn end_session(
 #[cfg(test)]
 mod admin_session_cookie_tests {
     use super::{
-        ADMIN_SESSION_COOKIE, auth_cookie_origin_is_valid, session_cookie, token_from_headers,
+        auth_cookie_origin_is_valid, session_cookie, token_from_headers, ADMIN_SESSION_COOKIE,
     };
-    use axum::http::{HeaderMap, HeaderValue, Method, header};
+    use axum::http::{header, HeaderMap, HeaderValue, Method};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]

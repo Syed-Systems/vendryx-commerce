@@ -7,7 +7,10 @@ use stheno_payment_stripe::StripePaymentProvider;
 #[test]
 fn default_capabilities_has_redirect_false() {
     let caps = ProviderCapabilities::default();
-    assert!(!caps.redirect, "default capabilities redirect must be false");
+    assert!(
+        !caps.redirect,
+        "default capabilities redirect must be false"
+    );
 }
 
 #[test]
@@ -21,5 +24,8 @@ fn offline_declares_redirect_false() {
 fn stripe_declares_redirect_false() {
     let provider = StripePaymentProvider::new("sk_test_mock", "whsec_mock", None, false);
     let caps = provider.capabilities();
-    assert!(!caps.redirect, "stripe direct card provider redirect must be false");
+    assert!(
+        !caps.redirect,
+        "stripe direct card provider redirect must be false"
+    );
 }

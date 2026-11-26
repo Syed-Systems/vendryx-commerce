@@ -154,14 +154,8 @@ async fn test_reconciliation_run_produces_three_buckets_and_persists() {
 
     // Assert the three distinct buckets (P24-06)
     assert_eq!(report.matched_count, 1, "Bucket 1: matched count");
-    assert_eq!(
-        report.buckets.matched[0].consignment_id,
-        "cons_match_001"
-    );
-    assert_eq!(
-        report.buckets.matched[0].collected_amount,
-        dec!(1800.00)
-    );
+    assert_eq!(report.buckets.matched[0].consignment_id, "cons_match_001");
+    assert_eq!(report.buckets.matched[0].collected_amount, dec!(1800.00));
 
     assert_eq!(
         report.collected_not_remitted_count, 1,

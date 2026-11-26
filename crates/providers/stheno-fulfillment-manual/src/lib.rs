@@ -117,8 +117,12 @@ impl FulfillmentProvider for ManualFulfillmentProvider {
 
         let labels = vec![CreateFulfillmentLabelInput {
             tracking_number: tracking_number.to_string(),
-            tracking_url: Some(format!("https://tracking.example.com/return/{tracking_number}")),
-            label_url: Some(format!("https://labels.example.com/return/{tracking_number}.pdf")),
+            tracking_url: Some(format!(
+                "https://tracking.example.com/return/{tracking_number}"
+            )),
+            label_url: Some(format!(
+                "https://labels.example.com/return/{tracking_number}.pdf"
+            )),
             metadata: None,
         }];
 

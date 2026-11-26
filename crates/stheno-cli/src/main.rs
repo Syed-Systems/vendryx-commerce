@@ -310,7 +310,13 @@ async fn test_{clean_name}_service_lifecycle() {{
 }
 
 fn handle_provider_docs(check: bool, write: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let factories: Vec<(&str, &str, &'static [stheno_payment::CredentialField], &str, &str)> = vec![
+    let factories: Vec<(
+        &str,
+        &str,
+        &'static [stheno_payment::CredentialField],
+        &str,
+        &str,
+    )> = vec![
         (
             OfflinePaymentProviderFactory.provider_id(),
             "Offline / Cash on Delivery",
@@ -366,7 +372,9 @@ fn handle_provider_docs(check: bool, write: bool) -> Result<(), Box<dyn std::err
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        table.push_str(&format!("| `{id}` | {name} | {fields_str} | {envs} | {verif} |\n"));
+        table.push_str(&format!(
+            "| `{id}` | {name} | {fields_str} | {envs} | {verif} |\n"
+        ));
     }
     table.push_str("<!-- END GENERATED PROVIDER CATALOG -->");
 
@@ -379,33 +387,40 @@ fn handle_provider_docs(check: bool, write: bool) -> Result<(), Box<dyn std::err
     let start_marker = "<!-- BEGIN GENERATED PROVIDER CATALOG -->";
     let end_marker = "<!-- END GENERATED PROVIDER CATALOG -->";
 
-    let updated_content = if let (Some(start), Some(end)) = (content.find(start_marker), content.find(end_marker)) {
-        let mut new_c = content[..start].to_string();
-        new_c.push_str(&table);
-        new_c.push_str(&content[end + end_marker.len()..]);
-        new_c
-    } else if let Some(pos) = content.find("## 2. bKash") {
-        let mut new_c = content[..pos].to_string();
-        new_c.push_str("### Compiled Provider Catalog (Generated)\n\n");
-        new_c.push_str(&table);
-        new_c.push_str("\n\n---\n\n");
-        new_c.push_str(&content[pos..]);
-        new_c
-    } else {
-        format!("{content}\n\n{table}")
-    };
+    let updated_content =
+        if let (Some(start), Some(end)) = (content.find(start_marker), content.find(end_marker)) {
+            let mut new_c = content[..start].to_string();
+            new_c.push_str(&table);
+            new_c.push_str(&content[end + end_marker.len()..]);
+            new_c
+        } else if let Some(pos) = content.find("## 2. bKash") {
+            let mut new_c = content[..pos].to_string();
+            new_c.push_str("### Compiled Provider Catalog (Generated)\n\n");
+            new_c.push_str(&table);
+            new_c.push_str("\n\n---\n\n");
+            new_c.push_str(&content[pos..]);
+            new_c
+        } else {
+            format!("{content}\n\n{table}")
+        };
 
     if check {
         if content.contains(start_marker) && content.contains(&table) {
             println!("Provider documentation check PASSED (0 drift).");
         } else {
-            eprintln!("FAIL: Provider catalog in {} is out of sync with compiled registries.", doc_path.display());
+            eprintln!(
+                "FAIL: Provider catalog in {} is out of sync with compiled registries.",
+                doc_path.display()
+            );
             eprintln!("Run: cargo run -p stheno-cli -- provider-docs --write");
             std::process::exit(1);
         }
     } else if write {
         fs::write(doc_path, updated_content)?;
-        println!("==> Successfully wrote compiled provider catalog to {}", doc_path.display());
+        println!(
+            "==> Successfully wrote compiled provider catalog to {}",
+            doc_path.display()
+        );
     } else {
         println!("{table}");
     }

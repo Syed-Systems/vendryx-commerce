@@ -7,7 +7,10 @@ use stheno_payment_bkash::BkashPaymentProviderFactory;
 
 fn valid_credentials() -> stheno_payment::CredentialMap {
     let mut map = BTreeMap::new();
-    map.insert("base_url".to_string(), json!("https://tokenized.sandbox.bka.sh/v1.2.0-beta"));
+    map.insert(
+        "base_url".to_string(),
+        json!("https://tokenized.sandbox.bka.sh/v1.2.0-beta"),
+    );
     map.insert("app_key".to_string(), json!("test_app_key"));
     map.insert("app_secret".to_string(), json!("test_app_secret"));
     map.insert("username".to_string(), json!("test_username"));
@@ -23,7 +26,11 @@ fn bkash_factory_registration_and_schema() {
     let schema = factory.credential_schema();
     assert_eq!(schema.len(), 5);
 
-    let required_keys: Vec<&str> = schema.iter().filter(|f| f.required).map(|f| f.key).collect();
+    let required_keys: Vec<&str> = schema
+        .iter()
+        .filter(|f| f.required)
+        .map(|f| f.key)
+        .collect();
     assert!(required_keys.contains(&"base_url"));
     assert!(required_keys.contains(&"app_key"));
     assert!(required_keys.contains(&"app_secret"));
@@ -37,7 +44,10 @@ fn bkash_factory_rejects_missing_credentials() {
     let mut incomplete = valid_credentials();
     incomplete.remove("app_secret");
 
-    let err = factory.build(&incomplete).err().expect("must fail on missing credentials");
+    let err = factory
+        .build(&incomplete)
+        .err()
+        .expect("must fail on missing credentials");
     assert!(matches!(err, stheno_types::Error::Invalid { .. }));
 }
 
@@ -55,6 +65,12 @@ fn bkash_factory_builds_and_verifies_honest_capabilities() {
     assert!(!caps.partial_capture, "bKash execute is full-amount only");
     assert!(!caps.multi_capture, "bKash execute is one-shot");
     assert!(caps.cancel_after_authorize);
-    assert!(!caps.vault, "bKash tokenized checkout manages agreements gateway-side");
-    assert_eq!(caps.authorization_ttl, Some(std::time::Duration::from_secs(24 * 3600)));
+    assert!(
+        !caps.vault,
+        "bKash tokenized checkout manages agreements gateway-side"
+    );
+    assert_eq!(
+        caps.authorization_ttl,
+        Some(std::time::Duration::from_secs(24 * 3600))
+    );
 }

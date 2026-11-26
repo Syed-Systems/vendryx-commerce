@@ -4,12 +4,12 @@
 //! header. A missing or invalid token is a 401, never a 404 — the storefront distinguishes
 //! "logged out" from "customer gone".
 
-use axum::Json;
 use axum::extract::Path;
 use axum::extract::State;
 use axum::http::header::AUTHORIZATION;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use stheno_auth::AuthService;

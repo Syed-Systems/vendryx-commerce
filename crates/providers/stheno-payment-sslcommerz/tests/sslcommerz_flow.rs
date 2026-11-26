@@ -76,7 +76,10 @@ async fn sslcommerz_initiate_generates_redirect_url() {
     assert_eq!(output.status, PaymentSessionStatus::Pending);
     assert_eq!(
         output.data["redirect_url"],
-        format!("{}/hosted_payment_page?session=sess_123456", mock_server.uri())
+        format!(
+            "{}/hosted_payment_page?session=sess_123456",
+            mock_server.uri()
+        )
     );
 }
 
@@ -159,14 +162,10 @@ async fn sslcommerz_refund_processes_merchant_refund() {
 
 #[tokio::test]
 async fn sslcommerz_webhook_ipn_parsing_and_mapping() {
-    let provider = SslcommerzPaymentProvider::new(
-        "test_store_id",
-        "test_store_passwd",
-        None,
-        true,
-    );
+    let provider = SslcommerzPaymentProvider::new("test_store_id", "test_store_passwd", None, true);
 
-    let ipn_payload = "tran_id=order_abc&val_id=val_123&status=VALID&amount=1200.00&currency_type=BDT";
+    let ipn_payload =
+        "tran_id=order_abc&val_id=val_123&status=VALID&amount=1200.00&currency_type=BDT";
     let verified = provider
         .verify_webhook(ipn_payload.as_bytes(), None)
         .expect("ipn verified");

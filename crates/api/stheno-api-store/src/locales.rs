@@ -2,9 +2,9 @@
 //!
 //! Additive to Medusa's Store contract (ADR-002 permits additive endpoints).
 
-use axum::Json;
 use axum::extract::State;
 use axum::response::Response;
+use axum::Json;
 use serde::Serialize;
 use std::sync::Arc;
 use stheno_translation::{LocaleDTO, TranslationService};

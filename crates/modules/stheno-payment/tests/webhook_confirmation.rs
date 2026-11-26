@@ -143,9 +143,9 @@ async fn a_provider_that_verifies_for_itself_is_still_accepted() {
     let db = TestDb::migrated().await;
     let pool = create_pool(&db.url, 5).expect("pool");
     let service = PaymentService::new(pool);
-    service.register_provider(Arc::new(stheno_payment_offline::OfflinePaymentProvider::new(
-        Some("pp_self_verifying"),
-    )));
+    service.register_provider(Arc::new(
+        stheno_payment_offline::OfflinePaymentProvider::new(Some("pp_self_verifying")),
+    ));
 
     let event = service
         .receive_webhook("pp_self_verifying", br#"{"event":"manual"}"#, None)

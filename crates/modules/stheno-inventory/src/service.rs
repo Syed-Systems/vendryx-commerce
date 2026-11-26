@@ -1,16 +1,16 @@
 //! InventoryService with atomic reservations and oversell prevention, backed by Postgres (P12-07, P12-08).
 
 use chrono::Utc;
-use stheno_db::diesel::QueryableByName;
 use stheno_db::diesel::result::OptionalExtension;
 use stheno_db::diesel::sql_types::{Integer, Nullable, Text};
+use stheno_db::diesel::QueryableByName;
 use stheno_db::diesel::{self, sql_query};
 use stheno_db::diesel_async::RunQueryDsl;
 use stheno_db::filter::MAX_PAGE_LIMIT;
 use stheno_db::tenant;
 use stheno_db::{
-    CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository,
-    with_transaction,
+    with_transaction, CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection,
+    PgCrudRepository,
 };
 
 use stheno_types::{Error, Id, Result};

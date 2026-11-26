@@ -1,9 +1,9 @@
 //! Admin Orders, Fulfillments, Payments, and Returns API Handlers.
 
-use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -3443,7 +3443,7 @@ pub async fn apply_order_change(
 
 #[cfg(test)]
 mod social_confirmation_tests {
-    use super::{AdminOrderContext, convert_draft_order_to_order};
+    use super::{convert_draft_order_to_order, AdminOrderContext};
     use axum::extract::{Path, State};
     use std::sync::Arc;
     use stheno_db::create_pool;

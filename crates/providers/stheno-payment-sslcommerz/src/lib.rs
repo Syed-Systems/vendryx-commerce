@@ -209,9 +209,7 @@ impl PaymentProvider for SslcommerzPaymentProvider {
             .send()
             .await
             .map_err(|e| {
-                Error::Internal(
-                    format!("SSLCommerz initiate network error: {e}").into(),
-                )
+                Error::Internal(format!("SSLCommerz initiate network error: {e}").into())
             })?;
 
         let status_code = resp.status();
@@ -231,10 +229,7 @@ impl PaymentProvider for SslcommerzPaymentProvider {
             });
         }
 
-        let session_key = body["sessionkey"]
-            .as_str()
-            .unwrap_or(&tran_id)
-            .to_string();
+        let session_key = body["sessionkey"].as_str().unwrap_or(&tran_id).to_string();
 
         let redirect_url = body
             .get("GatewayPageURL")
@@ -242,7 +237,10 @@ impl PaymentProvider for SslcommerzPaymentProvider {
             .map(ToString::to_string);
         if let Some(url_str) = redirect_url {
             if let Some(obj) = body.as_object_mut() {
-                obj.insert("redirect_url".to_string(), serde_json::Value::String(url_str));
+                obj.insert(
+                    "redirect_url".to_string(),
+                    serde_json::Value::String(url_str),
+                );
             }
         }
 
@@ -290,16 +288,9 @@ impl PaymentProvider for SslcommerzPaymentProvider {
                 self.base_url, val, self.store_id, self.store_passwd
             );
 
-            let resp = self
-                .client
-                .get(&url)
-                .send()
-                .await
-                .map_err(|e| {
-                    Error::Internal(
-                        format!("SSLCommerz validation network error: {e}").into(),
-                    )
-                })?;
+            let resp = self.client.get(&url).send().await.map_err(|e| {
+                Error::Internal(format!("SSLCommerz validation network error: {e}").into())
+            })?;
 
             let body: serde_json::Value = resp.json().await.map_err(|e| {
                 Error::Internal(
@@ -373,12 +364,10 @@ impl PaymentProvider for SslcommerzPaymentProvider {
             self.store_passwd
         );
 
-        let resp = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| Error::Internal(format!("SSLCommerz refund network error: {e}").into()))?;
+        let resp =
+            self.client.get(&url).send().await.map_err(|e| {
+                Error::Internal(format!("SSLCommerz refund network error: {e}").into())
+            })?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
             Error::Internal(format!("Failed to parse SSLCommerz refund response: {e}").into())
@@ -411,12 +400,10 @@ impl PaymentProvider for SslcommerzPaymentProvider {
             self.base_url, i.reference_id, self.store_id, self.store_passwd
         );
 
-        let resp = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| Error::Internal(format!("SSLCommerz query network error: {e}").into()))?;
+        let resp =
+            self.client.get(&url).send().await.map_err(|e| {
+                Error::Internal(format!("SSLCommerz query network error: {e}").into())
+            })?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
             Error::Internal(format!("Failed to parse SSLCommerz query response: {e}").into())

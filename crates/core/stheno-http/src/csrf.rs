@@ -1,6 +1,6 @@
 //! `stheno-http::csrf`: CSRF double-submit token and Origin validation (SECURITY §6).
 
-use axum::http::{HeaderMap, Method, Uri, uri::Authority};
+use axum::http::{uri::Authority, HeaderMap, Method, Uri};
 use stheno_types::{Error, Result};
 
 pub const CSRF_HEADER_NAME: &str = "X-CSRF-Token";

@@ -127,9 +127,8 @@ async fn invalid_signature_returns_401_and_writes_no_row() {
     let payload =
         br#"{"id":"evt_invalid_sig_1","type":"payment_intent.succeeded","livemode":false}"#;
     let now = Utc::now().timestamp();
-    let forged_header = format!(
-        "t={now},v1=0000000000000000000000000000000000000000000000000000000000000000"
-    );
+    let forged_header =
+        format!("t={now},v1=0000000000000000000000000000000000000000000000000000000000000000");
 
     let response = router
         .oneshot(

@@ -14,7 +14,7 @@ use axum::http::{Request, StatusCode};
 use rust_decimal_macros::dec;
 use std::sync::Arc;
 use stheno_api_store::{store_order_routes, StoreOrderContext};
-use stheno_auth::{AuthenticateInput, AuthService, CreateIdentityInput};
+use stheno_auth::{AuthService, AuthenticateInput, CreateIdentityInput};
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
 use stheno_flows::OrderWorkflowEngine;

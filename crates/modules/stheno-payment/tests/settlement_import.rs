@@ -4,9 +4,7 @@
 use rust_decimal_macros::dec;
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
-use stheno_payment::{
-    ImportSettlementLineInput, ImportSettlementReportInput, PaymentService,
-};
+use stheno_payment::{ImportSettlementLineInput, ImportSettlementReportInput, PaymentService};
 
 #[tokio::test]
 async fn test_settlement_import_idempotent_and_partial_overlap() {

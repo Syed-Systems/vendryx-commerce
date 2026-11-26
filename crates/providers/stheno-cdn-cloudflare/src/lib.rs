@@ -152,18 +152,14 @@ struct ApiResponse {
 }
 
 fn valid_zone_id(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 32
-        && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    !value.is_empty() && value.len() <= 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn is_valid_tag(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 1024
         && !value.contains(',')
-        && value
-            .bytes()
-            .all(|byte| (0x21..=0x7e).contains(&byte))
+        && value.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
 }
 
 fn is_valid_hostname(value: &str) -> bool {
@@ -203,7 +199,9 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/zones/0123456789abcdef0123456789abcdef/purge_cache"))
             .and(header("authorization", "Bearer test-token-do-not-log"))
-            .and(body_json(serde_json::json!({"tags": ["tenant:ten_1:product:prod_1"]})))
+            .and(body_json(
+                serde_json::json!({"tags": ["tenant:ten_1:product:prod_1"]}),
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "success": true
             })))
@@ -225,7 +223,9 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/zones/0123456789abcdef0123456789abcdef/purge_cache"))
-            .and(body_json(serde_json::json!({"hosts": ["shop.example.test"]})))
+            .and(body_json(
+                serde_json::json!({"hosts": ["shop.example.test"]}),
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "success": true
             })))
@@ -246,9 +246,7 @@ mod tests {
         for status in [429, 503] {
             let server = MockServer::start().await;
             Mock::given(method("POST"))
-                .respond_with(
-                    ResponseTemplate::new(status).set_body_string("secret response body"),
-                )
+                .respond_with(ResponseTemplate::new(status).set_body_string("secret response body"))
                 .expect(1)
                 .mount(&server)
                 .await;

@@ -10,12 +10,12 @@ use stheno_api_core::TierConfig;
 use stheno_api_platform::{platform_routes, PlatformApiContext};
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
-use stheno_platform::PlatformService;
 use stheno_payment::PaymentService;
 use stheno_payment_bkash::BkashPaymentProviderFactory;
 use stheno_payment_offline::OfflinePaymentProviderFactory;
 use stheno_payment_sslcommerz::SslcommerzPaymentProviderFactory;
 use stheno_payment_stripe::StripePaymentProviderFactory;
+use stheno_platform::PlatformService;
 
 const BOOTSTRAP: &str = "oversight-bootstrap-secret";
 const TIERS_TOML: &str = include_str!("../../../../config/tiers.toml");
@@ -80,7 +80,9 @@ async fn provider_oversight_returns_registered_providers() {
     // endpoint answered from a literal.
     let providers = body["providers"].as_array().expect("array");
     assert!(providers.iter().any(|p| p["id"] == "pp_bkash_bkash"));
-    assert!(providers.iter().any(|p| p["id"] == "pp_sslcommerz_sslcommerz"));
+    assert!(providers
+        .iter()
+        .any(|p| p["id"] == "pp_sslcommerz_sslcommerz"));
     assert!(providers.iter().any(|p| p["id"] == "pp_stripe_stripe"));
     assert!(providers.iter().any(|p| p["id"] == "pp_system_default"));
 

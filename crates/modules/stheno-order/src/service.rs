@@ -2,15 +2,15 @@
 #![allow(dead_code)]
 
 use chrono::Utc;
-use diesel::QueryableByName;
 use diesel::result::OptionalExtension;
 use diesel::sql_types::{BigInt, Nullable, Text, Timestamptz};
+use diesel::QueryableByName;
 use diesel_async::RunQueryDsl;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
 use stheno_db::{
-    CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository, tenant,
+    tenant, CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository,
 };
 use stheno_types::{Error, Id, Result};
 

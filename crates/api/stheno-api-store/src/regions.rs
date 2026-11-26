@@ -1,9 +1,9 @@
 //! Store region route handlers (Medusa v2 API parity).
 
-use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use axum::Json;
 use serde_json::json;
 use std::sync::Arc;
 use stheno_region::RegionService;

@@ -1,6 +1,6 @@
 use axum::body::Body;
-use axum::http::{HeaderMap, Request, StatusCode, header};
-use serde_json::{Value, json};
+use axum::http::{header, HeaderMap, Request, StatusCode};
+use serde_json::{json, Value};
 use stheno_platform::{NewTenant, PlatformService};
 use stheno_server::TestApp;
 use tower::ServiceExt;
@@ -156,7 +156,9 @@ async fn admin_session_cookie_is_rejected_on_another_tenant_host() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    let token = registered["token"].as_str().expect("registration issues token");
+    let token = registered["token"]
+        .as_str()
+        .expect("registration issues token");
 
     let (status, session_headers, _) = call(
         &harness.app,
@@ -174,7 +176,11 @@ async fn admin_session_cookie_is_rejected_on_another_tenant_host() {
         .expect("session response issues a cookie");
     assert!(cookie.starts_with("__Host-stheno-admin-session="));
     assert!(!cookie.contains("Domain="));
-    let cookie_pair = cookie.split(';').next().expect("cookie value exists").to_string();
+    let cookie_pair = cookie
+        .split(';')
+        .next()
+        .expect("cookie value exists")
+        .to_string();
 
     let (status, _, _) = call(
         &harness.app,

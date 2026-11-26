@@ -67,12 +67,8 @@ async fn sslcommerz_session_refuses_failure_response() {
         .mount(&mock_server)
         .await;
 
-    let provider = SslcommerzPaymentProvider::new(
-        "bad_store",
-        "bad_pass",
-        Some(&mock_server.uri()),
-        true,
-    );
+    let provider =
+        SslcommerzPaymentProvider::new("bad_store", "bad_pass", Some(&mock_server.uri()), true);
 
     let err = provider
         .initiate(InitiateInput {

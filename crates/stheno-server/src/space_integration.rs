@@ -113,7 +113,7 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
-    use stheno_connector_space::{SpaceConnectorConfig, sign_space_webhook};
+    use stheno_connector_space::{sign_space_webhook, SpaceConnectorConfig};
     use tower::ServiceExt;
 
     #[tokio::test]

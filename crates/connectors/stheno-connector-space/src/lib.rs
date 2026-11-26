@@ -214,7 +214,11 @@ pub fn verify_space_webhook(
     let expected_bytes = mac.finalize().into_bytes();
     let expected_hex = hex::encode(expected_bytes);
 
-    if received_sig.as_bytes().ct_eq(expected_hex.as_bytes()).into() {
+    if received_sig
+        .as_bytes()
+        .ct_eq(expected_hex.as_bytes())
+        .into()
+    {
         Ok(())
     } else {
         Err(WebhookVerifyError::SignatureMismatch)
@@ -312,14 +316,24 @@ impl SpaceClient {
             observed_revision,
         };
         let body_bytes = serde_json::to_vec(&input)?;
-        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-        let sig = sign_space_webhook(self.config.webhook_secret.as_bytes(), timestamp, &body_bytes);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let sig = sign_space_webhook(
+            self.config.webhook_secret.as_bytes(),
+            timestamp,
+            &body_bytes,
+        );
 
-        let response = self.client.post(&url)
+        let response = self
+            .client
+            .post(&url)
             .header("x-space-signature", sig)
             .header("content-type", "application/json")
             .body(body_bytes)
-            .send().await?;
+            .send()
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -346,7 +360,10 @@ impl SpaceClient {
             self.config.instance_ref
         );
 
-        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
         let sig = sign_space_webhook(self.config.webhook_secret.as_bytes(), timestamp, b"");
         let mut req = self.client.get(&url).header("x-space-signature", sig);
         if let Some(etag) = cached_etag {
@@ -391,14 +408,24 @@ impl SpaceClient {
 
         let input = UsageEventBatchInput { events };
         let body_bytes = serde_json::to_vec(&input)?;
-        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-        let sig = sign_space_webhook(self.config.webhook_secret.as_bytes(), timestamp, &body_bytes);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let sig = sign_space_webhook(
+            self.config.webhook_secret.as_bytes(),
+            timestamp,
+            &body_bytes,
+        );
 
-        let response = self.client.post(&url)
+        let response = self
+            .client
+            .post(&url)
             .header("x-space-signature", sig)
             .header("content-type", "application/json")
             .body(body_bytes)
-            .send().await?;
+            .send()
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -431,14 +458,24 @@ impl SpaceClient {
             capabilities,
         };
         let body_bytes = serde_json::to_vec(&input)?;
-        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-        let sig = sign_space_webhook(self.config.webhook_secret.as_bytes(), timestamp, &body_bytes);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let sig = sign_space_webhook(
+            self.config.webhook_secret.as_bytes(),
+            timestamp,
+            &body_bytes,
+        );
 
-        let response = self.client.post(&url)
+        let response = self
+            .client
+            .post(&url)
             .header("x-space-signature", sig)
             .header("content-type", "application/json")
             .body(body_bytes)
-            .send().await?;
+            .send()
+            .await?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -492,16 +529,34 @@ mod tests {
         assert!(sig_header.starts_with("t=1725800000,v1="));
 
         // Valid verification at exact time
-        let verify_result = verify_space_webhook(secret, timestamp, &sig_header, payload, 300, timestamp + 5);
+        let verify_result =
+            verify_space_webhook(secret, timestamp, &sig_header, payload, 300, timestamp + 5);
         assert!(verify_result.is_ok());
 
         // Replay attack / timestamp expired
-        let expired_result = verify_space_webhook(secret, timestamp, &sig_header, payload, 300, timestamp + 301);
-        assert!(matches!(expired_result, Err(WebhookVerifyError::TimestampExpired { .. })));
+        let expired_result = verify_space_webhook(
+            secret,
+            timestamp,
+            &sig_header,
+            payload,
+            300,
+            timestamp + 301,
+        );
+        assert!(matches!(
+            expired_result,
+            Err(WebhookVerifyError::TimestampExpired { .. })
+        ));
 
         // Tampered payload
         let tampered_payload = br#"{"event":"instance.suspend","store_id":"ten_hacked"}"#;
-        let tampered_result = verify_space_webhook(secret, timestamp, &sig_header, tampered_payload, 300, timestamp + 5);
+        let tampered_result = verify_space_webhook(
+            secret,
+            timestamp,
+            &sig_header,
+            tampered_payload,
+            300,
+            timestamp + 5,
+        );
         assert_eq!(tampered_result, Err(WebhookVerifyError::SignatureMismatch));
     }
 
@@ -520,7 +575,9 @@ mod tests {
         });
 
         Mock::given(method("POST"))
-            .and(path("/space/integration/v1/instances/prod_inst_vendryx_default/observed-state"))
+            .and(path(
+                "/space/integration/v1/instances/prod_inst_vendryx_default/observed-state",
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_json(expected_response))
             .mount(&mock_server)
             .await;
@@ -533,7 +590,10 @@ mod tests {
         };
 
         let client = SpaceClient::new(config);
-        let resp = client.report_observed_state("ready", 42).await.expect("successful report");
+        let resp = client
+            .report_observed_state("ready", 42)
+            .await
+            .expect("successful report");
         assert_eq!(resp.drift_status, "in_sync");
         assert_eq!(resp.instance["observed_state"], "ready");
     }
@@ -555,7 +615,9 @@ mod tests {
         });
 
         Mock::given(method("GET"))
-            .and(path("/space/integration/v1/instances/prod_inst_vendryx_default/entitlements"))
+            .and(path(
+                "/space/integration/v1/instances/prod_inst_vendryx_default/entitlements",
+            ))
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("ETag", "\"rev-42-1725800000\"")
@@ -572,7 +634,10 @@ mod tests {
         };
 
         let client = SpaceClient::new(config.clone());
-        let res = client.fetch_entitlements(None).await.expect("fresh snapshot");
+        let res = client
+            .fetch_entitlements(None)
+            .await
+            .expect("fresh snapshot");
         match res {
             EntitlementsFetchResult::Fresh(s) => {
                 assert_eq!(s.revision, 42);
@@ -584,11 +649,11 @@ mod tests {
         // 2. 304 Not Modified
         let mock_server2 = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/space/integration/v1/instances/prod_inst_vendryx_default/entitlements"))
+            .and(path(
+                "/space/integration/v1/instances/prod_inst_vendryx_default/entitlements",
+            ))
             .and(header("If-None-Match", "\"rev-42-1725800000\""))
-            .respond_with(
-                ResponseTemplate::new(304).insert_header("ETag", "\"rev-42-1725800000\""),
-            )
+            .respond_with(ResponseTemplate::new(304).insert_header("ETag", "\"rev-42-1725800000\""))
             .mount(&mock_server2)
             .await;
 
@@ -615,12 +680,10 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/space/integration/v1/usage-events"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "accepted": 2,
-                    "deduplicated": 1
-                })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "accepted": 2,
+                "deduplicated": 1
+            })))
             .mount(&mock_server)
             .await;
 

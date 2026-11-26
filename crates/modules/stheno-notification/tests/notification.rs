@@ -105,18 +105,14 @@ async fn test_notification_template_rendering_and_routing() {
 
     assert_eq!(notif.status, "sent");
     assert_eq!(notif.to, "customer@example.com");
-    assert!(
-        service
-            .has_sent_for_resource("order.placed", "order", "ord_1001")
-            .await
-            .unwrap()
-    );
-    assert!(
-        !service
-            .has_sent_for_resource("order.placed", "order", "ord_other")
-            .await
-            .unwrap()
-    );
+    assert!(service
+        .has_sent_for_resource("order.placed", "order", "ord_1001")
+        .await
+        .unwrap());
+    assert!(!service
+        .has_sent_for_resource("order.placed", "order", "ord_other")
+        .await
+        .unwrap());
 
     // 3. Verify delivery record
     let deliveries = service.list_deliveries(&notif.id).await.unwrap();
@@ -173,12 +169,10 @@ async fn anonymous_whatsapp_analytics_consent_is_separate_and_revokeable_by_cust
             "analytics consent must not opt into notifications"
         );
 
-        assert!(
-            service
-                .revoke_whatsapp_consent_for_customer("ten_whatsapp_analytics", "cus_analytics_1")
-                .await
-                .expect("withdraw customer messaging and analytics consent")
-        );
+        assert!(service
+            .revoke_whatsapp_consent_for_customer("ten_whatsapp_analytics", "cus_analytics_1")
+            .await
+            .expect("withdraw customer messaging and analytics consent"));
         let analytics = stheno_db::tenant::with_tenant_conn(&pool, |mut conn| {
             Box::pin(async move {
                 diesel::sql_query(
@@ -274,27 +268,21 @@ async fn notification_outbox_is_durable_and_idempotent() {
         receiver_id: None,
     };
 
-    assert!(
-        service
-            .enqueue_notification_idempotent(input(), "trial-warning/store/day-3")
-            .await
-            .unwrap()
-    );
-    assert!(
-        !service
-            .enqueue_notification_idempotent(input(), "trial-warning/store/day-3")
-            .await
-            .unwrap()
-    );
+    assert!(service
+        .enqueue_notification_idempotent(input(), "trial-warning/store/day-3")
+        .await
+        .unwrap());
+    assert!(!service
+        .enqueue_notification_idempotent(input(), "trial-warning/store/day-3")
+        .await
+        .unwrap());
     assert!(sent_log.read().unwrap().is_empty());
 
     assert_eq!(service.deliver_due_outbox(10).await.unwrap(), (1, 0));
     assert_eq!(sent_log.read().unwrap().len(), 1);
-    assert!(
-        service
-            .has_sent_for_resource("trial_warning_day-3", "trial_subscription", "ten_store")
-            .await
-            .unwrap()
-    );
+    assert!(service
+        .has_sent_for_resource("trial_warning_day-3", "trial_subscription", "ten_store")
+        .await
+        .unwrap());
     db.drop().await;
 }

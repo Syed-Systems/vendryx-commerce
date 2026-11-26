@@ -68,7 +68,13 @@ fn valid_logo_png_accepted() {
     let png = make_png(400, 100);
     let dims = UploadPipeline::validate_branding_asset(&png, BrandingAssetKind::Logo)
         .expect("valid logo png");
-    assert_eq!(dims, ImageDimensions { width: 400, height: 100 });
+    assert_eq!(
+        dims,
+        ImageDimensions {
+            width: 400,
+            height: 100
+        }
+    );
 }
 
 #[test]
@@ -76,7 +82,13 @@ fn valid_logo_jpeg_accepted() {
     let jpeg = make_jpeg(800, 600);
     let dims = UploadPipeline::validate_branding_asset(&jpeg, BrandingAssetKind::Logo)
         .expect("valid logo jpeg");
-    assert_eq!(dims, ImageDimensions { width: 800, height: 600 });
+    assert_eq!(
+        dims,
+        ImageDimensions {
+            width: 800,
+            height: 600
+        }
+    );
 }
 
 #[test]
@@ -84,38 +96,42 @@ fn valid_logo_webp_accepted() {
     let webp = make_webp(500, 500);
     let dims = UploadPipeline::validate_branding_asset(&webp, BrandingAssetKind::Logo)
         .expect("valid logo webp");
-    assert_eq!(dims, ImageDimensions { width: 500, height: 500 });
+    assert_eq!(
+        dims,
+        ImageDimensions {
+            width: 500,
+            height: 500
+        }
+    );
 }
 
 #[test]
 fn logo_below_minimum_dimensions_rejected() {
     let tiny_png = make_png(24, 24);
-    let err = UploadPipeline::validate_branding_asset(&tiny_png, BrandingAssetKind::Logo)
-        .unwrap_err();
+    let err =
+        UploadPipeline::validate_branding_asset(&tiny_png, BrandingAssetKind::Logo).unwrap_err();
     assert!(err.to_string().contains("logo_too_small"));
 }
 
 #[test]
 fn logo_above_maximum_dimensions_rejected() {
     let huge_png = make_png(3000, 2000);
-    let err = UploadPipeline::validate_branding_asset(&huge_png, BrandingAssetKind::Logo)
-        .unwrap_err();
+    let err =
+        UploadPipeline::validate_branding_asset(&huge_png, BrandingAssetKind::Logo).unwrap_err();
     assert!(err.to_string().contains("logo_too_large"));
 }
 
 #[test]
 fn svg_as_logo_strictly_rejected() {
     let svg = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0 0\"/></svg>";
-    let err = UploadPipeline::validate_branding_asset(svg, BrandingAssetKind::Logo)
-        .unwrap_err();
+    let err = UploadPipeline::validate_branding_asset(svg, BrandingAssetKind::Logo).unwrap_err();
     assert!(err.to_string().contains("svg_disallowed"));
 }
 
 #[test]
 fn pdf_as_logo_rejected() {
     let pdf = b"%PDF-1.4 sample file content";
-    let err = UploadPipeline::validate_branding_asset(pdf, BrandingAssetKind::Logo)
-        .unwrap_err();
+    let err = UploadPipeline::validate_branding_asset(pdf, BrandingAssetKind::Logo).unwrap_err();
     assert!(err.to_string().contains("unsupported_branding_asset_type"));
 }
 
@@ -124,14 +140,20 @@ fn valid_favicon_accepted() {
     let favicon_png = make_png(64, 64);
     let dims = UploadPipeline::validate_branding_asset(&favicon_png, BrandingAssetKind::Favicon)
         .expect("valid favicon");
-    assert_eq!(dims, ImageDimensions { width: 64, height: 64 });
+    assert_eq!(
+        dims,
+        ImageDimensions {
+            width: 64,
+            height: 64
+        }
+    );
 }
 
 #[test]
 fn non_square_favicon_rejected() {
     let rect_png = make_png(64, 32);
-    let err = UploadPipeline::validate_branding_asset(&rect_png, BrandingAssetKind::Favicon)
-        .unwrap_err();
+    let err =
+        UploadPipeline::validate_branding_asset(&rect_png, BrandingAssetKind::Favicon).unwrap_err();
     assert!(err.to_string().contains("favicon_not_square"));
 }
 

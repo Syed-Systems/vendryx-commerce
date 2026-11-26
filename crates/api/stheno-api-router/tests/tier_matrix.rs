@@ -70,7 +70,10 @@ fn pro_features_never_leak_into_free() {
         Feature::FraudScore,
         Feature::CustomTheme,
     ] {
-        assert!(!free.has(pro_feature), "Free must not expose {pro_feature:?}");
+        assert!(
+            !free.has(pro_feature),
+            "Free must not expose {pro_feature:?}"
+        );
     }
 }
 

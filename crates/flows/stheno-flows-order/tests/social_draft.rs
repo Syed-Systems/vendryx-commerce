@@ -6,7 +6,7 @@ use std::sync::Arc;
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
 use stheno_flows_order::{
-    SOCIAL_SOURCE, SocialDraftInput, SocialDraftWorkflow, should_skip_placed_push,
+    should_skip_placed_push, SocialDraftInput, SocialDraftWorkflow, SOCIAL_SOURCE,
 };
 use stheno_order::CreateAddressInput;
 use stheno_order::{CreateLineItemInput, CreateShippingMethodInput, OrderService};
@@ -174,13 +174,11 @@ async fn an_empty_basket_is_rejected() {
     let db = TestDb::migrated().await;
     let mut input = valid_input();
     input.items = vec![];
-    assert!(
-        workflow(&db)
-            .await
-            .create_social_draft(input)
-            .await
-            .is_err()
-    );
+    assert!(workflow(&db)
+        .await
+        .create_social_draft(input)
+        .await
+        .is_err());
     db.drop().await;
 }
 
@@ -232,12 +230,10 @@ async fn ai_handoff_requires_buyer_fields_and_retries_return_one_uncommitted_dra
 async fn ai_handoff_rejects_missing_buyer_address_and_invalid_quantity() {
     let db = TestDb::migrated().await;
     let workflow = workflow(&db).await;
-    assert!(
-        workflow
-            .create_ai_social_draft(valid_input(), "event-missing-address")
-            .await
-            .is_err()
-    );
+    assert!(workflow
+        .create_ai_social_draft(valid_input(), "event-missing-address")
+        .await
+        .is_err());
     let mut input = valid_input();
     input.items[0].variant_id = Some("variant_1".to_string());
     input.delivery_address = Some(CreateAddressInput {
@@ -248,11 +244,9 @@ async fn ai_handoff_rejects_missing_buyer_address_and_invalid_quantity() {
     });
     input.payment_preference = Some("cash_on_delivery".to_string());
     input.items[0].quantity = 0;
-    assert!(
-        workflow
-            .create_ai_social_draft(input, "event-invalid-quantity")
-            .await
-            .is_err()
-    );
+    assert!(workflow
+        .create_ai_social_draft(input, "event-invalid-quantity")
+        .await
+        .is_err());
     db.drop().await;
 }

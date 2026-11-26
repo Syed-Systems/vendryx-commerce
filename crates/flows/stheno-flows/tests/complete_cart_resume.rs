@@ -108,10 +108,7 @@ async fn test_crash_resumption_at_all_11_steps() {
             )
             .await;
 
-        assert!(
-            crash_res.is_err(),
-            "Step {crash_step} should have crashed"
-        );
+        assert!(crash_res.is_err(), "Step {crash_step} should have crashed");
 
         // 2. Resume execution from checkpoint
         let resume_res = engine

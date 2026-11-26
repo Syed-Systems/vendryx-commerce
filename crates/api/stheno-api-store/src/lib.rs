@@ -20,8 +20,8 @@ pub mod social;
 pub mod social_webhook;
 pub mod variants;
 
-use axum::Router;
 use axum::routing::{get, post};
+use axum::Router;
 use std::sync::Arc;
 use stheno_auth::AuthService;
 use stheno_cart::CartService;

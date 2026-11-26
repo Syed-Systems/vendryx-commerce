@@ -6,7 +6,7 @@
 //! - `Surrogate-Key` and `Cache-Tag` for CDN edge purging
 //! - Guaranteed zero `Set-Cookie` on public cacheable paths
 
-use axum::http::{HeaderMap, HeaderValue, header};
+use axum::http::{header, HeaderMap, HeaderValue};
 
 /// Returns standard ADR-024 HTTP caching headers for public store endpoints.
 pub fn public_cache_headers(
@@ -101,7 +101,10 @@ fn encode_tag_atom(value: &str) -> String {
 }
 
 fn no_store(mut headers: HeaderMap) -> HeaderMap {
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
     headers
 }
 
@@ -127,7 +130,9 @@ mod tests {
         );
         assert!(headers.get(header::SET_COOKIE).is_none());
         assert_eq!(
-            headers.get(header::VARY).and_then(|value| value.to_str().ok()),
+            headers
+                .get(header::VARY)
+                .and_then(|value| value.to_str().ok()),
             Some("Accept-Encoding")
         );
     }

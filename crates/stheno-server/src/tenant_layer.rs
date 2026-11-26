@@ -20,11 +20,11 @@
 //! There is deliberately no "fall back to the default tenant" branch. Every leak starts
 //! as a convenience branch, and this is exactly where one would go.
 
-use axum::Json;
 use axum::extract::{Request, State};
-use axum::http::{StatusCode, header::HOST};
+use axum::http::{header::HOST, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use serde_json::json;
 use std::sync::Arc;
 use stheno_api_core::tenant_entitlements::TenantPlan;

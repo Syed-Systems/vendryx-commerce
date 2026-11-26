@@ -230,7 +230,10 @@ async fn hosted_admin_routes_use_the_request_tenant_not_the_boot_tier() {
 fn buyer_auth_app() -> Router {
     gate_buyer_auth(
         Router::new()
-            .route("/auth/{actor_type}/providers", get(|| async { "providers" }))
+            .route(
+                "/auth/{actor_type}/providers",
+                get(|| async { "providers" }),
+            )
             .route("/auth/token/refresh", get(|| async { "refresh" })),
     )
 }

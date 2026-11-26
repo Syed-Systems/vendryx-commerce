@@ -99,11 +99,7 @@ async fn pathao_tier_rates_exact_decimal() {
 
     // 4. Explicit option rate override
     let rate_custom = provider
-        .calculate_price(
-            Some(&json!({ "rate": "75.00" })),
-            None,
-            None,
-        )
+        .calculate_price(Some(&json!({ "rate": "75.00" })), None, None)
         .await
         .expect("custom rate");
     assert_eq!(rate_custom, dec!(75.00));

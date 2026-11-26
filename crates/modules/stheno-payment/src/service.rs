@@ -1779,7 +1779,10 @@ impl PaymentService {
     pub fn check_ip_session_rate_limit(&self, ip: &str, max_per_minute: usize) -> bool {
         // Poison-safe, and prunes expired keys so the map cannot grow without bound.
         // See stheno-cart's check_creation_rate_limit for the same reasoning.
-        let mut map = self.ip_session_attempts.write().unwrap_or_else(|e| e.into_inner());
+        let mut map = self
+            .ip_session_attempts
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let one_minute_ago = Utc::now() - Duration::minutes(1);
         map.retain(|_, ts| {
             ts.retain(|t| *t > one_minute_ago);
@@ -2084,7 +2087,9 @@ impl PaymentService {
         }
 
         let current_captured = payment.captured_amount;
-        let amount_to_capture = input.collected_amount.unwrap_or(payment.amount - current_captured);
+        let amount_to_capture = input
+            .collected_amount
+            .unwrap_or(payment.amount - current_captured);
 
         if amount_to_capture <= dec!(0) {
             return Err(Error::Invalid {
@@ -2132,7 +2137,10 @@ impl PaymentService {
             )
             .await?;
 
-        let mut capture_meta = input.metadata.clone().unwrap_or_else(|| serde_json::json!({}));
+        let mut capture_meta = input
+            .metadata
+            .clone()
+            .unwrap_or_else(|| serde_json::json!({}));
         if let Some(obj) = capture_meta.as_object_mut() {
             obj.insert(
                 "delivery_event_id".to_string(),
@@ -2265,7 +2273,9 @@ impl PaymentService {
                     "COD parcel returned: event {}",
                     input.return_event_id
                 )),
-                created_by: input.courier_id.or_else(|| Some("courier_return".to_string())),
+                created_by: input
+                    .courier_id
+                    .or_else(|| Some("courier_return".to_string())),
                 metadata: input.metadata.clone(),
                 created_at: now,
                 deleted_at: None,
@@ -2320,7 +2330,10 @@ impl PaymentService {
         // Find or create cycle
         let cycle_spec = FilterSpec::new()
             .with_predicate("provider_id", FilterOp::Eq(input.provider_id.clone()))
-            .with_predicate("courier_cycle_id", FilterOp::Eq(input.courier_cycle_id.clone()))
+            .with_predicate(
+                "courier_cycle_id",
+                FilterOp::Eq(input.courier_cycle_id.clone()),
+            )
             .with_predicate("deleted_at", FilterOp::IsNull)
             .with_pagination(0, 1);
         let existing_cycles = self.settlement_cycles.list(None, &cycle_spec).await?;
@@ -2354,8 +2367,10 @@ impl PaymentService {
             .with_predicate("cycle_id", FilterOp::Eq(cycle_id_str.clone()))
             .with_predicate("deleted_at", FilterOp::IsNull);
         let existing_lines = self.settlement_lines.list(None, &lines_spec).await?;
-        let existing_consignments: std::collections::HashSet<String> =
-            existing_lines.iter().map(|l| l.consignment_id.clone()).collect();
+        let existing_consignments: std::collections::HashSet<String> = existing_lines
+            .iter()
+            .map(|l| l.consignment_id.clone())
+            .collect();
 
         let mut imported_count = 0;
         let mut skipped_count = 0;
@@ -2436,8 +2451,7 @@ impl PaymentService {
             .with_predicate("deleted_at", FilterOp::IsNull);
         let lines = self.settlement_lines.list(None, &lines_spec).await?;
 
-        let captures_spec =
-            FilterSpec::new().with_predicate("deleted_at", FilterOp::IsNull);
+        let captures_spec = FilterSpec::new().with_predicate("deleted_at", FilterOp::IsNull);
         let all_captures = self.captures.list(None, &captures_spec).await?;
 
         let mut matched = Vec::new();
@@ -2481,7 +2495,10 @@ impl PaymentService {
                     );
                     line.reconciliation_status = "discrepant".to_string();
                     line.discrepancy_reason = Some(reason.clone());
-                    let _ = self.settlement_lines.update(None, &line_id, line.clone()).await;
+                    let _ = self
+                        .settlement_lines
+                        .update(None, &line_id, line.clone())
+                        .await;
 
                     discrepant.push(CourierReconciliationBucketItem {
                         consignment_id: line.consignment_id,
@@ -2501,7 +2518,10 @@ impl PaymentService {
                     );
                     line.reconciliation_status = "discrepant".to_string();
                     line.discrepancy_reason = Some(reason.clone());
-                    let _ = self.settlement_lines.update(None, &line_id, line.clone()).await;
+                    let _ = self
+                        .settlement_lines
+                        .update(None, &line_id, line.clone())
+                        .await;
 
                     discrepant.push(CourierReconciliationBucketItem {
                         consignment_id: line.consignment_id,
@@ -2517,7 +2537,10 @@ impl PaymentService {
                 } else {
                     line.reconciliation_status = "matched".to_string();
                     line.discrepancy_reason = None;
-                    let _ = self.settlement_lines.update(None, &line_id, line.clone()).await;
+                    let _ = self
+                        .settlement_lines
+                        .update(None, &line_id, line.clone())
+                        .await;
 
                     matched.push(CourierReconciliationBucketItem {
                         consignment_id: line.consignment_id,
@@ -2535,7 +2558,10 @@ impl PaymentService {
                 line.reconciliation_status = "unmatched".to_string();
                 line.discrepancy_reason =
                     Some("No matching internal captured payment found".to_string());
-                let _ = self.settlement_lines.update(None, &line_id, line.clone()).await;
+                let _ = self
+                    .settlement_lines
+                    .update(None, &line_id, line.clone())
+                    .await;
 
                 remitted_not_matched.push(CourierReconciliationBucketItem {
                     consignment_id: line.consignment_id,
@@ -2587,9 +2613,8 @@ impl PaymentService {
             + remitted_not_matched.len()
             + discrepant.len()
             + collected_not_remitted.len();
-        let drift_count = (remitted_not_matched.len()
-            + discrepant.len()
-            + collected_not_remitted.len()) as i32;
+        let drift_count =
+            (remitted_not_matched.len() + discrepant.len() + collected_not_remitted.len()) as i32;
         let state = if drift_count == 0 {
             "clean"
         } else {

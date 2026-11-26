@@ -14,8 +14,8 @@
 use async_trait::async_trait;
 use rust_decimal::Decimal;
 use serde_json::json;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
 use stheno_fulfillment::*;
@@ -229,12 +229,10 @@ async fn stable_order_key_cannot_switch_courier_after_dispatch_started() {
         .expect("first courier dispatch succeeds");
     let mut changed_courier = parcel("SOCIAL_ORDER_PROVIDER_BOUND");
     changed_courier.provider_id = "second-carrier".to_string();
-    assert!(
-        service
-            .create_fulfillment_idempotent(changed_courier, "social-order:provider_bound")
-            .await
-            .is_err()
-    );
+    assert!(service
+        .create_fulfillment_idempotent(changed_courier, "social-order:provider_bound")
+        .await
+        .is_err());
 
     assert_eq!(first_calls.load(Ordering::SeqCst), 1);
     assert_eq!(second_calls.load(Ordering::SeqCst), 0);
@@ -346,12 +344,10 @@ async fn retry_repairs_local_item_write_after_provider_success_without_redispatc
         address_1: Some("House 1".to_string()),
         ..Default::default()
     });
-    assert!(
-        service
-            .create_fulfillment_idempotent(input.clone(), "social-order:retry_local_write")
-            .await
-            .is_err()
-    );
+    assert!(service
+        .create_fulfillment_idempotent(input.clone(), "social-order:retry_local_write")
+        .await
+        .is_err());
     let fulfillment_id = service
         .lookup_by_reference("SOCIAL_RETRY")
         .await
@@ -404,12 +400,10 @@ async fn retry_reuses_address_when_fulfillment_row_insert_failed() {
         address_1: Some("House 2".to_string()),
         ..Default::default()
     });
-    assert!(
-        service
-            .create_fulfillment_idempotent(input.clone(), "social-order:retry_address")
-            .await
-            .is_err()
-    );
+    assert!(service
+        .create_fulfillment_idempotent(input.clone(), "social-order:retry_address")
+        .await
+        .is_err());
     assert_eq!(
         db.count("SELECT count(*) FROM fulfillment.address WHERE address_1 = 'House 2'")
             .await,
@@ -464,12 +458,10 @@ async fn retry_repairs_local_label_write_after_provider_success_without_redispat
     .await;
 
     let input = parcel("SOCIAL_LABEL_RETRY");
-    assert!(
-        service
-            .create_fulfillment_idempotent(input.clone(), "social-order:retry_label")
-            .await
-            .is_err()
-    );
+    assert!(service
+        .create_fulfillment_idempotent(input.clone(), "social-order:retry_label")
+        .await
+        .is_err());
     let fulfillment_id = service
         .lookup_by_reference("SOCIAL_LABEL_RETRY")
         .await
@@ -512,12 +504,10 @@ async fn ambiguous_provider_result_is_not_retried_as_a_second_consignment() {
     .await;
 
     let input = parcel("AMBIGUOUS_SOCIAL_ORDER");
-    assert!(
-        service
-            .create_fulfillment_idempotent(input.clone(), "social-order:ambiguous")
-            .await
-            .is_err()
-    );
+    assert!(service
+        .create_fulfillment_idempotent(input.clone(), "social-order:ambiguous")
+        .await
+        .is_err());
     let retry = service
         .create_fulfillment_idempotent(input, "social-order:ambiguous")
         .await;

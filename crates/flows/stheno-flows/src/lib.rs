@@ -60,7 +60,7 @@ pub use user::*;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::Arc;
 use stheno_product::{CreateProductInput, ProductService};
 use stheno_types::{Error, Result};

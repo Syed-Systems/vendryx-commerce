@@ -39,7 +39,10 @@ async fn bkash_token_lifecycle_grants_and_caches_token() {
     assert_eq!(token1, "token_bkash_abc_123");
 
     // Call 2: Uses cached token without hitting mock server again
-    let token2 = provider.get_auth_token().await.expect("cached token reused");
+    let token2 = provider
+        .get_auth_token()
+        .await
+        .expect("cached token reused");
     assert_eq!(token2, "token_bkash_abc_123");
 }
 

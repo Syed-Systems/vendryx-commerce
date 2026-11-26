@@ -357,18 +357,40 @@ impl StoreService {
         let now = Utc::now();
         let row = if let Some(mut existing) = rows.into_iter().next() {
             // Update existing row in place.
-            if input.store_name.is_some() { existing.store_name = input.store_name; }
-            if input.logo_file_id.is_some() { existing.logo_file_id = input.logo_file_id; }
-            if input.favicon_file_id.is_some() { existing.favicon_file_id = input.favicon_file_id; }
-            if input.font_key.is_some() { existing.font_key = input.font_key; }
-            if input.color_primary.is_some() { existing.color_primary = input.color_primary; }
-            if input.color_secondary.is_some() { existing.color_secondary = input.color_secondary; }
-            if input.color_accent.is_some() { existing.color_accent = input.color_accent; }
-            if input.color_background.is_some() { existing.color_background = input.color_background; }
-            if input.color_surface.is_some() { existing.color_surface = input.color_surface; }
-            if input.color_text.is_some() { existing.color_text = input.color_text; }
+            if input.store_name.is_some() {
+                existing.store_name = input.store_name;
+            }
+            if input.logo_file_id.is_some() {
+                existing.logo_file_id = input.logo_file_id;
+            }
+            if input.favicon_file_id.is_some() {
+                existing.favicon_file_id = input.favicon_file_id;
+            }
+            if input.font_key.is_some() {
+                existing.font_key = input.font_key;
+            }
+            if input.color_primary.is_some() {
+                existing.color_primary = input.color_primary;
+            }
+            if input.color_secondary.is_some() {
+                existing.color_secondary = input.color_secondary;
+            }
+            if input.color_accent.is_some() {
+                existing.color_accent = input.color_accent;
+            }
+            if input.color_background.is_some() {
+                existing.color_background = input.color_background;
+            }
+            if input.color_surface.is_some() {
+                existing.color_surface = input.color_surface;
+            }
+            if input.color_text.is_some() {
+                existing.color_text = input.color_text;
+            }
             existing.updated_at = now;
-            self.branding.update(None, &existing.id.to_string(), existing).await?
+            self.branding
+                .update(None, &existing.id.to_string(), existing)
+                .await?
         } else {
             // Create on first upsert.
             let new_row = TenantBranding {
@@ -407,14 +429,16 @@ impl StoreService {
                     .with_pagination(0, 1),
             )
             .await?;
-        Ok(rows.into_iter().next().map_or_else(
-            StorefrontAppearanceDTO::default,
-            |row| StorefrontAppearanceDTO {
-                storefront_archetype: row.storefront_archetype,
-                product_card_style: row.product_card_style,
-                product_image_aspect: row.product_image_aspect,
-            },
-        ))
+        Ok(rows
+            .into_iter()
+            .next()
+            .map_or_else(StorefrontAppearanceDTO::default, |row| {
+                StorefrontAppearanceDTO {
+                    storefront_archetype: row.storefront_archetype,
+                    product_card_style: row.product_card_style,
+                    product_image_aspect: row.product_image_aspect,
+                }
+            }))
     }
 
     /// Persist merchant-selected appearance values after strict allowlist validation.
@@ -506,12 +530,14 @@ mod storefront_appearance_tests {
 
     #[test]
     fn allows_supported_storefront_appearance_values() {
-        assert!(validate_storefront_appearance(&UpsertStorefrontAppearanceInput {
-            storefront_archetype: Some("editorial".into()),
-            product_card_style: Some("dense".into()),
-            product_image_aspect: Some("square".into()),
-        })
-        .is_ok());
+        assert!(
+            validate_storefront_appearance(&UpsertStorefrontAppearanceInput {
+                storefront_archetype: Some("editorial".into()),
+                product_card_style: Some("dense".into()),
+                product_image_aspect: Some("square".into()),
+            })
+            .is_ok()
+        );
     }
 
     #[test]

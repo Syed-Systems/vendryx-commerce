@@ -52,9 +52,8 @@ fn test_stripe_webhook_verification_signature_tolerance_and_livemode() {
     }
 
     // 3. Forged signature (E14) -> rejected
-    let bad_header = format!(
-        "t={now},v1=0000000000000000000000000000000000000000000000000000000000000000"
-    );
+    let bad_header =
+        format!("t={now},v1=0000000000000000000000000000000000000000000000000000000000000000");
     let err_bad = provider
         .verify_webhook(raw_payload, Some(&bad_header))
         .unwrap_err();

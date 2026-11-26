@@ -200,10 +200,8 @@ async fn test_order_confirmation_email_subscriber_sends_email() {
     let records = resend_provider.get_sent_records();
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].to, "buyer@example.com");
-    assert!(
-        records[0]
-            .subject
-            .contains("Order Confirmation #ord_vx_1001")
-    );
+    assert!(records[0]
+        .subject
+        .contains("Order Confirmation #ord_vx_1001"));
     assert!(records[0].body.contains("$125.00"));
 }

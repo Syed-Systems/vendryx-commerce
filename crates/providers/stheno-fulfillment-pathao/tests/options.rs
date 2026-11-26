@@ -17,26 +17,18 @@ async fn provider_registered_and_options_honest() {
         .expect("fulfillment options");
 
     assert_eq!(options.len(), 4);
-    assert!(
-        options
-            .iter()
-            .any(|o| o.id == "pathao-standard" && !o.is_return)
-    );
-    assert!(
-        options
-            .iter()
-            .any(|o| o.id == "pathao-sub-city" && !o.is_return)
-    );
-    assert!(
-        options
-            .iter()
-            .any(|o| o.id == "pathao-outside-city" && !o.is_return)
-    );
-    assert!(
-        options
-            .iter()
-            .any(|o| o.id == "pathao-return" && o.is_return)
-    );
+    assert!(options
+        .iter()
+        .any(|o| o.id == "pathao-standard" && !o.is_return));
+    assert!(options
+        .iter()
+        .any(|o| o.id == "pathao-sub-city" && !o.is_return));
+    assert!(options
+        .iter()
+        .any(|o| o.id == "pathao-outside-city" && !o.is_return));
+    assert!(options
+        .iter()
+        .any(|o| o.id == "pathao-return" && o.is_return));
 }
 
 #[tokio::test]
@@ -121,16 +113,12 @@ async fn serviceable_area_hierarchy_lookup_wiremock() {
     assert_eq!(areas.len(), 2);
     assert_eq!(areas[0].area_name, "Gulshan-1");
 
-    assert!(
-        provider
-            .is_serviceable_area(1, 101, Some(1001))
-            .await
-            .expect("serviceable check")
-    );
-    assert!(
-        !provider
-            .is_serviceable_area(999, 101, None)
-            .await
-            .expect("invalid city check")
-    );
+    assert!(provider
+        .is_serviceable_area(1, 101, Some(1001))
+        .await
+        .expect("serviceable check"));
+    assert!(!provider
+        .is_serviceable_area(999, 101, None)
+        .await
+        .expect("invalid city check"));
 }

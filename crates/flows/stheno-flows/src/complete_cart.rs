@@ -707,7 +707,10 @@ impl CompleteCartWorkflowEngine {
         if exec.state != stheno_workflow::TransactionState::Done {
             return Ok(None);
         }
-        let order_id = exec.context_payload.get("order_id").and_then(|v| v.as_str());
+        let order_id = exec
+            .context_payload
+            .get("order_id")
+            .and_then(|v| v.as_str());
         let Some(order_id) = order_id else {
             return Ok(None);
         };
@@ -738,7 +741,11 @@ impl CompleteCartWorkflowEngine {
         // Written under both keys: the idempotency key is what a retry presents, and the
         // cart id is what the resume path looks up.
         for id in [key, cart_id] {
-            if let Err(e) = self.workflow_store.update_payload_async(id, payload.clone()).await {
+            if let Err(e) = self
+                .workflow_store
+                .update_payload_async(id, payload.clone())
+                .await
+            {
                 tracing::warn!("could not persist checkout checkpoint: {e}");
             }
         }
@@ -752,7 +759,10 @@ impl CompleteCartWorkflowEngine {
     async fn record_checkpoint(&self, cart_id: &str, next_step: usize) {
         if let Err(e) = self
             .workflow_store
-            .update_payload_async(cart_id, serde_json::json!({ "cart_id": cart_id, "next_step": next_step }))
+            .update_payload_async(
+                cart_id,
+                serde_json::json!({ "cart_id": cart_id, "next_step": next_step }),
+            )
             .await
         {
             tracing::warn!("could not persist checkout checkpoint: {e}");

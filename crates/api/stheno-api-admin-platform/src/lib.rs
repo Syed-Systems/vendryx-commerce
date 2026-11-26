@@ -321,14 +321,18 @@ pub async fn step_failure(
     Path(workflow_id): Path<String>,
     Json(_body): Json<Value>,
 ) -> Result<Json<Value>, Response> {
-    Ok(Json(json!({ "workflow_id": workflow_id, "success": false })))
+    Ok(Json(
+        json!({ "workflow_id": workflow_id, "success": false }),
+    ))
 }
 
 pub async fn subscribe_workflow(
     State(_ctx): State<AdminPlatformContext>,
     Path(workflow_id): Path<String>,
 ) -> Result<Json<Value>, Response> {
-    Ok(Json(json!({ "workflow_id": workflow_id, "subscribed": true })))
+    Ok(Json(
+        json!({ "workflow_id": workflow_id, "subscribed": true }),
+    ))
 }
 
 pub async fn get_workflow_transaction(
@@ -462,7 +466,8 @@ pub async fn add_domain(
                 "type": "unavailable",
                 "message": "Platform domain service is not available"
             })),
-        ).into_response());
+        )
+            .into_response());
     };
 
     match platform.add_tenant_domain(&tenant_id, &domain, false).await {
@@ -488,14 +493,16 @@ pub async fn add_domain(
                 "type": "domain_conflict",
                 "message": "This domain is already registered to another store"
             })),
-        ).into_response()),
+        )
+            .into_response()),
         Err(e) => Err((
             StatusCode::BAD_REQUEST,
             Json(json!({
                 "type": "invalid_domain",
                 "message": e.to_string()
             })),
-        ).into_response()),
+        )
+            .into_response()),
     }
 }
 
@@ -512,23 +519,28 @@ pub async fn delete_domain(
                 "type": "immutable_domain",
                 "message": "System default domain cannot be removed"
             })),
-        ).into_response());
+        )
+            .into_response());
     }
 
     let Some(platform) = &ctx.platform else {
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({ "type": "unavailable", "message": "Domain service is not available" })),
-        ).into_response());
+        )
+            .into_response());
     };
 
     platform
         .remove_tenant_domain(&tenant_id, &domain)
         .await
-        .map_err(|e| (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "type": "not_found", "message": e.to_string() })),
-        ).into_response())?;
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "type": "not_found", "message": e.to_string() })),
+            )
+                .into_response()
+        })?;
 
     Ok((
         StatusCode::OK,
@@ -548,13 +560,20 @@ pub async fn verify_domain(
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({ "type": "unavailable", "message": "Domain service is not available" })),
-        ).into_response());
+        )
+            .into_response());
     };
 
-    let ver = platform.get_domain_verification(&domain).await.map_err(|e| (
-        StatusCode::BAD_REQUEST,
-        Json(json!({ "type": "verification_failed", "message": e.to_string() })),
-    ).into_response())?;
+    let ver = platform
+        .get_domain_verification(&domain)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "type": "verification_failed", "message": e.to_string() })),
+            )
+                .into_response()
+        })?;
 
     let is_verified = ver.dns_pointed && ver.tls_issued;
     Ok((
@@ -634,7 +653,10 @@ pub async fn list_billing_invoices(
 ) -> Result<impl IntoResponse, Response> {
     let tenant_id = stheno_db::tenant::current().unwrap_or_else(|_| "merchant".to_string());
     let invoices = if let Some(platform) = &ctx.platform {
-        platform.list_invoices_for_tenant(&tenant_id).await.unwrap_or_default()
+        platform
+            .list_invoices_for_tenant(&tenant_id)
+            .await
+            .unwrap_or_default()
     } else {
         Vec::new()
     };
@@ -695,7 +717,10 @@ pub async fn upload_payment_proof(
             .into_response()
     })?;
 
-    match platform.upload_payment_proof(&tenant_id, &invoice_id, input).await {
+    match platform
+        .upload_payment_proof(&tenant_id, &invoice_id, input)
+        .await
+    {
         Ok(proof) => Ok((StatusCode::CREATED, Json(json!({ "proof": proof })))),
         Err(error) => {
             let status = match &error {
@@ -726,7 +751,10 @@ pub async fn review_payment_proof(
             .into_response()
     })?;
 
-    match platform.review_payment_proof(operator_id, &proof_id, input).await {
+    match platform
+        .review_payment_proof(operator_id, &proof_id, input)
+        .await
+    {
         Ok(proof) => Ok((StatusCode::OK, Json(json!({ "proof": proof })))),
         Err(e) => Err((
             StatusCode::BAD_REQUEST,
@@ -747,7 +775,10 @@ pub fn admin_platform_routes(ctx: AdminPlatformContext) -> Router {
         .route("/admin/domains/{domain}/verify", post(verify_domain))
         .route("/admin/billing/subscription", get(get_billing_subscription))
         .route("/admin/billing/invoices", get(list_billing_invoices))
-        .route("/admin/billing/portal-url", get(get_billing_portal_url).post(get_billing_portal_url))
+        .route(
+            "/admin/billing/portal-url",
+            get(get_billing_portal_url).post(get_billing_portal_url),
+        )
         .route("/admin/workflows-executions", get(list_workflow_executions))
         .route(
             "/admin/workflows-executions/{id}",

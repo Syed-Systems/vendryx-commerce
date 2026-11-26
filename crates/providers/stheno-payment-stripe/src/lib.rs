@@ -373,9 +373,7 @@ impl PaymentProvider for StripePaymentProvider {
             .header("Authorization", self.auth_header())
             .send()
             .await
-            .map_err(|e| {
-                Error::Internal(format!("Stripe authorize network error: {e}").into())
-            })?;
+            .map_err(|e| Error::Internal(format!("Stripe authorize network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
             Error::Internal(format!("Failed to parse Stripe authorize response: {e}").into())

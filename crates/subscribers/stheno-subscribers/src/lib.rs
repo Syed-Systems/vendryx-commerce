@@ -38,7 +38,7 @@ impl SubscriberRegistry {
     pub async fn dispatch(&self, event: &Event) -> Result<()> {
         for sub in &self.subscribers {
             if sub.event_name() == event.name || sub.event_name() == "*" {
-                // Retry up to 3 times with a short delay, then log dead-letter 
+                // Retry up to 3 times with a short delay, then log dead-letter
                 // rather than aborting all subscribers.
                 let mut attempts = 0;
                 loop {

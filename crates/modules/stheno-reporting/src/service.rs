@@ -11,8 +11,8 @@ use stheno_types::{Error, Result};
 
 use crate::dto::{
     AverageOrderValueReport, OrdersOverTimeItem, OrdersOverTimeReport, RecordOrderDeltaInput,
-    RecordOrderPlacedInput, RevenueOverTimeItem, RevenueOverTimeReport, TopProductItem,
-    TopProductsReport, TodayReport,
+    RecordOrderPlacedInput, RevenueOverTimeItem, RevenueOverTimeReport, TodayReport,
+    TopProductItem, TopProductsReport,
 };
 use crate::models::{DailyRollup, OrdersSeriesRow, RevenueSeriesRow, TopProductRow, TotalAovRow};
 

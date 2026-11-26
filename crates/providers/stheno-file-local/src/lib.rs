@@ -98,7 +98,7 @@ impl FileProvider for LocalFileProvider {
             expires_at,
         })
     }
-    
+
     async fn get_presigned_download_url(
         &self,
         file_id: &str,
@@ -111,8 +111,11 @@ impl FileProvider for LocalFileProvider {
                 id: file_id.to_string(),
             });
         }
-        
-        let download_url = format!("{}/api/download/direct/{}?expires={}", self.base_url, file_id, expires_in_seconds);
+
+        let download_url = format!(
+            "{}/api/download/direct/{}?expires={}",
+            self.base_url, file_id, expires_in_seconds
+        );
         Ok(download_url)
     }
 }

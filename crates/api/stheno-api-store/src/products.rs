@@ -1,9 +1,9 @@
 //! Store Product API handlers (Medusa v2 byte-compatible).
 
-use axum::Json;
 use axum::extract::{Path, Query, RawQuery, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use stheno_pricing::PricingService;
@@ -11,7 +11,7 @@ use stheno_product::models::ProductStatus;
 use stheno_product::{ProductDTO, ProductService};
 use stheno_region::RegionService;
 
-use crate::product_expand::{StoreProduct, expand_products};
+use crate::product_expand::{expand_products, StoreProduct};
 
 /// The services a catalog response needs.
 ///

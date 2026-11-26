@@ -34,7 +34,9 @@ async fn service_with_a_stranded_request(key: &str) -> (TestDb, PaymentService) 
             &json!({ "amount": 2500, "currency": "bdt" }),
             |_k| async move {
                 Err(stheno_types::Error::Internal(
-                    "connection reset while calling the gateway".to_string().into(),
+                    "connection reset while calling the gateway"
+                        .to_string()
+                        .into(),
                 ))
             },
         )

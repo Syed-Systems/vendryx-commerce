@@ -6,8 +6,8 @@ use stheno_db::testing::TestDb;
 use stheno_platform::{
     BillingPlanPrice, BillingRunInput, NewTenant, PlatformService, SubscriptionPatch,
 };
-use stheno_types::Money;
 use stheno_types::currency::CurrencyCode;
+use stheno_types::Money;
 
 async fn service() -> (TestDb, PlatformService) {
     let db = TestDb::migrated().await;

@@ -4,7 +4,7 @@ use clap::Parser;
 use std::time::Duration;
 use stheno_registry::AppContext;
 use stheno_server::db::DbConfig;
-use stheno_server::{AppServer, load_entitlements, load_trial_duration_days};
+use stheno_server::{load_entitlements, load_trial_duration_days, AppServer};
 
 /// How long boot waits for the database before giving up. Long enough to ride
 /// out a container starting alongside us, short enough to fail a broken

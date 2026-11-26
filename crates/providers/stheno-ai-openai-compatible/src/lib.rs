@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use stheno_ai::{
     AiChatMessage, AiChatRequest, AiChatResponse, AiToolCall, AiUsage, ChatCompletionProvider,
 };
@@ -483,17 +483,15 @@ mod tests {
         assert!(OpenAiCompatibleProvider::new(remote_http).is_err());
         let mut request = request();
         request.messages.resize(25, request.messages[0].clone());
-        assert!(
-            validate_request(
-                &request,
-                &OpenAiCompatibleConfig {
-                    endpoint: "https://api.deepseek.com/v1/chat/completions".into(),
-                    model: "deepseek-chat".into(),
-                    api_key: "secret".into(),
-                }
-            )
-            .is_err()
-        );
+        assert!(validate_request(
+            &request,
+            &OpenAiCompatibleConfig {
+                endpoint: "https://api.deepseek.com/v1/chat/completions".into(),
+                model: "deepseek-chat".into(),
+                api_key: "secret".into(),
+            }
+        )
+        .is_err());
     }
 
     #[tokio::test]
@@ -507,12 +505,10 @@ mod tests {
             .await
             .expect_err("request model must match configured model");
         assert!(!error.to_string().contains("test-secret"));
-        assert!(
-            server
-                .received_requests()
-                .await
-                .expect("requests")
-                .is_empty()
-        );
+        assert!(server
+            .received_requests()
+            .await
+            .expect("requests")
+            .is_empty());
     }
 }
