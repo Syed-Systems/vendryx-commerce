@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   render,
   screen,
   cleanup,
@@ -69,10 +70,16 @@ const typeInto = async (
   input: HTMLElement,
   text: string
 ) => {
+  // `user.type` clicks the element before typing, so calling it per character clicked the
+  // combobox once per keystroke and toggled its popover between keystrokes. Plain
+  // `user.keyboard` is no better: once the first character opens the popover, focus is no
+  // longer on the input and later keys land elsewhere. So put focus back on the input before
+  // each key, without a click, then type into it.
   let typed = ""
   for (const character of text) {
     typed += character
-    await user.type(input, character)
+    act(() => input.focus())
+    await user.keyboard(character)
     const expected = typed
     await waitFor(() =>
       expect((input as HTMLInputElement).value).toBe(expected)
