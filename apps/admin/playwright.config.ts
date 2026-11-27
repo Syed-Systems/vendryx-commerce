@@ -29,7 +29,8 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "list" : [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: process.env.STHENO_ADMIN_URL ?? "http://127.0.0.1:5173",
+    // The admin dev server listens on 3000 (vite.config.cts `server.port`).
+    baseURL: process.env.STHENO_ADMIN_URL ?? "http://127.0.0.1:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -38,8 +39,11 @@ export default defineConfig({
     ? undefined
     : {
         command: "npm run dev",
-        url: "http://127.0.0.1:5173",
+        url: "http://127.0.0.1:3000",
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
+        // Without this, vite.config.cts serves its built-in mock API and the suite would
+        // pass against fake data. Point the dev server's proxy at the real engine.
+        env: { VITE_STHENO_BACKEND_URL: BACKEND },
       },
 })

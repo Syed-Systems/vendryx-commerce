@@ -17,7 +17,7 @@ echo "      STHENO CONTAINER IMAGE & SECURITY AUDIT (P10-11)    "
 echo "=========================================================="
 
 cleanup() {
-    docker rm -f "$CONTAINER_NAME" "$DB_CONTAINER_NAME" >/dev/null 2>&1 || true
+    docker rm -f "$CONTAINER_NAME" "${CONTAINER_NAME}-migrate" "$DB_CONTAINER_NAME" >/dev/null 2>&1 || true
     docker network rm "$NETWORK_NAME" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -85,6 +85,34 @@ done
 if [ "$DB_READY" -ne 1 ]; then
     echo "FAIL: the gate's Postgres never became ready, so cold start cannot be measured." >&2
     docker logs "$DB_CONTAINER_NAME" >&2 || true
+    exit 1
+fi
+
+# The server does not migrate on boot; `--migrate` applies migrations and then keeps
+# serving. Run it once, wait for /health (migrations done), remove it, and only then time a
+# fresh boot against the migrated database.
+MIGRATE_NAME="${CONTAINER_NAME}-migrate"
+docker run -d --name "$MIGRATE_NAME" --network "$NETWORK_NAME" \
+    -e DATABASE_URL="postgres://stheno:stheno@${DB_CONTAINER_NAME}:5432/stheno" \
+    "$IMAGE_TAG" --migrate --bind 0.0.0.0:9000 >/dev/null
+MIGRATED=0
+for _ in $(seq 1 240); do
+    if docker exec "$DB_CONTAINER_NAME" psql -U stheno -d stheno -tAc \
+        "SELECT 1 FROM pg_roles WHERE rolname = 'stheno_app'" 2>/dev/null | grep -q 1 \
+        && docker logs "$MIGRATE_NAME" 2>&1 | grep -q "Applied "; then
+        MIGRATED=1
+        break
+    fi
+    if ! docker ps -q --filter "name=$MIGRATE_NAME" | grep -q .; then
+        echo "FAIL: the migration run exited. Logs:" >&2
+        docker logs "$MIGRATE_NAME" >&2 || true
+        exit 1
+    fi
+    sleep 0.5
+done
+docker rm -f "$MIGRATE_NAME" >/dev/null 2>&1 || true
+if [ "$MIGRATED" -ne 1 ]; then
+    echo "FAIL: migrations did not complete, so cold start cannot be measured." >&2
     exit 1
 fi
 
