@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 # Multi-stage Distroless Container Build for Stheno Server (TASKS.md P10-11)
 
-FROM rust:1.98-bookworm as builder
+FROM rust:1.98.1-bookworm as builder
 WORKDIR /app
 COPY . .
 RUN cargo build --release --bin stheno-server && \
