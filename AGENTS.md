@@ -25,7 +25,8 @@ task by task in [docs/STOREFRONT_THEME_ENGINE_PLAN.md](docs/STOREFRONT_THEME_ENG
 **Branch from `main`, one task per branch.** Name it `feat/<task-id>-<slug>`, `fix/...` or
 `docs/...`, never after an AI product. Plan-driven work follows the pickup protocol in
 [STOREFRONT_THEME_ENGINE_PLAN.md §1](docs/STOREFRONT_THEME_ENGINE_PLAN.md): claim the task on the
-board in your first commit, open a draft PR, prove every acceptance criterion, then mark it done.
+board in your first commit on the phase branch (one branch and one PR per phase), prove every
+acceptance criterion with builds and tests run on Space (never locally), then mark it done.
 `origin/frontend` is historical: it has been fully merged into `main` and has no commits after
 2026-10-20.
 

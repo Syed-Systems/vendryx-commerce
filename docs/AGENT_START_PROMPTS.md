@@ -35,12 +35,18 @@ Your job is exactly one task from the storefront theme engine plan, start to fin
    invent a name, a file or data; never weaken or skip a test or gate; never claim a result you
    did not see; stay inside the task's file list; if anything is missing or unclear, set the task
    to `blocked: <reason>` on the board, push that, and stop.
-5. Claim the task first (plan 1.1 step 4), then do it, then finish it (plan 1.3): run the task's
-   Verify commands and the global gates (plan 1.4), paste the real output lines into the PR
-   description, tick each acceptance criterion with its evidence, set the board to
-   `done (<PR link>)`.
-6. Do not start a second task. Report back: the task id, the PR link, the commands you ran and
-   their final output lines, and anything you set to blocked.
+5. Work on the phase branch, never a branch of your own: there is ONE branch and ONE PR per
+   phase (plan 1.1 step 3). Claim the task first (plan 1.1 step 4), then do it, then finish it
+   (plan 1.3).
+6. Write code on this machine, but run every build, clippy and test ON SPACE with
+   scripts/build-on-space.ps1 (plan 1.5). Never run cargo build/test/clippy, npm run build or
+   Playwright locally. If Space is unreachable, stop and report it; do not build locally.
+7. Finishing: paste the real output lines from Space into the phase PR description under your
+   task's heading, tick each acceptance criterion with its evidence, commit as
+   `<TASK-ID>: <task title>`, set the board to `done (<commit sha>)`, push. Mark the PR ready
+   only if this was the last task of the phase and CI is green.
+8. Do not start a second task. Report back: the task id, the commit sha, the Space commands you
+   ran and their final output lines, and anything you set to blocked.
 
 Never put an AI product or company name in a branch, commit, comment, PR or document.
 No Co-Authored-By trailers, no "generated with" footers, no emojis.
@@ -120,7 +126,7 @@ CI on <branch or PR link> is failing. Make it green without weakening anything.
    -> 3 (end-to-end) -> 4 (container image, supply chain). Later stages are skipped while an
    earlier one fails, so a green stage 2 can reveal a new failure in stage 3; that is expected.
 2. For each failure, quote the exact failing line, find the root cause in the code (not in the
-   test), fix it, and reproduce the check locally before pushing (commands in the plan,
+   test), fix it, and reproduce the check on Space (never on this machine) before pushing (commands in the plan,
    section 1.4 and 1.5).
 3. Forbidden: deleting or loosening an assertion, #[ignore], test.skip, widening an allow-list,
    adding an audit ignore, or editing a gate script to pass - unless the check itself is

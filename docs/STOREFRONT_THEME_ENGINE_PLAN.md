@@ -27,11 +27,15 @@ Read first, in order: [AGENTS.md](../AGENTS.md), [ADR-038](DECISIONS.md#adr-038)
 2. Pick the **lowest-numbered task whose status is `todo` and whose dependencies are all
    `done`**. Tasks in the same phase with no dependency between them may run in parallel by
    different agents. Their "Files" lists do not overlap; that is what makes them parallel.
-3. Create a branch from `main`: `feat/<task-id-lowercase>-<short-slug>`, for example
-   `feat/t1-2-theme-schema`. Never use an AI product name in a branch, commit, comment or PR.
-4. First commit on the branch: change the task's status on the board to
-   `in progress (<branch>, <YYYY-MM-DD>)`. Push it and open a **draft PR** titled
-   `<TASK-ID>: <task title>`, so other agents can see the claim.
+3. **One branch and one PR per phase, not per task.** The phase branch is
+   `feat/phase-<n>-<short-slug>` (Phase 1: `feat/phase-1-renderer`, Phase 2:
+   `feat/phase-2-appearance`, Phase 3: `feat/phase-3-themes`, Phase 4: `feat/phase-4-cutover`).
+   If it does not exist yet, create it from `main`, push it, and open a **draft PR** titled
+   `Phase <n>: <phase title from section 5>`. If it exists, check it out and pull it.
+   Never use an AI product name in a branch, commit, comment or PR.
+4. First commit for your task, on the phase branch: change the task's status on the board to
+   `in progress (<YYYY-MM-DD>)`. Push it, so other agents can see the claim. Two agents working
+   on the same phase pull before every push and never force-push.
 
 ### 1.2 Doing the task
 
@@ -49,38 +53,60 @@ Read first, in order: [AGENTS.md](../AGENTS.md), [ADR-038](DECISIONS.md#adr-038)
 ### 1.3 Finishing the task
 
 1. Run the task's **Verify** commands and the **global gates** for the areas you touched
-   (section 1.4). All must pass.
-2. In the PR description, copy the task's acceptance criteria as a checklist and give evidence
-   for each one: the command run and its result, a test name, or a screenshot for visual work.
-3. Set the task's status to `done (<PR link>)` on the board, mark the PR ready for review.
-4. If you discover work that is not in any task, add it as a new task at the end of its phase
+   (section 1.4), **on Space** (section 1.5). All must pass.
+2. In the phase PR description, under a heading for your task, copy its acceptance criteria as
+   a checklist and give evidence for each one: the command run and its real output line, a test
+   name, or a screenshot for visual work.
+3. Commit with the message `<TASK-ID>: <task title>`, set the task's status to
+   `done (<commit sha>)` on the board, push. Do not start the next task on the same commit.
+4. Mark the phase PR **ready for review only when every task in the phase is `done`** and the
+   full CI run on the PR is green. The owner merges it.
+5. If you discover work that is not in any task, add it as a new task at the end of its phase
    (next free number, status `todo`, with dependencies, files, acceptance and verify). Do not
    do it in the current PR.
 
 ### 1.4 Global gates
 
-Run these for every area your task touches. CI runs the same checks and is the final authority.
+Run these for every area your task touches, **on Space, never on the Windows machine** (section
+1.5). CI runs the same checks and is the final authority. The commands below are what Space runs;
+the script-only checks (bash `check-*.sh`, docs links) are light and may run locally.
 
 | Area | Commands |
 |---|---|
-| Rust | `cargo fmt -p <crate> -- --check` · `cargo clippy -p <crate> --all-targets -- -D warnings` · `cargo test -p <crate>` |
-| Rust, DB-backed tests | Postgres running; `DATABASE_URL` set (see 1.5). Same `cargo test` |
+| Rust | `cargo fmt -p <crate> -- --check` (local is fine) · then on Space: `.\scripts\build-on-space.ps1 -Mode rust-package -CargoPackage <crate> -CargoClippy -CargoTestServices` (clippy with `-D warnings`, plus every test with Postgres and Redis) |
 | Migrations | `bash scripts/check-migration-phases.sh` · `bash scripts/check-playbook.sh` · `bash scripts/check-schema-drift.sh` |
-| Admin app | `cd apps/admin && npm ci --strict-allow-scripts && npm run typecheck && npm test` |
+| Admin app | on Space: `.\scripts\build-on-space.ps1 -Mode web-admin` |
 | Themes | `bash scripts/check-theme-pack.sh` (from T1.9 onwards) |
 | Docs | `bash scripts/check-docs-links.sh` |
 | Shell scripts | New `.sh` files are committed executable: `git update-index --chmod=+x <file>` |
 
-### 1.5 Local environment notes (Windows development machine)
+### 1.5 Where code is written and where it is tested
 
-- Rust: `cargo +stable-x86_64-pc-windows-gnullvm ...` with `CARGO_TARGET_DIR=E:\rust-target` (C: is nearly full)
-  and `CARGO_INCREMENTAL=0`. The msvc toolchain cannot link on this machine.
-- Postgres for tests: start Docker Desktop, run `docker compose up -d postgres`, then
-  `DATABASE_URL=postgres://stheno:stheno@localhost:5900/stheno` (host port 5900, because Windows
-  reserves 5432 here; see the untracked `docker-compose.override.yml`).
-- `cargo fmt --all` fails on Windows with "filename too long"; format per package instead.
-- `core.filemode` is false on this checkout, so the executable bit must be set with
-  `git update-index --chmod=+x`.
+**Write code locally; build and test only on Space** (the company build server). The owner's
+machine has no free disk for Rust or web builds. Do not run `cargo build`, `cargo test`,
+`cargo clippy`, `npm run build` or a Playwright suite locally.
+
+```powershell
+# Rust: one crate, with clippy, and the DB/Redis services for integration tests
+.\scripts\build-on-space.ps1 -Mode rust-package -CargoPackage <crate> -CargoClippy -CargoTestServices
+# Rust: one test target only
+.\scripts\build-on-space.ps1 -Mode rust-package -CargoPackage <crate> -CargoTestTarget <test-file-name> -CargoTestServices
+# Rust: what CI runs
+.\scripts\build-on-space.ps1 -Mode rust-ci
+# Admin app / web tests / static web build
+.\scripts\build-on-space.ps1 -Mode web-admin
+.\scripts\build-on-space.ps1 -Mode web-test
+.\scripts\build-on-space.ps1 -Mode web-static
+```
+
+If Space is unreachable (for example Tailscale asks for a browser re-approval, or another job is
+using it), stop and tell the owner. Do not fall back to a local build.
+
+Other notes for this checkout:
+- `cargo fmt -p <crate>` is fine locally (no build). `cargo fmt --all` fails on Windows with
+  "filename too long"; format per package.
+- `core.filemode` is false, so the executable bit must be set with
+  `git update-index --chmod=+x <file>`.
 
 ---
 
@@ -103,7 +129,8 @@ These apply to every task. They exist because a plan is only as good as its leas
    change elsewhere is a new task, not part of this one.
 6. **Ask by blocking, not by guessing.** A decision the task does not make (a colour, a wording, a
    behaviour) is the owner's. Set `blocked: needs owner decision: <question>` and stop.
-7. **One task, one PR.** Do not start the next task in the same branch.
+7. **One task per commit, one PR per phase.** Finish and commit one task before claiming the
+   next. Every task of a phase lands in that phase's single PR (section 1.1).
 8. **Money is `Decimal`.** Never `f32`/`f64` for an amount (ADR-006); never compute a price, total
    or discount outside the engine's existing pricing and cart code.
 
@@ -234,7 +261,7 @@ The source of truth for today's behaviour is
 
 ## 4. Task board
 
-Status values: `todo`, `in progress (<branch>, <date>)`, `blocked: <reason>`, `done (<PR>)`.
+Status values: `todo`, `in progress (<date>)`, `blocked: <reason>`, `done (<commit sha>)`.
 
 | ID | Task | Depends on | Status |
 |---|---|---|---|
