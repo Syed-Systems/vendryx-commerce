@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 # Multi-stage Distroless Container Build for Stheno Server (TASKS.md P10-11)
 
-FROM rust:1.89-bullseye as builder
+FROM rust:1.98-bookworm as builder
 WORKDIR /app
 COPY . .
 RUN cargo build --release --bin stheno-server && \
@@ -22,16 +22,17 @@ RUN chmod +x /app/bootstrap.sh
 # not ship — the container died with `no such file or directory` despite the
 # binary being present and executable. A fully static musl build would restore
 # the distroless option; until then this is the correct base.
-FROM debian:12-slim
+# Distroless with glibc. The binary is dynamically linked against glibc only (no OpenSSL, no
+# libpq: TLS is rustls and Postgres is tokio-postgres), which `distroless/static` cannot run
+# but `distroless/cc` can. Same Debian 12 base as the bookworm builder, no shell, no package
+# manager, and a built-in non-root user 65532.
+FROM gcr.io/distroless/cc-debian12:nonroot
 
 WORKDIR /app
-COPY --from=builder /app/target/release/stheno-server /app/stheno-server
-
-# Non-root runtime user (replaces the distroless `nonroot` user).
-RUN useradd -r -u 65532 -g nogroup stheno && chown 65532:nogroup /app/stheno-server
+COPY --from=builder --chown=65532:65532 /app/target/release/stheno-server /app/stheno-server
 
 # Run as non-root user (security ASVS L2 / P10-11)
-USER 65532:nogroup
+USER 65532:65532
 
 EXPOSE 9000
 ENTRYPOINT ["/app/stheno-server"]
