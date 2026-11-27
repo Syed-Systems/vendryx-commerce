@@ -68,7 +68,8 @@ impl SubscriptionInvoiceCalculator {
 
         let (payable_amount, fx_metadata) = if is_bangladesh {
             let meta = provided_fx_metadata.ok_or(CalculatorError::MissingFxRate)?;
-            let rate = meta.rate.unwrap_or_else(|| Decimal::from(120)); // Fallback if missing
+            // No fallback rate: an invoice converted at a made-up rate is silently wrong money.
+            let rate = meta.rate.ok_or(CalculatorError::MissingFxRate)?;
 
             // Bangladesh payable is rounded to whole taka
             let amount =
