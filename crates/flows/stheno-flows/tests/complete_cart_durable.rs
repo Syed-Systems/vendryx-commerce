@@ -18,12 +18,6 @@ use stheno_payment::PaymentService;
 use stheno_promotion::PromotionService;
 use stheno_workflow::WorkflowStore;
 
-struct Fixture {
-    db: stheno_db::testing::TestDb,
-    pool: stheno_db::DbPool,
-    cart: stheno_cart::CartDTO,
-}
-
 fn engine(pool: &stheno_db::DbPool) -> CompleteCartWorkflowEngine {
     CompleteCartWorkflowEngine::new(
         Arc::new(CartService::new(pool.clone())),

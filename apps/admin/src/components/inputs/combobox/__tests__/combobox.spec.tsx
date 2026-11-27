@@ -59,13 +59,24 @@ afterEach(() => {
 // `useDeferredValue` + Ariakit render cycle, and it does not reproduce in a browser.
 // Typing per keystroke keeps the assertions exactly as strong while removing the
 // artefact.
+//
+// Per-keystroke typing alone was still flaky on CI: Ariakit applies `setValue` as a
+// transition, so on a slow runner the next keystroke could read the pre-transition value
+// and "A" + "p" + "p" collapsed to "Ap". Waiting for each character to land before typing
+// the next models a person typing, not a burst faster than React can commit.
 const typeInto = async (
   user: ReturnType<typeof userEvent.setup>,
   input: HTMLElement,
   text: string
 ) => {
+  let typed = ""
   for (const character of text) {
+    typed += character
     await user.type(input, character)
+    const expected = typed
+    await waitFor(() =>
+      expect((input as HTMLInputElement).value).toBe(expected)
+    )
   }
 }
 

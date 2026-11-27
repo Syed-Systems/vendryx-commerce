@@ -5,6 +5,10 @@
 //! dashboard hides disabled screens unmodified (ENTITLEMENTS.md 7.1).
 //! `GET /admin/entitlements` is additive — quotas and grace state have no Medusa
 //! equivalent, and the dashboard ignores what it does not read (ADR-002).
+//!
+//! Axum's response value is the established endpoint error type; its body is already boxed, and
+//! wrapping every handler error in another box would add allocations across this compatibility API.
+#![allow(clippy::result_large_err)]
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
