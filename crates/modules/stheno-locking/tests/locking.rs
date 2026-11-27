@@ -6,11 +6,14 @@ use stheno_locking::{LockManager, LockProvider, PostgresAdvisoryLockProvider, Re
 
 #[tokio::test]
 async fn test_distributed_locking_and_outage_fallback() {
+    // A migrated per-test database, like every other DB test. The hardcoded
+    // localhost:5432 URL this used to carry only worked where Postgres happened to listen
+    // there, and the lock manager swallows fallback errors, so a wrong URL showed up as a
+    // lock timeout in step 5 rather than as a connection failure.
+    let db = TestDb::migrated().await;
     let redis_provider = Arc::new(RedisLockProvider::new());
     let pg_provider = Arc::new(PostgresAdvisoryLockProvider::new(
-        create_pool("postgres://stheno:stheno@localhost:5432/stheno", 5).unwrap_or_else(|_| {
-            panic!("pool");
-        }),
+        create_pool(&db.url, 5).expect("pool"),
     ));
 
     let lock_manager = LockManager::new(redis_provider.clone(), pg_provider.clone());
@@ -63,6 +66,8 @@ async fn test_distributed_locking_and_outage_fallback() {
     assert_eq!(fallback_lock.resource, "cart:checkout_c99");
     let fallback_released = lock_manager.release(&fallback_lock).await.unwrap();
     assert!(fallback_released);
+
+    db.drop().await;
 }
 
 #[tokio::test]

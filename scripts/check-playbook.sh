@@ -49,8 +49,29 @@ for module in "${MIGRATED[@]}"; do
     echo "  -- ${module}"
 
     # 1. A migration exists for the module's schema.
+    #
+    # Either a migration is named after the module, or every table the module's entities
+    # declare (`const TABLE`) is created by some migration. The second form exists because
+    # the identity, catalog-config and platform-ops modules were migrated together in grouped
+    # schema migrations (`*_identity_access_schema`, `*_catalog_config_schema`,
+    # `*_platform_ops_schema`); a filename match alone can never see those. It is the stronger
+    # evidence of the two: it checks each table, not one name.
     if ! ls migrations/ 2>/dev/null | grep -qE "_${short//-/_}_"; then
-        fail "${module}: no migration in migrations/ names this module."
+        mapfile -t tables < <(
+            grep -rhoE 'const TABLE: &(.static )?str = "[a-z_.]+"' "$src" 2>/dev/null \
+            | grep -oE '"[a-z_.]+"' | tr -d '"' | sort -u
+        )
+        if [ "${#tables[@]}" -eq 0 ]; then
+            fail "${module}: no migration in migrations/ names this module."
+        else
+            for table in "${tables[@]}"; do
+                pattern="create table (if not exists )?\"?${table//./\"?\\.\"?}\"?[ (]"
+                # Files passed directly, not piped from cat: under `pipefail`, `grep -q` exiting
+                # on the first match kills cat with SIGPIPE and the pipeline reports failure.
+                grep -qiE "$pattern" migrations/*/up.sql \
+                    || fail "${module}: table ${table} is not created by any migration."
+            done
+        fi
     fi
 
     # 2. Entities are bound to tables through the repository trait.
@@ -63,7 +84,10 @@ for module in "${MIGRATED[@]}"; do
     if [ -f "$src/service.rs" ]; then
         grep -q "PgCrudRepository" "$src/service.rs" \
             || fail "${module}: service.rs does not use PgCrudRepository."
-        grep -qE "fn new\(pool: DbPool\)" "$src/service.rs" \
+        # Any constructor that takes a DbPool counts: `AuthService::new(pool, jwt_secret)`,
+        # `FileService::new(provider, pool)` and search's storage-backed constructor are all
+        # pool-backed. What fails is a service with no pool-taking constructor at all.
+        grep -qE "pub (async )?fn [a-z_]+\([^)]*: DbPool" "$src/service.rs" \
             || fail "${module}: service constructor does not take a DbPool."
     fi
 

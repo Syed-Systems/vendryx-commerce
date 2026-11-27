@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   render,
   screen,
   cleanup,
@@ -59,13 +60,30 @@ afterEach(() => {
 // `useDeferredValue` + Ariakit render cycle, and it does not reproduce in a browser.
 // Typing per keystroke keeps the assertions exactly as strong while removing the
 // artefact.
+//
+// Per-keystroke typing alone was still flaky on CI: Ariakit applies `setValue` as a
+// transition, so on a slow runner the next keystroke could read the pre-transition value
+// and "A" + "p" + "p" collapsed to "Ap". Waiting for each character to land before typing
+// the next models a person typing, not a burst faster than React can commit.
 const typeInto = async (
   user: ReturnType<typeof userEvent.setup>,
   input: HTMLElement,
   text: string
 ) => {
+  // `user.type` clicks the element before typing, so calling it per character clicked the
+  // combobox once per keystroke and toggled its popover between keystrokes. Plain
+  // `user.keyboard` is no better: once the first character opens the popover, focus is no
+  // longer on the input and later keys land elsewhere. So put focus back on the input before
+  // each key, without a click, then type into it.
+  let typed = ""
   for (const character of text) {
-    await user.type(input, character)
+    typed += character
+    act(() => input.focus())
+    await user.keyboard(character)
+    const expected = typed
+    await waitFor(() =>
+      expect((input as HTMLInputElement).value).toBe(expected)
+    )
   }
 }
 

@@ -1,4 +1,8 @@
 //! `stheno-api-store`: Medusa v2 wire-compatible Store API routes.
+//!
+//! Axum's response value is the established endpoint error type; its body is already boxed, and
+//! wrapping every handler error in another box would add allocations across this compatibility API.
+#![allow(clippy::result_large_err)]
 
 pub mod branding;
 pub mod cache;

@@ -115,7 +115,7 @@ fn quota_limit(entitlements: &Value, key: &str) -> Option<u64> {
 }
 
 #[tokio::test]
-async fn test_three_plan_states_and_14_day_lifecycle() {
+async fn test_three_plan_states_and_trial_lifecycle() {
     std::env::set_var("STHENO_PLATFORM_TOKEN", TOKEN);
     let harness = TestApp::spawn().await;
     let app = harness.app.clone();
@@ -141,6 +141,22 @@ async fn test_three_plan_states_and_14_day_lifecycle() {
         StatusCode::CREATED,
         "provision trial tenant: {body}"
     );
+    // A trial runs only once it has started (ADR-033: it starts when the store request is
+    // submitted, not at provisioning); an undated trial resolves to Free, fail-closed. Start
+    // it the way that flow does, through the operator subscription patch.
+    let trial_started_at = Utc::now();
+    let trial_days = load_trial_duration_days().expect("deployment trial config");
+    let (status, body) = operator(
+        &app,
+        "PATCH",
+        "/platform/tenants/ten_trial_appliance/subscription",
+        Some(json!({
+            "trial_started_at": trial_started_at.to_rfc3339(),
+            "trial_ends_at": (trial_started_at + Duration::days(i64::try_from(trial_days).expect("trial length fits in i64"))).to_rfc3339(),
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "start the trial: {body}");
 
     // State 2: Trial Expired (Free tier) -> Clothing Store
     let (status, body) = operator(
@@ -267,9 +283,11 @@ async fn test_three_plan_states_and_14_day_lifecycle() {
     let trial_start = Utc::now();
     let mut lifecycle = TrialLifecycleJob::new(trial_start);
 
-    // Day 0-6: Active
+    // Days 0-2: Active. (Day 5 was a leftover from the 14-day trial; with seven days the
+    // first warning is at day 3, and the lifecycle only moves forward, so a day-5 check
+    // before the day-3 one could never be Active.)
     assert_eq!(
-        lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(5)),
+        lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(1)),
         TrialStatus::Active
     );
 

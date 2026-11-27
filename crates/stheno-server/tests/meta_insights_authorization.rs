@@ -81,7 +81,10 @@ async fn meta_insights_audit_rejects_anonymous_customer_and_non_owner_staff() {
         .update_subscription(
             stheno_db::testing::TestDb::TEST_TENANT,
             SubscriptionPatch {
-                feature_overrides: Some(json!({ "ai_assistant": true })),
+                // buyer_accounts: this test signs a customer up to prove customers cannot
+                // read the Meta audit, and `/auth/customer/*` is 404 for a store without
+                // customer accounts (`gate_buyer_auth`).
+                feature_overrides: Some(json!({ "ai_assistant": true, "buyer_accounts": true })),
                 ..Default::default()
             },
         )
@@ -391,7 +394,8 @@ async fn platform_export_and_purge_include_store_intelligence_data() {
     )
     .await;
     assert_eq!(purge_status, StatusCode::OK, "purge succeeds: {purge}");
-    assert_eq!(purge["purged_count"], 1);
+    // The endpoint wraps its result as `{"purge": {...}}`, like `{"export": {...}}` above.
+    assert_eq!(purge["purge"]["purged_count"], 1);
     assert!(platform.get_tenant(tenant_id).await.is_err());
 
     let remaining = stheno_db::tenant::scope(tenant_id, async {

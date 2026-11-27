@@ -736,18 +736,21 @@ mod tests {
         }
     }
 
+    /// The tool under test plus the probes a test reads back from it.
+    type ToolUnderTest = (
+        ProductOfferTool,
+        Arc<AtomicUsize>,
+        Arc<AtomicUsize>,
+        Arc<Mutex<Option<PricingContext>>>,
+    );
+
     fn make_tool(
         status: &str,
         region_currency: &str,
         with_price: bool,
         available: Option<i32>,
         slow: bool,
-    ) -> (
-        ProductOfferTool,
-        Arc<AtomicUsize>,
-        Arc<AtomicUsize>,
-        Arc<Mutex<Option<PricingContext>>>,
-    ) {
+    ) -> ToolUnderTest {
         let now = Utc::now();
         let product_id = "prod_01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string();
         let catalog = MockCatalog {

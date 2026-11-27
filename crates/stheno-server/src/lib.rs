@@ -285,6 +285,13 @@ async fn admin_response_headers(
             axum::http::header::CACHE_CONTROL,
             HeaderValue::from_static("private, no-store"),
         );
+        // ADR-037 decision 9: admin responses allow scripts only from the admin origin and
+        // can never be framed, so an injected storefront script or a framing page cannot
+        // act as the signed-in merchant.
+        response.headers_mut().insert(
+            axum::http::header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("script-src 'self'; frame-ancestors 'none'"),
+        );
     }
     response
 }
