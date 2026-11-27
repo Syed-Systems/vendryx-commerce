@@ -15,6 +15,7 @@ Read first, in order: [AGENTS.md](../AGENTS.md), [ADR-038](DECISIONS.md#adr-038)
 [ADR-037](DECISIONS.md#adr-037) (edge and caching), [ADR-006](DECISIONS.md#adr-006) (money),
 [ADR-021](DECISIONS.md#adr-021) (AI content is data), then this file.
 [THEME_AUTHORING.md](THEME_AUTHORING.md) is the contract a theme author follows.
+[AGENT_START_PROMPTS.md](AGENT_START_PROMPTS.md) has copy-paste prompts for starting agents.
 
 ---
 
@@ -72,7 +73,7 @@ Run these for every area your task touches. CI runs the same checks and is the f
 
 ### 1.5 Local environment notes (Windows development machine)
 
-- Rust: `cargo +stable-x86_64-pc-windows-gnullvm ...` with `CARGO_TARGET_DIR=C:\Users\Mahi\rust-target`
+- Rust: `cargo +stable-x86_64-pc-windows-gnullvm ...` with `CARGO_TARGET_DIR=E:\rust-target` (C: is nearly full)
   and `CARGO_INCREMENTAL=0`. The msvc toolchain cannot link on this machine.
 - Postgres for tests: start Docker Desktop, run `docker compose up -d postgres`, then
   `DATABASE_URL=postgres://stheno:stheno@localhost:5900/stheno` (host port 5900, because Windows
