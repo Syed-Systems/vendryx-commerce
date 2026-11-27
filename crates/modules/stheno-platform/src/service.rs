@@ -549,18 +549,43 @@ impl PlatformService {
                     message: "the tenant is already bound to another merchant".to_string(),
                 }),
                 Err(Error::NotFound { .. }) => {
-                    self.merchant_tenant_owners
+                    let created = self
+                        .merchant_tenant_owners
                         .create(
                             None,
                             MerchantTenantOwner {
-                                merchant_id,
-                                tenant_id,
+                                merchant_id: merchant_id.clone(),
+                                tenant_id: tenant_id.clone(),
                                 bound_at: Utc::now(),
                                 deleted_at: None,
                             },
                         )
-                        .await?;
-                    Ok(())
+                        .await;
+                    match created {
+                        Ok(_) => Ok(()),
+                        // Two concurrent provisioning calls both saw no binding and both
+                        // inserted; the primary key let one win. Re-read the winner: the
+                        // same merchant is success, another merchant is still a conflict.
+                        Err(Error::Conflict {
+                            code: "entity_already_exists",
+                            ..
+                        }) => {
+                            let binding = self
+                                .merchant_tenant_owners
+                                .retrieve(None, &tenant_id)
+                                .await?;
+                            if binding.merchant_id == merchant_id {
+                                Ok(())
+                            } else {
+                                Err(Error::Conflict {
+                                    code: "tenant_owner_already_bound",
+                                    message: "the tenant is already bound to another merchant"
+                                        .to_string(),
+                                })
+                            }
+                        }
+                        Err(error) => Err(error),
+                    }
                 }
                 Err(error) => Err(error),
             }
