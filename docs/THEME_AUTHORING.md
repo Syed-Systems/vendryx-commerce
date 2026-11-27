@@ -94,8 +94,22 @@ appears in the admin automatically.
 | `customer` | account details (account pages only) |
 | `policies`, `regions`, `routes` | policy pages, regions, URL helpers |
 
-Filters: `money` (format a price), `image_url(width)`, `asset_url` (your own assets), `t`
-(locale strings), `date`. Nothing else exists.
+Filters, and nothing else exists:
+
+| Filter | Example | Output |
+|---|---|---|
+| `money(amount, currency_code)` | `{{ variant.calculated_price.calculated_amount \| money(variant.calculated_price.currency_code) }}` | `$20.00`, `৳14,400`, `€1,234.50` |
+| `image_url(width)` | `{{ product.thumbnail \| image_url(640) }}` | the image URL sized to 640 px (160, 320, 640, 960 or 1280) |
+| `asset_url` | `{{ "images/hero.webp" \| asset_url }}` | a cached URL for a file in your `assets/` folder |
+| `t(key)` | `{{ "cart.empty" \| t }}` | the store's locale string for that key |
+| `date(format)` | `{{ order.created_at \| date("short") }}` | `27 Nov 2026` (`"long"`: `27 November 2026`) |
+
+A variant with no price for the shopper's region has no `calculated_price`. Render "Unavailable"
+for it, never `0`:
+
+```jinja
+{% if variant.calculated_price %}{{ variant.calculated_price.calculated_amount | money(variant.calculated_price.currency_code) }}{% else %}Unavailable{% endif %}
+```
 
 **Never write data into a theme.** No product names, prices, ratings, review text, stock counts,
 "trusted by N" figures, delivery promises or statistics. If a design needs a number, it must
