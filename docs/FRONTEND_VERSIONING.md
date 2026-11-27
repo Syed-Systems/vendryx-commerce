@@ -1,7 +1,7 @@
 # Frontend Versioning Policy
 
 > [!NOTE]
-> **Retired by ADR-038.** Themes no longer pin `storefront-core`; they are validated against `themes/theme.schema.json` (`schema_version`) by `scripts/check-theme-pack.sh`. This policy applies only to the Next.js storefront until task T4.7 deletes it. See [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md).
+> **Retired by ADR-038.** Themes no longer pin `storefront-core`; they are validated against `themes/theme.schema.json` (`schema_version`) by `scripts/check-theme-pack.sh`. This policy applies only to the Next.js storefront until task T4.14 deletes it. See [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md).
 
 **Status:** Accepted · **Date:** 2026-08-20 · **Task:** P25-11 ·
 **Governed by:** [ADR-013](DECISIONS.md#adr-013)

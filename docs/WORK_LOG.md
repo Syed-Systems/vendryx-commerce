@@ -14,7 +14,7 @@ synchronizations. Enforced by `python scripts/doc-sync-workflow.py`.
 - Added [ADR-038](DECISIONS.md#adr-038); marked ADR-031 superseded and ADR-021/ADR-022 amended in the index; corrected the money rule to `stheno-types::Money` per ADR-006.
 - Added [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md) (architecture, pickup protocol, task board T0.1–T5.2 with files, acceptance and verify commands) and [THEME_AUTHORING.md](THEME_AUTHORING.md) (contract v1, draft).
 - Updated AGENTS.md (§0 branch rules, §12.0 rules for new storefront work, the design-handoff note), README, ARCHITECTURE, PRD, TRD, SITEMAP, STATUS, IMPLEMENTATION_PLAN, FRONTEND_VERSIONING, BRAND, AGENT_PROMPTS, docs index, `apps/storefront/README.md` and the docs-site authoring guide with ADR-038 notices. `docs/archive/` left untouched.
-- No code changed. The Next.js storefront keeps serving until task T4.7.
+- No code changed. The Next.js storefront keeps serving until task T4.14.
 - Ladder: rung 2 — ADR-037's caching and purge design, the existing branding and appearance endpoints, and `tower-http` are reused rather than replaced.
 
 ---

@@ -569,7 +569,7 @@ These rules apply to all new storefront work now:
 `scripts/check-theme-pack.sh` enforces rules 1–5 once task T1.9 lands. The full authoring contract
 is [docs/THEME_AUTHORING.md](docs/THEME_AUTHORING.md).
 
-**Until the cut-over (task T4.7)** the Next.js storefront described in §12.1–12.4 keeps serving
+**Until the cut-over (task T4.14)** the Next.js storefront described in §12.1–12.4 keeps serving
 production. Fix bugs in it; do not add features or themes to it.
 
 ### 12.1 The Unified Runtime (transitional, ADR-031)

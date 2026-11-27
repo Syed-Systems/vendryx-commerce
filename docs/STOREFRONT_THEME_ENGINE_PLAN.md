@@ -8,7 +8,7 @@ can pick up one task, finish it, prove it, and hand back, with no orchestrator p
   caching, and AI design tools (Google AI Studio, Antigravity) that only design and tokenize.
 - **What changes:** the engine renders storefront pages from `minijinja` template themes. Each
   theme is one folder with a `theme.json` of tokens. The Next.js storefront in `apps/storefront`
-  keeps serving until task T4.7 deletes it.
+  keeps serving until task T4.14 deletes it.
 - **Where it stands:** see the task board (section 4). Update it in the same PR as the work.
 
 Read first, in order: [AGENTS.md](../AGENTS.md), [ADR-038](DECISIONS.md#adr-038),
@@ -29,7 +29,8 @@ Read first, in order: [AGENTS.md](../AGENTS.md), [ADR-038](DECISIONS.md#adr-038)
    different agents. Their "Files" lists do not overlap; that is what makes them parallel.
 3. **One branch and one PR per phase, not per task.** The phase branch is
    `feat/phase-<n>-<short-slug>` (Phase 1: `feat/phase-1-renderer`, Phase 2:
-   `feat/phase-2-appearance`, Phase 3: `feat/phase-3-themes`, Phase 4: `feat/phase-4-cutover`).
+   `feat/phase-2-appearance`, Phase 3: `feat/phase-3-themes`, Phase 4: `feat/phase-4-cutover`,
+   Phase 5: `feat/phase-5-kit`, Phase 6: `feat/phase-6-deps`, Phase 7: `feat/phase-7-go-live`).
    If it does not exist yet, create it from `main`, push it, and open a **draft PR** titled
    `Phase <n>: <phase title from section 5>`. If it exists, check it out and pull it.
    Never use an AI product name in a branch, commit, comment or PR.
@@ -133,6 +134,28 @@ These apply to every task. They exist because a plan is only as good as its leas
    next. Every task of a phase lands in that phase's single PR (section 1.1).
 8. **Money is `Decimal`.** Never `f32`/`f64` for an amount (ADR-006); never compute a price, total
    or discount outside the engine's existing pricing and cart code.
+
+### 1.7 Owner tasks, and the order of the whole project
+
+Tasks numbered `O1`–`O7` on the board are the owner's: they need accounts, money, servers or
+approval. An agent never does them. When an agent reaches a task that depends on an open `O`
+task, it sets its own task to `blocked: waiting for O<n>` and stops.
+
+The whole project, in order. Phases run one after another unless marked parallel.
+
+| Step | What | Who |
+|---|---|---|
+| 1 | Merge PR #4 (sync with main, CI green) and PR #5 (this plan) into `main` | owner merges |
+| 2 | Phase 1, tasks T1.1–T1.10 (T1.8 needs O1) | agents, one task per session |
+| 3 | Phase 2, T2.1–T2.3 | agents |
+| 4 | Phase 3, T3.1–T3.7, one theme per session; screenshots approved by the owner (O7) | agents, owner approves |
+| 5 | Phase 4, T4.1–T4.14 (T4.13 needs staging from T7.2, so do O2, O3 and T7.2 before it) | agents, owner for O-tasks |
+| 6 | Phase 5, T5.1–T5.2 | agents |
+| 7 | Phase 6, T6.1 (parallel: any time, in its own session) | agent |
+| 8 | Phase 7, T7.1–T7.6, plus T7.5 for the rest of the platform | agents and owner |
+
+Each phase ends with one PR that someone who did not write it reviews (prompt R in
+[AGENT_START_PROMPTS.md](AGENT_START_PROMPTS.md)) before the owner merges it.
 
 ## 2. Architecture
 
@@ -255,7 +278,7 @@ orders/details/{id}) · `/{country}/order/{id}/confirmed` ·
 `/{country}/policies/{handle}` · `/sitemap.xml` · `/robots.txt`.
 
 The source of truth for today's behaviour is
-`apps/storefront/packages/storefront-core/src/app/` until T4.7 deletes it.
+`apps/storefront/packages/storefront-core/src/app/` until T4.14 deletes it.
 
 ---
 
@@ -287,16 +310,36 @@ Status values: `todo`, `in progress (<date>)`, `blocked: <reason>`, `done (<comm
 | T3.5 | Port Mahal | T1.10 | todo |
 | T3.6 | Port Lustre | T1.10 | todo |
 | T3.7 | Port Matrix | T1.10 | todo |
-| T4.1 | Cart page and cart interaction script | T1.10 | todo |
-| T4.2 | Checkout: COD, bKash, Nagad, SSLCommerz, Stripe | T4.1 | todo |
-| T4.3 | Account pages and engine session cookies | T1.10 | todo |
-| T4.4 | Order confirmed and order transfer pages | T4.3 | todo |
-| T4.5 | About and policy pages, sitemap, robots, Open Graph, JSON-LD | T1.10 | todo |
-| T4.6 | Performance acceptance (Lighthouse) on every theme | T3.1–T3.7, T4.5 | todo |
-| T4.7 | Cut-over: engine serves all storefront hosts; delete `apps/storefront` | T2.3, T3.1–T3.7, T4.1–T4.6 | todo |
+| T4.1 | Country prefix and region resolution | T1.5 | todo |
+| T4.2 | Internal Store API client | T1.1 | todo |
+| T4.3 | Shopper session cookie, sign-in, register, sign-out | T4.2 | todo |
+| T4.4 | Cart: forms, cookie, page, count island | T4.1, T4.2, T1.10 | todo |
+| T4.5 | Checkout steps, COD and manual transfer | T4.4 | todo |
+| T4.6 | Checkout: Stripe | T4.5 | todo |
+| T4.7 | Checkout: bKash, Nagad, SSLCommerz (sandbox run needs O4) | T4.5 | todo |
+| T4.8 | Account pages | T4.3, T1.10 | todo |
+| T4.9 | Order confirmed, payment proof, order transfer pages | T4.5, T4.8 | todo |
+| T4.10 | Store pages (about, policies): migration, service, routes | T1.5 | todo |
+| T4.11 | Admin screen for store pages | T4.10, T2.3 | todo |
+| T4.12 | SEO: head tags, JSON-LD, sitemap, robots | T1.5, T4.10 | todo |
+| T4.13 | Performance and accessibility acceptance | T3.1–T3.7, T4.12, T7.2 | todo |
+| T4.14 | Cut-over: engine serves all storefront hosts; delete `apps/storefront` | T2.3, T3.1–T3.7, T4.1–T4.13 | todo |
 | T5.1 | Finalize THEME_AUTHORING.md and the AI Studio prompt | T1.10, T2.3 | todo |
-| T5.2 | Decide ADR-037's reverse-proxy duties now that the engine serves the storefront | T4.7 | todo |
+| T5.2 | Origin proxy duties after cut-over (ADR-039) | T4.14 | todo |
 | T6.1 | Upgrade `diesel-async` past 0.5 and `diesel` to >= 2.3.8; remove the two ignores in `.cargo/audit.toml` | — | todo |
+| T7.1 | Edge acceptance checklist | T1.8, O1, T7.2 | todo |
+| T7.2 | Staging environment | O2, O3 | todo |
+| T7.3 | Payments in sandbox on staging | T4.5–T4.7, T7.2, O4 | todo |
+| T7.4 | Backups and a restore drill | T7.2 | todo |
+| T7.5 | Platform backlog outside the storefront (pointer) | — | todo |
+| T7.6 | Production launch | T4.14, T5.2, T7.1–T7.4, O5, O6 | todo |
+| O1 | **Owner:** tell agents the Cloudflare plan level (feeds T1.8) | — | todo |
+| O2 | **Owner:** choose the staging and production server | — | todo |
+| O3 | **Owner:** create the Cloudflare Tunnel and put its token on the server | O2 | todo |
+| O4 | **Owner:** enter sandbox credentials for Stripe, bKash, Nagad, SSLCommerz in the staging admin | T7.2 | todo |
+| O5 | **Owner:** enter live payment credentials in the production admin | T7.3 | todo |
+| O6 | **Owner:** point production DNS at Cloudflare | T7.2 | todo |
+| O7 | **Owner:** approve each theme's screenshots (Phase 3) and merge each phase PR | — | ongoing |
 
 ---
 
@@ -761,66 +804,471 @@ Every theme task has the same shape and the same procedure. Work in `themes/<id>
 
 ### Phase 4 — parity and cut-over
 
-#### T4.1 Cart page and cart interaction script
+Phase 4 makes the engine do everything the Next.js storefront does today, then deletes it.
+Branch and PR: `feat/phase-4-cutover`, `Phase 4: parity and cut-over`.
 
-- **Files:** `sf/src/loaders/cart.rs`, `sf/templates/core/cart*.html.j2`, `themes/_starter/`
-  cart template and island, tests.
-- **Acceptance:** add, update and remove lines through `/store/carts/*`; totals always come from
-  the engine response; the cart page is `no-store`; the cart count island works on cached pages.
-- **Verify:** `cargo test -p stheno-storefront` (cart tests).
+**The one design rule of this phase: the storefront never re-implements commerce.** Every cart,
+checkout, account and order action goes through the existing Store API handlers, called in process
+through the internal client from T4.2. No price, total, tax, discount, stock or ownership check is
+written in `stheno-storefront`. If a task seems to need one, stop and set it to `blocked`.
 
-#### T4.2 Checkout
+**Pages work without JavaScript.** Every action is a plain HTML `<form method="post">` to an
+engine route that answers with `303 See Other`. Interaction scripts only enhance those forms
+(a drawer instead of a page load). This is how Shopify's `/cart/add` works, and it means a page
+is correct even before or without its script.
 
-- **Files:** `sf/templates/core/checkout/**`, `sf/src/loaders/checkout.rs`, tests.
-- **Acceptance:** COD, bKash, Nagad, SSLCommerz and Stripe complete end to end against the
-  existing engine flows, including provider redirects and webhooks; the checkout page loads no
-  third-party script except what the payment provider requires
-  (`scripts/check-checkout-scripts.sh` passes); PCI SAQ-A checks pass
-  (`scripts/check-pci-saq-a.sh`).
-- **Verify:** the scripts above · checkout tests in `stheno-storefront` and `stheno-api-store`.
+Facts Phase 4 relies on (verified against the code on 2026-11-28; line numbers may drift a few
+lines, the names do not):
 
-#### T4.3 Account pages and engine session cookies
+| Need | Use exactly this | Where |
+|---|---|---|
+| Services the Store API uses | `StoreApiContext` (`cart_service`, `payment_service`, `order_service`, `auth_service`, `region_service`, ...) | `crates/api/stheno-api-store/src/lib.rs:50-79`, built at `crates/stheno-server/src/lib.rs:1484` |
+| Cart routes | `store_cart_routes`: `POST /store/carts`, `GET`/`POST /store/carts/{id}`, `POST /store/carts/{id}/line-items`, `POST`/`DELETE /store/carts/{id}/line-items/{line_id}`, `POST /store/carts/{id}/shipping-methods`, `POST`/`DELETE /store/carts/{id}/promotions`, `POST /store/carts/{id}/customer`, `POST /store/carts/{id}/complete` | `crates/api/stheno-api-store/src/lib.rs:146-172`, handlers in `carts.rs` |
+| Payment routes | `store_payment_routes`: `POST /store/payment-collections`, `POST /store/payment-collections/{id}/payment-sessions`, `POST /store/payment-collections/{id}/payment-sessions/{session_id}`, `GET /store/payment-providers` | `crates/api/stheno-api-store/src/lib.rs:175-194`, `payment_collections.rs` |
+| Shipping options | `GET /store/shipping-options`, `POST /store/shipping-options/{id}/calculate` | `crates/api/stheno-api-store/src/lib.rs:238-252` |
+| Payment provider ids | COD `pp_system_default`, manual bank transfer `pp_manual`, Stripe `pp_stripe_stripe`, bKash `pp_bkash_bkash`, Nagad `pp_nagad_nagad`, SSLCommerz `pp_sslcommerz_sslcommerz` | provider crates under `crates/providers/stheno-payment-*/src/lib.rs` |
+| Provider return URLs | read from the payment session's `data`: bKash `callback_url` (`stheno-payment-bkash/src/lib.rs:221`), Nagad `callback_url` (`stheno-payment-nagad/src/lib.rs:144`), SSLCommerz `success_url`, `fail_url`, `cancel_url` (`stheno-payment-sslcommerz/src/lib.rs:153-162`) | |
+| Provider webhooks | `POST /hooks/payment/{provider_id}`, handler `receive_payment_webhook` | `crates/api/stheno-api-store/src/hooks.rs:37-61`, mounted `crates/stheno-server/src/lib.rs:1563` |
+| Shopper sign-in | `POST /auth/customer/emailpass` (handler `authenticate`), `POST /auth/customer/emailpass/register` (`register`) | `crates/api/stheno-api-auth/src/routes.rs:58`, `:108`, route table `:425-472` |
+| Shopper token today | JWT sent as `Authorization: Bearer`, read by the private `bearer_token(&HeaderMap)` | `crates/api/stheno-api-store/src/customers.rs:47` |
+| Existing cookie pattern to copy | admin cookie `__Host-stheno-admin-session` set by `session_cookie` (`Path=/; Secure; HttpOnly; SameSite=Lax`) | `crates/api/stheno-api-auth/src/routes.rs:794-814` |
+| Customer routes | `GET`/`POST /store/customers/me`, `GET`/`POST /store/customers/me/addresses`, `GET`/`POST`/`DELETE /store/customers/me/addresses/{address_id}`, `POST /store/customers` | `crates/api/stheno-api-store/src/lib.rs:281-311`, `customers.rs` |
+| Order routes | `GET /store/orders`, `GET /store/orders/{id}`, `GET`/`POST /store/orders/{id}/payment-proof`, `POST /store/orders/{id}/transfer/request`, `.../accept`, `.../decline`, `.../cancel` | `crates/api/stheno-api-store/src/lib.rs:197-235`, `orders.rs` |
+| Store config (buyer accounts on/off) | `GET /store/config` | `crates/stheno-server/src/lib.rs:1474` |
+| Checkout script allow-list | `docs/payment-page-scripts.md` (the CSP for checkout pages is written there) | checked by `scripts/check-checkout-scripts.sh`, `scripts/check-pci-saq-a.sh` |
+| Today's storefront behaviour to match | pages in `apps/storefront/packages/storefront-core/src/app/[countryCode]/`, data calls in `.../src/lib/data/*.ts`, checkout steps in `.../src/modules/checkout/` | until T4.13 deletes it |
 
-- **Acceptance:** sign-in, profile, addresses, orders and order detail work with HttpOnly,
-  Secure, SameSite=Lax cookies set by the engine; account pages are `no-store`.
+Not in the engine today (tasks below create them): a shopper cookie, policy and about page
+content, `sitemap.xml`, `robots.txt`, JSON-LD, and a browser return page for bKash, Nagad and
+SSLCommerz.
 
-#### T4.4 Order confirmed and order transfer pages
+#### T4.1 Country prefix and region resolution
 
-- **Acceptance:** confirmed, transfer, accept and decline behave as today's routes.
+- **Goal:** `/{country}/...` resolves to the region that contains that country, exactly as
+  `apps/storefront/packages/storefront-core/src/middleware.ts` does today.
+- **Create:** `crates/storefront/stheno-storefront/src/region.rs` with
+  `pub async fn resolve_region(region_service: &stheno_region::RegionService, country: &str) -> Result<Option<RegionDTO>, stheno_types::Error>`
+  (match `country` case-insensitively against each region's countries' `iso_2`).
+- **Edit:** `src/lib.rs` (call it from every page handler); `crates/stheno-server/tests/engine_storefront.rs`.
+- **Behaviour:**
+  1. `GET /` redirects `307` to `/{country}` where `country` is, in order: the `CF-IPCountry`
+     request header if it maps to a region, else the first country of the first region from
+     `RegionService::list_regions()`.
+  2. A `{country}` that maps to no region answers `404` with the theme's 404 page if it has
+     `templates/404.html.j2`, else a plain 404.
+  3. No regions at all: `503`, body empty.
+  4. Paths containing a `.` (files) are never treated as a country.
+- **Acceptance tests (exact names):** `root_redirects_to_ip_country`,
+  `root_redirects_to_first_region_without_ip_header`, `unknown_country_is_404`,
+  `no_regions_is_503`.
+- **Verify (Space):** `.\scripts\build-on-space.ps1 -Mode rust-package -CargoPackage stheno-server -CargoTestTarget engine_storefront -CargoTestServices`.
 
-#### T4.5 Pages, sitemap, robots, Open Graph, JSON-LD
+#### T4.2 Internal Store API client
 
-- **Acceptance:** about and policy pages render from engine data; `sitemap.xml` and `robots.txt`
-  per tenant; every public page has title, description, canonical and Open Graph tags; product
-  pages carry Product JSON-LD with the engine's price.
+- **Goal:** storefront handlers call the existing Store API handlers in process, with the same
+  validation, pricing, flows and errors as an HTTP call, and no network hop.
+- **How:** build the same store routers that `crates/stheno-server/src/lib.rs` builds around line
+  1484-1563 (read that block; reuse the exact constructor calls, do not write new ones) and pass the
+  merged `axum::Router` into `StorefrontContext` as `pub store_api: axum::Router`. Call it with
+  `tower::ServiceExt::oneshot`. The request runs inside the current tenant scope, so tenant
+  isolation is unchanged.
+- **Create:** `crates/storefront/stheno-storefront/src/store_api.rs`:
 
-#### T4.6 Performance acceptance
+  ```rust
+  pub struct StoreApi { router: axum::Router }
+  pub struct StoreApiResponse { pub status: http::StatusCode, pub body: serde_json::Value }
+  impl StoreApi {
+      pub fn new(router: axum::Router) -> Self;
+      /// `token` is the shopper JWT from the cookie (T4.3), sent as `Authorization: Bearer`.
+      pub async fn call(&self, method: http::Method, path: &str,
+                        body: Option<serde_json::Value>, token: Option<&str>)
+                        -> Result<StoreApiResponse, stheno_types::Error>;
+  }
+  ```
+- **Edit:** `src/lib.rs` (`StorefrontContext` gains `store_api`), `crates/stheno-server/src/lib.rs`
+  (pass the router where `storefront_router` is mounted).
+- **Do not:** call any `*_service` method directly for carts, checkout, payments, customers or
+  orders. Catalogue loaders from Phase 1 keep their direct service calls.
+- **Acceptance tests:** `internal_client_matches_http_for_regions` (same JSON as
+  `GET /store/regions` over HTTP), `internal_client_passes_bearer_token`
+  (`GET /store/customers/me` with a valid token returns 200, without one 401).
+- **Verify (Space):** as T4.1.
 
-- **Acceptance:** Lighthouse mobile performance at least 90 and accessibility at least 95 on
-  home, listing and product pages for every theme; results attached to the PR.
+#### T4.3 Shopper session cookie
 
-#### T4.7 Cut-over and deletion
+- **Goal:** a shopper signs in through an HTML form; the engine keeps the JWT in an HttpOnly
+  cookie; the Store API accepts that cookie as well as the existing bearer header.
+- **Cookie:** name `__Host-stheno-shopper`, value the access token returned by the auth service,
+  attributes copied from `session_cookie` in `crates/api/stheno-api-auth/src/routes.rs:814`
+  (`Path=/; Secure; HttpOnly; SameSite=Lax`), `Max-Age` equal to the access token lifetime.
+- **Edit `crates/api/stheno-api-store/src/customers.rs`:** replace the private
+  `bearer_token(&HeaderMap) -> Option<&str>` with
+  `pub(crate) fn shopper_token(headers: &HeaderMap) -> Option<String>` that returns the bearer
+  token if present, otherwise the `__Host-stheno-shopper` cookie value. Update every caller
+  (find them with `grep -rn "bearer_token" crates/api/stheno-api-store/src`). The bearer header
+  keeps working exactly as before (the Store API is frozen: add, never change).
+- **Create engine routes in `stheno-storefront`:**
+  - `POST /{country}/account/login` (form `email`, `password`): calls
+    `POST /auth/customer/emailpass` through the internal client pattern (build the auth router the
+    same way T4.2 builds the store router). Success: set the cookie, `303` to
+    `/{country}/account`. Failure: `303` to `/{country}/account?error=login` (never say whether the
+    email exists). A `429` from the auth route is passed through as `429`.
+  - `POST /{country}/account/register` (form `email`, `password`, `first_name`, `last_name`):
+    `POST /auth/customer/emailpass/register`, then `POST /store/customers`, then sign in as above.
+  - `POST /{country}/account/logout`: clear the cookie (`Max-Age=0`), `303` to `/{country}`.
+- **CSRF:** every engine `POST` rejects with `403` when the `Origin` header is present and its host
+  differs from the request `Host`, or when both `Origin` and `Referer` are absent. `SameSite=Lax`
+  already keeps the cookie off cross-site POSTs; this is the second lock.
+- **Acceptance tests:** `login_sets_httponly_cookie`, `bad_login_does_not_reveal_account`,
+  `store_api_accepts_cookie_token`, `bearer_header_still_works`, `logout_clears_cookie`,
+  `cross_origin_post_is_rejected`.
+- **Verify (Space):** `-CargoPackage stheno-api-store -CargoClippy -CargoTestServices`, then as T4.1.
 
-- **Goal:** the engine serves every storefront host; the Next.js storefront is gone.
-- **Files:** `crates/stheno-server` (flag default on), `apps/storefront/**` (delete),
-  `docker-compose.yml`, `deploy/**`, `.github/workflows/**` (remove storefront jobs, keep the
-  theme gate), `scripts/check-frontend-*.sh` and `check-storefront-boundaries.sh` (delete or
-  retarget), docs that describe the Next.js storefront.
-- **Acceptance:** every route in section 3 is served by the engine in staging; CI is green with
-  no storefront Node job; ADR-031's notice and ADR-038's status say Implemented.
+#### T4.4 Cart
+
+- **Goal:** add to cart, change quantity, remove, and see the cart, with and without JavaScript.
+- **Cookie:** `__Host-stheno-cart`, value the cart id, same attributes as T4.3, `Max-Age` 30 days.
+- **Engine routes:**
+  - `POST /{country}/cart/add` (form `variant_id`, `quantity`): if no valid cart cookie, create a
+    cart with `POST /store/carts` and `{"region_id": <region from T4.1>}` and set the cookie; then
+    `POST /store/carts/{id}/line-items`. `303` to `/{country}/cart`.
+  - `POST /{country}/cart/update` (form `line_id`, `quantity`): `POST /store/carts/{id}/line-items/{line_id}`.
+  - `POST /{country}/cart/remove` (form `line_id`): `DELETE /store/carts/{id}/line-items/{line_id}`.
+  - `GET /{country}/cart`: renders `cart.html.j2` with `cart` = the body of `GET /store/carts/{id}`.
+  - `GET /_sf/cart-count`: `{"count": <sum of line quantities>}` or `{"count": 0}`.
+  - With header `Accept: application/json`, the three POST routes answer `200` with the cart JSON
+    instead of `303`, so a script can update a drawer.
+- **Caching:** cart page and `/_sf/cart-count` send `Cache-Control: private, no-store` and never a
+  `Cache-Tag`. Public pages never read the cart cookie.
+- **Signed-in shopper:** after sign-in (T4.3), if a cart cookie exists call
+  `POST /store/carts/{id}/customer` so the cart follows the account.
+- **Island:** `themes/_starter/assets/islands/cart.js`: on load, fetch `/_sf/cart-count` and fill
+  every `[data-cart-count]`; intercept `form[data-cart-form]` submits with `fetch` and
+  `Accept: application/json`. No price arithmetic: display what the response contains.
+- **Templates:** `themes/_starter/templates/cart.html.j2`, `partials/cart-line.html.j2`;
+  product card and product page get a `<form method="post" action="{{ routes.cart_add }}" data-cart-form>`.
+- **Acceptance tests:** `add_to_cart_creates_cart_and_sets_cookie`, `update_and_remove_line`,
+  `cart_page_is_no_store`, `cart_count_endpoint`, `json_accept_returns_cart`,
+  `totals_come_from_store_api` (assert the rendered total equals the Store API's `total`).
+- **Verify (Space):** as T4.1, plus `bash scripts/check-theme-pack.sh`.
+
+#### T4.5 Checkout: steps, COD and manual transfer
+
+- **Goal:** the four-step checkout of today (address, delivery, payment, review), rendered by the
+  engine from core partials, completing orders with COD and manual bank transfer.
+- **Routes:** `GET /{country}/checkout?step=address|delivery|payment|review` (default `address`)
+  and one `POST` per step:
+  - `POST /{country}/checkout/address` → `POST /store/carts/{id}` with `email`,
+    `shipping_address`, `billing_address`.
+  - `POST /{country}/checkout/delivery` (form `option_id`) → `POST /store/carts/{id}/shipping-methods`.
+  - `POST /{country}/checkout/payment` (form `provider_id`) → create the payment collection and
+    session (`POST /store/payment-collections`, then `.../payment-sessions`).
+  - `POST /{country}/checkout/complete` → `POST /store/carts/{id}/complete`; on success clear the
+    cart cookie and `303` to `/{country}/order/{order_id}/confirmed`.
+  Delivery options come from `GET /store/shipping-options?cart_id={id}`, providers from
+  `GET /store/payment-providers?region_id={region}`.
+- **Templates (core, not theme):** `crates/storefront/stheno-storefront/templates/core/checkout.html.j2`
+  and `core/checkout/{address,delivery,payment,review}.html.j2`. Themes only wrap them.
+- **Providers in this task:** `pp_system_default` (shown as "Cash on delivery") and `pp_manual`
+  (shown as "Manual bank transfer", with the transfer instructions the manual provider returns).
+  Others are listed but disabled until T4.6 and T4.7.
+- **Headers:** checkout pages are `private, no-store` and carry the CSP from
+  `docs/payment-page-scripts.md` §3 exactly.
+- **Acceptance tests:** `checkout_requires_cart`, `address_step_saves_address`,
+  `delivery_lists_engine_options`, `cod_order_completes`, `manual_transfer_order_completes`,
+  `checkout_has_payment_page_csp`. Plus `bash scripts/check-checkout-scripts.sh` and
+  `bash scripts/check-pci-saq-a.sh` pass.
+- **Verify (Space):** as T4.1.
+
+#### T4.6 Checkout: Stripe
+
+- **Goal:** card payments through Stripe Elements, as today
+  (`apps/storefront/packages/storefront-core/src/modules/checkout/components/payment-wrapper/index.tsx`
+  and `payment-button/index.tsx`).
+- **How:** a core island `templates/core/islands/stripe.js`, loaded only on the payment step when
+  `pp_stripe_stripe` is chosen. It loads `https://js.stripe.com/v3/` (the only third-party script
+  allowed, per `docs/payment-page-scripts.md`), mounts the card element, calls
+  `stripe.confirmCardPayment(client_secret)` with the `client_secret` from the payment session, then
+  submits the `complete` form.
+- **Publishable key:** read where the Stripe provider keeps its configuration in
+  `crates/providers/stheno-payment-stripe/src/lib.rs`. If it has a publishable key, pass it to the
+  template. If it does not, set the task to `blocked: needs owner decision: where the Stripe
+  publishable key is configured` and stop.
+- **Acceptance:** test `stripe_step_renders_client_secret_and_key` (mocked provider); manual
+  check on staging with a Stripe test key and card `4242 4242 4242 4242`, screenshot in the PR.
+- **Verify (Space):** as T4.1, plus the two checkout scripts.
+
+#### T4.7 Checkout: bKash, Nagad, SSLCommerz
+
+- **Goal:** the three hosted-redirect gateways work end to end. Today's storefront never had them
+  (no client code exists), so this is new behaviour, built on engine flows that already exist.
+- **How:**
+  1. When creating the payment session for one of these providers, put the return URLs in the
+     session `data`: bKash and Nagad `callback_url`, SSLCommerz `success_url`, `fail_url`,
+     `cancel_url`, each set to
+     `https://{request host}/{country}/checkout/return/{provider_id}?cart={cart_id}`.
+  2. Redirect the browser to the gateway URL the session returns.
+  3. New route `GET` and `POST /{country}/checkout/return/{provider_id}`: re-read the payment
+     session through the Store API. If authorized, call `POST /store/carts/{id}/complete`
+     (it is idempotent: the webhook at `/hooks/payment/{provider_id}` may have completed it
+     first) and `303` to the confirmed page. Otherwise `303` to
+     `/{country}/checkout?step=payment&error=payment`.
+  4. Never trust query parameters from the gateway as proof of payment; only the session state
+     read from the engine counts.
+- **Acceptance tests:** `return_url_is_tenant_host`, `return_completes_authorized_cart`,
+  `return_with_unpaid_session_goes_back_to_payment`, `return_ignores_forged_query_status`.
+  Sandbox runs for all three on staging need the owner's sandbox credentials (task O4); until
+  then, record "sandbox run pending O4" in the PR, do not mark the sandbox criterion done.
+- **Verify (Space):** as T4.1.
+
+#### T4.8 Account pages
+
+- **Goal:** sign-in, register, dashboard, profile, addresses, orders and order detail, matching
+  `apps/storefront/packages/storefront-core/src/app/[countryCode]/(main)/account/`.
+- **Routes:** `GET /{country}/account` (login form if signed out, dashboard if signed in),
+  `/account/profile`, `/account/addresses`, `/account/orders`, `/account/orders/{id}`; form posts
+  `POST /account/profile` → `POST /store/customers/me`; `POST /account/addresses` →
+  `POST /store/customers/me/addresses`; `POST /account/addresses/{id}` and
+  `POST /account/addresses/{id}/delete` → the address routes.
+- **Rules:** if `GET /store/config` says buyer accounts are off, every account route is `404`.
+  All account pages are `private, no-store`. A `401` from the Store API clears the cookie and
+  redirects to `/{country}/account`.
+- **Templates:** theme `account/*.html.j2`; forms come from `core/login.html.j2` and
+  `core/account-form.html.j2`.
+- **Acceptance tests:** `signed_out_sees_login`, `dashboard_lists_own_orders`,
+  `cannot_open_another_customers_order` (expect 404), `profile_update_saves`,
+  `address_crud`, `accounts_off_hides_routes`.
+- **Verify (Space):** as T4.1.
+
+#### T4.9 Order confirmed, payment proof and order transfer pages
+
+- **Routes:** `GET /{country}/order/{id}/confirmed` (order from `GET /store/orders/{id}`; for
+  `pp_manual` also `GET /store/orders/{id}/payment-proof` and an upload form posting to
+  `POST /store/orders/{id}/payment-proof`); `GET /{country}/order/{id}/transfer/{token}` with
+  accept and decline forms posting to `POST /store/orders/{id}/transfer/accept` and `.../decline`.
+- **Rules:** `private, no-store`; an order the shopper may not see is `404`, never `403`.
+- **Acceptance tests:** `confirmed_page_shows_engine_totals`, `manual_payment_proof_upload`,
+  `transfer_accept`, `transfer_decline`, `foreign_order_is_404`.
+- **Verify (Space):** as T4.1.
+
+#### T4.10 Store pages: about and policies (engine data)
+
+- **Goal:** about and policy text is merchant data stored in the engine. Today it is written into
+  the Next.js frontend; that is the kind of hardcoding ADR-038 removes.
+- **Create:** migration `migrations/<timestamp>_store_page/up.sql` and `down.sql`:
+
+  ```sql
+  CREATE TABLE store.store_page (
+      id          text        PRIMARY KEY,
+      tenant_id   text        NOT NULL DEFAULT current_setting('app.tenant_id', true),
+      handle      text        NOT NULL CHECK (handle ~ '^[a-z0-9][a-z0-9-]{0,63}$'),
+      title       text        NOT NULL CHECK (length(title) BETWEEN 1 AND 120),
+      body        text        NOT NULL CHECK (length(body) <= 60000),
+      published   boolean     NOT NULL DEFAULT false,
+      created_at  timestamptz NOT NULL DEFAULT now(),
+      updated_at  timestamptz NOT NULL DEFAULT now(),
+      deleted_at  timestamptz
+  );
+  CREATE UNIQUE INDEX idx_store_page_handle
+      ON store.store_page (tenant_id, handle) WHERE deleted_at IS NULL;
+  ALTER TABLE store.store_page ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE store.store_page FORCE ROW LEVEL SECURITY;
+  CREATE POLICY tenant_isolation ON store.store_page
+      USING (tenant_id = (SELECT current_setting('app.tenant_id', true)))
+      WITH CHECK (tenant_id = (SELECT current_setting('app.tenant_id', true)));
+  GRANT SELECT, INSERT, UPDATE, DELETE ON store.store_page TO stheno_app;
+  ```
+  `down.sql`: `DROP TABLE IF EXISTS store.store_page;`. This follows the T2.1 migration exactly
+  (same RLS policy form and grant). Entity id prefix `spage` (ADR-010); add it wherever ADR-010's
+  prefix list lives (find it with `graphify query "Id prefix list ADR-010"`).
+- **Service and routes:** a `StorePage` entity, repository and service methods in
+  `crates/modules/stheno-store` following the pattern of the existing branding methods
+  (`get_branding` in `service.rs:326`); admin routes `GET`/`POST /admin/store-pages`,
+  `GET`/`POST`/`DELETE /admin/store-pages/{id}`; store route `GET /store/pages/{handle}`
+  (published only). `body` is sanitized with the same richtext rule as theme `richtext` tokens
+  (paragraphs, bold, italic, links) on save and on render. Saving purges the page's cache tag.
+- **Engine pages:** `GET /{country}/about` (handle `about`) and `GET /{country}/policies/{handle}`
+  render `page.html.j2`; unpublished or missing is `404`. Public cache headers with tag
+  `page:<handle>`.
+- **Acceptance tests:** `rls_isolates_store_pages` (add the table to the RLS audit if the audit
+  needs it), `unpublished_page_is_404`, `richtext_is_sanitized`, `saving_purges_page_tag`.
+- **Verify (Space):** `-CargoPackage stheno-store -CargoClippy -CargoTestServices`, plus
+  `bash scripts/check-migration-phases.sh`, `bash scripts/check-playbook.sh`,
+  `bash scripts/check-schema-drift.sh`.
+
+#### T4.11 Admin screen for store pages
+
+- **Goal:** the merchant creates and edits about and policy pages in the admin.
+- **Files:** a route under `apps/admin/src/routes/settings/store-pages/` following the structure
+  of the Appearance screen from T2.3; list, create, edit, publish toggle, delete; body edited
+  with the admin's existing rich text input if one exists (search `apps/admin/src/components/inputs`),
+  else a plain textarea. Every string through the admin's i18n files.
+- **Acceptance:** typecheck and tests pass; a test `store-pages.spec.tsx` covers create, edit,
+  publish and delete against mocked endpoints; screenshot in the PR.
+- **Verify (Space):** `.\scripts\build-on-space.ps1 -Mode web-admin`.
+
+#### T4.12 SEO: titles, Open Graph, JSON-LD, sitemap and robots
+
+- **Head tags:** every public page renders `<title>`, `<meta name="description">`,
+  `<link rel="canonical">` (the request host plus path, no query string), and `og:title`,
+  `og:description`, `og:url`, `og:image` from the `page` object. The `page` object is filled by
+  each loader: product → title, description, first image; collection → title, description;
+  home → store name and the store description if branding has one.
+- **JSON-LD:** product pages render one `<script type="application/ld+json">` with schema.org
+  `Product`: `name`, `image`, `description`, `sku` (variant), `offers` with `price` (the engine's
+  `calculated_amount` as a decimal string), `priceCurrency`, and `availability`. Built in Rust with
+  `serde_json`, never by string concatenation in a template, and allowed by the CSP via a hash or
+  because `application/ld+json` is not executed (check the CSP spec; record which).
+- **`/sitemap.xml`:** per tenant host: home, `/store`, every published product, category,
+  collection and published store page, for every region country; `Cache-Control: public,
+  s-maxage=3600`; tag `listing`. Over 50,000 URLs: a sitemap index.
+- **`/robots.txt`:** `Allow: /`, `Disallow: /*/checkout`, `/*/account`, `/*/cart`, `/_sf/`, and the
+  sitemap URL.
+- **Acceptance tests:** `product_page_has_canonical_and_og`, `product_json_ld_uses_engine_price`,
+  `sitemap_lists_published_products_only`, `robots_disallows_private_paths`.
+- **Verify (Space):** as T4.1.
+
+#### T4.13 Performance and accessibility acceptance
+
+- **Goal:** every theme is fast and accessible on a phone.
+- **How:** on staging (task T7.2), run Lighthouse in mobile mode against home, one listing and one
+  product page per theme: `npx lighthouse <url> --preset=perf --form-factor=mobile --output=json`
+  and the accessibility category. Lighthouse runs a browser against a deployed URL; it builds
+  nothing, so it may run on any machine.
+- **Acceptance:** performance ≥ 90 and accessibility ≥ 95 on every page tested; the JSON reports
+  attached to the PR. A theme that misses gets a fix commit in its own theme folder only.
+
+#### T4.14 Cut-over and deletion of the Next.js storefront
+
+- **Goal:** the engine serves every storefront host; `apps/storefront` is gone.
+- **Steps, in order:**
+  1. Make `STHENO_ENGINE_STOREFRONT` default to on (the flag stays for one release as a
+     kill switch, then T4.14's follow-up removes it).
+  2. On staging, walk every route in section 3 for every theme; record pass or fail in the PR.
+  3. Delete `apps/storefront/**`; remove the `storefront` service from `docker-compose.yml`
+     (line ~152) and any storefront entry in `deploy/chart/` and `deploy/proxy/Caddyfile`
+     (route those hosts to the engine instead).
+  4. Remove storefront jobs from `.github/workflows/ci.yml`; keep the theme gate.
+  5. Delete `scripts/check-frontend*.sh`, `scripts/check-storefront-boundaries.sh` and their
+     `.ps1` twins, and every reference to them (find with
+     `grep -rn "check-frontend\|check-storefront-boundaries" --include=*.yml --include=*.sh --include=*.md .`).
+  6. Update docs that describe the Next.js storefront (`grep -rln "apps/storefront" docs AGENTS.md README.md`).
+  7. ADR-031's notice and ADR-038's status: Implemented.
+- **Acceptance:** CI green with no storefront Node job; staging walk-through all pass;
+  `bash scripts/check-docs-links.sh` passes.
+- **Verify (Space):** `.\scripts\build-on-space.ps1 -Mode rust-ci`.
 
 ### Phase 5 — kit and follow-up
 
+Branch and PR: `feat/phase-5-kit`, `Phase 5: theme kit and edge duties`.
+
 #### T5.1 Finalize THEME_AUTHORING.md and the AI Studio prompt
 
-- **Acceptance:** an agent given only THEME_AUTHORING.md and the starter theme produces a theme
-  that passes the gate on the first try; the copy-paste prompt is in the document.
+- **Goal:** a design tool given only `docs/THEME_AUTHORING.md` and `themes/_starter/` produces a
+  theme that passes the gate on the first try.
+- **Steps:**
+  1. Replace every "draft" and "expect small corrections" in THEME_AUTHORING.md with the final
+     contract; the data table in §4 must list exactly the fields the loaders now provide (read
+     them from the loader code, do not copy from the old table).
+  2. Update §8 and `docs/AGENT_START_PROMPTS.md` prompt C to match.
+  3. Test it: give a fresh agent session only those two inputs and the brief "a minimal
+     black-and-white theme called `trial-mono`"; run `bash scripts/check-theme-pack.sh` on the
+     result. Record the gate output in the PR. Do not commit `trial-mono`.
+- **Acceptance:** the trial theme passes the gate without hand edits.
 
-#### T5.2 ADR-037 reverse-proxy duties
+#### T5.2 Origin proxy duties after cut-over
 
-- **Goal:** record whether stripping tenant-override headers, translating `CF-IPCountry`, and the
-  admin/storefront host split move into the engine, and implement the decision.
-- **Acceptance:** a new ADR, and the duties enforced with tests wherever they land.
+- **Goal:** ADR-037 left three duties with the origin proxy (Caddy, `deploy/proxy/Caddyfile`):
+  strip client-sent tenant-override headers, translate `CF-IPCountry`, split admin and storefront
+  hosts. Confirm they still hold now that the engine serves storefront hosts.
+- **Decision already made:** keep Caddy as the origin proxy. It is already deployed and checked
+  (`deploy/proxy/check.sh`); moving its duties into the engine adds code for no gain.
+- **Steps:** update the Caddyfile so storefront hosts route to the engine; extend
+  `deploy/proxy/check.py` with one case per duty for a storefront host; run `bash deploy/proxy/check.sh`
+  (it starts containers: run it on Space or staging, not on the owner's machine). Record the
+  decision as ADR-039 "Caddy stays the origin proxy" in `docs/DECISIONS.md`.
+- **Acceptance:** `deploy/proxy/check.sh` passes with the new cases; ADR-039 in the index.
+
+### Phase 6 — dependency upkeep
+
+Branch and PR: `feat/phase-6-deps`, `Phase 6: dependency upkeep`. It can run at any time,
+in parallel with any other phase: it touches no storefront or theme code.
+
+#### T6.1 Upgrade `diesel-async` and `diesel`; remove the two audit ignores
+
+- **Goal:** `.cargo/audit.toml` ignores RUSTSEC-2026-0136 and RUSTSEC-2026-0137 because
+  `diesel-async = "0.5"` pins `diesel ~2.2`. Upgrade so both ignores can go.
+- **Edit:** root `Cargo.toml` lines ~210-212: `diesel` to the latest `2.3.x` (at least `2.3.8`),
+  `diesel-async` to the first release that accepts that `diesel` (read its changelog on
+  crates.io; write the version you chose and why in the PR), `diesel_migrations` to the matching
+  `2.3.x`. Keep every existing feature flag. Then `Cargo.lock` via `cargo update -p diesel
+  -p diesel-async -p diesel_migrations` (this resolves only, it builds nothing).
+- **Then:** fix every compile error the upgrade causes, changing call sites only, never
+  behaviour. If a fix needs a behaviour change, stop and set `blocked: <the API change>`.
+- **Remove:** both entries from `.cargo/audit.toml`. Leave the file's header comment.
+- **Acceptance:** `.\scripts\build-on-space.ps1 -Mode rust-ci` passes (every crate builds, clippy
+  clean, every test passes); the CI "Supply chain" stage passes with no ignores.
+- **Verify (Space):** `.\scripts\build-on-space.ps1 -Mode rust-ci`.
+
+### Phase 7 — go live
+
+Branch and PR: `feat/phase-7-go-live` for repository changes. Several tasks here are owner tasks:
+they need accounts, money or decisions only the owner has. They are listed in section 1.7 and
+marked **Owner** on the board. An agent never creates accounts, enters credentials or buys plans.
+
+#### T7.1 Edge acceptance checklist
+
+- **Goal:** fill the seven blank result cells of the edge acceptance checklist in
+  `docs/DEPLOYMENT.md` §8 (tag purge limits, `Cache-Tag` limits, stale-while-revalidate
+  behaviour, custom-hostname pricing, wildcard certificate depth, Tunnel `Host` preservation,
+  `stheno-file-s3` against R2) with measured results.
+- **Depends on:** T1.8 and O1 (Cloudflare plan known), T7.2 (staging exists).
+- **How:** each cell gets the command run against staging and its output, or the Cloudflare
+  documentation URL plus the plan name for pure plan facts.
+- **Acceptance:** no blank cell; any result that contradicts ADR-037 opens a new task.
+
+#### T7.2 Staging environment
+
+- **Depends on:** O2 (owner picks the server) and O3 (owner creates the Cloudflare Tunnel token).
+- **Goal:** the full `docker-compose.yml` stack (proxy, cloudflared, postgres, redis, pgbouncer,
+  engine, admin, platform, marketing) running on the staging server behind its own hostnames.
+- **Steps:** write `deploy/staging/README.md` with the exact commands; secrets only in the
+  server's environment file, never in the repository; run migrations with the engine's
+  `--migrate`; seed with `scripts/dev-tenants.sh` equivalents for three test tenants.
+- **Acceptance:** every route in section 3 answers on staging for each test tenant; `/health`
+  is green; the README lets someone with server access rebuild staging from nothing.
+
+#### T7.3 Payments in sandbox, on staging
+
+- **Depends on:** O4 (owner enters sandbox credentials in the admin of the staging test tenant).
+- **Goal:** one real sandbox order per provider (COD, manual transfer, Stripe, bKash, Nagad,
+  SSLCommerz), each reaching the confirmed page and the admin order list, with the webhook seen
+  in the engine log.
+- **Acceptance:** a table in the PR: provider, order id, webhook received yes/no, screenshot.
+
+#### T7.4 Backups and a restore drill
+
+- **Goal:** prove `docs/DEPLOYMENT.md` §7 works: take a backup of staging Postgres, restore it into
+  an empty database, start the engine against it, and open one order created in T7.3.
+- **Acceptance:** commands and timings recorded in `docs/DEPLOYMENT.md` §7; restore succeeds.
+
+#### T7.5 Platform backlog outside the storefront
+
+- **Goal:** the parts of the product this plan does not cover are finished under their own plans,
+  with the same pickup rules (section 1). They are: `docs/PLATFORM_COMPLETION_TASKS.md` groups A–I,
+  and `docs/STATUS.md` phases P30–P36 (subscription billing first, `docs/STATUS.md:66-70`).
+- **How:** this task is a pointer, not work. An agent with prompt A that is told "T7.5" opens those
+  documents, picks the first open item there and follows the same protocol.
+- **Acceptance:** every item in those documents is done or explicitly deferred by the owner.
+
+#### T7.6 Production launch
+
+- **Depends on:** everything above, plus O5 (live payment keys) and O6 (production DNS).
+- **Steps:** deploy production from the staging README; switch DNS; run the T7.3 table again with
+  live COD and one low-value live card payment the owner makes; watch logs for one hour.
+- **Rollback:** keep the previous engine image tag; rollback is redeploying it. Migrations in this
+  plan are additive (ADR-safe phases), so no data rollback is needed.
+- **Acceptance:** the owner signs off in the PR.
 
 ---
 
@@ -832,8 +1280,9 @@ marketplace or merchant-uploaded themes.
 
 ## 7. Open questions for the owner
 
-1. Cloudflare plan level (T1.8): decides tag purge and the number of merchant custom domains.
-2. Trial label: the admin says 14-Day, the engine and ADR-033 say 7 days. The owner chose the
+1. Cloudflare plan level: now task O1 (feeds T1.8 and T7.1).
+2. Server for staging and production: task O2.
+3. Trial label: the admin says 14-Day, the engine and ADR-033 say 7 days. The owner chose the
    14-Day label on 2026-11-26.
 
 ## 8. Change log
@@ -843,3 +1292,4 @@ marketplace or merchant-uploaded themes.
 | 2026-11-27 | Plan written for ADR-038. Supersedes the draft in `.orchestration/task-storefront-theme-engine/spec.md`. |
 | 2026-11-27 | Hardened for any agent: section 1.6 (rules that prevent guessing), verified API facts table, exact signatures, test names and expected outputs for Phases 1–2, a step-by-step conversion procedure for Phase 3, and T6.1. |
 | 2026-11-27 | T0.1 done: `main` at `12203039` merged into PR #4; AI Studio files parked in `design-source/ai-studio-2026-11-27/`; `bun.lock` removed. |
+| 2026-11-28 | One PR per phase; every build and test on Space. Phases 4–7 written in full: internal Store API client, shopper cookie, cart, checkout per provider, account, order pages, store pages, SEO, cut-over, theme kit, Caddy decision, diesel upgrade, go-live, and owner tasks O1–O7. |

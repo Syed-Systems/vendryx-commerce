@@ -13,6 +13,26 @@ instead of repeating them, so updating the plan updates every prompt.
 | B | Designing a new theme **before** task T1.10 is done | Google AI Studio, Antigravity |
 | C | Designing a new theme **after** task T1.10 is done | Google AI Studio, Antigravity |
 | D | Fixing a red CI run | Any coding agent with repo access |
+| R | Reviewing a finished phase PR before you merge it | A different agent from the one that wrote it |
+
+## How to run the whole project
+
+The full order is in [STOREFRONT_THEME_ENGINE_PLAN.md §1.7](STOREFRONT_THEME_ENGINE_PLAN.md).
+In practice, repeat this loop until the board in plan §4 shows every task `done`:
+
+1. Open the task board (plan §4). Find the lowest-numbered `todo` task whose dependencies are
+   `done`.
+2. If it is an `O` task, it is yours: do it, then set it to `done` on the board (or tell an
+   agent to).
+3. Otherwise start a **new** agent session in `D:\Syed Systems\Store` and paste prompt A. One
+   session per task. Run one engine agent at a time unless two tasks have no dependency on each
+   other and you give each agent its own git worktree.
+4. Read its report. If it says `blocked`, answer the question in the report, put your answer
+   in the board row, and start a new session with prompt A again.
+5. When every task of a phase is `done`, start a session with a **different** agent and paste
+   prompt R. Fix what it finds with prompt A ("Fix review finding <n> on the Phase <n> PR").
+   Then merge the phase PR yourself.
+6. Themes in AI Studio run alongside all of this with prompt B (or C after T1.10).
 
 Which of B or C applies: open the task board (plan §4). If T1.10 says `done`, use C.
 
@@ -28,6 +48,8 @@ Your job is exactly one task from the storefront theme engine plan, start to fin
    then docs/STOREFRONT_THEME_ENGINE_PLAN.md sections 1, 2 and 4.
 2. Pick the task by the rule in plan section 1.1 (lowest-numbered `todo` whose dependencies are
    all `done`). <Optional: "Do task T1.2." to assign one directly.>
+   Tasks named O1-O7 belong to the owner: never do one. If your task depends on an open O task,
+   set it to `blocked: waiting for O<n>` and stop.
 3. Read that task's full entry in plan section 5. It names every file you may create or edit,
    every function and type you must use, the tests to write, and the exact commands that prove
    it works.
@@ -134,3 +156,28 @@ CI on <branch or PR link> is failing. Make it green without weakening anything.
 4. One fix per commit, message says what broke and why. Push, wait for the run, repeat.
 5. Report: each failure, its root cause, the fix commit, and the final `gh pr checks` output.
 ```
+
+---
+
+## R. Phase PR review
+
+```
+Review the Phase <n> pull request <PR link> of the Vendryx commerce repository. You did not
+write it. Do not edit code; produce a review.
+
+1. Read AGENTS.md, docs/STOREFRONT_THEME_ENGINE_PLAN.md sections 1 and 2, and the Phase <n>
+   tasks in section 5.
+2. For every task in the phase: compare the diff with the task's Create/Edit lists (any file
+   changed outside them is a finding), check each acceptance criterion against the evidence in
+   the PR description, and confirm each named test exists with that exact name.
+3. Re-run the verification yourself on Space (plan section 1.5), never locally. Quote the final
+   output lines. A criterion whose evidence you could not reproduce is a finding.
+4. Look specifically for: a price, total, discount or stock value computed outside the Store
+   API; hardcoded product names, prices, ratings or statistics; a weakened, skipped or deleted
+   test; a cookie without HttpOnly, Secure and SameSite; a cached response that contains
+   shopper data; `|safe` on loader data; an external script or URL not in
+   docs/payment-page-scripts.md; any AI product name in the repository.
+5. Output: a numbered list of findings, each with file:line, what is wrong, and the smallest
+   fix; then a verdict line: "APPROVE" or "CHANGES REQUIRED (<count>)".
+```
+
