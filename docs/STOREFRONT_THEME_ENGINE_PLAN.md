@@ -290,7 +290,7 @@ Status values: `todo`, `in progress (<date>)`, `blocked: <reason>`, `done (<comm
 |---|---|---|---|
 | T0.1 | Merge `main` into PR #4 and park the AI Studio storefront as design source | — | done (PR #4, merge commit `905a33d2`) |
 | T0.2 | Land the docs for ADR-038 (this plan, AGENTS.md, ADR index, authoring contract) | — | in progress (docs/storefront-theme-engine, 2026-11-27) |
-| T1.1 | `stheno-storefront` crate skeleton, mounted in the engine | T0.1 | in progress (2026-11-28) |
+| T1.1 | `stheno-storefront` crate skeleton, mounted in the engine | T0.1 | blocked: `cargo deny check` fails on the baseline and this branch |
 | T1.2 | `theme.json` schema, Rust types and validator | T0.1 | todo |
 | T1.3 | Theme loading from `STHENO_THEMES_DIR` and hashed asset serving | T1.1, T1.2 | todo |
 | T1.4 | Token compiler and `settings` / `sections` objects | T1.2, T1.3 | todo |
