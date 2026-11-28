@@ -203,7 +203,7 @@ attribution. A theme includes them and cannot override them.
   "tokens": [
     { "id": "ink", "type": "color", "default": "#0E1116", "label": "Text" },
     { "id": "radius_card", "type": "range", "min": 0, "max": 32, "unit": "px", "default": 16, "label": "Card corner radius" },
-    { "id": "font_heading", "type": "font", "options": ["outfit", "dm_sans"], "default": "outfit", "label": "Heading font" },
+    { "id": "font_heading", "type": "font", "options": ["inter", "geist"], "default": "inter", "label": "Heading font" },
     { "id": "card_style", "type": "select", "options": ["minimal", "framed", "editorial"], "default": "minimal", "label": "Product card style" },
     { "id": "grid_columns", "type": "range", "min": 2, "max": 5, "default": 4, "label": "Products per row" }
   ],
@@ -291,7 +291,7 @@ Status values: `todo`, `in progress (<date>)`, `blocked: <reason>`, `done (<comm
 | T0.1 | Merge `main` into PR #4 and park the AI Studio storefront as design source | — | done (PR #4, merge commit `905a33d2`) |
 | T0.2 | Land the docs for ADR-038 (this plan, AGENTS.md, ADR index, authoring contract) | — | in progress (docs/storefront-theme-engine, 2026-11-27) |
 | T1.1 | `stheno-storefront` crate skeleton, mounted in the engine | T0.1 | blocked: `cargo deny check` fails on the baseline and this branch |
-| T1.2 | `theme.json` schema, Rust types and validator | T0.1 | todo |
+| T1.2 | `theme.json` schema, Rust types and validator | T0.1 | in progress (2026-11-28) |
 | T1.3 | Theme loading from `STHENO_THEMES_DIR` and hashed asset serving | T1.1, T1.2 | todo |
 | T1.4 | Token compiler and `settings` / `sections` objects | T1.2, T1.3 | todo |
 | T1.5 | Loaders and filters for home, listing and product pages | T1.1 | todo |
@@ -507,8 +507,9 @@ Facts every Phase 1 task relies on (verified against the code):
         -> Result<(), Vec<ValidationError>>;
     ```
 
-    `TokenDef` and `SectionDef` carry `id` (`^[a-z][a-z0-9_]{0,40}$`), `label` (1–60 chars) and the
-    flattened `TokenKind`. You may add private helpers; do not add public items.
+    `TokenDef` carries `id` (`^[a-z][a-z0-9_]{0,40}$`), `label` (1–60 chars), and the
+    flattened `TokenKind`. `SectionDef` has `type` and `settings: Vec<TokenDef>`, as shown in §2.2.
+    Export the schema module from the crate root. You may add private helpers.
   - Rules `parse_manifest` enforces beyond serde: `schema_version == 1`; ids unique within
     `tokens` and within each section; `Range`: `min <= default <= max`; `Select`/`Font`: non-empty
     `options` containing `default`; `Color`: `^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$`; `Font`
