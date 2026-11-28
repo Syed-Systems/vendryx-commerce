@@ -104,7 +104,8 @@ test.describe("admin authentication", () => {
  */
 test.describe("tier matrix", () => {
   const expected = {
-    trial: { window: 365, maxProducts: undefined, seats: 10, paid: false },
+    // A trial is Pro for its duration (config/tiers.toml [trial]).
+    trial: { window: 365, maxProducts: undefined, seats: 10, paid: true },
     free: { window: 30, maxProducts: 100, seats: 3, paid: false },
     pro: { window: 365, maxProducts: undefined, seats: 10, paid: true },
   } as const
