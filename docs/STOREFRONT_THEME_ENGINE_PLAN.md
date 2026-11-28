@@ -290,7 +290,7 @@ Status values: `todo`, `in progress (<date>)`, `blocked: <reason>`, `done (<comm
 |---|---|---|---|
 | T0.1 | Merge `main` into PR #4 and park the AI Studio storefront as design source | — | done (PR #4, merge commit `905a33d2`) |
 | T0.2 | Land the docs for ADR-038 (this plan, AGENTS.md, ADR index, authoring contract) | — | in progress (docs/storefront-theme-engine, 2026-11-27) |
-| T1.1 | `stheno-storefront` crate skeleton, mounted in the engine | T0.1 | todo |
+| T1.1 | `stheno-storefront` crate skeleton, mounted in the engine | T0.1 | in progress (2026-11-28) |
 | T1.2 | `theme.json` schema, Rust types and validator | T0.1 | todo |
 | T1.3 | Theme loading from `STHENO_THEMES_DIR` and hashed asset serving | T1.1, T1.2 | todo |
 | T1.4 | Token compiler and `settings` / `sections` objects | T1.2, T1.3 | todo |
@@ -424,7 +424,7 @@ Facts every Phase 1 task relies on (verified against the code):
   rendered by `minijinja` containing the tenant's store name. With it unset, nothing changes.
 - **Create:**
   - `crates/storefront/stheno-storefront/Cargo.toml`: `name = "stheno-storefront"`,
-    `edition = "2021"`, dependencies `axum`, `minijinja = { version = "3", features = ["loader"] }`,
+    `edition = "2021"`, dependencies `axum`, `minijinja = "3"`,
     `serde`, `serde_json`, `tokio`, `stheno-db`, `stheno-store`, `stheno-types` (all `workspace = true`
     except `minijinja`).
   - `crates/storefront/stheno-storefront/src/lib.rs` with exactly this public surface:
@@ -447,9 +447,10 @@ Facts every Phase 1 task relies on (verified against the code):
     `stheno-storefront` cannot depend on `stheno-server` (that would be a dependency cycle).
 - **Edit:**
   - root `Cargo.toml`: add `"crates/storefront/stheno-storefront",` to `[workspace] members` after
-    `"crates/api/stheno-api-store",`; add `minijinja = { version = "3", features = ["loader"] }` and
+    `"crates/api/stheno-api-store",`; add `minijinja = "3"` and
     `stheno-storefront = { path = "crates/storefront/stheno-storefront", version = "0.1.0" }` to
-    `[workspace.dependencies]`.
+    `[workspace.dependencies]`. MiniJinja 3 includes template loading by default.
+  - `Cargo.lock`: regenerate for the new workspace crate and MiniJinja dependency.
   - `crates/stheno-server/Cargo.toml`: add `stheno-storefront = { workspace = true }`.
   - `crates/stheno-server/src/lib.rs`: in the `tenant_routes` builder (line 1429), before the
     tenant layer is applied, add
