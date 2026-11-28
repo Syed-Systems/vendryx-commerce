@@ -1,5 +1,8 @@
 # Site Map — Storefront and Admin Dashboard
 
+> [!NOTE]
+> **ADR-038 (accepted 2026-11-27) replaces this storefront.** The engine will render storefronts from `minijinja` template themes (`themes/<theme-id>/` plus `theme.json`), and the Next.js storefront is deleted at task T4.14. What follows describes the storefront that serves until then. Plan: [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md).
+
 **Storefront is Next.js (forked from Medusa's starter). Admin is React + Vite (forked from Medusa's dashboard).** Route groups in parentheses `(…)` do not appear in the URL.
 Admin routes are Medusa's 38 dashboard route groups at `b733400`, inherited as-is via the fork
 ([ADR-002](DECISIONS.md#adr-002)). They are listed, not redesigned.

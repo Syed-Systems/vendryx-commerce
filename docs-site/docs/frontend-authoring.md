@@ -1,5 +1,8 @@
 # Frontend Theme Authoring Guide
 
+> [!WARNING]
+> **Superseded by ADR-038.** New themes follow `docs/THEME_AUTHORING.md` in the repository: one `themes/<theme-id>/` folder of templates plus `theme.json`, rendered by the engine. This guide describes the Next.js storefront that serves until the cut-over; do not start a new theme from it.
+
 > **Rule 0 — Checkout is core at every tier (ADR-013 Decision 2):**
 > Checkout flow, steps, state machine, validation, and the payment script manifest live in
 > `packages/storefront-core` and are **not** theme-editable. Themes skin checkout through

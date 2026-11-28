@@ -3,6 +3,9 @@
 **~56 engineer-weeks of work · ~30 calendar weeks with three parallel tracks · 11 phases**
 
 > [!WARNING]
+> **ADR-038 (2026-11-27):** the storefront runtime described below and in the ADR-031 notice is itself being replaced by engine-rendered template themes. Current plan: [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md).
+
+> [!WARNING]
 > **ARCHITECTURE DEPRECATION NOTICE (v2.28.0)**
 >
 > The frontend extraction and multi-theme architecture described in this plan (specifically the scaffolding of `frontend-<name>` packages in Phases P25–P27) has been **deprecated** by [ADR-031](DECISIONS.md#adr-031). 

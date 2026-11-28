@@ -116,6 +116,9 @@ The complete, approved Brand Kit bundle is maintained in [`Vendryx_Approved_Comp
 
 ## 7. Dynamic Merchant Storefront Theme Tokens ([ADR-031](DECISIONS.md#adr-031))
 
+> [!NOTE]
+> Under [ADR-038](DECISIONS.md#adr-038) each theme declares its own tokens in `theme.json` and the engine emits them as `--theme-<id>` properties; merchants edit them in the admin Appearance screen. The `--brand-*` variables below are the current Next.js storefront's and are retired at the ADR-038 cut-over. Vendryx's own brand tokens in this document are unaffected.
+
 For multi-tenant merchant storefronts, tenant-specific variables are populated dynamically at runtime:
 
 ```css

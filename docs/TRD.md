@@ -138,6 +138,7 @@ and never O(merchants). Until it is accepted, this is a manual release checklist
 | Testing | `cargo test`, `testcontainers`, `insta`, `proptest`, `wiremock` | Snapshot tests for API parity, property tests for money |
 | Load testing | `oha` + `k6` | Budget enforcement in CI |
 | Frontend | Next.js 15 (App Router), React 19, TypeScript, Tailwind 4, TanStack Query/Table | — |
+| Storefront rendering (ADR-038, in progress) | `minijinja` 3 templates rendered by the engine; themes in `themes/<theme-id>/` | Replaces the Next.js storefront at task T4.14 |
 
 **Deliberately excluded:** `sqlx` (ADR-004), `wasmtime` (ADR-001), Temporal (ADR-003), GraphQL, and any dynamic scripting engine.
 

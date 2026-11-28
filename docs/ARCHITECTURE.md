@@ -59,6 +59,9 @@ Vendryx Commerce is a high-performance, multi-tenant commerce platform tailored 
 The platform separates commerce logic from presentation into two independent, symmetrical building blocks:
 
 ### Block 1: Unified Storefront Presentation Layer
+> [!NOTE]
+> **ADR-038 (accepted 2026-11-27) replaces this storefront.** The engine will render storefronts from `minijinja` template themes (`themes/<theme-id>/` plus `theme.json`), and the Next.js storefront is deleted at task T4.14. What follows describes the storefront that serves until then. Plan: [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md).
+
 - **Location:** `apps/storefront/packages/frontend-default`
 - **Core Engine:** Next.js App Router providing standard URL routing (`/[countryCode]/(main)/*`), server data loaders, and regional cart management.
 - **Unified Multi-Tenant Runtime (ADR-031):**

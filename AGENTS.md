@@ -6,27 +6,32 @@ and a change that violates them fails the build rather than earning a review com
 **Spec package:** [docs/PRD.md](docs/PRD.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/TRD.md](docs/TRD.md) ·
 [docs/DATA_MODEL.md](docs/DATA_MODEL.md) · [docs/API_SPEC.md](docs/API_SPEC.md) ·
 [docs/WORKFLOWS.md](docs/WORKFLOWS.md) · [docs/PAYMENTS.md](docs/PAYMENTS.md) · [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) · [docs/SECURITY.md](docs/SECURITY.md) · [docs/SITEMAP.md](docs/SITEMAP.md) ·
-[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) · [docs/TASKS.md](docs/TASKS.md) · [docs/DECISIONS.md](docs/DECISIONS.md) · [docs/DOCS_WORKFLOW.md](docs/DOCS_WORKFLOW.md) · [docs/WORK_LOG.md](docs/WORK_LOG.md)
+[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) · [docs/TASKS.md](docs/TASKS.md) · [docs/DECISIONS.md](docs/DECISIONS.md) · [docs/DOCS_WORKFLOW.md](docs/DOCS_WORKFLOW.md) · [docs/WORK_LOG.md](docs/WORK_LOG.md) ·
+[docs/STOREFRONT_THEME_ENGINE_PLAN.md](docs/STOREFRONT_THEME_ENGINE_PLAN.md) · [docs/THEME_AUTHORING.md](docs/THEME_AUTHORING.md)
 
 **Working a task?** [TASKS.md §1](docs/TASKS.md) is the loop protocol. Rule L3 — never edit an exit
 command to make it pass — is the one that keeps the loop honest.
 
-**Handed a design to build?** Read [§12](#12-frontends-visual-theming) first. `ADAPT` means a new
-frontend module built from that design — not `frontend-default` repainted. Guessing that one wrong has
-cost three rebuilds, and `./scripts/check-frontend-not-forked.sh` now fails the build over it.
+**Handed a storefront design to build?** Read [§12](#12-frontends-visual-theming) and
+[docs/THEME_AUTHORING.md](docs/THEME_AUTHORING.md) first. Since [ADR-038](docs/DECISIONS.md#adr-038)
+a design becomes one theme folder, `themes/<theme-id>/`: templates plus a `theme.json` of tokens,
+rendered by the engine. It is not a new frontend package and not a React app. The work is tracked
+task by task in [docs/STOREFRONT_THEME_ENGINE_PLAN.md](docs/STOREFRONT_THEME_ENGINE_PLAN.md).
 
 ---
 
 ## 0. Before you touch anything
 
-**Scope: frontend branch only.** Work on `origin/frontend`, not `main`. The remote branches are
-`main`, `frontend`, `feat/brand-kit-v1.0`, and `fix/storefront-checkout-and-alignment`. As of
-`79767d8`, **`frontend` and `main` point at the same commit** — `frontend` is a fresh branch, not a
-divergent line of work, so diffing against `main` shows nothing today.
+**Branch from `main`, one task per branch.** Name it `feat/<task-id>-<slug>`, `fix/...` or
+`docs/...`, never after an AI product. Plan-driven work follows the pickup protocol in
+[STOREFRONT_THEME_ENGINE_PLAN.md §1](docs/STOREFRONT_THEME_ENGINE_PLAN.md): claim the task on the
+board in your first commit on the phase branch (one branch and one PR per phase), prove every
+acceptance criterion with builds and tests run on Space (never locally), then mark it done.
+`origin/frontend` is historical: it has been fully merged into `main` and has no commits after
+2026-10-20.
 
-`origin/frontend` may not be fetched locally yet. Check with `git fetch --all --prune && git branch -r`
-before concluding a branch does not exist — `git branch -a` alone reads stale remote-tracking refs
-and will lie to you.
+Check remote branches with `git fetch --all --prune && git branch -r` before concluding a branch
+does not exist — `git branch -a` alone reads stale remote-tracking refs and will lie to you.
 
 All of §1–§11 below is CI-enforced repo-wide; §2 matters when you touch `crates/`, §0 and §12 when
 you touch `apps/`.
@@ -536,17 +541,44 @@ casually give that away.
 
 ---
 
-## 12. Frontends: Visual Theming (ADR-031)
+## 12. Frontends: Visual Theming (ADR-038, replacing ADR-031)
 
 <a id="12-frontends-visual-theming"></a>
 
-### 12.1 The Unified Runtime
+### 12.0 Where this is going (ADR-038, accepted 2026-11-27)
 
-The engine uses a single, unified Next.js storefront runtime ([ADR-031](docs/DECISIONS.md#adr-031)) that serves all multi-tenant branded storefronts. **We do not scaffold or deploy separate `frontend-*` packages for different tenants.** The battle-tested, accessible DOM structure of `frontend-default` is the canonical chassis for every store.
+[ADR-038](docs/DECISIONS.md#adr-038) replaces the Next.js storefront with pages rendered by the
+Rust engine from `minijinja` template themes. The migration is in progress; the task board in
+[docs/STOREFRONT_THEME_ENGINE_PLAN.md](docs/STOREFRONT_THEME_ENGINE_PLAN.md) says what is done.
+These rules apply to all new storefront work now:
+
+1. **A design is one theme folder, `themes/<theme-id>/`**: templates, one stylesheet, interaction
+   scripts, theme art, and a `theme.json`. It touches nothing outside its folder.
+2. **Everything visual and every piece of copy is a token in `theme.json`.** No colour, font,
+   radius, shadow or spacing literal anywhere else. Merchants change values in the admin
+   Appearance screen; the engine validates them.
+3. **A theme contains no data.** Products, prices, stock, reviews, policies and store identity come
+   from engine loaders only. No invented figure renders (see "no unsourced figures" below).
+4. **Templates and scripts are sandboxed.** No fetch except same-origin `/store/*`, no money maths,
+   no `innerHTML`, no `|safe` on loader data, no third-party origins.
+5. **Checkout, payment, sign-in, account forms and the Free-plan attribution are core partials**
+   a theme includes and cannot override.
+6. **No Node.js storefront, no Cloudflare Workers.** New storefront features are built in the
+   engine (`stheno-storefront`), not in `apps/storefront`.
+
+`scripts/check-theme-pack.sh` enforces rules 1–5 once task T1.9 lands. The full authoring contract
+is [docs/THEME_AUTHORING.md](docs/THEME_AUTHORING.md).
+
+**Until the cut-over (task T4.14)** the Next.js storefront described in §12.1–12.4 keeps serving
+production. Fix bugs in it; do not add features or themes to it.
+
+### 12.1 The Unified Runtime (transitional, ADR-031)
+
+The current production storefront is a single, unified Next.js runtime ([ADR-031](docs/DECISIONS.md#adr-031), superseded by ADR-038) that serves all multi-tenant branded storefronts. **We do not scaffold or deploy separate `frontend-*` packages for different tenants.** The battle-tested, accessible DOM structure of `frontend-default` is the canonical chassis for every store until the cut-over.
 
 Scaffolding a new frontend package (`apps/storefront/packages/frontend-<name>`) for purely visual differentiation is an architectural violation. The CI pipeline and architectural guidelines reject it. The concept of "ADAPT vs SKIN" is deprecated.
 
-### 12.2 Dynamic Theming and Variant Modifiers
+### 12.2 Dynamic Theming and Variant Modifiers (transitional, ADR-031)
 
 All visual variations must be structured through design tokens and data attributes on `frontend-default`. Do not fork or rewrite JSX to achieve a new design.
 

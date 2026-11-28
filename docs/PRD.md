@@ -330,6 +330,9 @@ Admin performance targets are **withdrawn**. It is a client-rendered SPA; the 20
 
 ### 6.2 Storefront reference implementation
 
+> [!NOTE]
+> **ADR-038 (accepted 2026-11-27) replaces this storefront.** The engine will render storefronts from `minijinja` template themes (`themes/<theme-id>/` plus `theme.json`), and the Next.js storefront is deleted at task T4.14. What follows describes the storefront that serves until then. Plan: [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md).
+
 Forked from Medusa's Next.js starter, which already speaks the Store API we implement. Kept close to upstream so the compatibility claim stays testable.
 
 - Next.js App Router, React Server Components for catalog, client components for cart.

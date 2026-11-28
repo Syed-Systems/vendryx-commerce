@@ -5,6 +5,20 @@ synchronizations. Enforced by `python scripts/doc-sync-workflow.py`.
 
 ---
 
+### Session Log — 2026-11-27 (ADR-038 storefront theme engine, docs only)
+
+**Objective**: Record the decision to render storefronts in the Rust engine from tokenized template themes, and publish a task-by-task plan any agent can pick up.
+
+- Why: commit `12203039` added three Google AI Studio storefronts (Maison Véla, KOVA, Homedine) that replaced the engine-connected storefront with hardcoded tenants, catalogs, prices and a browser-only checkout. The owner set the constraints: one server (the Rust engine), no Node.js storefront, no nginx, no Cloudflare Workers, every visual and copy choice tokenized and managed in the admin, data only from the engine, heavy edge caching.
+- Options weighed: keep Next.js (ADR-031), a static React app, Liquid in the engine, `minijinja` in the engine. Chosen: `minijinja` 3.1.0 (actively released 2026-11-07); the `liquid` crate's last release is 0.26.11 (February 2025) and it lacks `{% liquid %}` and `{% echo %}`.
+- Added [ADR-038](DECISIONS.md#adr-038); marked ADR-031 superseded and ADR-021/ADR-022 amended in the index; corrected the money rule to `stheno-types::Money` per ADR-006.
+- Added [STOREFRONT_THEME_ENGINE_PLAN.md](STOREFRONT_THEME_ENGINE_PLAN.md) (architecture, pickup protocol, task board T0.1–T5.2 with files, acceptance and verify commands) and [THEME_AUTHORING.md](THEME_AUTHORING.md) (contract v1, draft).
+- Updated AGENTS.md (§0 branch rules, §12.0 rules for new storefront work, the design-handoff note), README, ARCHITECTURE, PRD, TRD, SITEMAP, STATUS, IMPLEMENTATION_PLAN, FRONTEND_VERSIONING, BRAND, AGENT_PROMPTS, docs index, `apps/storefront/README.md` and the docs-site authoring guide with ADR-038 notices. `docs/archive/` left untouched.
+- No code changed. The Next.js storefront keeps serving until task T4.14.
+- Ladder: rung 2 — ADR-037's caching and purge design, the existing branding and appearance endpoints, and `tower-http` are reused rather than replaced.
+
+---
+
 ### Session Log — 2026-10-25 (ADR-034 refund ambiguity safety)
 
 **Objective**: Ensure a timed-out refund cannot be retried based on a payment-level retrieve result that does not prove refund state.
