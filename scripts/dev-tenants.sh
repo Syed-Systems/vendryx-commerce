@@ -97,9 +97,10 @@ up() {
   # `--migrate` applies migrations and then serves, so it goes on the long-running
   # process rather than a separate step that would never return.
   STHENO_PLATFORM_TOKEN="${STHENO_PLATFORM_TOKEN:-dev-platform-token}" \
-  ADMIN_CORS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174" \
+  # 3000 is the admin dev server's port (apps/admin/vite.config.cts `server.port`).
+  ADMIN_CORS="http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174" \
   STORE_CORS="http://localhost:8000,http://127.0.0.1:8000" \
-  AUTH_CORS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000" \
+  AUTH_CORS="http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000" \
     nohup "$BIN" --migrate --bind "127.0.0.1:${PORT}" >"$RUNTIME_DIR/server.log" 2>&1 &
   echo $! >"$RUNTIME_DIR/server.pid"
 
@@ -143,6 +144,19 @@ up() {
             *) echo "    !! could not create $id: $out" >&2 ;;
         esac
     fi
+    # Each dev tenant is a merchant who chose buyer accounts on the store request; that
+    # choice arrives as a per-merchant override, never from a tier (stheno-server lib.rs,
+    # the BuyerAccounts gate). The trial tenant has also submitted its store request,
+    # which is what starts a trial (ADR-033); without it the tenant resolves as Free.
+    psql_dev -qc "UPDATE platform.subscription
+                  SET feature_overrides = feature_overrides || '{\"buyer_accounts\": true}'::jsonb
+                  WHERE tenant_id = '${id}'" >/dev/null
+    if [ "$tier" = "trial" ]; then
+      psql_dev -qc "UPDATE platform.subscription
+                    SET trial_started_at = now(), trial_ends_at = now() + interval '7 days'
+                    WHERE tenant_id = '${id}' AND trial_started_at IS NULL" >/dev/null
+    fi
+
     if ! out=$(STHENO_TENANT="$id" "$BIN" --seed-demo 2>&1); then
         echo "    !! could not seed $id: $out" >&2
     fi

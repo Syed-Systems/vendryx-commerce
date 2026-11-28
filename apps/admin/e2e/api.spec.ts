@@ -143,14 +143,11 @@ test.describe("tier matrix", () => {
       const flags = (
         await (await request.get(`${BACKEND}/admin/feature-flags`, { headers })).json()
       ).feature_flags
-      for (const paid of [
-        "payment_gateway",
-        "courier_dispatch",
-        "fraud_score",
-        "custom_domain",
-      ]) {
+      for (const paid of ["payment_gateway", "courier_dispatch", "fraud_score"]) {
         expect(flags[paid], `${tenant}.${paid}`).toBe(want.paid)
       }
+      // Every tier includes a custom domain (config/tiers.toml, ENTITLEMENTS.md).
+      expect(flags.custom_domain, `${tenant}.custom_domain`).toBe(true)
     })
 
     test(`${tenant}: serves the capability flags the dashboard reads`, async ({
