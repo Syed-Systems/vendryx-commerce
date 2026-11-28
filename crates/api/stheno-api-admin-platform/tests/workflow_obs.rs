@@ -21,6 +21,7 @@ fn app(store: Arc<WorkflowStore>) -> axum::Router {
 
     admin_platform_routes(AdminPlatformContext {
         entitlements: Arc::new(entitlements),
+        tier_config: Arc::new(TierConfig::from_toml(TIERS).unwrap()),
         usage: Arc::new(UsageSnapshot::new()),
         workflows: store,
         platform: None,

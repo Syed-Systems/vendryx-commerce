@@ -14,12 +14,10 @@
 //!
 //! Both are money. Both were finished. Neither ran.
 //!
-//! ponytail: two jobs registered, not the five TRD §9 lists. The other three
-//! (authorization-expiry warning, abandoned-3DS sweep, read-index sync) have no service
-//! method to call yet, and neither does the trial → Free transition that ENTITLEMENTS §5
-//! specifies as a daily job. Registering a job whose body I invented would rebuild the
-//! exact defect this module ends. Add each one here when its domain method exists; the
-//! scheduler is the missing part, and it is no longer missing.
+//! ponytail: only implemented jobs are registered. The authorization-expiry warning,
+//! abandoned-3DS sweep, and read-index sync still lack service methods. Trial expiry and
+//! day-3/day-6 warnings now have scheduled handlers. Register remaining jobs only after
+//! their domain operation and retry contract exist.
 //!
 //! This also replaces `stheno-workflow/tests/scheduler.rs`, which asserted that `croner`
 //! parses cron expressions and that an `AtomicBool` behaves like a mutex. It touched no
@@ -168,6 +166,10 @@ mod tests {
         for expr in [
             super::super::PAYMENT_SWEEP_SCHEDULE,
             super::super::DUNNING_SCHEDULE,
+            super::super::ENTITLEMENT_EXPIRY_SCHEDULE,
+            super::super::TRIAL_WARNING_SCHEDULE,
+            super::super::NOTIFICATION_OUTBOX_SCHEDULE,
+            super::super::QUOTA_RECONCILIATION_SCHEDULE,
         ] {
             let cron = Cron::new(expr)
                 .parse()

@@ -47,7 +47,6 @@ fn test_medusa_money_conversion_precision_loss_assertion() {
     let err_msg = result.unwrap_err().to_string();
     assert!(
         err_msg.contains("Precision lost"),
-        "Expected precision loss error, got: {}",
-        err_msg
+        "Expected precision loss error, got: {err_msg}"
     );
 }

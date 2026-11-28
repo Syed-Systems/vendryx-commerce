@@ -370,7 +370,11 @@ impl WorkflowStore {
     }
 
     pub fn get_execution(&self, transaction_id: &str) -> Option<WorkflowExecution> {
-        self.executions.lock().unwrap_or_else(|e| e.into_inner()).get(transaction_id).cloned()
+        self.executions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(transaction_id)
+            .cloned()
     }
 
     pub async fn update_state_async(
@@ -433,16 +437,9 @@ impl WorkflowStore {
     /// The whole payload is replaced rather than merged. A partial update would need a
     /// read-modify-write, and the read would have to happen on the caller's connection or
     /// it takes a second one from the pool mid-transaction (see `read_execution`).
-    pub async fn update_payload_async(
-        &self,
-        transaction_id: &str,
-        payload: Value,
-    ) -> Result<()> {
+    pub async fn update_payload_async(&self, transaction_id: &str, payload: Value) -> Result<()> {
         let Some(pool) = &self.pool else {
-            let mut state = self
-                .executions
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
+            let mut state = self.executions.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(exec) = state.get_mut(transaction_id) {
                 exec.context_payload = payload;
                 exec.updated_at = chrono::Utc::now();
@@ -521,8 +518,8 @@ impl WorkflowStore {
                     return Err(Error::Invalid {
                         code: "invalid_step_state_transition",
                         message: format!(
-                            "Cannot transition step '{}' from {:?} to {:?}",
-                            step_key, current_step, new_state
+                            "Cannot transition step '{step_key}' from \
+                            {current_step:?} to {new_state:?}"
                         ),
                         field: None,
                     });
@@ -591,8 +588,7 @@ impl WorkflowStore {
             return Err(Error::Invalid {
                 code: "invalid_step_state_transition",
                 message: format!(
-                    "Cannot transition step '{}' from {:?} to {:?}",
-                    step_key, current, new_state
+                    "Cannot transition step '{step_key}' from {current:?} to {new_state:?}"
                 ),
                 field: None,
             });

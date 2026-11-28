@@ -1,9 +1,9 @@
-//! P30-12: every dunning rung has email and SMS notification intents.
+//! ADR-034: billing notifications use email and WhatsApp, never SMS.
 
 use stheno_platform::PlatformService;
 
 #[test]
-fn each_dunning_rung_has_email_and_sms_templates() {
+fn each_dunning_rung_has_email_and_whatsapp_templates() {
     for (status, template) in [
         ("past_due", "billing_past_due"),
         ("grace", "billing_grace"),
@@ -22,8 +22,8 @@ fn each_dunning_rung_has_email_and_sms_templates() {
         assert!(
             notifications
                 .iter()
-                .any(|n| n.channel == "sms" && n.template == template),
-            "{status} needs an SMS template"
+                .any(|n| n.channel == "whatsapp" && n.template == template),
+            "{status} needs a WhatsApp template"
         );
     }
 }

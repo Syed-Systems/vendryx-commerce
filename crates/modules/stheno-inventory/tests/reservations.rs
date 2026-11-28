@@ -48,11 +48,45 @@ async fn test_inventory_reservation_release_and_fulfill() {
         .unwrap();
     assert_eq!(avail, 7);
 
+    let retry = service
+        .reserve(CreateReservationInput {
+            line_item_id: Some("item_123".to_string()),
+            inventory_item_id: item_id.clone(),
+            location_id: location_id.to_string(),
+            quantity: 3,
+            description: Some("Order #1001 retry".to_string()),
+        })
+        .await
+        .unwrap();
+    assert_eq!(retry.id, res.id, "retry returns the existing reservation");
+    assert_eq!(
+        service
+            .get_available_quantity(&item_id, location_id)
+            .await
+            .unwrap(),
+        7,
+        "retry must not reserve the quantity twice"
+    );
+    assert!(service
+        .reserve(CreateReservationInput {
+            line_item_id: Some("item_123".to_string()),
+            inventory_item_id: item_id.clone(),
+            location_id: location_id.to_string(),
+            quantity: 4,
+            description: None,
+        })
+        .await
+        .is_err());
+
     // 2. Release reservation (e.g. cart expired or order cancelled)
     service
         .release_reservation(&res.id.to_string())
         .await
         .unwrap();
+    service
+        .release_reservation(&res.id.to_string())
+        .await
+        .expect("releasing a reservation twice is idempotent");
 
     let avail_after_release = service
         .get_available_quantity(&item_id, location_id)

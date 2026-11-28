@@ -22,7 +22,7 @@ async fn test_magic_byte_sniffing_and_svg_rejection() {
     assert!(svg_res.is_err());
     match svg_res.unwrap_err() {
         stheno_types::Error::Invalid { code, .. } => assert_eq!(code, "svg_disallowed"),
-        other => panic!("Expected Error::Invalid, got {:?}", other),
+        other => panic!("Expected Error::Invalid, got {other:?}"),
     }
 }
 

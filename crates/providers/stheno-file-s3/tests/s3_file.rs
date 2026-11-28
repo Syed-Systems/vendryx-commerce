@@ -1,78 +1,104 @@
-use std::sync::Arc;
-use stheno_db::create_pool;
-use stheno_db::testing::TestDb;
-use stheno_file::{FileService, UploadFileInput};
+use stheno_file::FileProvider;
 use stheno_file_s3::{S3Config, S3FileProvider};
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
+
+fn config(endpoint: String) -> S3Config {
+    S3Config {
+        bucket: "public-media".to_string(),
+        private_bucket: Some("private-media".to_string()),
+        region: "auto".to_string(),
+        endpoint: Some(endpoint),
+        access_key_id: "test-access-key".to_string(),
+        secret_access_key: "test-secret-key".to_string(),
+        cdn_url: Some("https://media.example.test".to_string()),
+    }
+}
 
 #[tokio::test]
-async fn test_s3_file_provider_upload_and_presigned_urls() {
-    let db = TestDb::migrated().await;
-    let pool = create_pool(&db.url, 5).expect("pool");
-    let config = S3Config {
-        bucket: "stheno-media".to_string(),
-        region: "us-east-1".to_string(),
-        endpoint: None,
-        access_key_id: "AKIAIOSFODNN7EXAMPLE".to_string(),
-        secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".to_string(),
-        cdn_url: Some("https://cdn.sthenocommerce.com".to_string()),
-    };
+async fn custom_endpoint_uses_auto_region_and_separate_buckets() {
+    let server = MockServer::start().await;
+    Mock::given(method("PUT"))
+        .and(path("/public-media/uploads/public_01"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/private-media/private/private_01"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&server)
+        .await;
 
-    let provider = Arc::new(S3FileProvider::new(config));
-    let service = FileService::new(provider, pool);
-
-    // Upload WebP file
-    // RIFF (4 bytes) + len (4 bytes) + WEBP (4 bytes)
-    let webp_bytes = vec![
-        b'R', b'I', b'F', b'F', 0x00, 0x00, 0x00, 0x04, b'W', b'E', b'B', b'P', 0x01, 0x02,
-    ];
-
-    let file = service
-        .upload_file(UploadFileInput {
-            filename: "hero_banner.webp".to_string(),
-            content_type: Some("image/webp".to_string()),
-            bytes: webp_bytes,
-            metadata: None,
-            // Added to the DTO in 9f9cb42; this test was never updated, so
-            // `cargo clippy --workspace --all-targets` has not compiled since.
-            is_private: false,
-        })
+    let provider = S3FileProvider::new(config(server.uri()));
+    let public = provider
+        .upload("public_01", "hero.webp", "image/webp", b"public", false)
         .await
-        .unwrap();
+        .expect("public upload succeeds");
+    assert_eq!(public.url, "https://media.example.test/uploads/public_01");
 
-    assert_eq!(file.filename, "hero_banner.webp");
-    assert_eq!(file.mime_type, "image/webp");
-    assert!(file
-        .url
-        .starts_with("https://cdn.sthenocommerce.com/uploads/"));
-    assert!(file.url.ends_with(".webp"));
-
-    // Presigned Upload
-    let presigned = service
-        .create_presigned_upload(stheno_file::CreatePresignedUploadInput {
-            filename: "spec.pdf".to_string(),
-            content_type: "application/pdf".to_string(),
-            expires_in_seconds: Some(1800),
-            is_private: false,
-        })
+    let private = provider
+        .upload(
+            "private_01",
+            "proof.pdf",
+            "application/pdf",
+            b"private",
+            true,
+        )
         .await
-        .unwrap();
+        .expect("private upload succeeds");
+    assert_eq!(private.url, "s3://private-media/private/private_01");
+    assert!(!private.url.starts_with("https://"));
 
-    assert!(presigned
-        .upload_url
-        .contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
-    assert!(presigned
-        .upload_url
-        .contains("X-Amz-Credential=AKIAIOSFODNN7EXAMPLE"));
-    assert_eq!(
-        presigned.headers.get("Content-Type").unwrap(),
-        "application/pdf"
-    );
-    assert!(presigned
-        .file_url
-        .starts_with("https://cdn.sthenocommerce.com/uploads/"));
+    let requests = server.received_requests().await.expect("requests captured");
+    assert!(requests.iter().all(|request| {
+        request
+            .headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|authorization| authorization.contains("/auto/s3/aws4_request"))
+    }));
+}
 
-    // Delete
-    service.delete_file(&file.id).await.unwrap();
-    let deleted_res = service.get_file(&file.id).await;
-    assert!(deleted_res.is_err());
+#[tokio::test]
+async fn private_presigned_upload_uses_private_bucket_without_public_file_url() {
+    let server = MockServer::start().await;
+    let provider = S3FileProvider::new(config(server.uri()));
+    let result = provider
+        .get_presigned_upload_url(
+            "private_02",
+            "payment-proof.pdf",
+            "application/pdf",
+            900,
+            true,
+        )
+        .await
+        .expect("private upload URL is signed");
+
+    assert!(result
+        .upload_url
+        .contains("/private-media/private/private_02?"));
+    assert!(result.upload_url.contains("auto%2Fs3%2Faws4_request"));
+    assert!(result.upload_url.contains("X-Amz-Signature="));
+    assert_eq!(result.file_url, "s3://private-media/private/private_02");
+}
+
+#[tokio::test]
+async fn resolving_a_private_object_never_returns_a_public_url() {
+    let server = MockServer::start().await;
+    Mock::given(method("HEAD"))
+        .and(path("/private-media/private/private_03"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let provider = S3FileProvider::new(config(server.uri()));
+    let url = provider
+        .get_url("private_03")
+        .await
+        .expect("private storage URI is returned");
+    assert_eq!(url, "s3://private-media/private/private_03");
+    assert!(!url.starts_with("https://"));
 }

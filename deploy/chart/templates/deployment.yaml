@@ -52,3 +52,10 @@ spec:
             - name: {{ $key }}
               value: {{ tpl $val $ | quote }}
             {{- end }}
+            {{- range $key, $secret := .Values.secretEnv }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required (printf "secretEnv.%s.name is required" $key) $secret.name | quote }}
+                  key: {{ required (printf "secretEnv.%s.key is required" $key) $secret.key | quote }}
+            {{- end }}

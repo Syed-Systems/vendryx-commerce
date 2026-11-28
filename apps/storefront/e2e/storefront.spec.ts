@@ -130,11 +130,10 @@ test.describe("social checkout", () => {
     const { social_draft } = await response.json()
 
     // The Ref is the only link between the chat and the queued draft.
-    expect(social_draft.ref_code).toHaveLength(6)
     expect(
-      /^[2-9A-HJ-NP-Z]+$/.test(social_draft.ref_code),
-      `${social_draft.ref_code} must exclude characters confused when read aloud`
-    ).toBeTruthy()
+      social_draft.ref_code,
+      `${social_draft.ref_code} must use the VX prefix and exclude characters confused when read aloud`
+    ).toMatch(/^VX-[2-9A-HJ-NP-Z]{6}$/)
 
     // The message has to be matchable by eye in a chat bubble.
     expect(social_draft.message).toContain("Order from")

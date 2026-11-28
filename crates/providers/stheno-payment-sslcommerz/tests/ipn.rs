@@ -10,12 +10,7 @@ use stheno_payment_sslcommerz::SslcommerzPaymentProvider;
 
 #[tokio::test]
 async fn sslcommerz_ipn_webhook_verification_and_mapping() {
-    let provider = SslcommerzPaymentProvider::new(
-        "test_store_id",
-        "test_store_passwd",
-        None,
-        true,
-    );
+    let provider = SslcommerzPaymentProvider::new("test_store_id", "test_store_passwd", None, true);
 
     let ipn_payload = json!({
         "status": "VALID",

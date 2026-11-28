@@ -38,7 +38,7 @@ pub async fn get_currency(
             StatusCode::NOT_FOUND,
             Json(json!({
                 "type": "not_found",
-                "message": format!("Currency with code '{}' not found", code)
+                "message": format!("Currency with code '{code}' not found")
             })),
         )),
         Err(e) => Err((

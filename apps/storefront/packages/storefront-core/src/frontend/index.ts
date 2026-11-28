@@ -13,6 +13,7 @@ export { default as ProfileEmail } from "@frontend/account/components/profile-em
 export { default as ProfileName } from "@frontend/account/components/profile-name"
 export { default as ProfilePassword } from "@frontend/account/components/profile-password"
 export { default as ProfilePhone } from "@frontend/account/components/profile-phone"
+export { default as WhatsAppNotifications } from "@frontend/account/components/whatsapp-notifications"
 export { default as TransferRequestForm } from "@frontend/account/components/transfer-request-form"
 export { default as AccountLayout } from "@frontend/account/templates/account-layout"
 export { default as LoginTemplate } from "@frontend/account/templates/login-template"

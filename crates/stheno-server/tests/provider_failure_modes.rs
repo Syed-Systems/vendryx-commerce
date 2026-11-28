@@ -169,8 +169,7 @@ async fn test_provider_failure_mode_gateway_500_clean_error_preserves_cart() {
     let err = result.unwrap_err();
     assert!(
         matches!(err, Error::Invalid { .. }),
-        "Expected Invalid error, got: {:?}",
-        err
+        "Expected Invalid error, got: {err:?}"
     );
 }
 
@@ -290,10 +289,10 @@ impl FulfillmentProvider for FailingCourierProvider {
             .unwrap_or("PARCEL-001");
 
         Ok(CreateFulfillmentResponse {
-            data: Some(json!({ "consignment_id": format!("CNS-{}", ref_id), "reference": ref_id })),
+            data: Some(json!({ "consignment_id": format!("CNS-{ref_id}"), "reference": ref_id })),
             labels: vec![CreateFulfillmentLabelInput {
-                tracking_number: format!("TRK-{}", ref_id),
-                tracking_url: Some(format!("https://courier.test/tracking/TRK-{}", ref_id)),
+                tracking_number: format!("TRK-{ref_id}"),
+                tracking_url: Some(format!("https://courier.test/tracking/TRK-{ref_id}")),
                 label_url: None,
                 metadata: None,
             }],
@@ -374,7 +373,7 @@ async fn test_provider_failure_mode_courier_api_down_fails_closed_zero_duplicate
 
     let res2 = service.create_fulfillment(fulfillment_input).await;
     if let Err(e) = &res2 {
-        panic!("Consignment creation failed once courier recovers: {:?}", e);
+        panic!("Consignment creation failed once courier recovers: {e:?}");
     }
 
     let ful = res2.unwrap();

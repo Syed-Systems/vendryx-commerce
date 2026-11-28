@@ -391,7 +391,7 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
  * @param cartId - optional - The ID of the cart to place an order for.
  * @returns The cart object if the order was successful, or null if not.
  */
-export async function placeOrder(cartId?: string) {
+export async function placeOrder(cartId?: string, whatsappOptIn = false, whatsappAnalyticsOptIn = false) {
   const id = cartId || (await getCartId())
 
   if (!id) {
@@ -403,7 +403,10 @@ export async function placeOrder(cartId?: string) {
   }
 
   const cartRes = await sdk.store.cart
-    .complete(id, {}, headers)
+    .complete(id, {
+      whatsapp_opt_in: whatsappOptIn,
+      whatsapp_analytics_opt_in: whatsappAnalyticsOptIn,
+    } as any, headers)
     .then(async (cartRes) => {
       const cartCacheTag = await getCacheTag("carts")
       revalidateTag(cartCacheTag)

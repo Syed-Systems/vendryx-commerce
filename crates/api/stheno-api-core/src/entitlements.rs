@@ -69,12 +69,13 @@ pub enum Feature {
     /// so no tier grants it (config/tiers.toml). It arrives as a per-merchant override
     /// written at provisioning from the launch request (PRODUCT.md 2).
     BuyerAccounts,
+    AiAssistant,
 }
 
 impl Feature {
     /// Every gateable feature. The control plane needs the whole universe, not just the
     /// ones a tier happens to hold, or a feature could never be switched *on* from the UI.
-    pub const ALL: [Feature; 11] = [
+    pub const ALL: [Feature; 12] = [
         Feature::SpreadsheetImport,
         Feature::CsvExport,
         Feature::WebPush,
@@ -86,6 +87,7 @@ impl Feature {
         Feature::CustomTheme,
         Feature::Branding,
         Feature::BuyerAccounts,
+        Feature::AiAssistant,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -101,6 +103,7 @@ impl Feature {
             Feature::CustomTheme => "custom_theme",
             Feature::Branding => "branding",
             Feature::BuyerAccounts => "buyer_accounts",
+            Feature::AiAssistant => "ai_assistant",
         }
     }
 }
@@ -395,6 +398,7 @@ fn parse_feature(raw: &str) -> Result<Feature, EntitlementsError> {
         "custom_theme" => Ok(Feature::CustomTheme),
         "branding" => Ok(Feature::Branding),
         "buyer_accounts" => Ok(Feature::BuyerAccounts),
+        "ai_assistant" => Ok(Feature::AiAssistant),
         other => Err(EntitlementsError::UnknownFeature(other.to_string())),
     }
 }

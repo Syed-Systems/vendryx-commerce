@@ -53,7 +53,12 @@ async fn pathao_consignment_create_cancel_return_wiremock() {
 
     let provider = PathaoFulfillmentProvider::new(PathaoConfig {
         base_url: mock_server.uri(),
-        ..PathaoConfig::default()
+        client_id: "test-client-id".to_string(),
+        client_secret: "test-client-secret".to_string(),
+        username: "merchant@example.test".to_string(),
+        password: "test-password".to_string(),
+        store_id: Some(42),
+        sandbox: true,
     });
 
     let items = vec![CreateFulfillmentItemInput {
@@ -74,6 +79,8 @@ async fn pathao_consignment_create_cancel_return_wiremock() {
                 "recipient_name": "Rahim Ahmed",
                 "recipient_phone": "01711111111",
                 "recipient_address": "House 10, Road 4, Dhanmondi",
+                "recipient_city": 1,
+                "recipient_zone": 101,
                 "amount_to_collect": 1200
             })),
             &items,
@@ -121,4 +128,130 @@ async fn pathao_consignment_create_cancel_return_wiremock() {
     assert!(return_resp.labels[0]
         .tracking_number
         .contains("PT-CNS-789012"));
+}
+
+#[tokio::test]
+async fn failed_pathao_create_is_not_reported_as_a_fake_consignment() {
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/aladdin/api/v1/issue-token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "token_pathao_failure_case"
+        })))
+        .mount(&mock_server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/aladdin/api/v1/orders"))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&mock_server)
+        .await;
+
+    let provider = PathaoFulfillmentProvider::new(PathaoConfig {
+        base_url: mock_server.uri(),
+        client_id: "test-client-id".to_string(),
+        client_secret: "test-client-secret".to_string(),
+        username: "merchant@example.test".to_string(),
+        password: "test-password".to_string(),
+        store_id: Some(42),
+        sandbox: true,
+    });
+    let result = provider
+        .create_fulfillment(
+            Some(&json!({
+                "merchant_order_id": "order-stable-123",
+                "recipient_name": "Test Buyer",
+                "recipient_phone": "01711111111",
+                "recipient_address": "House 1, Dhaka",
+                "recipient_city": 1,
+                "recipient_zone": 101,
+                "amount_to_collect": 0
+            })),
+            &[],
+            None,
+        )
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn pathao_missing_destination_mapping_fails_before_authentication() {
+    let mock_server = MockServer::start().await;
+    let provider = PathaoFulfillmentProvider::new(PathaoConfig {
+        base_url: mock_server.uri(),
+        client_id: "test-client-id".to_string(),
+        client_secret: "test-client-secret".to_string(),
+        username: "merchant@example.test".to_string(),
+        password: "test-password".to_string(),
+        store_id: Some(42),
+        sandbox: true,
+    });
+    let result = provider
+        .create_fulfillment(
+            Some(&json!({
+                "merchant_order_id": "order-stable-123",
+                "recipient_name": "Test Buyer",
+                "recipient_phone": "01711111111",
+                "recipient_address": "House 1, Dhaka",
+                "amount_to_collect": 0
+            })),
+            &[],
+            None,
+        )
+        .await;
+
+    assert!(result.is_err());
+    assert!(mock_server.received_requests().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn pathao_rate_limit_does_not_retry_shipment_creation() {
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/aladdin/api/v1/issue-token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "token_pathao_rate_limit"
+        })))
+        .mount(&mock_server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/aladdin/api/v1/orders"))
+        .respond_with(ResponseTemplate::new(429))
+        .mount(&mock_server)
+        .await;
+
+    let provider = PathaoFulfillmentProvider::new(PathaoConfig {
+        base_url: mock_server.uri(),
+        client_id: "test-client-id".to_string(),
+        client_secret: "test-client-secret".to_string(),
+        username: "merchant@example.test".to_string(),
+        password: "test-password".to_string(),
+        store_id: Some(42),
+        sandbox: true,
+    });
+    let result = provider
+        .create_fulfillment(
+            Some(&json!({
+                "merchant_order_id": "order-rate-limited-123",
+                "recipient_name": "Test Buyer",
+                "recipient_phone": "01711111111",
+                "recipient_address": "House 1, Dhaka",
+                "recipient_city": 1,
+                "recipient_zone": 101,
+                "amount_to_collect": 0
+            })),
+            &[],
+            None,
+        )
+        .await;
+
+    assert!(result.is_err());
+    let requests = mock_server.received_requests().await.unwrap();
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|request| request.url.path() == "/aladdin/api/v1/orders")
+            .count(),
+        1
+    );
 }

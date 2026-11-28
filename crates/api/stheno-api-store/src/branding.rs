@@ -36,3 +36,14 @@ pub async fn get_branding(State(ctx): State<BrandingContext>) -> impl IntoRespon
         }
     }
 }
+
+/// GET /store/appearance — public presentation tokens for the current tenant.
+pub async fn get_appearance(State(ctx): State<BrandingContext>) -> impl IntoResponse {
+    match ctx.store_service.get_storefront_appearance().await {
+        Ok(appearance) => Json(serde_json::json!({ "appearance": appearance })).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to load tenant storefront appearance");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}

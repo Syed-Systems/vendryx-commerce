@@ -1,4 +1,8 @@
 //! `stheno-api-store`: Medusa v2 wire-compatible Store API routes.
+//!
+//! Axum's response value is the established endpoint error type; its body is already boxed, and
+//! wrapping every handler error in another box would add allocations across this compatibility API.
+#![allow(clippy::result_large_err)]
 
 pub mod branding;
 pub mod cache;
@@ -17,6 +21,7 @@ pub mod regions;
 pub mod returns;
 pub mod shipping_options;
 pub mod social;
+pub mod social_webhook;
 pub mod variants;
 
 use axum::routing::{get, post};
@@ -66,8 +71,11 @@ pub struct StoreApiContext {
     pub return_flows: Arc<ReturnWorkflowEngine>,
     pub fulfillment_service: Arc<FulfillmentService>,
     pub auth_service: Arc<AuthService>,
+    pub notification_service: Arc<stheno_notification::NotificationService>,
     pub translation_service: Arc<TranslationService>,
     pub cache_service: Option<Arc<stheno_caching::CacheService>>,
+    /// Optional verified Meta ingress; absent registrations leave the webhook path unmounted.
+    pub meta_webhook: Option<social_webhook::MetaWebhookContext>,
 }
 
 /// Mounts all store catalog API routes (products & categories).
@@ -119,6 +127,7 @@ pub fn store_region_routes(region_service: Arc<RegionService>) -> Router {
 pub fn store_branding_routes(store_service: Arc<stheno_store::StoreService>) -> Router {
     Router::new()
         .route("/store/branding", get(branding::get_branding))
+        .route("/store/appearance", get(branding::get_appearance))
         .with_state(branding::BrandingContext { store_service })
 }
 
@@ -189,6 +198,10 @@ pub fn store_order_routes(ctx: StoreOrderContext) -> Router {
     Router::new()
         .route("/store/orders", get(orders::list_orders))
         .route("/store/orders/{id}", get(orders::get_order))
+        .route(
+            "/store/orders/{id}/payment-proof",
+            get(orders::get_order_payment_proof).post(orders::submit_order_payment_proof),
+        )
         .route("/store/orders/transfer", post(orders::request_transfer))
         .route(
             "/store/orders/{id}/transfer/request",
@@ -242,10 +255,14 @@ pub fn store_shipping_option_routes(fulfillment_service: Arc<FulfillmentService>
 pub fn store_return_routes(
     order_service: Arc<OrderService>,
     return_flows: Arc<ReturnWorkflowEngine>,
+    auth_service: Arc<AuthService>,
+    notification_service: Arc<stheno_notification::NotificationService>,
 ) -> Router {
     let ctx = StoreReturnContext {
         order_service,
         return_flows,
+        auth_service,
+        notification_service,
     };
     Router::new()
         .route(
@@ -264,6 +281,7 @@ pub fn store_return_routes(
 pub fn store_customer_routes(
     customer_service: Arc<CustomerService>,
     auth_service: Arc<AuthService>,
+    notification_service: Arc<stheno_notification::NotificationService>,
 ) -> Router {
     Router::new()
         .route("/store/customers", post(customers::create_customer))
@@ -281,9 +299,14 @@ pub fn store_customer_routes(
                 .post(customers::update_my_address)
                 .delete(customers::delete_my_address),
         )
+        .route(
+            "/store/customers/me/whatsapp-consent",
+            axum::routing::delete(customers::revoke_my_whatsapp_consent),
+        )
         .with_state(StoreCustomerContext {
             customer_service,
             auth_service,
+            notification_service,
         })
 }
 
@@ -297,10 +320,16 @@ pub fn store_locale_routes(translation_service: Arc<TranslationService>) -> Rout
 /// Mounts all Store API routes (catalog, regions, currencies, carts, payments, orders, shipping options, returns).
 pub fn store_routes(ctx: StoreApiContext) -> Router {
     Router::new()
+        .merge(
+            ctx.meta_webhook
+                .clone()
+                .map(crate::social_webhook::meta_webhook_routes)
+                .unwrap_or_default(),
+        )
         .merge(crate::social::store_social_routes(
             crate::social::SocialContext {
                 social_flows: ctx.social_flows,
-                store_name: ctx.store_name,
+                store_name: ctx.store_name.clone(),
                 store_service: ctx.store_service.clone(),
             },
         ))
@@ -314,6 +343,7 @@ pub fn store_routes(ctx: StoreApiContext) -> Router {
         .merge(store_region_routes(ctx.region_service.clone()))
         .merge(store_currency_routes(ctx.currency_service))
         .merge(store_cart_routes(StoreCartContext {
+            store_name: ctx.store_name.clone(),
             cart_service: ctx.cart_service.clone(),
             promotion_service: ctx.promotion_service,
             pricing_service: ctx.pricing_service,
@@ -322,6 +352,7 @@ pub fn store_routes(ctx: StoreApiContext) -> Router {
             fulfillment_service: ctx.fulfillment_service.clone(),
             links: ctx.links.clone(),
             payment_service: ctx.payment_service.clone(),
+            notification_service: ctx.notification_service.clone(),
             complete_flows: ctx.complete_flows.clone(),
         }))
         .merge(store_payment_routes(StorePaymentContext {
@@ -334,10 +365,16 @@ pub fn store_routes(ctx: StoreApiContext) -> Router {
             order_flows: ctx.order_flows,
             links: ctx.links.clone(),
             payment_service: ctx.payment_service.clone(),
+            notification_service: ctx.notification_service.clone(),
             auth_service: ctx.auth_service.clone(),
         }))
         .merge(store_shipping_option_routes(ctx.fulfillment_service))
-        .merge(store_return_routes(ctx.order_service, ctx.return_flows))
+        .merge(store_return_routes(
+            ctx.order_service,
+            ctx.return_flows,
+            ctx.auth_service,
+            ctx.notification_service,
+        ))
         // Customer routes are deliberately NOT merged here. Buyer accounts are an
         // archetype the merchant picks at store-request time (PRODUCT.md 2), so
         // `store_customer_routes` mounts through a GatedGroup in stheno-server, the

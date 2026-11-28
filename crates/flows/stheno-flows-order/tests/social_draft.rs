@@ -8,7 +8,8 @@ use stheno_db::testing::TestDb;
 use stheno_flows_order::{
     should_skip_placed_push, SocialDraftInput, SocialDraftWorkflow, SOCIAL_SOURCE,
 };
-use stheno_order::{CreateLineItemInput, OrderService};
+use stheno_order::CreateAddressInput;
+use stheno_order::{CreateLineItemInput, CreateShippingMethodInput, OrderService};
 
 async fn workflow(db: &TestDb) -> SocialDraftWorkflow {
     let pool = create_pool(&db.url, 5).expect("pool");
@@ -32,6 +33,15 @@ fn valid_input() -> SocialDraftInput {
         items: vec![item()],
         buyer_name: Some("Amina".to_string()),
         buyer_phone: Some("+15551234567".to_string()),
+        delivery_address: None,
+        shipping_method: Some(CreateShippingMethodInput {
+            name: "Free delivery".to_string(),
+            amount: rust_decimal::Decimal::ZERO,
+            shipping_option_id: Some("so_free".to_string()),
+            ..Default::default()
+        }),
+        payment_preference: None,
+        source_event_id: None,
         source_ref: Some("ig_story_42".to_string()),
     }
 }
@@ -167,6 +177,75 @@ async fn an_empty_basket_is_rejected() {
     assert!(workflow(&db)
         .await
         .create_social_draft(input)
+        .await
+        .is_err());
+    db.drop().await;
+}
+
+#[tokio::test]
+async fn ai_handoff_requires_buyer_fields_and_retries_return_one_uncommitted_draft() {
+    let db = TestDb::migrated().await;
+    let workflow = workflow(&db).await;
+    let mut input = valid_input();
+    input.items[0].variant_id = Some("variant_1".to_string());
+    input.delivery_address = Some(CreateAddressInput {
+        address_1: Some("12 River Road".to_string()),
+        city: Some("Dhaka".to_string()),
+        country_code: Some("BD".to_string()),
+        postal_code: Some("1207".to_string()),
+        ..Default::default()
+    });
+    input.payment_preference = Some("cash_on_delivery".to_string());
+
+    let first = workflow
+        .create_ai_social_draft(input.clone(), "wamid-event-1")
+        .await
+        .expect("complete buyer details create a draft");
+    let retry = workflow
+        .create_ai_social_draft(input, "wamid-event-1")
+        .await
+        .expect("duplicate provider delivery returns existing draft");
+    assert_eq!(first.id, retry.id);
+    assert!(first.is_draft_order);
+    assert_eq!(first.status, "draft");
+    assert_eq!(first.payment_status, "not_paid");
+    assert_eq!(first.fulfillment_status, "not_fulfilled");
+    assert_eq!(
+        first
+            .shipping_address
+            .as_ref()
+            .unwrap()
+            .address_1
+            .as_deref(),
+        Some("12 River Road")
+    );
+    let metadata = first.metadata.unwrap();
+    assert_eq!(metadata["source_event_id"], "wamid-event-1");
+    assert!(metadata["ref"].as_str().unwrap().starts_with("VX-"));
+    assert_eq!(metadata["payment_preference"], "cash_on_delivery");
+    db.drop().await;
+}
+
+#[tokio::test]
+async fn ai_handoff_rejects_missing_buyer_address_and_invalid_quantity() {
+    let db = TestDb::migrated().await;
+    let workflow = workflow(&db).await;
+    assert!(workflow
+        .create_ai_social_draft(valid_input(), "event-missing-address")
+        .await
+        .is_err());
+    let mut input = valid_input();
+    input.items[0].variant_id = Some("variant_1".to_string());
+    input.delivery_address = Some(CreateAddressInput {
+        address_1: Some("12 River Road".to_string()),
+        city: Some("Dhaka".to_string()),
+        country_code: Some("BD".to_string()),
+        ..Default::default()
+    });
+    input.payment_preference = Some("cash_on_delivery".to_string());
+    input.items[0].quantity = 0;
+    assert!(workflow
+        .create_ai_social_draft(input, "event-invalid-quantity")
         .await
         .is_err());
     db.drop().await;

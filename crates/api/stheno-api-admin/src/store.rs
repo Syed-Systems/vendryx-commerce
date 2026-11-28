@@ -344,3 +344,28 @@ pub async fn upsert_branding(
 
     Ok((StatusCode::OK, Json(json!({ "branding": branding }))))
 }
+
+/// `GET /admin/store/appearance` — read persisted storefront composition choices.
+pub async fn get_storefront_appearance(
+    State(ctx): State<AdminStoreContext>,
+) -> Result<impl IntoResponse, HttpError> {
+    let appearance = ctx
+        .store_service
+        .get_storefront_appearance()
+        .await
+        .map_err(HttpError::from)?;
+    Ok((StatusCode::OK, Json(json!({ "appearance": appearance }))))
+}
+
+/// `POST /admin/store/appearance` — explicitly apply reversible presentation choices.
+pub async fn upsert_storefront_appearance(
+    State(ctx): State<AdminStoreContext>,
+    Json(input): Json<stheno_store::UpsertStorefrontAppearanceInput>,
+) -> Result<impl IntoResponse, HttpError> {
+    let appearance = ctx
+        .store_service
+        .upsert_storefront_appearance(input)
+        .await
+        .map_err(HttpError::from)?;
+    Ok((StatusCode::OK, Json(json!({ "appearance": appearance }))))
+}

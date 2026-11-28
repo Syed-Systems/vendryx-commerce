@@ -37,7 +37,10 @@ async fn conformance_session_lifecycle() {
         .await
         .expect("update succeeds");
 
-    assert_eq!(update_out.status, PaymentSessionStatus::PendingAuthorization);
+    assert_eq!(
+        update_out.status,
+        PaymentSessionStatus::PendingAuthorization
+    );
 
     // 3. Delete
     provider

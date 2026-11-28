@@ -14,7 +14,16 @@ pub async fn list_regions(
     match service.list_regions().await {
         Ok(regions) => {
             let count = regions.len();
-            let headers = crate::cache::public_cache_headers(&["regions", "catalog"]);
+            let tenant_id = stheno_db::tenant::current().unwrap_or_default();
+            let entities: Vec<_> = regions
+                .iter()
+                .map(|region| ("region", region.id.to_string()))
+                .collect();
+            let entity_refs: Vec<_> = entities
+                .iter()
+                .map(|(kind, id)| (*kind, id.as_str()))
+                .collect();
+            let headers = crate::cache::public_cache_headers(&tenant_id, &entity_refs, false);
             Ok((
                 headers,
                 Json(json!({
@@ -38,15 +47,20 @@ pub async fn get_region(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     match service.get_region(&id).await {
         Ok(region) => {
-            let headers =
-                crate::cache::public_cache_headers(&["regions", &format!("region-{}", id)]);
+            let tenant_id = stheno_db::tenant::current().unwrap_or_default();
+            let region_id = region.id.to_string();
+            let headers = crate::cache::public_cache_headers(
+                &tenant_id,
+                &[("region", region_id.as_str())],
+                false,
+            );
             Ok((headers, Json(json!({ "region": region }))))
         }
         Err(stheno_types::Error::NotFound { .. }) => Err((
             StatusCode::NOT_FOUND,
             Json(json!({
                 "type": "not_found",
-                "message": format!("Region with id '{}' not found", id)
+                "message": format!("Region with id '{id}' not found")
             })),
         )),
         Err(e) => Err((

@@ -1181,6 +1181,14 @@ export function getRouteMap({
               ],
             },
             {
+              path: "ai",
+              errorElement: <ErrorBoundary />,
+              lazy: () => import("../../routes/ai"),
+              handle: {
+                breadcrumb: () => "AI & Social Commerce",
+              },
+            },
+            {
               path: "billing",
               errorElement: <ErrorBoundary />,
               lazy: () => import("../../routes/billing"),

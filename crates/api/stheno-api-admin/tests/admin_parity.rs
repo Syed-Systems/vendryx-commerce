@@ -382,7 +382,7 @@ async fn test_admin_orders_endpoints_parity() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(&format!("/admin/orders/{}", order_id))
+                .uri(&format!("/admin/orders/{order_id}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -705,7 +705,7 @@ async fn test_admin_customers() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(&format!("/admin/customers/{}", customer_id))
+                .uri(&format!("/admin/customers/{customer_id}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -766,7 +766,7 @@ async fn test_admin_marketing() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(&format!("/admin/promotions/{}", promo_id))
+                .uri(&format!("/admin/promotions/{promo_id}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -853,7 +853,7 @@ async fn test_admin_config() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(&format!("/admin/regions/{}", region_id))
+                .uri(&format!("/admin/regions/{region_id}"))
                 .body(Body::empty())
                 .unwrap(),
         )

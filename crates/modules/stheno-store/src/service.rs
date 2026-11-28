@@ -7,6 +7,37 @@ use stheno_types::{Error, Id, Result};
 use crate::dto::*;
 use crate::models::{Store, StoreCurrency, StoreLocale, TenantBranding};
 
+fn validate_storefront_appearance(input: &UpsertStorefrontAppearanceInput) -> Result<()> {
+    fn check(value: &Option<String>, field: &'static str, allowed: &[&str]) -> Result<()> {
+        if let Some(value) = value.as_deref() {
+            if !allowed.contains(&value) {
+                return Err(Error::Invalid {
+                    code: "invalid_storefront_appearance",
+                    message: format!("unsupported value for {field}"),
+                    field: Some(field.to_string()),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    check(
+        &input.storefront_archetype,
+        "storefront_archetype",
+        &["baseline", "editorial", "dense_catalog"],
+    )?;
+    check(
+        &input.product_card_style,
+        "product_card_style",
+        &["standard", "editorial", "dense"],
+    )?;
+    check(
+        &input.product_image_aspect,
+        "product_image_aspect",
+        &["square", "portrait", "landscape"],
+    )
+}
+
 #[derive(Clone)]
 pub struct StoreService {
     stores: PgCrudRepository<Store>,
@@ -326,18 +357,40 @@ impl StoreService {
         let now = Utc::now();
         let row = if let Some(mut existing) = rows.into_iter().next() {
             // Update existing row in place.
-            if input.store_name.is_some() { existing.store_name = input.store_name; }
-            if input.logo_file_id.is_some() { existing.logo_file_id = input.logo_file_id; }
-            if input.favicon_file_id.is_some() { existing.favicon_file_id = input.favicon_file_id; }
-            if input.font_key.is_some() { existing.font_key = input.font_key; }
-            if input.color_primary.is_some() { existing.color_primary = input.color_primary; }
-            if input.color_secondary.is_some() { existing.color_secondary = input.color_secondary; }
-            if input.color_accent.is_some() { existing.color_accent = input.color_accent; }
-            if input.color_background.is_some() { existing.color_background = input.color_background; }
-            if input.color_surface.is_some() { existing.color_surface = input.color_surface; }
-            if input.color_text.is_some() { existing.color_text = input.color_text; }
+            if input.store_name.is_some() {
+                existing.store_name = input.store_name;
+            }
+            if input.logo_file_id.is_some() {
+                existing.logo_file_id = input.logo_file_id;
+            }
+            if input.favicon_file_id.is_some() {
+                existing.favicon_file_id = input.favicon_file_id;
+            }
+            if input.font_key.is_some() {
+                existing.font_key = input.font_key;
+            }
+            if input.color_primary.is_some() {
+                existing.color_primary = input.color_primary;
+            }
+            if input.color_secondary.is_some() {
+                existing.color_secondary = input.color_secondary;
+            }
+            if input.color_accent.is_some() {
+                existing.color_accent = input.color_accent;
+            }
+            if input.color_background.is_some() {
+                existing.color_background = input.color_background;
+            }
+            if input.color_surface.is_some() {
+                existing.color_surface = input.color_surface;
+            }
+            if input.color_text.is_some() {
+                existing.color_text = input.color_text;
+            }
             existing.updated_at = now;
-            self.branding.update(None, &existing.id.to_string(), existing).await?
+            self.branding
+                .update(None, &existing.id.to_string(), existing)
+                .await?
         } else {
             // Create on first upsert.
             let new_row = TenantBranding {
@@ -352,6 +405,9 @@ impl StoreService {
                 color_background: input.color_background,
                 color_surface: input.color_surface,
                 color_text: input.color_text,
+                storefront_archetype: None,
+                product_card_style: None,
+                product_image_aspect: None,
                 created_at: now,
                 updated_at: now,
                 deleted_at: None,
@@ -360,6 +416,89 @@ impl StoreService {
         };
 
         Ok(Self::to_branding_dto(&row, None, None))
+    }
+
+    /// Return the tenant's persisted, reversible storefront composition choices.
+    pub async fn get_storefront_appearance(&self) -> Result<StorefrontAppearanceDTO> {
+        let rows = self
+            .branding
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 1),
+            )
+            .await?;
+        Ok(rows
+            .into_iter()
+            .next()
+            .map_or_else(StorefrontAppearanceDTO::default, |row| {
+                StorefrontAppearanceDTO {
+                    storefront_archetype: row.storefront_archetype,
+                    product_card_style: row.product_card_style,
+                    product_image_aspect: row.product_image_aspect,
+                }
+            }))
+    }
+
+    /// Persist merchant-selected appearance values after strict allowlist validation.
+    pub async fn upsert_storefront_appearance(
+        &self,
+        input: UpsertStorefrontAppearanceInput,
+    ) -> Result<StorefrontAppearanceDTO> {
+        validate_storefront_appearance(&input)?;
+
+        let rows = self
+            .branding
+            .list(
+                None,
+                &FilterSpec::new()
+                    .with_predicate("deleted_at", FilterOp::IsNull)
+                    .with_pagination(0, 1),
+            )
+            .await?;
+        let now = Utc::now();
+        let row = if let Some(mut existing) = rows.into_iter().next() {
+            if input.storefront_archetype.is_some() {
+                existing.storefront_archetype = input.storefront_archetype;
+            }
+            if input.product_card_style.is_some() {
+                existing.product_card_style = input.product_card_style;
+            }
+            if input.product_image_aspect.is_some() {
+                existing.product_image_aspect = input.product_image_aspect;
+            }
+            existing.updated_at = now;
+            self.branding
+                .update(None, &existing.id.to_string(), existing)
+                .await?
+        } else {
+            let row = TenantBranding {
+                id: Id::new(),
+                store_name: None,
+                logo_file_id: None,
+                favicon_file_id: None,
+                font_key: None,
+                color_primary: None,
+                color_secondary: None,
+                color_accent: None,
+                color_background: None,
+                color_surface: None,
+                color_text: None,
+                storefront_archetype: input.storefront_archetype,
+                product_card_style: input.product_card_style,
+                product_image_aspect: input.product_image_aspect,
+                created_at: now,
+                updated_at: now,
+                deleted_at: None,
+            };
+            self.branding.create(None, row).await?
+        };
+        Ok(StorefrontAppearanceDTO {
+            storefront_archetype: row.storefront_archetype,
+            product_card_style: row.product_card_style,
+            product_image_aspect: row.product_image_aspect,
+        })
     }
 
     fn to_branding_dto(
@@ -381,5 +520,33 @@ impl StoreService {
             color_text: b.color_text.clone(),
             updated_at: Some(b.updated_at),
         }
+    }
+}
+
+#[cfg(test)]
+mod storefront_appearance_tests {
+    use super::validate_storefront_appearance;
+    use crate::dto::UpsertStorefrontAppearanceInput;
+
+    #[test]
+    fn allows_supported_storefront_appearance_values() {
+        assert!(
+            validate_storefront_appearance(&UpsertStorefrontAppearanceInput {
+                storefront_archetype: Some("editorial".into()),
+                product_card_style: Some("dense".into()),
+                product_image_aspect: Some("square".into()),
+            })
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn rejects_unsupported_appearance_values_before_persistence() {
+        let error = validate_storefront_appearance(&UpsertStorefrontAppearanceInput {
+            storefront_archetype: Some("custom-css".into()),
+            product_card_style: None,
+            product_image_aspect: None,
+        });
+        assert!(matches!(error, Err(stheno_types::Error::Invalid { .. })));
     }
 }

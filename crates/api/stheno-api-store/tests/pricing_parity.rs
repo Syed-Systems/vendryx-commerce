@@ -104,9 +104,13 @@ async fn test_store_pricing_endpoints_parity() {
         return_flows,
         fulfillment_service,
         auth_service,
+        notification_service: std::sync::Arc::new(stheno_notification::NotificationService::new(
+            pool.clone(),
+        )),
         translation_service,
         promotion_service: None,
         cache_service: None,
+        meta_webhook: None,
     };
 
     let app = store_pricing_routes(ctx);
@@ -138,7 +142,7 @@ async fn test_store_pricing_endpoints_parity() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/store/regions/{}", reg_id))
+                .uri(format!("/store/regions/{reg_id}"))
                 .body(Body::empty())
                 .unwrap(),
         )

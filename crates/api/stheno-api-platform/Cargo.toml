@@ -14,6 +14,8 @@ stheno-auth = { workspace = true }
 stheno-fulfillment = { workspace = true }
 stheno-api-core = { workspace = true }
 stheno-db = { workspace = true }
+stheno-flows = { workspace = true }
+stheno-query = { workspace = true }
 rust_decimal = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }

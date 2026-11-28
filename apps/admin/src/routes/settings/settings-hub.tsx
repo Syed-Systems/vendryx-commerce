@@ -134,6 +134,14 @@ const SETTINGS_CATEGORIES: SettingCategory[] = [
         synonyms: ["channels", "storefront", "pos", "social", "facebook", "instagram"],
       },
       {
+        id: "ai-assistant",
+        title: "AI & Social Commerce",
+        description: "Configure Meta channels and manage the store knowledge used by the assistant.",
+        to: "/settings/ai",
+        icon: <Sparkles />,
+        synonyms: ["ai", "assistant", "whatsapp", "messenger", "instagram", "knowledge", "faq"],
+      },
+      {
         id: "tax-regions",
         title: "Tax Regions & Rates",
         description: "National VAT, customs duty, and localized tax overrides.",

@@ -14,8 +14,7 @@ pub fn convert_medusa_money_to_stheno(amount: i64, currency: CurrencyCode) -> Re
         return Err(Error::Invalid {
             code: "precision_loss",
             message: format!(
-                "Precision lost converting Medusa amount {}. Reconstructed: {}",
-                amount, reconstructed
+                "Precision lost converting Medusa amount {amount}. Reconstructed: {reconstructed}"
             ),
             field: Some("amount".to_string()),
         });

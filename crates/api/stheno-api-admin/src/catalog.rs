@@ -1,6 +1,6 @@
 //! Admin Catalog API handlers (Medusa v2 byte-compatible).
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -209,7 +209,7 @@ pub async fn get_product(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Product with id {} was not found", id),
+                &format!("Product with id {id} was not found"),
             )),
         )
             .into_response()),
@@ -218,24 +218,70 @@ pub async fn get_product(
 
 pub async fn create_product(
     State(service): State<Arc<ProductService>>,
+    quota: Option<Extension<crate::AdminQuotaContext>>,
     Json(input): Json<CreateProductAdminRequest>,
 ) -> Result<impl IntoResponse, Response> {
-    let product = service
-        .create_product(CreateProductInput {
-            title: input.title.clone(),
-            handle: input.handle.clone(),
-            subtitle: input.subtitle.clone(),
-            description: input.description.clone(),
-            discountable: input.discountable,
-        })
-        .await
-        .map_err(|e| {
+    let product = if let Some(Extension(quota)) = quota {
+        let saga = stheno_flows::build_create_product_quota_saga(
+            service.clone(),
+            quota.counter.clone(),
+            quota.limit(stheno_api_core::QuotaKey::MaxProducts),
+        );
+        let output = saga
+            .execute(
+                &format!("quota_product_{}", ulid::Ulid::new()),
+                "create-product",
+                serde_json::json!({
+                    "title": input.title,
+                    "handle": input.handle,
+                    "subtitle": input.subtitle,
+                    "description": input.description,
+                    "discountable": input.discountable,
+                }),
+            )
+            .await
+            .map_err(|error| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse::new("not_allowed", &error.to_string())),
+                )
+                    .into_response()
+            })?;
+        let product_id = output["product_id"].as_str().ok_or_else(|| {
             (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::new("invalid_data", &e.to_string())),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new(
+                    "unexpected_state",
+                    "Product creation did not return a product ID",
+                )),
             )
                 .into_response()
         })?;
+        service.get_product(product_id).await.map_err(|error| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new("unexpected_state", &error.to_string())),
+            )
+                .into_response()
+        })?
+    } else {
+        service
+            .create_product(CreateProductInput {
+                title: input.title.clone(),
+                handle: input.handle.clone(),
+                subtitle: input.subtitle.clone(),
+                description: input.description.clone(),
+                discountable: input.discountable,
+            })
+            .await
+            .map_err(|error| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse::new("invalid_data", &error.to_string())),
+                )
+                    .into_response()
+            })?
+    };
 
     let prod_id_str = product.id.to_string();
 
@@ -329,14 +375,27 @@ pub async fn update_product(
 
 pub async fn delete_product(
     State(ctx): State<ProductDetailContext>,
+    quota: Option<Extension<crate::AdminQuotaContext>>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, Response> {
-    ctx.product_service.delete_product(&id).await.map_err(|e| {
-        (
+    let deletion = if let Some(Extension(quota)) = quota {
+        ctx.product_service
+            .delete_product_with_quota(&id, &quota.counter)
+            .await
+    } else {
+        ctx.product_service.delete_product(&id).await
+    };
+    deletion.map_err(|error| match error {
+        not_found @ stheno_types::Error::NotFound { .. } => (
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", &e.to_string())),
+            Json(ErrorResponse::new("not_found", &not_found.to_string())),
         )
-            .into_response()
+            .into_response(),
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("unexpected_state", &error.to_string())),
+        )
+            .into_response(),
     })?;
     Ok((
         StatusCode::OK,
@@ -413,7 +472,7 @@ pub async fn get_category(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Product category with id {} was not found", id),
+                &format!("Product category with id {id} was not found"),
             )),
         )
             .into_response()),
@@ -501,7 +560,7 @@ pub async fn get_collection(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Collection {} not found", id),
+                &format!("Collection {id} not found"),
             )),
         )
             .into_response()),
@@ -1132,7 +1191,7 @@ pub async fn get_variant(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Variant {} was not found", variant_id),
+                &format!("Variant {variant_id} was not found"),
             )),
         )
             .into_response()),
@@ -1509,6 +1568,7 @@ pub async fn delete_product_option_value(
 
 pub async fn batch_products(
     State(service): State<Arc<ProductService>>,
+    quota: Option<Extension<crate::AdminQuotaContext>>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, Response> {
     let mut created: Vec<stheno_product::ProductDTO> = Vec::new();
@@ -1518,8 +1578,28 @@ pub async fn batch_products(
     if let Some(create_list) = payload.get("create").and_then(|v| v.as_array()) {
         for item in create_list {
             if let Ok(req) = serde_json::from_value::<CreateProductInput>(item.clone()) {
-                if let Ok(p) = service.create_product(req).await {
-                    created.push(p);
+                if let Some(Extension(quota)) = &quota {
+                    let saga = stheno_flows::build_create_product_quota_saga(
+                        service.clone(),
+                        quota.counter.clone(),
+                        quota.limit(stheno_api_core::QuotaKey::MaxProducts),
+                    );
+                    if let Ok(output) = saga
+                        .execute(
+                            &format!("quota_batch_product_{}", ulid::Ulid::new()),
+                            "create-product",
+                            serde_json::to_value(req).unwrap_or_default(),
+                        )
+                        .await
+                    {
+                        if let Some(id) = output["product_id"].as_str() {
+                            if let Ok(product) = service.get_product(id).await {
+                                created.push(product);
+                            }
+                        }
+                    }
+                } else if let Ok(product) = service.create_product(req).await {
+                    created.push(product);
                 }
             }
         }
@@ -1527,7 +1607,12 @@ pub async fn batch_products(
     if let Some(delete_list) = payload.get("delete").and_then(|v| v.as_array()) {
         for item in delete_list {
             if let Some(id) = item.as_str() {
-                if service.delete_product(id).await.is_ok() {
+                let delete_result = if let Some(Extension(quota)) = &quota {
+                    service.delete_product_with_quota(id, &quota.counter).await
+                } else {
+                    service.delete_product(id).await
+                };
+                if delete_result.is_ok() {
                     deleted.push(id.to_string());
                 }
             }

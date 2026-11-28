@@ -101,7 +101,7 @@ async fn count_stored_events(pool: &DbPool) -> i64 {
                     .await
                     .map_err(|e| stheno_db::Error::Database(e.to_string()))?;
 
-                    let count = rows.get(0).map(|r| r.count).unwrap_or(0);
+                    let count = rows.as_slice().first().map(|r| r.count).unwrap_or(0);
                     Ok(count)
                 })
             })
@@ -117,7 +117,7 @@ fn sign_stripe_payload(payload: &[u8], secret: &str, timestamp: i64) -> String {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
     mac.update(signed_payload.as_bytes());
     let sig = hex::encode(mac.finalize().into_bytes());
-    format!("t={},v1={}", timestamp, sig)
+    format!("t={timestamp},v1={sig}")
 }
 
 #[tokio::test]
@@ -127,10 +127,8 @@ async fn invalid_signature_returns_401_and_writes_no_row() {
     let payload =
         br#"{"id":"evt_invalid_sig_1","type":"payment_intent.succeeded","livemode":false}"#;
     let now = Utc::now().timestamp();
-    let forged_header = format!(
-        "t={},v1=0000000000000000000000000000000000000000000000000000000000000000",
-        now
-    );
+    let forged_header =
+        format!("t={now},v1=0000000000000000000000000000000000000000000000000000000000000000");
 
     let response = router
         .oneshot(

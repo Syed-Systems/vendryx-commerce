@@ -4,7 +4,7 @@ use stheno_db::{FilterOp, FilterSpec};
 fn test_in_clause_limit_enforced() {
     let mut items = Vec::new();
     for i in 0..101 {
-        items.push(format!("item_{}", i));
+        items.push(format!("item_{i}"));
     }
 
     let spec = FilterSpec::new().with_predicate("id", FilterOp::In(items));
@@ -28,7 +28,7 @@ fn test_depth_limit_enforced() {
 fn test_predicate_count_limit_enforced() {
     let mut spec = FilterSpec::new();
     for i in 0..21 {
-        spec = spec.with_predicate(format!("field_{}", i), FilterOp::Eq("val".to_string()));
+        spec = spec.with_predicate(format!("field_{i}"), FilterOp::Eq("val".to_string()));
     }
     let result = spec.validate();
     assert!(result.is_err());

@@ -77,6 +77,10 @@ impl NotificationProvider for ResendNotificationProvider {
         vec!["email"]
     }
 
+    fn supports_idempotency(&self) -> bool {
+        true
+    }
+
     async fn send(
         &self,
         to: &str,
@@ -85,10 +89,23 @@ impl NotificationProvider for ResendNotificationProvider {
         body: &str,
         data: Option<&serde_json::Value>,
     ) -> Result<NotificationProviderResult> {
+        self.send_idempotent(to, channel, subject, body, data, None)
+            .await
+    }
+
+    async fn send_idempotent(
+        &self,
+        to: &str,
+        channel: &str,
+        subject: Option<&str>,
+        body: &str,
+        data: Option<&serde_json::Value>,
+        idempotency_key: Option<&str>,
+    ) -> Result<NotificationProviderResult> {
         if channel != "email" {
             return Err(Error::Invalid {
                 code: "unsupported_channel",
-                message: format!("Resend provider does not support channel '{}'", channel),
+                message: format!("Resend provider does not support channel '{channel}'"),
                 field: Some("channel".to_string()),
             });
         }
@@ -96,7 +113,7 @@ impl NotificationProvider for ResendNotificationProvider {
         if !to.contains('@') {
             return Err(Error::Invalid {
                 code: "invalid_email_recipient",
-                message: format!("Invalid email recipient '{}'", to),
+                message: format!("Invalid email recipient '{to}'"),
                 field: Some("to".to_string()),
             });
         }
@@ -147,17 +164,18 @@ impl NotificationProvider for ResendNotificationProvider {
             "text": body,
         });
 
-        let resp = self
+        let mut request = self
             .client
             .post(&endpoint)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|e| Error::ProviderFailed {
-                provider: "resend".to_string(),
-                source: format!("Network error connecting to Resend: {e}").into(),
-            })?;
+            .json(&payload);
+        if let Some(key) = idempotency_key {
+            request = request.header("Idempotency-Key", key);
+        }
+        let resp = request.send().await.map_err(|e| Error::ProviderFailed {
+            provider: "resend".to_string(),
+            source: format!("Network error connecting to Resend: {e}").into(),
+        })?;
 
         let status = resp.status();
         if !status.is_success() {

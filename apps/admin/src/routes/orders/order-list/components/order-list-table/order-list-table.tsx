@@ -27,7 +27,7 @@ export const OrderListTable = () => {
     {
       fields: DEFAULT_FIELDS,
       ...searchParams,
-      ...(isSocial ? { status: "draft" } : {}),
+      ...(isSocial ? { status: "draft", is_social: true } : {}),
     },
     {
       placeholderData: keepPreviousData,
@@ -35,7 +35,7 @@ export const OrderListTable = () => {
   )
 
   const filters = useOrderTableFilters()
-  const columns = useOrderTableColumns({})
+  const columns = useOrderTableColumns({ isSocial })
 
   const { table } = useDataTable({
     data: orders ?? [],

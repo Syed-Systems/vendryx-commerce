@@ -4,7 +4,7 @@
 use chrono::Utc;
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
-use stheno_platform::{PlatformService, SubmitLaunchRequestInput};
+use stheno_platform::{PlatformService, SubmitLaunchRequestInput, SubscriptionPatch};
 
 fn request(merchant_id: &str, tier: &str) -> SubmitLaunchRequestInput {
     SubmitLaunchRequestInput {
@@ -138,7 +138,9 @@ async fn subdomain_is_reserved_and_pro_cannot_provision_before_payment() {
 #[tokio::test]
 async fn provisioning_is_idempotent_binds_the_owner_and_hands_off_only_when_activated() {
     let db = TestDb::migrated().await;
-    let service = PlatformService::new(create_pool(&db.url, 5).expect("pool"));
+    let service = PlatformService::new(create_pool(&db.url, 5).expect("pool"))
+        .with_trial_duration_days(11)
+        .expect("valid deployment trial override");
 
     service
         .upsert_merchant_account(
@@ -171,6 +173,31 @@ async fn provisioning_is_idempotent_binds_the_owner_and_hands_off_only_when_acti
         .provision_launch_request(&request.id, "op_1", "Operator")
         .await
         .expect("first provisioning run");
+    let tenant_id = first.tenant_id.as_deref().expect("provisioned tenant");
+    let provisioned_subscription = service
+        .get_subscription(tenant_id)
+        .await
+        .expect("provisioned subscription");
+    let started_at = provisioned_subscription
+        .trial_started_at
+        .expect("trial start");
+    assert_eq!(started_at, request.submitted_at);
+    assert_eq!(
+        provisioned_subscription.trial_ends_at.expect("trial end") - started_at,
+        chrono::Duration::days(11)
+    );
+    // Updating the configured default never shortens an already issued subscription.
+    let existing_end = started_at + chrono::Duration::days(14);
+    service
+        .update_subscription(
+            tenant_id,
+            SubscriptionPatch {
+                trial_ends_at: Some(Some(existing_end)),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("simulate an existing fourteen-day trial");
     let second = service
         .provision_launch_request(&request.id, "op_1", "Operator")
         .await
@@ -196,8 +223,96 @@ async fn provisioning_is_idempotent_binds_the_owner_and_hands_off_only_when_acti
         .await
         .expect("subscription");
     assert_eq!(subscription.tier, "trial");
-    assert!(subscription.trial_started_at.is_some());
-    assert!(subscription.trial_ends_at.is_some());
+    assert_eq!(subscription.trial_ends_at, Some(existing_end));
+
+    let expired = service
+        .reconcile_expired_subscriptions(existing_end)
+        .await
+        .expect("persist exact-boundary trial expiry");
+    assert_eq!(expired, 1);
+    assert_eq!(
+        service
+            .get_subscription(&tenant_id)
+            .await
+            .expect("downgraded subscription")
+            .tier,
+        "free"
+    );
+    let replay = service
+        .reconcile_expired_subscriptions(existing_end - chrono::Duration::days(1))
+        .await
+        .expect("reconcile after clock moves backward");
+    assert_eq!(replay, 0, "a persisted downgrade must not be reversed");
+
+    service
+        .update_subscription(
+            &tenant_id,
+            SubscriptionPatch {
+                tier: Some("trial".to_string()),
+                trial_ends_at: Some(None),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("simulate a legacy trial without expiry metadata");
+    assert_eq!(
+        service
+            .reconcile_expired_subscriptions(existing_end - chrono::Duration::days(1))
+            .await
+            .expect("persist the fail-closed missing-expiry downgrade"),
+        1
+    );
+
+    let paid_term_end = existing_end + chrono::Duration::days(30);
+    service
+        .update_subscription(
+            &tenant_id,
+            SubscriptionPatch {
+                tier: Some("pro".to_string()),
+                term_ends_at: Some(Some(paid_term_end)),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("simulate a paid Pro term");
+    assert_eq!(
+        service
+            .reconcile_expired_subscriptions(paid_term_end)
+            .await
+            .expect("enter grace at the term boundary"),
+        1
+    );
+    assert_eq!(
+        service
+            .get_subscription(&tenant_id)
+            .await
+            .expect("grace subscription")
+            .status,
+        "grace"
+    );
+    let grace_end = paid_term_end + chrono::Duration::days(7);
+    assert_eq!(
+        service
+            .reconcile_expired_subscriptions(grace_end)
+            .await
+            .expect("downgrade at the grace boundary"),
+        1
+    );
+    let after_grace = service
+        .get_subscription(&tenant_id)
+        .await
+        .expect("free subscription after grace");
+    assert_eq!(after_grace.tier, "free");
+    assert_eq!(after_grace.status, "active");
+    assert_eq!(after_grace.dunning_attempts, 0);
+    assert_eq!(after_grace.next_attempt_at, None);
+    assert_eq!(
+        service
+            .reconcile_expired_subscriptions(grace_end - chrono::Duration::days(1))
+            .await
+            .expect("clock rollback cannot restore the paid tier"),
+        0
+    );
 
     let online = service
         .activate_launch_request(&request.id, "op_1", "Operator")

@@ -20,7 +20,7 @@ hex = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 tracing = { workspace = true }
-diesel = { workspace = true, features = ["32-column-tables", "64-column-tables"] }
+diesel = { workspace = true }
 
 [dev-dependencies]
 diesel-async = { workspace = true }

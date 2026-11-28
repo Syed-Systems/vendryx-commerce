@@ -311,8 +311,7 @@ impl LockManager {
                 return Err(Error::Conflict {
                     code: "lock_acquisition_timeout",
                     message: format!(
-                        "Timed out after {:?} waiting for lock on resource '{}'",
-                        max_wait, resource
+                        "Timed out after {max_wait:?} waiting for lock on resource '{resource}'"
                     ),
                 });
             }

@@ -28,7 +28,12 @@ pub async fn list_categories(
 ) -> Result<(axum::http::HeaderMap, Json<ListCategoriesResponse>), Response> {
     let cats = service.list_categories().await.unwrap_or_default();
     let count = cats.len();
-    let headers = crate::cache::public_cache_headers(&["categories", "catalog"]);
+    let tenant_id = stheno_db::tenant::current().unwrap_or_default();
+    let entities: Vec<_> = cats
+        .iter()
+        .map(|category| ("category", category.handle.as_str()))
+        .collect();
+    let headers = crate::cache::public_cache_headers(&tenant_id, &entities, true);
     Ok((
         headers,
         Json(ListCategoriesResponse {
@@ -46,8 +51,12 @@ pub async fn get_category(
 ) -> Result<(axum::http::HeaderMap, Json<GetCategoryResponse>), Response> {
     match service.get_category(&id).await {
         Ok(cat) => {
-            let headers =
-                crate::cache::public_cache_headers(&["categories", &format!("category-{}", id)]);
+            let tenant_id = stheno_db::tenant::current().unwrap_or_default();
+            let headers = crate::cache::public_cache_headers(
+                &tenant_id,
+                &[("category", cat.handle.as_str())],
+                false,
+            );
             Ok((
                 headers,
                 Json(GetCategoryResponse {
@@ -59,7 +68,7 @@ pub async fn get_category(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 r#type: "not_found".to_string(),
-                message: format!("Product category with id {} was not found", id),
+                message: format!("Product category with id {id} was not found"),
             }),
         )
             .into_response()),

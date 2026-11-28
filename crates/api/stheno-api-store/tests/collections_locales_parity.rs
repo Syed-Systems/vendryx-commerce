@@ -198,7 +198,8 @@ async fn test_store_customers_me_requires_bearer_token() {
     let pool = create_pool(&db.url, 5).expect("pool");
     let app = store_customer_routes(
         Arc::new(CustomerService::new(pool.clone())),
-        Arc::new(AuthService::new(pool, None)),
+        Arc::new(AuthService::new(pool.clone(), None)),
+        Arc::new(stheno_notification::NotificationService::new(pool.clone())),
     );
 
     // No token is a 401, never a 404 - the storefront reads 404 as "customer deleted".

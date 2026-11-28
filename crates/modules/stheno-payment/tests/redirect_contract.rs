@@ -54,15 +54,25 @@ impl PaymentProvider for FixtureRedirectProvider {
         unimplemented!()
     }
 
-    async fn retrieve(&self, _input: stheno_payment::RetrieveInput) -> Result<stheno_payment::RetrieveOutput> {
+    async fn retrieve(
+        &self,
+        _input: stheno_payment::RetrieveInput,
+    ) -> Result<stheno_payment::RetrieveOutput> {
         unimplemented!()
     }
 
-    async fn get_status(&self, _input: stheno_payment::StatusInput) -> Result<PaymentSessionStatus> {
+    async fn get_status(
+        &self,
+        _input: stheno_payment::StatusInput,
+    ) -> Result<PaymentSessionStatus> {
         unimplemented!()
     }
 
-    fn verify_webhook(&self, _raw: &[u8], _signature_header: Option<&str>) -> Result<stheno_payment::VerifiedEvent> {
+    fn verify_webhook(
+        &self,
+        _raw: &[u8],
+        _signature_header: Option<&str>,
+    ) -> Result<stheno_payment::VerifiedEvent> {
         Ok(stheno_payment::VerifiedEvent {
             provider_event_id: "evt_123".to_string(),
             event_type: "payment.succeeded".to_string(),

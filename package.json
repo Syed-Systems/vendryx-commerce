@@ -1,29 +1,14 @@
 {
   "name": "stheno-workspace",
   "private": true,
-  "workspaces": [
-    "apps/*"
-  ],
   "scripts": {
-    "dev": "npm run dev --workspace=@vendryx/storefront",
-    "build": "npm run build --workspace=@vendryx/storefront",
-    "start": "npm run start --workspace=@vendryx/storefront",
-    "lint": "npm run lint --workspace=@vendryx/storefront",
-    "test": "npm run test --workspace=@vendryx/storefront",
-    "dev:marketing": "npm run dev --workspace=@vendryx/marketing",
-    "build:marketing": "npm run build --workspace=@vendryx/marketing",
-    "lint:marketing": "npm run lint --workspace=@vendryx/marketing",
-    "test:marketing": "npm run test --workspace=@vendryx/marketing",
-    "dev:admin": "npm run dev --workspace=@stheno/dashboard",
-    "build:admin": "npm run build --workspace=@stheno/dashboard",
-    "lint:admin": "npm run lint --workspace=@stheno/dashboard"
-  },
-  "dependencies": {
-    "gsap": "^3.15.1",
-    "lenis": "^1.3.28",
-    "lucide-react": "^1.80.0",
-    "motion": "^14.14.0",
-    "next": "14.2.28",
-    "zod": "^4.6.7"
+    "dev": "npm --prefix apps/marketing run dev",
+    "build": "npm --prefix apps/marketing run build",
+    "start": "npm --prefix apps/marketing run preview",
+    "lint": "npm --prefix apps/marketing run lint",
+    "test": "npm --prefix apps/marketing run test",
+    "dev:admin": "npm --prefix apps/admin run dev",
+    "build:admin": "npm --prefix apps/admin run build",
+    "lint:admin": "npm --prefix apps/admin run lint"
   }
 }

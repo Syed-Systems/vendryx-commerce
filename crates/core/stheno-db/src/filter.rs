@@ -216,8 +216,7 @@ impl FilterSpec {
                     return Err(Error::Invalid {
                         code: "leading_wildcard_forbidden",
                         message: format!(
-                            "Leading wildcard in LIKE filter on field '{}' is forbidden to prevent unindexed sequential scans",
-                            field
+                            "Leading wildcard in LIKE filter on field '{field}' is forbidden to prevent unindexed sequential scans"
                         ),
                         field: Some(field.clone()),
                     });

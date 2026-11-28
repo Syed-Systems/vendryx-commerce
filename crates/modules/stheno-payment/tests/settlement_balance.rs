@@ -213,8 +213,5 @@ async fn test_settlement_balance_decimal_exact_courier_fee_accounting() {
     assert_eq!(rec.discrepancy_count, 0);
     assert_eq!(rec.collected_not_remitted_count, 0);
     assert_eq!(rec.remitted_not_matched_count, 0);
-    assert_eq!(
-        rec.total_remitted + rec.total_fees,
-        rec.total_collected
-    );
+    assert_eq!(rec.total_remitted + rec.total_fees, rec.total_collected);
 }

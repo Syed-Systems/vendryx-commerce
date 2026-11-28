@@ -58,7 +58,7 @@ impl RedisCacheProvider {
 
     fn qualify_key(&self, key: &str) -> String {
         if let Some(ref prefix) = self.config.key_prefix {
-            format!("{}:{}", prefix, key)
+            format!("{prefix}:{key}")
         } else {
             key.to_string()
         }

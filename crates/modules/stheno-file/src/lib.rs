@@ -183,8 +183,14 @@ impl UploadPipeline {
                     let height = 1 + (((b2 >> 6) | (b3 << 2) | (b4 << 10)) & 0x3fff);
                     Ok(ImageDimensions { width, height })
                 } else if tag == b"VP8X" && bytes.len() >= 30 {
-                    let width = 1 + (bytes[24] as u32 | ((bytes[25] as u32) << 8) | ((bytes[26] as u32) << 16));
-                    let height = 1 + (bytes[27] as u32 | ((bytes[28] as u32) << 8) | ((bytes[29] as u32) << 16));
+                    let width = 1
+                        + (bytes[24] as u32
+                            | ((bytes[25] as u32) << 8)
+                            | ((bytes[26] as u32) << 16));
+                    let height = 1
+                        + (bytes[27] as u32
+                            | ((bytes[28] as u32) << 8)
+                            | ((bytes[29] as u32) << 16));
                     Ok(ImageDimensions { width, height })
                 } else {
                     Err(Error::Invalid {
@@ -196,7 +202,8 @@ impl UploadPipeline {
             }
             AllowedMimeType::Pdf => Err(Error::Invalid {
                 code: "unsupported_branding_asset_type",
-                message: "PDF documents cannot be used as branding logo or favicon assets".to_string(),
+                message: "PDF documents cannot be used as branding logo or favicon assets"
+                    .to_string(),
                 field: Some("file".to_string()),
             }),
         }
@@ -214,7 +221,10 @@ impl UploadPipeline {
     /// - Aspect ratio: Must be 1:1 square.
     /// - Dimensions: Between 16px and 512px.
     /// - Max size: 1 MB.
-    pub fn validate_branding_asset(bytes: &[u8], kind: BrandingAssetKind) -> Result<ImageDimensions> {
+    pub fn validate_branding_asset(
+        bytes: &[u8],
+        kind: BrandingAssetKind,
+    ) -> Result<ImageDimensions> {
         let max_bytes = match kind {
             BrandingAssetKind::Logo => 5 * 1024 * 1024,
             BrandingAssetKind::Favicon => 1024 * 1024,
@@ -223,7 +233,9 @@ impl UploadPipeline {
         if bytes.len() > max_bytes {
             return Err(Error::Invalid {
                 code: "file_too_large",
-                message: format!("Branding asset exceeds maximum allowed size of {} bytes", max_bytes),
+                message: format!(
+                    "Branding asset exceeds maximum allowed size of {max_bytes} bytes"
+                ),
                 field: Some("file".to_string()),
             });
         }
@@ -235,14 +247,20 @@ impl UploadPipeline {
                 if dims.width < 32 || dims.height < 32 {
                     return Err(Error::Invalid {
                         code: "logo_too_small",
-                        message: format!("Logo dimensions ({}x{}) are below the 32x32 minimum", dims.width, dims.height),
+                        message: format!(
+                            "Logo dimensions ({}x{}) are below the 32x32 minimum",
+                            dims.width, dims.height
+                        ),
                         field: Some("dimensions".to_string()),
                     });
                 }
                 if dims.width > 2500 || dims.height > 2500 {
                     return Err(Error::Invalid {
                         code: "logo_too_large",
-                        message: format!("Logo dimensions ({}x{}) exceed the 2500x2500 maximum", dims.width, dims.height),
+                        message: format!(
+                            "Logo dimensions ({}x{}) exceed the 2500x2500 maximum",
+                            dims.width, dims.height
+                        ),
                         field: Some("dimensions".to_string()),
                     });
                 }
@@ -251,21 +269,30 @@ impl UploadPipeline {
                 if dims.width != dims.height {
                     return Err(Error::Invalid {
                         code: "favicon_not_square",
-                        message: format!("Favicon must have a 1:1 square aspect ratio; got {}x{}", dims.width, dims.height),
+                        message: format!(
+                            "Favicon must have a 1:1 square aspect ratio; got {}x{}",
+                            dims.width, dims.height
+                        ),
                         field: Some("dimensions".to_string()),
                     });
                 }
                 if dims.width < 16 || dims.height < 16 {
                     return Err(Error::Invalid {
                         code: "favicon_too_small",
-                        message: format!("Favicon dimensions ({}x{}) are below the 16x16 minimum", dims.width, dims.height),
+                        message: format!(
+                            "Favicon dimensions ({}x{}) are below the 16x16 minimum",
+                            dims.width, dims.height
+                        ),
                         field: Some("dimensions".to_string()),
                     });
                 }
                 if dims.width > 512 || dims.height > 512 {
                     return Err(Error::Invalid {
                         code: "favicon_too_large",
-                        message: format!("Favicon dimensions ({}x{}) exceed the 512x512 maximum", dims.width, dims.height),
+                        message: format!(
+                            "Favicon dimensions ({}x{}) exceed the 512x512 maximum",
+                            dims.width, dims.height
+                        ),
                         field: Some("dimensions".to_string()),
                     });
                 }
@@ -287,4 +314,3 @@ pub enum BrandingAssetKind {
     Logo,
     Favicon,
 }
-

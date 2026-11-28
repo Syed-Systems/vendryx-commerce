@@ -231,13 +231,21 @@ fn the_shipped_pro_plan_12_and_24_month_totals_are_exact() {
     let subtotal_12 = pricing.price * Decimal::from(12);
     let discount_12 = subtotal_12 * (discount_percent / one_hundred);
     let total_12 = subtotal_12 - discount_12;
-    assert_eq!(total_12, Decimal::from_str("216.00").unwrap(), "12 months total should be exactly USD 216.00");
+    assert_eq!(
+        total_12,
+        Decimal::from_str("216.00").unwrap(),
+        "12 months total should be exactly USD 216.00"
+    );
 
     // 24 months
     let subtotal_24 = pricing.price * Decimal::from(24);
     let discount_24 = subtotal_24 * (discount_percent / one_hundred);
     let total_24 = subtotal_24 - discount_24;
-    assert_eq!(total_24, Decimal::from_str("432.00").unwrap(), "24 months total should be exactly USD 432.00");
+    assert_eq!(
+        total_24,
+        Decimal::from_str("432.00").unwrap(),
+        "24 months total should be exactly USD 432.00"
+    );
 }
 
 #[test]

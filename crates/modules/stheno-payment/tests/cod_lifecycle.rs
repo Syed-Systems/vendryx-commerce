@@ -244,7 +244,10 @@ async fn test_end_to_end_cod_lifecycle_delivered_captured_settled() {
 
     assert_eq!(mismatch_rec.state, "drift_found");
     assert_eq!(mismatch_rec.discrepancy_count, 1);
-    assert_eq!(mismatch_rec.buckets.discrepant[0].consignment_id, mismatch_consignment);
+    assert_eq!(
+        mismatch_rec.buckets.discrepant[0].consignment_id,
+        mismatch_consignment
+    );
     assert!(mismatch_rec.buckets.discrepant[0]
         .reason
         .as_ref()
@@ -300,7 +303,10 @@ async fn test_end_to_end_cod_lifecycle_delivered_captured_settled() {
     assert!(!return_dto.was_captured);
     assert_eq!(return_dto.refunded_amount, dec!(0.00));
 
-    let final_return_pay = service.get_payment(&return_pay.id).await.expect("get payment");
+    let final_return_pay = service
+        .get_payment(&return_pay.id)
+        .await
+        .expect("get payment");
     assert_eq!(final_return_pay.captured_amount, dec!(0.00));
     assert!(final_return_pay.captured_at.is_none());
 }

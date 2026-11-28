@@ -120,12 +120,8 @@ async fn bdt_provider_boundary_sslcommerz() {
         .mount(&mock_server)
         .await;
 
-    let provider = SslcommerzPaymentProvider::new(
-        "test_store",
-        "test_pass",
-        Some(&mock_server.uri()),
-        true,
-    );
+    let provider =
+        SslcommerzPaymentProvider::new("test_store", "test_pass", Some(&mock_server.uri()), true);
 
     let out = provider
         .initiate(InitiateInput {

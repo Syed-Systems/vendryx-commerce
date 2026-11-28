@@ -54,7 +54,8 @@ async fn repeated_failures_are_throttled_then_a_correct_password_is_too() {
             app_metadata: None,
             user_metadata: None,
         })
-        .await;
+        .await
+        .expect("the account the test signs in to must exist");
 
     // Burn the budget on wrong passwords.
     for attempt in 1..=ATTEMPTS {

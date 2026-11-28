@@ -221,7 +221,7 @@ impl OrderEditWorkflowEngine {
                         amount: delta_amt,
                         currency_code: order.currency_code.clone(),
                         reference: "payment".to_string(),
-                        reference_id: format!("edit_collect_{}", edit_id),
+                        reference_id: format!("edit_collect_{edit_id}"),
                         metadata: None,
                     },
                 )
@@ -236,7 +236,7 @@ impl OrderEditWorkflowEngine {
                         amount: refund_amt,
                         currency_code: order.currency_code.clone(),
                         reference: "refund".to_string(),
-                        reference_id: format!("edit_refund_{}", edit_id),
+                        reference_id: format!("edit_refund_{edit_id}"),
                         metadata: None,
                     },
                 )

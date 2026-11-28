@@ -15,15 +15,17 @@ use rand::Rng;
 const REF_ALPHABET: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
 /// Short enough to say out loud, long enough that collisions stay negligible at
-/// realistic social-order volumes (32^6 ≈ 1.07 billion).
+/// realistic social-order volumes (32^6 ≈ 1.07 billion). The fixed VX prefix identifies
+/// the reference as a Vendryx social order when it is copied between channels.
 const REF_LENGTH: usize = 6;
 
 /// Generates a short, unambiguous reference code for a social draft.
 pub fn generate_ref_code() -> String {
     let mut rng = rand::thread_rng();
-    (0..REF_LENGTH)
+    let suffix: String = (0..REF_LENGTH)
         .map(|_| REF_ALPHABET[rng.gen_range(0..REF_ALPHABET.len())] as char)
-        .collect()
+        .collect();
+    format!("VX-{suffix}")
 }
 
 /// One line of a social order message.
@@ -79,8 +81,10 @@ mod tests {
         // single draw proves nothing about a random generator.
         for _ in 0..2_000 {
             let code = generate_ref_code();
-            assert_eq!(code.len(), REF_LENGTH);
-            for c in code.chars() {
+            assert!(code.starts_with("VX-"));
+            let suffix = &code[3..];
+            assert_eq!(suffix.len(), REF_LENGTH);
+            for c in suffix.chars() {
                 assert!(
                     !matches!(c, '0' | 'O' | '1' | 'I'),
                     "{code} contains an ambiguous character"
@@ -109,7 +113,7 @@ mod tests {
                 line_total: "$80.00".to_string(),
             }],
             "$80.00",
-            "K7M2QP",
+            "VX-K7M2QP",
         );
 
         assert!(message.starts_with("Order from Acme"));
@@ -119,7 +123,7 @@ mod tests {
         assert!(message.contains("Qty 2"));
         assert!(message.contains("Total: $80.00"));
         // Without this line the draft cannot be matched to the conversation at all.
-        assert!(message.ends_with("Ref: #K7M2QP"));
+        assert!(message.ends_with("Ref: #VX-K7M2QP"));
     }
 
     #[test]
@@ -135,7 +139,7 @@ mod tests {
                 line_total: "$25.00".to_string(),
             }],
             "$25.00",
-            "ABC234",
+            "VX-ABC234",
         );
         assert!(!message.contains("Code:"));
     }

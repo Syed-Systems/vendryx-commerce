@@ -24,7 +24,7 @@ impl Step for StepOne {
     ) -> Result<serde_json::Value> {
         self.invoked.fetch_add(1, Ordering::SeqCst);
         let s = input["val"].as_str().unwrap_or("");
-        Ok(json!({ "val": format!("processed-{}", s) }))
+        Ok(json!({ "val": format!("processed-{s}") }))
     }
 
     async fn compensate(&self, _ctx: &StepContext, _input: serde_json::Value) -> Result<()> {

@@ -4,6 +4,71 @@ import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
 import { getAuthHeaders, getCacheOptions } from "./cookies"
 import { HttpTypes } from "@medusajs/types"
+import { revalidateTag } from "next/cache"
+import { getCacheTag } from "./cookies"
+
+export type OrderPaymentProof = {
+  id: string
+  order_id: string
+  payment_method: string
+  transaction_id: string
+  proof_asset_url: string | null
+  status: "pending_verification" | "verified" | "rejected"
+  submitted_at: string
+}
+
+export const retrieveOrderPaymentProof = async (orderId: string) => {
+  const headers = await getAuthHeaders()
+
+  return sdk.client
+    .fetch<{ payment_proof: OrderPaymentProof | null }>(
+      `/store/orders/${encodeURIComponent(orderId)}/payment-proof`,
+      { method: "GET", headers, cache: "no-store" }
+    )
+    .then(({ payment_proof }) => payment_proof)
+    .catch(() => null)
+}
+
+export const submitManualOrderPaymentProof = async (
+  orderId: string,
+  formData: FormData
+) => {
+  const headers = await getAuthHeaders()
+  const payment_method = formData.get("payment_method")
+  const transaction_id = formData.get("transaction_id")
+  const proof_asset_url = formData.get("proof_asset_url")
+
+  if (
+    typeof payment_method !== "string" ||
+    typeof transaction_id !== "string" ||
+    (proof_asset_url !== null && typeof proof_asset_url !== "string")
+  ) {
+    return { success: false, error: "Enter a valid payment reference." }
+  }
+
+  try {
+    const result = await sdk.client.fetch<{ id: string; status: string }>(
+      `/store/orders/${encodeURIComponent(orderId)}/payment-proof`,
+      {
+        method: "POST",
+        headers,
+        body: { payment_method, transaction_id, proof_asset_url },
+        cache: "no-store",
+      }
+    )
+    revalidateTag(await getCacheTag("orders"))
+    return {
+      success: true,
+      error: null,
+      status: result.status,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unable to submit payment proof.",
+    }
+  }
+}
 
 export const retrieveOrder = async (id: string) => {
   const headers = {
@@ -19,7 +84,7 @@ export const retrieveOrder = async (id: string) => {
       method: "GET",
       query: {
         fields:
-          "*payment_collections.payments,*items,*items.metadata,*items.variant,*items.product",
+          "*payment_collections.payments,*payment_collections.payment_sessions,*items,*items.metadata,*items.variant,*items.product",
       },
       headers,
       next,

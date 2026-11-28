@@ -40,11 +40,11 @@ async fn test_50_concurrent_reservations_against_stock_of_10() {
 
         handles.push(tokio::spawn(async move {
             svc.reserve(CreateReservationInput {
-                line_item_id: Some(format!("item_{}", i)),
+                line_item_id: Some(format!("item_{i}")),
                 inventory_item_id: it_id,
                 location_id: loc_id,
                 quantity: 1,
-                description: Some(format!("Concurrent order #{}", i)),
+                description: Some(format!("Concurrent order #{i}")),
             })
             .await
         }));

@@ -1,38 +1,30 @@
-import { NextResponse, type NextRequest } from "next/server"
-import { normalizeAndValidateHost } from "./core/tenant-resolver"
+// The middleware *logic* is core's, per ADR-013 decision 4. Next requires
+// middleware to exist at the app root, so the app shell re-exports core's
+// implementation rather than owning one.
+export { middleware } from "@stheno/storefront-core/middleware"
 
 /**
- * Edge/Request-level Tenant Host Guard.
+ * The matcher must be a literal in this file.
  *
- * Defends against Host Header Injection and multi-tenant cache poisoning:
- * 1. Normalizes & validates the incoming Host header strictly against RFC hostname characters.
- * 2. Rejects malformed/injected Host headers with HTTP 400 before SSR executes.
- * 3. Propagates validated hostname to SSR and appends Vary: Host + baseline security headers.
+ * It used to be re-exported from core alongside the handler. Next reads the
+ * matcher by static analysis of this module, so a re-exported one is invisible
+ * to it and the matcher is ignored entirely — which meant the middleware ran on
+ * every request. Among the casualties was Next's image optimizer:
+ * `/_next/image` was caught, region-resolved, and 307-redirected to
+ * `/{countryCode}/_next/image`, which is not a route. Every `<Image>` on the
+ * site therefore 404'd and rendered a broken-image glyph.
+ *
+ * `Thumbnail` had been using `next/image` long before this surfaced, so product
+ * images were broken too. Nothing asserted on them, so it read as a design
+ * choice rather than a fault.
+ *
+ * The old list read `_next/static|_next/image`, which would have been correct if
+ * it had ever been applied. `_next` is excluded as a whole tree here, and
+ * `.*\..*` covers asset paths the explicit extension list used to miss.
+ *
+ * The logic stays in core; only this routing table is local, because only this
+ * file can be read statically.
  */
-export function middleware(request: NextRequest) {
-  const rawHost = request.headers.get("host")
-  const normalized = normalizeAndValidateHost(rawHost)
-
-  if (rawHost && !normalized) {
-    return new NextResponse("Invalid Host header", { status: 400 })
-  }
-
-  const requestHeaders = new Headers(request.headers)
-  if (normalized) {
-    requestHeaders.set("x-vendryx-tenant-host", normalized)
-  }
-
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  })
-
-  response.headers.set("Vary", "Host")
-  response.headers.set("X-Content-Type-Options", "nosniff")
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
-
-  return response
-}
-
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
 }

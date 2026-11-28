@@ -25,6 +25,10 @@ fn input() -> SocialDraftInput {
         items: vec![item()],
         buyer_name: Some("Kwame".to_string()),
         buyer_phone: Some("+15550001111".to_string()),
+        delivery_address: None,
+        shipping_method: None,
+        payment_preference: None,
+        source_event_id: None,
         source_ref: None,
     }
 }
@@ -33,7 +37,8 @@ fn input() -> SocialDraftInput {
 async fn a_social_draft_converts_and_keeps_its_sales_channel() {
     let db = TestDb::migrated().await;
     let pool = create_pool(&db.url, 5).expect("pool");
-    let workflow = SocialDraftWorkflow::new(Arc::new(OrderService::new(pool)));
+    let order_service = Arc::new(OrderService::new(pool));
+    let workflow = SocialDraftWorkflow::new(order_service.clone());
 
     let draft = workflow.create_social_draft(input()).await.unwrap();
     assert!(draft.is_draft_order);
@@ -49,6 +54,32 @@ async fn a_social_draft_converts_and_keeps_its_sales_channel() {
     );
     assert_eq!(converted.id, draft.id);
     assert_eq!(converted.status, "pending");
+    let (queued, count) = order_service
+        .list_social_drafts(20, 0)
+        .await
+        .expect("list unconfirmed social drafts");
+    assert_eq!(count, 0, "confirmed order leaves the review queue");
+    assert!(queued.is_empty());
+
+    db.drop().await;
+}
+
+#[tokio::test]
+async fn confirming_the_same_social_draft_twice_returns_the_existing_order() {
+    let db = TestDb::migrated().await;
+    let pool = create_pool(&db.url, 5).expect("pool");
+    let workflow = SocialDraftWorkflow::new(Arc::new(OrderService::new(pool)));
+
+    let draft = workflow.create_social_draft(input()).await.unwrap();
+    let converted = workflow.convert_to_order(&draft.id).await.unwrap();
+    assert_eq!(converted.status, "pending");
+    let retry = workflow
+        .convert_to_order(&draft.id)
+        .await
+        .expect("replayed confirmation returns the existing social order");
+    assert_eq!(retry.id, converted.id);
+    assert_eq!(retry.status, "pending");
+    assert!(!retry.is_draft_order);
 
     db.drop().await;
 }

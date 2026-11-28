@@ -1,0 +1,22 @@
+# cargo-audit configuration (also read by rustsec/audit-check in CI).
+#
+# Every ignore below names the advisory, why it cannot be reached in this workspace, the
+# evidence checked, and what removes the need for it. Re-check each one whenever the code
+# it depends on changes; an ignore is a reviewed exception, not a silence.
+
+[advisories]
+ignore = [
+    # diesel 2.2.12: command injection in Diesel's COPY FROM / COPY TO implementation.
+    # Not reachable: no code uses Diesel's COPY support. Checked 2026-11-27 with
+    # `grep -rnE "copy_from|copy_to|CopyFrom|CopyTo" crates`; the only matches are the
+    # standard library's `copy_from_slice`.
+    # Removed by upgrading to diesel >= 2.3.8, which needs diesel-async beyond 0.5
+    # (0.5.x pins diesel ~2.2). Tracked as its own task.
+    "RUSTSEC-2026-0136",
+
+    # diesel 2.2.12: possible unaligned access in SqliteAggregate implementations.
+    # Not reachable: the workspace builds diesel with the Postgres backend only; no SQLite
+    # backend or feature is enabled (ADR-005: Postgres only).
+    # Removed by the same diesel upgrade.
+    "RUSTSEC-2026-0137",
+]

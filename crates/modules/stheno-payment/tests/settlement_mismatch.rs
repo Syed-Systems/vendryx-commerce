@@ -152,7 +152,10 @@ async fn test_deliberate_settlement_mismatches_produce_discrepancy_rows_not_sile
     // Assert that the mismatches produced discrepancy rows, NEVER a silent balance
     assert_eq!(rec.state, "drift_found");
     assert_eq!(rec.matched_count, 0, "No lines should silently match");
-    assert_eq!(rec.discrepancy_count, 2, "Both lines must be flagged as discrepancies");
+    assert_eq!(
+        rec.discrepancy_count, 2,
+        "Both lines must be flagged as discrepancies"
+    );
 
     let disc_amt = rec
         .buckets

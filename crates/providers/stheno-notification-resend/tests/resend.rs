@@ -56,6 +56,37 @@ async fn test_resend_successful_email_dispatch() {
 }
 
 #[tokio::test]
+async fn resend_uses_idempotency_header_for_retryable_delivery() {
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/emails"))
+        .and(header("Idempotency-Key", "trial-warning/ten_acme/day-3"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "id": "re_trial_warning" })))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let provider = ResendNotificationProvider::new(ResendConfig {
+        api_key: "test_resend_api_key".to_string(),
+        from_email: "notifications@vendryx.store".to_string(),
+        from_name: None,
+        base_url: Some(mock_server.uri()),
+    });
+    provider
+        .send_idempotent(
+            "merchant@example.com",
+            "email",
+            Some("Trial reminder"),
+            "Your trial ends soon.",
+            None,
+            Some("trial-warning/ten_acme/day-3"),
+        )
+        .await
+        .expect("provider accepts the stable key");
+    mock_server.verify().await;
+}
+
+#[tokio::test]
 async fn test_resend_error_response_handling() {
     let mock_server = MockServer::start().await;
 
@@ -89,7 +120,7 @@ async fn test_resend_error_response_handling() {
             assert!(source.to_string().contains("422"));
             assert!(source.to_string().contains("Domain not verified"));
         }
-        other => panic!("expected ProviderFailed, got: {:?}", other),
+        other => panic!("expected ProviderFailed, got: {other:?}"),
     }
 }
 
@@ -113,7 +144,7 @@ async fn test_resend_unsupported_channel_rejected() {
         stheno_types::Error::Invalid { code, .. } => {
             assert_eq!(code, "unsupported_channel");
         }
-        other => panic!("expected Invalid, got: {:?}", other),
+        other => panic!("expected Invalid, got: {other:?}"),
     }
 }
 
@@ -137,7 +168,7 @@ async fn test_resend_invalid_recipient_rejected() {
         stheno_types::Error::Invalid { code, .. } => {
             assert_eq!(code, "invalid_email_recipient");
         }
-        other => panic!("expected Invalid, got: {:?}", other),
+        other => panic!("expected Invalid, got: {other:?}"),
     }
 }
 

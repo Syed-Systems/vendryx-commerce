@@ -14,6 +14,7 @@ use stheno_payment::*;
 use stheno_types::{Error, Result};
 
 type HmacSha256 = Hmac<Sha256>;
+const MAX_REFUND_LOOKUP_BYTES: usize = 1024 * 1024;
 
 pub struct StripePaymentProvider {
     id: String,
@@ -119,6 +120,148 @@ impl StripePaymentProvider {
     fn auth_header(&self) -> String {
         format!("Bearer {}", self.api_key)
     }
+
+    async fn submit_refund(
+        &self,
+        input: RefundInput,
+        idempotency_key: Option<&str>,
+    ) -> Result<RefundOutput> {
+        let minor_amount = to_minor_units(input.amount, &input.currency_code)?;
+        let url = format!("{}/v1/refunds", self.base_url);
+        let mut params = vec![
+            ("payment_intent", input.payment_id),
+            ("amount", minor_amount.to_string()),
+        ];
+        if let Some(note) = input.note {
+            params.push(("reason", note));
+        }
+        if let Some(key) = idempotency_key {
+            validate_idempotency_key(key)?;
+            params.push(("metadata[stheno_idempotency_key]", key.to_string()));
+        }
+
+        let mut request = self
+            .client
+            .post(url)
+            .header("Authorization", self.auth_header())
+            .form(&params);
+        if let Some(key) = idempotency_key {
+            request = request.header("Idempotency-Key", key);
+        }
+
+        let response = request.send().await.map_err(|_| {
+            Error::Internal("Stripe refund request failed; outcome may be unknown.".into())
+        })?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(Error::Invalid {
+                code: "stripe_refund_failed",
+                message: format!("Stripe refund request returned HTTP {status}."),
+                field: None,
+            });
+        }
+        let body = response.json().await.map_err(|_| {
+            Error::Internal("Stripe refund response was invalid; outcome may be unknown.".into())
+        })?;
+        Ok(RefundOutput { data: body })
+    }
+
+    async fn find_refund_by_idempotency_key(
+        &self,
+        input: &RefundInput,
+        idempotency_key: &str,
+    ) -> Result<Option<RefundOutput>> {
+        validate_idempotency_key(idempotency_key)?;
+        let url = format!("{}/v1/refunds", self.base_url);
+        let response = self
+            .client
+            .get(url)
+            .header("Authorization", self.auth_header())
+            .query(&[
+                ("payment_intent", input.payment_id.as_str()),
+                ("limit", "100"),
+            ])
+            .send()
+            .await
+            .map_err(|_| Error::Internal("Stripe refund lookup failed.".into()))?;
+        if !response.status().is_success() {
+            return Err(Error::Internal("Stripe refund lookup was rejected.".into()));
+        }
+        if response
+            .content_length()
+            .is_some_and(|length| length > MAX_REFUND_LOOKUP_BYTES as u64)
+        {
+            return Err(Error::Invalid {
+                code: "stripe_refund_lookup_too_large",
+                message: "Stripe refund lookup response exceeded the size limit.".to_string(),
+                field: None,
+            });
+        }
+        let mut response = response;
+        let mut body = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|_| Error::Internal("Stripe refund lookup failed while reading.".into()))?
+        {
+            if body.len().saturating_add(chunk.len()) > MAX_REFUND_LOOKUP_BYTES {
+                return Err(Error::Invalid {
+                    code: "stripe_refund_lookup_too_large",
+                    message: "Stripe refund lookup response exceeded the size limit.".to_string(),
+                    field: None,
+                });
+            }
+            body.extend_from_slice(&chunk);
+        }
+        let listing: serde_json::Value = serde_json::from_slice(&body)
+            .map_err(|_| Error::Internal("Stripe refund lookup response was invalid.".into()))?;
+        let candidates = listing
+            .get("data")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|refund| {
+                refund
+                    .get("metadata")
+                    .and_then(|metadata| metadata.get("stheno_idempotency_key"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some(idempotency_key)
+            })
+            .collect::<Vec<_>>();
+        if candidates.len() != 1 {
+            return Ok(None);
+        }
+
+        let refund = candidates[0];
+        let expected_amount = to_minor_units(input.amount, &input.currency_code)?;
+        let payment_intent = refund
+            .get("payment_intent")
+            .and_then(serde_json::Value::as_str);
+        let amount = refund.get("amount").and_then(serde_json::Value::as_i64);
+        let currency = refund.get("currency").and_then(serde_json::Value::as_str);
+        let status = refund.get("status").and_then(serde_json::Value::as_str);
+        if payment_intent != Some(input.payment_id.as_str())
+            || amount != Some(expected_amount)
+            || currency != Some(input.currency_code.to_ascii_lowercase().as_str())
+            || !matches!(status, Some("pending" | "succeeded"))
+        {
+            return Ok(None);
+        }
+        Ok(Some(RefundOutput {
+            data: refund.clone(),
+        }))
+    }
+}
+
+fn validate_idempotency_key(key: &str) -> Result<()> {
+    if key.is_empty() || key.len() > 255 || !key.bytes().all(|byte| byte.is_ascii_graphic()) {
+        return Err(Error::Invalid {
+            code: "invalid_idempotency_key",
+            message: "Stripe idempotency key must be 1–255 visible ASCII characters.".to_string(),
+            field: None,
+        });
+    }
+    Ok(())
 }
 
 impl Default for StripePaymentProvider {
@@ -150,11 +293,11 @@ impl PaymentProvider for StripePaymentProvider {
             .form(&params)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("Stripe initiate network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("Stripe initiate network error: {e}").into()))?;
 
         let status_code = resp.status();
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe initiate response: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe initiate response: {e}").into())
         })?;
 
         if !status_code.is_success() {
@@ -192,10 +335,10 @@ impl PaymentProvider for StripePaymentProvider {
             .form(&params)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("Stripe update network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("Stripe update network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe update response: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe update response: {e}").into())
         })?;
 
         let stripe_status = body["status"].as_str().unwrap_or("requires_payment_method");
@@ -230,12 +373,10 @@ impl PaymentProvider for StripePaymentProvider {
             .header("Authorization", self.auth_header())
             .send()
             .await
-            .map_err(|e| {
-                Error::Internal(format!("Stripe authorize network error: {}", e).into())
-            })?;
+            .map_err(|e| Error::Internal(format!("Stripe authorize network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe authorize response: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe authorize response: {e}").into())
         })?;
 
         let stripe_status = body["status"].as_str().unwrap_or("requires_payment_method");
@@ -260,41 +401,34 @@ impl PaymentProvider for StripePaymentProvider {
             .form(&params)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("Stripe capture network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("Stripe capture network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe capture response: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe capture response: {e}").into())
         })?;
 
         Ok(CaptureOutput { data: body })
     }
 
     async fn refund(&self, i: RefundInput) -> Result<RefundOutput> {
-        let minor_amount = to_minor_units(i.amount, &i.currency_code)?;
-        let url = format!("{}/v1/refunds", self.base_url);
+        self.submit_refund(i, None).await
+    }
 
-        let mut params = vec![
-            ("payment_intent", i.payment_id),
-            ("amount", minor_amount.to_string()),
-        ];
-        if let Some(note) = &i.note {
-            params.push(("reason", note.clone()));
-        }
+    async fn refund_with_idempotency_key(
+        &self,
+        i: RefundInput,
+        idempotency_key: &str,
+    ) -> Result<RefundOutput> {
+        self.submit_refund(i, Some(idempotency_key)).await
+    }
 
-        let resp = self
-            .client
-            .post(&url)
-            .header("Authorization", self.auth_header())
-            .form(&params)
-            .send()
+    async fn reconcile_refund(
+        &self,
+        i: &RefundInput,
+        idempotency_key: &str,
+    ) -> Result<Option<RefundOutput>> {
+        self.find_refund_by_idempotency_key(i, idempotency_key)
             .await
-            .map_err(|e| Error::Internal(format!("Stripe refund network error: {}", e).into()))?;
-
-        let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe refund response: {}", e).into())
-        })?;
-
-        Ok(RefundOutput { data: body })
     }
 
     async fn cancel(&self, i: CancelInput) -> Result<CancelOutput> {
@@ -309,10 +443,10 @@ impl PaymentProvider for StripePaymentProvider {
             .header("Authorization", self.auth_header())
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("Stripe cancel network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("Stripe cancel network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe cancel response: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe cancel response: {e}").into())
         })?;
 
         Ok(CancelOutput { data: body })
@@ -327,10 +461,10 @@ impl PaymentProvider for StripePaymentProvider {
             .header("Authorization", self.auth_header())
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("Stripe retrieve network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("Stripe retrieve network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe retrieve response: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe retrieve response: {e}").into())
         })?;
 
         let stripe_status = body["status"].as_str().unwrap_or("requires_payment_method");
@@ -395,10 +529,7 @@ impl PaymentProvider for StripePaymentProvider {
         if (now_epoch - ts).abs() > 300 {
             return Err(Error::Invalid {
                 code: "webhook_timestamp_out_of_tolerance",
-                message: format!(
-                    "Webhook timestamp {} outside 300s window (now: {})",
-                    ts, now_epoch
-                ),
+                message: format!("Webhook timestamp {ts} outside 300s window (now: {now_epoch})"),
                 field: None,
             });
         }
@@ -406,7 +537,7 @@ impl PaymentProvider for StripePaymentProvider {
         // Verify HMAC-SHA256 signature
         let signed_payload = format!("{}.{}", ts, std::str::from_utf8(raw).unwrap_or_default());
         let mut mac = HmacSha256::new_from_slice(self.webhook_secret.as_bytes())
-            .map_err(|e| Error::Internal(format!("Invalid HMAC secret key: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("Invalid HMAC secret key: {e}").into()))?;
         mac.update(signed_payload.as_bytes());
         let expected_sig = hex::encode(mac.finalize().into_bytes());
 
@@ -426,7 +557,7 @@ impl PaymentProvider for StripePaymentProvider {
         let payload: serde_json::Value =
             serde_json::from_slice(raw).map_err(|e| Error::Invalid {
                 code: "invalid_json_payload",
-                message: format!("Malformed webhook JSON: {}", e),
+                message: format!("Malformed webhook JSON: {e}"),
                 field: None,
             })?;
 
@@ -534,11 +665,11 @@ impl PaymentVault for StripePaymentProvider {
             .send()
             .await
             .map_err(|e| {
-                Error::Internal(format!("Stripe create customer network error: {}", e).into())
+                Error::Internal(format!("Stripe create customer network error: {e}").into())
             })?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe customer response: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe customer response: {e}").into())
         })?;
 
         let id = body["id"].as_str().unwrap_or_default().to_string();
@@ -567,11 +698,11 @@ impl PaymentVault for StripePaymentProvider {
             .send()
             .await
             .map_err(|e| {
-                Error::Internal(format!("Stripe update customer network error: {}", e).into())
+                Error::Internal(format!("Stripe update customer network error: {e}").into())
             })?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe update customer: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe update customer: {e}").into())
         })?;
 
         Ok(AccountHolderOutput {
@@ -594,11 +725,11 @@ impl PaymentVault for StripePaymentProvider {
             .send()
             .await
             .map_err(|e| {
-                Error::Internal(format!("Stripe retrieve customer network error: {}", e).into())
+                Error::Internal(format!("Stripe retrieve customer network error: {e}").into())
             })?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe retrieve customer: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe retrieve customer: {e}").into())
         })?;
 
         let email = body["email"].as_str().map(|s| s.to_string());
@@ -633,11 +764,11 @@ impl PaymentVault for StripePaymentProvider {
             .send()
             .await
             .map_err(|e| {
-                Error::Internal(format!("Stripe list payment methods network error: {}", e).into())
+                Error::Internal(format!("Stripe list payment methods network error: {e}").into())
             })?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe list payment methods: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe list payment methods: {e}").into())
         })?;
 
         let mut list = Vec::new();
@@ -680,11 +811,11 @@ impl PaymentVault for StripePaymentProvider {
             .send()
             .await
             .map_err(|e| {
-                Error::Internal(format!("Stripe save payment method network error: {}", e).into())
+                Error::Internal(format!("Stripe save payment method network error: {e}").into())
             })?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse Stripe attach method: {}", e).into())
+            Error::Internal(format!("Failed to parse Stripe attach method: {e}").into())
         })?;
 
         let id = body["id"].as_str().unwrap_or_default().to_string();

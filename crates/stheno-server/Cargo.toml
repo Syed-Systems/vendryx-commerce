@@ -77,6 +77,12 @@ stheno-caching = { workspace = true }
 stheno-notification = { workspace = true }
 stheno-notification-resend = { workspace = true }
 stheno-subscribers = { workspace = true }
+stheno-ai = { workspace = true }
+stheno-ai-openai-compatible = { workspace = true }
+reqwest = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
 
 [features]
 # Enables TestApp. Never on for a release build.

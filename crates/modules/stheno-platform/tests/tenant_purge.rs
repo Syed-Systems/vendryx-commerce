@@ -1,5 +1,8 @@
 //! P31-05: Retention window then hard purge.
-//! A closed tenant's rows are deleted after N days, and the purge proves it left nothing.
+//! A closed tenant's rows are deleted after N days after the caller's module cleanup step.
+
+use std::future::Future;
+use std::pin::Pin;
 
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
@@ -44,7 +47,10 @@ async fn tenant_purge_removes_all_records_after_retention_window() {
 
     // 4. Purge with retention_days = 0 (immediate)
     let result = service
-        .purge_closed_tenants(0)
+        .purge_closed_tenants_with(0, |_| {
+            Box::pin(async { Ok(()) })
+                as Pin<Box<dyn Future<Output = stheno_types::Result<()>> + Send>>
+        })
         .await
         .expect("purge succeeded");
     assert_eq!(result.purged_count, 1);

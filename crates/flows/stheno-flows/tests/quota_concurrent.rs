@@ -28,7 +28,7 @@ async fn test_quota_concurrency_100_creates_vs_limit_10() {
 
             let res = saga
                 .execute(
-                    &format!("tx_{}", i),
+                    &format!("tx_{i}"),
                     "quota-flow",
                     json!({ "product": "test" }),
                 )

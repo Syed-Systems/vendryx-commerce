@@ -20,8 +20,43 @@ impl Default for RedxConfig {
     fn default() -> Self {
         Self {
             base_url: "https://openapi.redx.com.bd/v1.0.0-beta".to_string(),
-            access_token: "test_redx_jwt_token".to_string(),
+            access_token: String::new(),
         }
+    }
+}
+
+fn required_text<'a>(
+    data: Option<&'a serde_json::Value>,
+    field: &str,
+    label: &str,
+) -> Result<&'a str> {
+    data.and_then(|value| value.get(field))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| Error::Invalid {
+            code: "redx_shipment_field_missing",
+            message: format!("RedX {label} is required to create a shipment."),
+            field: Some(field.to_string()),
+        })
+}
+
+fn positive_u64(data: Option<&serde_json::Value>, field: &str) -> Result<u64> {
+    data.and_then(|value| value.get(field))
+        .and_then(serde_json::Value::as_u64)
+        .filter(|value| *value > 0)
+        .ok_or_else(|| Error::Invalid {
+            code: "redx_shipment_value_missing",
+            message: format!("RedX shipment requires a valid {field}."),
+            field: Some(field.to_string()),
+        })
+}
+
+fn value_to_id(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(value) if !value.trim().is_empty() => Some(value.clone()),
+        serde_json::Value::Number(value) => Some(value.to_string()),
+        _ => None,
     }
 }
 
@@ -157,72 +192,115 @@ impl FulfillmentProvider for RedxFulfillmentProvider {
         _items: &[CreateFulfillmentItemInput],
         _order_data: Option<&serde_json::Value>,
     ) -> Result<CreateFulfillmentResponse> {
-        let url = format!("{}/parcel", self.config.base_url);
+        let access_token = data
+            .and_then(|value| value.get("api_key"))
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or(&self.config.access_token);
+        if access_token.trim().is_empty() {
+            return Err(Error::Invalid {
+                code: "redx_credentials_missing",
+                message: "RedX merchant credentials are not configured.".to_string(),
+                field: None,
+            });
+        }
+        let base_url = match data
+            .and_then(|value| value.get("sandbox_mode"))
+            .and_then(serde_json::Value::as_bool)
+        {
+            Some(true) => "https://openapi.redx.com.bd/v1.0.0-beta",
+            Some(false) => "https://openapi.redx.com.bd/v1.0.0",
+            None => self.config.base_url.as_str(),
+        };
+        let url = format!("{base_url}/parcel");
 
         let invoice_id = data
-            .and_then(|d| d.get("merchant_invoice_id").or_else(|| d.get("invoice")).or_else(|| d.get("reference")))
+            .and_then(|d| {
+                d.get("merchant_invoice_id")
+                    .or_else(|| d.get("invoice"))
+                    .or_else(|| d.get("reference"))
+            })
             .and_then(|v| v.as_str())
-            .unwrap_or("REDX-INV-001");
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| Error::Invalid {
+                code: "redx_invoice_missing",
+                message: "RedX shipment requires a stable merchant invoice reference.".to_string(),
+                field: Some("merchant_invoice_id".to_string()),
+            })?;
+        let customer_name = required_text(data, "customer_name", "customer name")?;
+        let customer_phone = required_text(data, "customer_phone", "customer phone")?;
+        let delivery_area = required_text(data, "delivery_area", "delivery area")?;
+        let delivery_area_id = positive_u64(data, "delivery_area_id")?;
+        let customer_address = required_text(data, "customer_address", "customer address")?;
+        let parcel_weight = positive_u64(data, "parcel_weight")?;
 
         let cash_collection = data
             .and_then(|d| d.get("cash_collection_amount").or_else(|| d.get("cod_amount")).or_else(|| d.get("amount_to_collect")))
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+            .map_or(Ok(0), |value| value.as_u64().ok_or_else(|| Error::Invalid {
+                code: "redx_cash_collection_invalid",
+                message: "RedX cash collection amount must be a non-negative integer in minor currency units.".to_string(),
+                field: Some("cash_collection_amount".to_string()),
+            }))?;
 
         let payload = serde_json::json!({
-            "customer_name": data.and_then(|d| d.get("customer_name")).and_then(|v| v.as_str()).unwrap_or("Customer"),
-            "customer_phone": data.and_then(|d| d.get("customer_phone")).and_then(|v| v.as_str()).unwrap_or("01700000000"),
-            "delivery_area": data.and_then(|d| d.get("delivery_area")).and_then(|v| v.as_str()).unwrap_or("Mirpur"),
-            "delivery_area_id": data.and_then(|d| d.get("delivery_area_id")).and_then(|v| v.as_u64()).unwrap_or(1),
-            "customer_address": data.and_then(|d| d.get("customer_address")).and_then(|v| v.as_str()).unwrap_or("Mirpur 10"),
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "delivery_area": delivery_area,
+            "delivery_area_id": delivery_area_id,
+            "customer_address": customer_address,
             "merchant_invoice_id": invoice_id,
             "cash_collection_amount": cash_collection,
-            "parcel_weight": 500,
+            "parcel_weight": parcel_weight,
         });
 
         let resp = self
             .client
             .post(&url)
-            .header("API-ACCESS-TOKEN", format!("Bearer {}", self.config.access_token))
+            .header("API-ACCESS-TOKEN", format!("Bearer {access_token}"))
             .json(&payload)
             .send()
             .await;
 
-        // No invented tracking id. A number RedX never issued would leave the order marked
-        // dispatched with a dead tracking link while the parcel sits in the warehouse.
-        let (tracking_id, parcel_id) = match resp {
-            Ok(r) if r.status().is_success() => {
-                let json: serde_json::Value = r.json().await.map_err(|e| Error::ProviderFailed {
-                    provider: "redx".to_string(),
-                    source: format!("RedX returned a non-JSON response: {e}").into(),
-                })?;
-                let tid = json
-                    .get("tracking_id")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| Error::ProviderFailed {
-                        provider: "redx".to_string(),
-                        source: "RedX response carried no tracking_id".into(),
-                    })?
-                    .to_string();
-                let pid = json
-                    .get("parcel_id")
-                    .map(|v| v.to_string())
-                    .unwrap_or_else(|| tid.clone());
-                (tid, pid)
-            }
-            Ok(r) => {
-                return Err(Error::ProviderFailed {
-                    provider: "redx".to_string(),
-                    source: format!("RedX dispatch failed with HTTP {}", r.status()).into(),
-                })
-            }
-            Err(e) => {
-                return Err(Error::ProviderFailed {
-                    provider: "redx".to_string(),
-                    source: format!("RedX dispatch request failed: {e}").into(),
-                })
-            }
-        };
+        let response = resp.map_err(|_| Error::Invalid {
+            code: "redx_create_request_failed",
+            message: "RedX shipment request failed; shipment status is unknown.".to_string(),
+            field: None,
+        })?;
+        if !response.status().is_success() {
+            return Err(Error::Invalid {
+                code: "redx_create_rejected",
+                message: format!(
+                    "RedX rejected shipment creation with HTTP {}.",
+                    response.status()
+                ),
+                field: None,
+            });
+        }
+        let body: serde_json::Value = response.json().await.map_err(|_| Error::Invalid {
+            code: "redx_create_response_invalid",
+            message: "RedX shipment response was invalid; shipment status is unknown.".to_string(),
+            field: None,
+        })?;
+        let tracking_id = body
+            .get("tracking_id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| Error::Invalid {
+                code: "redx_tracking_id_missing",
+                message: "RedX accepted the request but returned no tracking ID; shipment status is unknown.".to_string(),
+                field: None,
+            })?;
+        let parcel_id = body
+            .get("parcel_id")
+            .and_then(value_to_id)
+            .ok_or_else(|| Error::Invalid {
+                code: "redx_parcel_id_missing",
+                message: "RedX accepted the request but returned no parcel ID; shipment status is unknown.".to_string(),
+                field: None,
+            })?;
 
         let mut res_data = data.cloned().unwrap_or_else(|| serde_json::json!({}));
         if !res_data.is_object() {
@@ -238,7 +316,7 @@ impl FulfillmentProvider for RedxFulfillmentProvider {
         let labels = vec![CreateFulfillmentLabelInput {
             tracking_number: tracking_id.clone(),
             tracking_url: Some(tracking_url),
-            label_url: Some(format!("https://openapi.redx.com.bd/v1.0.0-beta/labels/{tracking_id}.pdf")),
+            label_url: Some(format!("{base_url}/labels/{tracking_id}.pdf")),
             metadata: Some(serde_json::json!({ "provider": "redx", "parcel_id": parcel_id })),
         }];
 
@@ -263,7 +341,10 @@ impl FulfillmentProvider for RedxFulfillmentProvider {
         let _ = self
             .client
             .put(&url)
-            .header("API-ACCESS-TOKEN", format!("Bearer {}", self.config.access_token))
+            .header(
+                "API-ACCESS-TOKEN",
+                format!("Bearer {}", self.config.access_token),
+            )
             .send()
             .await;
 
@@ -292,7 +373,9 @@ impl FulfillmentProvider for RedxFulfillmentProvider {
         let labels = vec![CreateFulfillmentLabelInput {
             tracking_number: ret_id.clone(),
             tracking_url: Some(format!("https://redx.com.bd/tracking?tracking_id={ret_id}")),
-            label_url: Some(format!("https://openapi.redx.com.bd/v1.0.0-beta/labels/{ret_id}.pdf")),
+            label_url: Some(format!(
+                "https://openapi.redx.com.bd/v1.0.0-beta/labels/{ret_id}.pdf"
+            )),
             metadata: Some(serde_json::json!({ "is_return": true })),
         }];
 
@@ -311,7 +394,12 @@ impl FulfillmentProvider for RedxFulfillmentProvider {
             .get("tracking_id")
             .or_else(|| payload.get("parcel_id"))
             .or_else(|| payload.get("merchant_invoice_id"))
-            .and_then(|v| v.as_str().or_else(|| v.as_i64().map(|n| Box::leak(n.to_string().into_boxed_str()) as &str)));
+            .and_then(|v| {
+                v.as_str().or_else(|| {
+                    v.as_i64()
+                        .map(|n| Box::leak(n.to_string().into_boxed_str()) as &str)
+                })
+            });
 
         let raw_status = payload
             .get("status")
@@ -333,7 +421,10 @@ impl FulfillmentProvider for RedxFulfillmentProvider {
         let resp = self
             .client
             .get(&url)
-            .header("API-ACCESS-TOKEN", format!("Bearer {}", self.config.access_token))
+            .header(
+                "API-ACCESS-TOKEN",
+                format!("Bearer {}", self.config.access_token),
+            )
             .send()
             .await;
 

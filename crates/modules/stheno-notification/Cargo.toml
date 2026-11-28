@@ -10,12 +10,15 @@ authors.workspace = true
 stheno-types = { workspace = true }
 stheno-db = { workspace = true }
 stheno-events = { workspace = true }
+diesel = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 async-trait = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true }
 tokio = { workspace = true }
+ulid = { workspace = true }
+sha2 = { workspace = true }
 
 [dev-dependencies]
 stheno-db = { workspace = true, features = ["testing"] }

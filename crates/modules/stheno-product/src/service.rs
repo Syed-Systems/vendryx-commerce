@@ -11,6 +11,11 @@
 
 use chrono::Utc;
 use sha2::Digest;
+use stheno_db::diesel::{
+    sql_types::{BigInt, Text},
+    QueryableByName,
+};
+use stheno_db::diesel_async::RunQueryDsl;
 use stheno_db::{
     CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository, MAX_PAGE_LIMIT,
 };
@@ -28,9 +33,18 @@ use crate::models::{
 /// `FilterSpec` clamps to `MAX_PAGE_LIMIT` anyway; naming it here makes the
 /// ceiling visible at the call site rather than a surprise at 101 rows.
 const LIST_LIMIT: usize = stheno_db::filter::MAX_PAGE_LIMIT;
+const CATALOG_SEARCH_MAX_QUERY_CHARS: usize = 128;
+const CATALOG_SEARCH_MAX_RESULTS: usize = 8;
+
+#[derive(QueryableByName)]
+struct ProductCountRow {
+    #[diesel(sql_type = BigInt)]
+    count: i64,
+}
 
 #[derive(Clone)]
 pub struct ProductService {
+    pool: DbPool,
     products: PgCrudRepository<Product>,
     variants: PgCrudRepository<ProductVariant>,
     options: PgCrudRepository<ProductOption>,
@@ -48,6 +62,7 @@ pub struct ProductService {
 impl ProductService {
     pub fn new(pool: DbPool) -> Self {
         Self {
+            pool: pool.clone(),
             products: PgCrudRepository::new(pool.clone()),
             variants: PgCrudRepository::new(pool.clone()),
             options: PgCrudRepository::new(pool.clone()),
@@ -152,12 +167,126 @@ impl ProductService {
     }
 
     pub async fn delete_product(&self, id: &str) -> Result<()> {
-        let product = self.products.retrieve(None, id).await?;
-        self.products.soft_delete(None, &product.id).await
+        let pool = self.pool.clone();
+        let id = id.to_string();
+        let delete_id = id.clone();
+        let affected = stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+            Box::pin(async move {
+                stheno_db::diesel::sql_query(
+                    "UPDATE product.product SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+                )
+                .bind::<Text, _>(&delete_id)
+                .execute(conn)
+                .await
+                .map_err(|error| stheno_types::Error::Database(error.to_string()))
+            })
+        })
+        .await?;
+        if affected == 0 {
+            return Err(stheno_types::Error::NotFound {
+                entity: "product",
+                id,
+            });
+        }
+        Ok(())
+    }
+
+    /// Soft-deletes a product and releases its tenant quota in one transaction.
+    pub async fn delete_product_with_quota(
+        &self,
+        id: &str,
+        counter: &stheno_db::QuotaCounter,
+    ) -> Result<()> {
+        let pool = self.pool.clone();
+        let id = id.to_string();
+        let counter = counter.clone();
+        stheno_db::tenant::with_tenant_conn(&pool, move |conn| {
+            Box::pin(async move {
+                let affected = stheno_db::diesel::sql_query(
+                    "UPDATE product.product SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+                )
+                .bind::<Text, _>(&id)
+                .execute(conn)
+                .await
+                .map_err(|error| Error::Database(error.to_string()))?;
+                if affected == 0 {
+                    return Err(Error::NotFound {
+                        entity: "product",
+                        id,
+                    });
+                }
+                counter.decrement(conn, "products").await?;
+                Ok(())
+            })
+        })
+        .await
     }
 
     pub async fn list_products(&self) -> Result<Vec<ProductDTO>> {
         let filter = Self::live(LIST_LIMIT).with_order("created_at", OrderDirection::Asc);
+        Ok(self
+            .products
+            .list(None, &filter)
+            .await?
+            .iter()
+            .map(product_dto)
+            .collect())
+    }
+
+    /// Counts all live products without applying the admin list page ceiling.
+    pub async fn count_active_products(&self) -> Result<i64> {
+        let pool = self.pool.clone();
+        stheno_db::tenant::with_tenant_conn(&pool, |conn| {
+            Box::pin(async move {
+                stheno_db::diesel::sql_query(
+                    "SELECT COUNT(*)::BIGINT AS count FROM product.product WHERE deleted_at IS NULL",
+                )
+                .get_result::<ProductCountRow>(conn)
+                .await
+                .map(|row| row.count)
+                .map_err(|error| stheno_types::Error::Database(error.to_string()))
+            })
+        })
+        .await
+    }
+
+    /// Searches published products whose titles start with the literal query.
+    ///
+    /// The AI catalog tool uses this bounded lookup instead of a potentially stale external
+    /// search index. Wildcard characters are rejected so caller input cannot widen the
+    /// prefix query or change its meaning.
+    pub async fn search_published_products(&self, query: &str) -> Result<Vec<ProductDTO>> {
+        let query = query.trim();
+        if query.is_empty() {
+            return Ok(Vec::new());
+        }
+        if query.chars().count() > CATALOG_SEARCH_MAX_QUERY_CHARS {
+            return Err(Error::Invalid {
+                code: "product_search_query_too_long",
+                message: format!(
+                    "Product search query must be at most {CATALOG_SEARCH_MAX_QUERY_CHARS} characters."
+                ),
+                field: Some("query".to_string()),
+            });
+        }
+        if query
+            .chars()
+            .any(|character| matches!(character, '%' | '_' | '\\' | '\0'))
+        {
+            return Err(Error::Invalid {
+                code: "product_search_query_invalid",
+                message: "Product search query contains a reserved character.".to_string(),
+                field: Some("query".to_string()),
+            });
+        }
+
+        let filter = FilterSpec::new()
+            .with_predicate("deleted_at", FilterOp::IsNull)
+            .with_predicate("status", FilterOp::Eq("published".to_string()))
+            .with_predicate("title", FilterOp::Like(format!("{query}%")))
+            .with_order("title", OrderDirection::Asc)
+            .with_order("id", OrderDirection::Asc)
+            .with_pagination(0, CATALOG_SEARCH_MAX_RESULTS);
         Ok(self
             .products
             .list(None, &filter)

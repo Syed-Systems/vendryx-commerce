@@ -13,9 +13,9 @@ async fn setup_cart(cart_service: &CartService, id_suffix: usize) -> String {
     let cart = cart_service
         .create_cart(CreateCartInput {
             region_id: Some("reg_us".to_string()),
-            customer_id: Some(format!("cus_resume_{}", id_suffix)),
+            customer_id: Some(format!("cus_resume_{id_suffix}")),
             sales_channel_id: None,
-            email: Some(format!("resume{}@example.com", id_suffix)),
+            email: Some(format!("resume{id_suffix}@example.com")),
             currency_code: "usd".to_string(),
             shipping_address: Some(CreateAddressInput {
                 first_name: Some("Resume".to_string()),
@@ -108,11 +108,7 @@ async fn test_crash_resumption_at_all_11_steps() {
             )
             .await;
 
-        assert!(
-            crash_res.is_err(),
-            "Step {} should have crashed",
-            crash_step
-        );
+        assert!(crash_res.is_err(), "Step {crash_step} should have crashed");
 
         // 2. Resume execution from checkpoint
         let resume_res = engine

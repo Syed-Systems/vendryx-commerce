@@ -95,3 +95,33 @@ env:
   # Azure Monitor, Datadog) is billed per GB — it is a line item that can rival compute.
   # Raise it per environment when debugging: `--set env.RUST_LOG="info,stheno=debug"`.
   RUST_LOG: "info"
+
+# Reference operator-created Kubernetes Secrets without placing credential values in Helm values.
+# OAuth client IDs are not secret, but keeping the tuple together simplifies deployment setup.
+# Example:
+# secretEnv:
+#   STHENO_SEARCH_CONSOLE_CLIENT_ID: { name: search-console-oauth, key: client-id }
+#   STHENO_SEARCH_CONSOLE_CLIENT_SECRET: { name: search-console-oauth, key: client-secret }
+#   STHENO_SEARCH_CONSOLE_REDIRECT_URI: { name: search-console-oauth, key: redirect-uri }
+secretEnv: {}
+
+# Edge-only ingress. When enabled, publish the Tunnel hostname service to
+# <release>-proxy:8080; do not expose the engine Service outside the cluster.
+edge:
+  enabled: false
+  adminDomainSuffix: ""
+  storefrontUpstream: storefront-service:3000
+  adminUpstream: admin-service:4173
+  proxy:
+    image:
+      repository: caddy
+      tag: "2.11.9"
+      pullPolicy: IfNotPresent
+  tunnel:
+    image:
+      repository: cloudflare/cloudflared
+      tag: "2026.11.0"
+      pullPolicy: IfNotPresent
+    tokenSecret:
+      name: cloudflare-tunnel
+      key: token

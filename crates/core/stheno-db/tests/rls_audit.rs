@@ -16,9 +16,21 @@ const UNSCOPED: &[&str] = &[
     // merchant *uses* is the tenant-scoped link table, not this row.
     "fulfillment.fulfillment_provider",
     "public.__diesel_schema_migrations", // migration bookkeeping
-    "platform.platform_tenant",          // registry of tenants themselves
-    "platform.fx_rate",                  // foreign-exchange reference data
+    // Resolves an incoming webhook's random slug to its tenant *before* any tenant scope
+    // exists (ADR-019). Routing metadata only; credentials stay in tenant-scoped
+    // `ai.configuration`. Same reason `platform.tenant_domain` is global.
+    "ai.webhook_registry",
+    // The cross-tenant delivery queue. The worker claims the next due message from any
+    // tenant on an unscoped connection (`FOR UPDATE SKIP LOCKED`); every row carries its
+    // tenant_id. FORCEd RLS would hide every row from the worker.
+    "notification.notification_outbox",
 ];
+
+/// Schemas that are global as a whole. `platform` is the control plane: the tenant registry,
+/// host lookup, subscriptions, billing and operators. `20260819000003_enable_rls` leaves it
+/// out of its `app_schemas` on purpose — host-to-tenant resolution runs before any tenant is
+/// known, and operators act across tenants. Its access paths filter by tenant in code.
+const UNSCOPED_SCHEMAS: &[&str] = &["platform"];
 
 /// If the connection is a superuser, Postgres skips RLS entirely and every other
 /// assertion in this file would pass while proving nothing. This must run first.
@@ -90,6 +102,10 @@ async fn every_table_is_scoped_and_forced() {
     let unexpected: Vec<&str> = gaps
         .split(", ")
         .filter(|t| !t.is_empty() && !UNSCOPED.contains(t))
+        .filter(|t| {
+            let schema = t.split('.').next().unwrap_or_default();
+            !UNSCOPED_SCHEMAS.contains(&schema)
+        })
         .collect();
 
     assert!(

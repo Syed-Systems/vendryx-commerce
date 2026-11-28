@@ -161,7 +161,9 @@ pub async fn apply_scope(conn: &mut diesel_async::AsyncPgConnection) -> Result<(
         .execute(conn)
         .await
         .map_err(|e| {
-            Error::Database(format!("could not establish tenant scope as {APP_ROLE}: {e}"))
+            Error::Database(format!(
+                "could not establish tenant scope as {APP_ROLE}: {e}"
+            ))
         })?;
 
     Ok(())

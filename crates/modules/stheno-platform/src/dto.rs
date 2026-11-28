@@ -178,6 +178,14 @@ pub struct SubscriptionDTO {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Verified merchant contact used for lifecycle notices.
+#[derive(Debug, Clone)]
+pub struct TrialWarningRecipient {
+    pub tenant_id: String,
+    pub tenant_name: String,
+    pub email: String,
+}
+
 /// The editable surface of a subscription.
 ///
 /// Every field is "absent means leave it alone". The date fields are doubly optional so

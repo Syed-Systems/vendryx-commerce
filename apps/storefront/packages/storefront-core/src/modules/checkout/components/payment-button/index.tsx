@@ -17,6 +17,8 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   cart,
   "data-testid": dataTestId,
 }) => {
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false)
+  const [whatsappAnalyticsOptIn, setWhatsappAnalyticsOptIn] = useState(false)
   const notReady =
     !cart ||
     !cart.shipping_address ||
@@ -26,38 +28,89 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
 
   const paymentSession = cart.payment_collection?.payment_sessions?.[0]
 
+  let paymentButton: React.ReactNode
   switch (true) {
     case isStripeLike(paymentSession?.provider_id):
-      return (
+      paymentButton = (
         <StripePaymentButton
           notReady={notReady}
           cart={cart}
+          whatsappOptIn={whatsappOptIn}
+          whatsappAnalyticsOptIn={whatsappAnalyticsOptIn}
           data-testid={dataTestId}
         />
       )
+      break
     case isManual(paymentSession?.provider_id):
-      return (
-        <ManualTestPaymentButton notReady={notReady} data-testid={dataTestId} />
+      paymentButton = (
+        <ManualTestPaymentButton
+          notReady={notReady}
+          whatsappOptIn={whatsappOptIn}
+          whatsappAnalyticsOptIn={whatsappAnalyticsOptIn}
+          data-testid={dataTestId}
+        />
       )
+      break
     default:
-      return <Button disabled>Select a payment method</Button>
+      paymentButton = <Button disabled>Select a payment method</Button>
   }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {cart.shipping_address?.phone ? (
+        <div className="flex flex-col gap-3">
+          <label className="flex items-start gap-2 text-sm text-ui-fg-subtle">
+            <input
+              type="checkbox"
+              checked={whatsappOptIn}
+              onChange={(event) => setWhatsappOptIn(event.target.checked)}
+              aria-label="Receive order updates on WhatsApp"
+              className="mt-0.5"
+            />
+            <span>
+              Send my order updates on WhatsApp. I agree to receive transactional
+              messages at the phone number above.
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-ui-fg-subtle">
+            <input
+              type="checkbox"
+              checked={whatsappAnalyticsOptIn}
+              onChange={(event) => setWhatsappAnalyticsOptIn(event.target.checked)}
+              aria-label="Allow anonymous WhatsApp activity aggregates"
+              className="mt-0.5"
+            />
+            <span>
+              Allow anonymous aggregate counts of my WhatsApp messages with this store to appear
+              in its insights. This is optional and separate from order updates. You can withdraw
+              this consent in your account settings or by sending STOP on WhatsApp.
+            </span>
+          </label>
+        </div>
+      ) : null}
+      {paymentButton}
+    </div>
+  )
 }
 
 const StripePaymentButton = ({
   cart,
   notReady,
+  whatsappOptIn,
+  whatsappAnalyticsOptIn,
   "data-testid": dataTestId,
 }: {
   cart: HttpTypes.StoreCart
   notReady: boolean
+  whatsappOptIn: boolean
+  whatsappAnalyticsOptIn: boolean
   "data-testid"?: string
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const onPaymentCompleted = async () => {
-    await placeOrder()
+    await placeOrder(undefined, whatsappOptIn, whatsappAnalyticsOptIn)
       .catch((err) => {
         setErrorMessage(err.message)
       })
@@ -151,12 +204,22 @@ const StripePaymentButton = ({
   )
 }
 
-const ManualTestPaymentButton = ({ notReady }: { notReady: boolean }) => {
+const ManualTestPaymentButton = ({
+  notReady,
+  whatsappOptIn,
+  whatsappAnalyticsOptIn,
+  "data-testid": dataTestId,
+}: {
+  notReady: boolean
+  whatsappOptIn: boolean
+  whatsappAnalyticsOptIn: boolean
+  "data-testid"?: string
+}) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const onPaymentCompleted = async () => {
-    await placeOrder()
+    await placeOrder(undefined, whatsappOptIn, whatsappAnalyticsOptIn)
       .catch((err) => {
         setErrorMessage(err.message)
       })
@@ -178,7 +241,7 @@ const ManualTestPaymentButton = ({ notReady }: { notReady: boolean }) => {
         isLoading={submitting}
         onClick={handlePayment}
         size="large"
-        data-testid="submit-order-button"
+        data-testid={dataTestId ?? "submit-order-button"}
       >
         Place order
       </Button>

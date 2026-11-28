@@ -13,7 +13,7 @@ fn test_product_filterspec_building_and_limits() {
     assert_eq!(spec.predicates.len(), 3);
 
     // Verify limit rejection ($in > 100)
-    let huge_in: Vec<String> = (0..105).map(|i| format!("id_{}", i)).collect();
+    let huge_in: Vec<String> = (0..105).map(|i| format!("id_{i}")).collect();
     let invalid_in_filter = json!({
         "id": { "$in": huge_in }
     });

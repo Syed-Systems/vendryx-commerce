@@ -46,7 +46,7 @@ async fn test_no_oversell_100_concurrent_reservations_vs_1_unit() {
         handles.push(tokio::spawn(async move {
             let res = s
                 .reserve(CreateReservationInput {
-                    line_item_id: Some(format!("item_{}", i)),
+                    line_item_id: Some(format!("item_{i}")),
                     inventory_item_id: iid,
                     location_id: location_id.to_string(),
                     quantity: 1,

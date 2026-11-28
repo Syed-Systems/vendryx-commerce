@@ -223,7 +223,10 @@ impl PaymentProvider for NagadPaymentProvider {
 
         if let Some(url_str) = callback_page_url {
             if let Some(obj) = complete_body.as_object_mut() {
-                obj.insert("redirect_url".to_string(), serde_json::Value::String(url_str));
+                obj.insert(
+                    "redirect_url".to_string(),
+                    serde_json::Value::String(url_str),
+                );
             }
         }
 
@@ -270,7 +273,9 @@ impl PaymentProvider for NagadPaymentProvider {
         let status = body["status"].as_str().unwrap_or_default();
         let status_code = body["statusCode"].as_str().unwrap_or_default();
 
-        if !status.eq_ignore_ascii_case("Success") || (status_code != "000_0000" && !status_code.is_empty()) {
+        if !status.eq_ignore_ascii_case("Success")
+            || (status_code != "000_0000" && !status_code.is_empty())
+        {
             return Err(Error::Invalid {
                 code: "nagad_capture_failed",
                 message: format!("Nagad verification returned status: {status} ({status_code})"),
@@ -301,7 +306,8 @@ impl PaymentProvider for NagadPaymentProvider {
             if i.amount < orig {
                 return Err(Error::Invalid {
                     code: "partial_refund_not_supported",
-                    message: "Nagad does not support partial refund; full refund required".to_string(),
+                    message: "Nagad does not support partial refund; full refund required"
+                        .to_string(),
                     field: Some("amount".to_string()),
                 });
             }
@@ -330,7 +336,10 @@ impl PaymentProvider for NagadPaymentProvider {
         if !status.eq_ignore_ascii_case("Success") {
             return Err(Error::Invalid {
                 code: "nagad_refund_failed",
-                message: body["message"].as_str().unwrap_or("Nagad refund failed").to_string(),
+                message: body["message"]
+                    .as_str()
+                    .unwrap_or("Nagad refund failed")
+                    .to_string(),
                 field: None,
             });
         }
@@ -347,12 +356,10 @@ impl PaymentProvider for NagadPaymentProvider {
     async fn retrieve(&self, i: RetrieveInput) -> Result<RetrieveOutput> {
         let url = format!("{}/verify/payment/{}", self.base_url, i.reference_id);
 
-        let resp = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| Error::Internal(format!("Nagad retrieve network error: {e}").into()))?;
+        let resp =
+            self.client.get(&url).send().await.map_err(|e| {
+                Error::Internal(format!("Nagad retrieve network error: {e}").into())
+            })?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
             Error::Internal(format!("Failed to parse Nagad retrieve response: {e}").into())
@@ -391,13 +398,12 @@ impl PaymentProvider for NagadPaymentProvider {
     }
 
     fn verify_webhook(&self, raw: &[u8], signature_header: Option<&str>) -> Result<VerifiedEvent> {
-        let event_json: serde_json::Value = serde_json::from_slice(raw).map_err(|e| {
-            Error::Invalid {
+        let event_json: serde_json::Value =
+            serde_json::from_slice(raw).map_err(|e| Error::Invalid {
                 code: "invalid_webhook_payload",
                 message: format!("Could not parse Nagad webhook JSON: {e}"),
                 field: None,
-            }
-        })?;
+            })?;
 
         // P22-10: [BP] Tampered signature rejection
         let signature = signature_header

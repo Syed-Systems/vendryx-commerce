@@ -7,6 +7,7 @@ interface ProviderLogoProps {
 
 export const formatProviderTitle = (id?: string, name?: string): string => {
   const norm = (id || "").toLowerCase()
+  if (norm.includes("pp_manual")) return "Manual bank transfer"
   if (norm.includes("bkash")) return "bKash"
   if (norm.includes("nagad")) return "Nagad"
   if (norm.includes("sslcommerz")) return "SSLCommerz"

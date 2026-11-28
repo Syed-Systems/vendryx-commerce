@@ -51,12 +51,7 @@ async fn sslcommerz_refund_exercises_partial_refund_honestly() {
 
 #[tokio::test]
 async fn sslcommerz_refund_refuses_invalid_amount() {
-    let provider = SslcommerzPaymentProvider::new(
-        "test_store_id",
-        "test_store_passwd",
-        None,
-        true,
-    );
+    let provider = SslcommerzPaymentProvider::new("test_store_id", "test_store_passwd", None, true);
 
     let err = provider
         .refund(RefundInput {

@@ -25,7 +25,7 @@ async fn test_identity_created_subscriber_sends_welcome_email() {
     let notif_service = Arc::new(NotificationService::new(pool));
     notif_service.register_provider(resend_provider.clone());
 
-    let subscriber = IdentityCreatedSubscriber::new(notif_service, "Vendryx");
+    let subscriber = IdentityCreatedSubscriber::new(notif_service.clone(), "Vendryx");
 
     // 1. Storefront Customer registration
     let customer_event = Event::new(
@@ -43,6 +43,13 @@ async fn test_identity_created_subscriber_sends_welcome_email() {
         .handle(&customer_event)
         .await
         .expect("handle customer registration");
+
+    // The subscriber queues the email in the durable outbox; the delivery worker sends it.
+    let (delivered, failed) = notif_service
+        .deliver_due_outbox(10)
+        .await
+        .expect("deliver queued customer welcome email");
+    assert_eq!((delivered, failed), (1, 0));
 
     let records = resend_provider.get_sent_records();
     assert_eq!(records.len(), 1);
@@ -67,6 +74,13 @@ async fn test_identity_created_subscriber_sends_welcome_email() {
         .handle(&user_event)
         .await
         .expect("handle merchant user creation");
+
+    // The subscriber queues the email in the durable outbox; the delivery worker sends it.
+    let (delivered, failed) = notif_service
+        .deliver_due_outbox(10)
+        .await
+        .expect("deliver queued merchant welcome email");
+    assert_eq!((delivered, failed), (1, 0));
 
     let records = resend_provider.get_sent_records();
     assert_eq!(records.len(), 2);
@@ -132,7 +146,7 @@ async fn test_user_invite_subscriber_sends_invitation_email() {
     let notif_service = Arc::new(NotificationService::new(pool));
     notif_service.register_provider(resend_provider.clone());
 
-    let subscriber = UserInviteSubscriber::new(notif_service, "Vendryx");
+    let subscriber = UserInviteSubscriber::new(notif_service.clone(), "Vendryx");
 
     let invite_event = Event::new(
         "user.invite_created",
@@ -149,6 +163,13 @@ async fn test_user_invite_subscriber_sends_invitation_email() {
         .handle(&invite_event)
         .await
         .expect("handle invite");
+
+    // The subscriber queues the email in the durable outbox; the delivery worker sends it.
+    let (delivered, failed) = notif_service
+        .deliver_due_outbox(10)
+        .await
+        .expect("deliver queued invitation email");
+    assert_eq!((delivered, failed), (1, 0));
 
     let records = resend_provider.get_sent_records();
     assert_eq!(records.len(), 1);
@@ -174,7 +195,7 @@ async fn test_order_confirmation_email_subscriber_sends_email() {
     let notif_service = Arc::new(NotificationService::new(pool));
     notif_service.register_provider(resend_provider.clone());
 
-    let subscriber = OrderConfirmationEmailSubscriber::new(notif_service, "Vendryx");
+    let subscriber = OrderConfirmationEmailSubscriber::new(notif_service.clone(), "Vendryx");
 
     let order_event = Event::new(
         "order.placed",
@@ -189,6 +210,13 @@ async fn test_order_confirmation_email_subscriber_sends_email() {
         .handle(&order_event)
         .await
         .expect("handle order confirmation");
+
+    let (delivered, failed) = notif_service
+        .deliver_due_outbox(1)
+        .await
+        .expect("deliver queued order confirmation");
+    assert_eq!(delivered, 1);
+    assert_eq!(failed, 0);
 
     let records = resend_provider.get_sent_records();
     assert_eq!(records.len(), 1);

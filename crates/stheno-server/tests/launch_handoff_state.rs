@@ -208,6 +208,7 @@ async fn the_store_request_archetype_decides_which_routes_exist() {
     }
 
     // The one bit the storefront reads to decide whether /account exists.
+    let mut tenant_ids = Vec::new();
     for (host, expected) in [(guest_host, false), (account_host, true)] {
         let response = get(host.clone(), "/store/config").await;
         assert_eq!(response.status(), StatusCode::OK);
@@ -215,9 +216,15 @@ async fn the_store_request_archetype_decides_which_routes_exist() {
             .await
             .expect("config body");
         let json: serde_json::Value = serde_json::from_slice(&body).expect("config json");
+        let tenant_id = json["tenant_id"]
+            .as_str()
+            .expect("store config returns an explicit tenant id");
+        assert!(!tenant_id.is_empty());
+        tenant_ids.push(tenant_id.to_string());
         assert_eq!(
             json["buyer_accounts"], expected,
             "{host} reported the wrong archetype"
         );
     }
+    assert_ne!(tenant_ids[0], tenant_ids[1]);
 }

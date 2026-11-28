@@ -15,7 +15,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use stheno_api_admin::{
     admin_catalog_routes, admin_customer_routes, admin_fulfillment_settings_routes,
-    admin_home_routes, admin_localisation_routes, admin_rbac_routes,
+    admin_home_routes, admin_localisation_routes, admin_rbac_routes, admin_settings_routes,
 };
 use stheno_customer::CustomerService;
 use stheno_db::create_pool;
@@ -161,8 +161,6 @@ async fn localisation_routes_are_mounted() {
             "/admin/property-labels?resource=product&property=title",
         ),
         ("POST", "/admin/property-labels"),
-        ("GET", "/admin/settings"),
-        ("POST", "/admin/settings"),
     ] {
         assert_mounted(
             admin_localisation_routes(translation.clone(), settings.clone()),
@@ -170,6 +168,12 @@ async fn localisation_routes_are_mounted() {
             uri,
         )
         .await;
+    }
+
+    // Store settings moved out of the localisation router into `admin_settings_routes`,
+    // which `stheno-server` merges separately. Assert them against the router that owns them.
+    for (method, uri) in [("GET", "/admin/settings"), ("POST", "/admin/settings")] {
+        assert_mounted(admin_settings_routes(settings.clone()), method, uri).await;
     }
 
     db.drop().await;

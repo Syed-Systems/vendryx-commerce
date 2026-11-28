@@ -122,11 +122,16 @@ async fn test_medusa_fixture_corpus_for_all_four_mutation_families() {
         .receive_return_items(&ret.id, vec![(cap_item_id.clone(), 1, None)])
         .await
         .unwrap();
-    let completed_ret = return_engine
+    let return_confirmation = return_engine
         .confirm_return(&ret.id, Some(dec!(25.00)))
-        .await
-        .unwrap();
-    assert_eq!(completed_ret.status, "completed");
+        .await;
+    assert!(matches!(
+        return_confirmation,
+        Err(stheno_types::Error::Invalid {
+            code: "refund_requires_payment_service",
+            ..
+        })
+    ));
 
     // ── Family 3: Claim Mutation ──
     let claim = claim_engine
@@ -143,8 +148,14 @@ async fn test_medusa_fixture_corpus_for_all_four_mutation_families() {
         )
         .await
         .unwrap();
-    let confirmed_claim = claim_engine.confirm_claim(&claim.id).await.unwrap();
-    assert_eq!(confirmed_claim.status, "confirmed");
+    let claim_confirmation = claim_engine.confirm_claim(&claim.id).await;
+    assert!(matches!(
+        claim_confirmation,
+        Err(stheno_types::Error::Invalid {
+            code: "refund_requires_payment_service",
+            ..
+        })
+    ));
 
     // ── Family 4: Exchange Mutation ──
     let exchange = exchange_engine

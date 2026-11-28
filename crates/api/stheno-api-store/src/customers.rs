@@ -17,6 +17,7 @@ use stheno_customer::{
     CreateCustomerAddressInput, CreateCustomerInput, CustomerAddressDTO, CustomerDTO,
     CustomerService, UpdateCustomerAddressInput, UpdateCustomerInput,
 };
+use stheno_notification::NotificationService;
 
 use crate::products::ErrorResponse;
 
@@ -24,6 +25,7 @@ use crate::products::ErrorResponse;
 pub struct StoreCustomerContext {
     pub customer_service: Arc<CustomerService>,
     pub auth_service: Arc<AuthService>,
+    pub notification_service: Arc<NotificationService>,
 }
 
 #[derive(Debug, Serialize)]
@@ -73,7 +75,7 @@ pub async fn get_current_customer(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 r#type: "not_found".to_string(),
-                message: format!("Customer with id {} was not found", actor_id),
+                message: format!("Customer with id {actor_id} was not found"),
             }),
         )
             .into_response()),
@@ -196,6 +198,43 @@ async fn current_customer_id(
     claims
         .actor_id
         .ok_or_else(|| unauthorized("Token is not bound to a customer"))
+}
+
+/// DELETE /store/customers/me/whatsapp-consent
+///
+/// Revocation is keyed to the authenticated customer, not a caller-supplied phone number, so
+/// consent remains revocable after the customer changes their profile phone.
+pub async fn revoke_my_whatsapp_consent(
+    State(ctx): State<StoreCustomerContext>,
+    headers: HeaderMap,
+) -> Result<(StatusCode, Json<serde_json::Value>), Response> {
+    let customer_id = current_customer_id(&ctx, &headers).await?;
+    let tenant_id = stheno_db::tenant::current().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                r#type: "unexpected_state".to_string(),
+                message: "Tenant scope is unavailable.".to_string(),
+            }),
+        )
+            .into_response()
+    })?;
+
+    ctx.notification_service
+        .revoke_whatsapp_consent_for_customer(&tenant_id, &customer_id)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    r#type: "unexpected_state".to_string(),
+                    message: "WhatsApp notification consent could not be updated.".to_string(),
+                }),
+            )
+                .into_response()
+        })?;
+
+    Ok((StatusCode::OK, Json(serde_json::json!({ "revoked": true }))))
 }
 
 fn address_not_found(id: &str) -> Response {

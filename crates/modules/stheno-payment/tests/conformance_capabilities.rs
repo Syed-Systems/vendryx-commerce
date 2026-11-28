@@ -51,8 +51,10 @@ impl PaymentProvider for StrictNoPartialProvider {
     }
 
     async fn authorize(&self, i: AuthorizeInput) -> Result<AuthorizeOutput> {
-        self.authorized_amount
-            .store(i.amount.to_string().parse().unwrap_or(100), std::sync::atomic::Ordering::SeqCst);
+        self.authorized_amount.store(
+            i.amount.to_string().parse().unwrap_or(100),
+            std::sync::atomic::Ordering::SeqCst,
+        );
         Ok(AuthorizeOutput {
             status: PaymentSessionStatus::Authorized,
             data: json!({ "authorized": i.amount }),
@@ -60,12 +62,15 @@ impl PaymentProvider for StrictNoPartialProvider {
     }
 
     async fn capture(&self, i: CaptureInput) -> Result<CaptureOutput> {
-        let auth = self.authorized_amount.load(std::sync::atomic::Ordering::SeqCst);
+        let auth = self
+            .authorized_amount
+            .load(std::sync::atomic::Ordering::SeqCst);
         let cap: i64 = i.amount.to_string().parse().unwrap_or(0);
         if cap < auth {
             return Err(Error::Invalid {
                 code: "partial_capture_not_supported",
-                message: "Provider does not support partial capture; must capture full amount".to_string(),
+                message: "Provider does not support partial capture; must capture full amount"
+                    .to_string(),
                 field: Some("amount".to_string()),
             });
         }
@@ -75,12 +80,15 @@ impl PaymentProvider for StrictNoPartialProvider {
     }
 
     async fn refund(&self, i: RefundInput) -> Result<RefundOutput> {
-        let auth = self.authorized_amount.load(std::sync::atomic::Ordering::SeqCst);
+        let auth = self
+            .authorized_amount
+            .load(std::sync::atomic::Ordering::SeqCst);
         let ref_amt: i64 = i.amount.to_string().parse().unwrap_or(0);
         if ref_amt < auth {
             return Err(Error::Invalid {
                 code: "partial_refund_not_supported",
-                message: "Provider does not support partial refund; full refund required".to_string(),
+                message: "Provider does not support partial refund; full refund required"
+                    .to_string(),
                 field: Some("amount".to_string()),
             });
         }
@@ -127,8 +135,14 @@ async fn honest_provider_exercising_capabilities_succeeds_where_declared() {
     let offline = OfflinePaymentProvider::new(None);
     let caps = offline.capabilities();
 
-    assert!(caps.partial_capture, "offline declares partial_capture = true");
-    assert!(caps.partial_refund, "offline declares partial_refund = true");
+    assert!(
+        caps.partial_capture,
+        "offline declares partial_capture = true"
+    );
+    assert!(
+        caps.partial_refund,
+        "offline declares partial_refund = true"
+    );
 
     // Partial capture succeeds
     let cap_out = offline
@@ -164,8 +178,14 @@ async fn honest_provider_refuses_undeclared_capabilities() {
     let strict = StrictNoPartialProvider::new();
     let caps = strict.capabilities();
 
-    assert!(!caps.partial_capture, "strict declares partial_capture = false");
-    assert!(!caps.partial_refund, "strict declares partial_refund = false");
+    assert!(
+        !caps.partial_capture,
+        "strict declares partial_capture = false"
+    );
+    assert!(
+        !caps.partial_refund,
+        "strict declares partial_refund = false"
+    );
 
     strict
         .authorize(AuthorizeInput {
@@ -220,8 +240,8 @@ async fn honest_provider_refuses_undeclared_capabilities() {
 #[tokio::test]
 async fn honest_bd_gateway_capabilities_match_reality() {
     use stheno_payment_bkash::BkashPaymentProvider;
-    use stheno_payment_sslcommerz::SslcommerzPaymentProvider;
     use stheno_payment_nagad::NagadPaymentProvider;
+    use stheno_payment_sslcommerz::SslcommerzPaymentProvider;
 
     let bkash = BkashPaymentProvider::default();
     let bkash_caps = bkash.capabilities();
@@ -232,14 +252,26 @@ async fn honest_bd_gateway_capabilities_match_reality() {
     let ssl = SslcommerzPaymentProvider::default();
     let ssl_caps = ssl.capabilities();
     assert!(ssl_caps.redirect);
-    assert!(ssl_caps.partial_refund, "SSLCommerz supports partial refund");
-    assert!(ssl_caps.partial_capture, "SSLCommerz supports partial capture");
+    assert!(
+        ssl_caps.partial_refund,
+        "SSLCommerz supports partial refund"
+    );
+    assert!(
+        ssl_caps.partial_capture,
+        "SSLCommerz supports partial capture"
+    );
 
     let nagad = NagadPaymentProvider::default();
     let nagad_caps = nagad.capabilities();
     assert!(nagad_caps.redirect);
-    assert!(!nagad_caps.partial_refund, "Nagad honestly refuses partial refund");
-    assert!(!nagad_caps.partial_capture, "Nagad does not support partial capture");
+    assert!(
+        !nagad_caps.partial_refund,
+        "Nagad honestly refuses partial refund"
+    );
+    assert!(
+        !nagad_caps.partial_capture,
+        "Nagad does not support partial capture"
+    );
 
     // Exercise Nagad partial refund refusal
     let nagad_ref_err = nagad

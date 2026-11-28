@@ -801,8 +801,7 @@ impl PgLinkStore {
                 let table = def.table.ok_or_else(|| Error::Invalid {
                     code: "read_only_link",
                     message: format!(
-                        "Link '{}' is read-only and has no writable join table",
-                        link_name
+                        "Link '{link_name}' is read-only and has no writable join table"
                     ),
                     field: Some(link_name.to_string()),
                 })?;
@@ -810,12 +809,11 @@ impl PgLinkStore {
                 let id = ulid::Ulid::new().to_string();
                 let sql = format!(
                     r#"
-                    INSERT INTO links.{} (id, left_id, right_id, created_at, updated_at, deleted_at)
+                    INSERT INTO links.{table} (id, left_id, right_id, created_at, updated_at, deleted_at)
                     VALUES ($1, $2, $3, now(), now(), NULL)
                     ON CONFLICT (left_id, right_id) WHERE deleted_at IS NULL
                     DO UPDATE SET updated_at = now()
-                    "#,
-                    table
+                    "#
                 );
 
                 diesel::sql_query(sql)
@@ -845,13 +843,12 @@ impl PgLinkStore {
 
                 let table = def.table.ok_or_else(|| Error::Invalid {
                     code: "read_only_link",
-                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    message: format!("Link '{link_name}' is read-only and has no join table"),
                     field: Some(link_name.to_string()),
                 })?;
 
                 let sql = format!(
-                    "SELECT right_id as value FROM links.{} WHERE left_id = $1 AND deleted_at IS NULL",
-                    table
+                    "SELECT right_id as value FROM links.{table} WHERE left_id = $1 AND deleted_at IS NULL"
                 );
 
 
@@ -893,13 +890,12 @@ impl PgLinkStore {
 
                 let table = def.table.ok_or_else(|| Error::Invalid {
                     code: "read_only_link",
-                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    message: format!("Link '{link_name}' is read-only and has no join table"),
                     field: Some(link_name.to_string()),
                 })?;
 
                 let sql = format!(
-                    "SELECT left_id, right_id FROM links.{}                      WHERE left_id = ANY($1) AND deleted_at IS NULL",
-                    table
+                    "SELECT left_id, right_id FROM links.{table}                      WHERE left_id = ANY($1) AND deleted_at IS NULL"
                 );
 
                 let rows: Vec<LinkPairRow> = diesel::sql_query(sql)
@@ -932,13 +928,12 @@ impl PgLinkStore {
 
                 let table = def.table.ok_or_else(|| Error::Invalid {
                     code: "read_only_link",
-                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    message: format!("Link '{link_name}' is read-only and has no join table"),
                     field: Some(link_name.to_string()),
                 })?;
 
                 let sql = format!(
-                    "SELECT left_id as value FROM links.{} WHERE right_id = $1 AND deleted_at IS NULL",
-                    table
+                    "SELECT left_id as value FROM links.{table} WHERE right_id = $1 AND deleted_at IS NULL"
                 );
 
 
@@ -969,13 +964,12 @@ impl PgLinkStore {
 
                 let table = def.table.ok_or_else(|| Error::Invalid {
                     code: "read_only_link",
-                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    message: format!("Link '{link_name}' is read-only and has no join table"),
                     field: Some(link_name.to_string()),
                 })?;
 
                 let sql = format!(
-                    "UPDATE links.{} SET deleted_at = now() WHERE left_id = $1 AND right_id = $2 AND deleted_at IS NULL",
-                    table
+                    "UPDATE links.{table} SET deleted_at = now() WHERE left_id = $1 AND right_id = $2 AND deleted_at IS NULL"
                 );
 
 
@@ -1006,13 +1000,12 @@ impl PgLinkStore {
 
                 let table = def.table.ok_or_else(|| Error::Invalid {
                     code: "read_only_link",
-                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    message: format!("Link '{link_name}' is read-only and has no join table"),
                     field: Some(link_name.to_string()),
                 })?;
 
                 let sql = format!(
-                    "UPDATE links.{} SET deleted_at = now() WHERE left_id = $1 AND deleted_at IS NULL RETURNING right_id as value",
-                    table
+                    "UPDATE links.{table} SET deleted_at = now() WHERE left_id = $1 AND deleted_at IS NULL RETURNING right_id as value"
                 );
 
 
@@ -1046,13 +1039,12 @@ impl PgLinkStore {
 
                 let table = def.table.ok_or_else(|| Error::Invalid {
                     code: "read_only_link",
-                    message: format!("Link '{}' is read-only and has no join table", link_name),
+                    message: format!("Link '{link_name}' is read-only and has no join table"),
                     field: Some(link_name.to_string()),
                 })?;
 
                 let sql = format!(
-                    "UPDATE links.{} SET deleted_at = now() WHERE right_id = $1 AND deleted_at IS NULL RETURNING left_id as value",
-                    table
+                    "UPDATE links.{table} SET deleted_at = now() WHERE right_id = $1 AND deleted_at IS NULL RETURNING left_id as value"
                 );
 
 
@@ -1079,8 +1071,7 @@ impl PgLinkStore {
                 for def in ALL_LINKS {
                     if let Some(table) = def.table {
                         let sql = format!(
-                            "DELETE FROM links.{} WHERE left_id = $1 OR right_id = $1",
-                            table
+                            "DELETE FROM links.{table} WHERE left_id = $1 OR right_id = $1"
                         );
                         let count = diesel::sql_query(sql)
                             .bind::<Text, _>(&entity_id)

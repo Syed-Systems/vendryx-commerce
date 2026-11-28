@@ -327,17 +327,29 @@ export const ProviderCredentialModal = ({
                       )}
                     </Label>
                     <div className="w-full">
-                      <Input
-                        type={isSecret ? "password" : field.kind === "number" ? "number" : "text"}
-                        placeholder={
-                          field.kind === "url"
-                            ? "https://..."
-                            : `Enter ${field.label.toLowerCase()}`
-                        }
-                        value={formValues[field.key] || ""}
-                        onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                        className={`w-full ${isSecret ? "font-mono text-sm" : "text-sm"}`}
-                      />
+                      {field.key === "payment_instructions" ? (
+                        <textarea
+                          rows={3}
+                          maxLength={500}
+                          value={formValues[field.key] || ""}
+                          onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                          placeholder="Explain how customers should transfer and identify the payment"
+                          className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-2 text-sm"
+                        />
+                      ) : (
+                        <Input
+                          type={isSecret ? "password" : field.kind === "number" ? "number" : "text"}
+                          maxLength={field.key === "payment_account" ? 80 : undefined}
+                          placeholder={
+                            field.kind === "url"
+                              ? "https://..."
+                              : `Enter ${field.label.toLowerCase()}`
+                          }
+                          value={formValues[field.key] || ""}
+                          onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                          className={`w-full ${isSecret ? "font-mono text-sm" : "text-sm"}`}
+                        />
+                      )}
                     </div>
                   </div>
                 )

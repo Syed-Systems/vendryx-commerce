@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS ai.knowledge_entry;
+DROP SCHEMA IF EXISTS ai;

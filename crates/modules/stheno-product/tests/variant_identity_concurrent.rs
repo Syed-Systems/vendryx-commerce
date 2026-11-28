@@ -34,8 +34,8 @@ async fn test_variant_identity_concurrent_creation_no_duplicates() {
             let res = s
                 .create_variant(CreateVariantInput {
                     product_id: pid,
-                    title: format!("Blue / 43 - Task {}", i),
-                    sku: Some(format!("RUN-BLU-43-{}", i)),
+                    title: format!("Blue / 43 - Task {i}"),
+                    sku: Some(format!("RUN-BLU-43-{i}")),
                     barcode: None,
                     option_value_ids: opts,
                 })

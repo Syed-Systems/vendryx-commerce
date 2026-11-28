@@ -23,6 +23,7 @@ stheno-store = { workspace = true }
 stheno-cart = { workspace = true }
 stheno-order = { workspace = true }
 stheno-flows-order = { workspace = true }
+stheno-ai = { workspace = true }
 stheno-fulfillment = { workspace = true }
 stheno-promotion = { workspace = true }
 stheno-payment = { workspace = true }
@@ -33,6 +34,7 @@ stheno-caching = { workspace = true }
 form_urlencoded = "1"
 stheno-customer = { workspace = true }
 stheno-auth = { workspace = true }
+stheno-notification = { workspace = true }
 stheno-translation = { workspace = true }
 rust_decimal = { workspace = true }
 axum = { workspace = true }
@@ -40,6 +42,10 @@ tokio = { workspace = true }
 tower = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
 garde = { workspace = true }
 tracing = { workspace = true }
 utoipa = { workspace = true }
@@ -53,6 +59,3 @@ stheno-payment-offline = { workspace = true }
 stheno-payment-stripe = { workspace = true }
 rust_decimal_macros = { workspace = true }
 hex = { workspace = true }
-hmac = { workspace = true }
-sha2 = { workspace = true }
-chrono = { workspace = true }

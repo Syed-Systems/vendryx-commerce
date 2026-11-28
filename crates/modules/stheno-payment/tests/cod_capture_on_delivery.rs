@@ -22,8 +22,18 @@ async fn test_cod_capture_on_delivery_courier_agnostic_and_idempotent() {
     // Test matrix across all major courier providers to prove courier-agnosticism:
     // Pathao, Steadfast, RedX, and Manual
     let couriers = vec![
-        ("pathao", "cons_pathao_001", "trk_pathao_991", "evt_pathao_del_01"),
-        ("steadfast", "cons_steadfast_002", "trk_sf_882", "evt_sf_del_02"),
+        (
+            "pathao",
+            "cons_pathao_001",
+            "trk_pathao_991",
+            "evt_pathao_del_01",
+        ),
+        (
+            "steadfast",
+            "cons_steadfast_002",
+            "trk_sf_882",
+            "evt_sf_del_02",
+        ),
         ("redx", "cons_redx_003", "trk_redx_773", "evt_redx_del_03"),
         ("manual", "cons_manual_004", "trk_man_664", "evt_man_del_04"),
     ];

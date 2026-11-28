@@ -6,17 +6,21 @@ import OnboardingCta from "@modules/order/components/onboarding-cta"
 import OrderDetails from "@modules/order/components/order-details"
 import ShippingDetails from "@modules/order/components/shipping-details"
 import PaymentDetails from "@modules/order/components/payment-details"
+import ManualPaymentProof from "@modules/order/components/manual-payment-proof"
 import { HttpTypes } from "@medusajs/types"
+import { OrderPaymentProof } from "@stheno/storefront-core"
 
 type OrderCompletedTemplateProps = {
   order: HttpTypes.StoreOrder
   /** Resolved by core: request state is not the theme's to read. */
   isOnboarding: boolean
+  paymentProof: OrderPaymentProof | null
 }
 
 export default async function OrderCompletedTemplate({
   order,
   isOnboarding,
+  paymentProof,
 }: OrderCompletedTemplateProps) {
 
   return (
@@ -42,6 +46,7 @@ export default async function OrderCompletedTemplate({
           <CartTotals totals={order} />
           <ShippingDetails order={order} />
           <PaymentDetails order={order} />
+          <ManualPaymentProof order={order} proof={paymentProof} />
           <Help />
         </div>
       </div>

@@ -1,24 +1,32 @@
 //! `stheno-server`: Server application, router mounting, and universal test harness.
 
+pub mod ai_social;
 pub mod db;
+pub mod notification_quota;
 pub mod scheduler;
 pub mod space_integration;
 pub mod tenant_layer;
+pub mod whatsapp_notifications;
 
-use axum::http::{HeaderValue, Method};
+use axum::extract::{Request, State};
+use axum::http::{uri::Authority, HeaderValue, Method, StatusCode};
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
 use axum::{middleware, routing::get, Json, Router};
 use serde_json::json;
+use sha2::Digest;
 use std::sync::Arc;
 use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
 
 use crate::tenant_layer::TenantLayerState;
 use stheno_api_admin::{
-    admin_api_key_routes, admin_catalog_routes, admin_config_routes, admin_courier_routes,
-    admin_customer_routes, admin_fulfillment_settings_routes, admin_home_routes,
-    admin_inventory_routes, admin_localisation_routes, admin_onboarding_routes, admin_order_routes,
-    admin_pricing_routes, admin_promotion_routes, admin_rbac_routes, admin_reconciliation_routes,
-    admin_reports_routes, admin_settings_routes, admin_store_routes, admin_upload_routes,
-    admin_user_routes, admin_views_routes, auth_guard::require_admin,
+    admin_ai_routes, admin_api_key_routes, admin_catalog_routes, admin_config_routes,
+    admin_courier_routes, admin_customer_routes, admin_fulfillment_settings_routes,
+    admin_home_routes, admin_inventory_routes, admin_localisation_routes, admin_onboarding_routes,
+    admin_order_routes_with_social_flows_settings_and_links, admin_pricing_routes,
+    admin_promotion_routes, admin_rbac_routes, admin_reconciliation_routes, admin_reports_routes,
+    admin_settings_routes, admin_store_routes, admin_upload_routes, admin_user_routes,
+    admin_views_routes, auth_guard::require_admin, AdminQuotaContext,
 };
 use stheno_api_admin_platform::{admin_platform_routes, AdminPlatformContext, UsageSnapshot};
 use stheno_api_auth::{auth_routes, AuthApiContext};
@@ -47,7 +55,7 @@ use stheno_order::OrderService;
 use stheno_payment::PaymentService;
 use stheno_payment_bkash::BkashPaymentProviderFactory;
 use stheno_payment_nagad::NagadPaymentProviderFactory;
-use stheno_payment_offline::OfflinePaymentProviderFactory;
+use stheno_payment_offline::{ManualTransferPaymentProviderFactory, OfflinePaymentProviderFactory};
 use stheno_payment_sslcommerz::SslcommerzPaymentProviderFactory;
 use stheno_payment_stripe::StripePaymentProviderFactory;
 use stheno_platform::PlatformService;
@@ -73,6 +81,70 @@ pub fn load_tier_config() -> Result<TierConfig, EntitlementsError> {
     match std::fs::read_to_string("config/tiers.toml") {
         Ok(src) => TierConfig::from_toml(&src),
         Err(_) => TierConfig::from_toml(DEFAULT_TIERS_TOML),
+    }
+}
+
+/// Returns the configured trial duration, falling back to the accepted seven-day default.
+pub fn load_trial_duration_days() -> Result<u64, EntitlementsError> {
+    trial_duration_days_from_config(&load_tier_config()?)
+}
+
+fn trial_duration_days_from_config(config: &TierConfig) -> Result<u64, EntitlementsError> {
+    let trial = config.definition(Tier::Trial)?;
+    if trial
+        .starts_on
+        .as_deref()
+        .is_some_and(|trigger| trigger != "store_request_submitted")
+    {
+        return Err(EntitlementsError::Parse(
+            "trial starts_on must be store_request_submitted".to_string(),
+        ));
+    }
+    let days = trial
+        .duration_days
+        .unwrap_or(PlatformService::DEFAULT_TRIAL_DURATION_DAYS);
+    if !(1..=3650).contains(&days) {
+        return Err(EntitlementsError::Parse(
+            "trial duration_days must be between 1 and 3650".to_string(),
+        ));
+    }
+    Ok(days)
+}
+
+#[cfg(test)]
+mod trial_config_tests {
+    use super::*;
+
+    #[test]
+    fn trial_duration_defaults_to_seven_and_honors_valid_overrides() {
+        let default = TierConfig::from_toml("[trial]\nstarts_on = \"store_request_submitted\"\n")
+            .expect("valid trial config");
+        assert_eq!(
+            trial_duration_days_from_config(&default).expect("default duration"),
+            PlatformService::DEFAULT_TRIAL_DURATION_DAYS
+        );
+
+        let override_config = TierConfig::from_toml(
+            "[trial]\nduration_days = 11\nstarts_on = \"store_request_submitted\"\n",
+        )
+        .expect("valid override config");
+        assert_eq!(
+            trial_duration_days_from_config(&override_config).expect("override duration"),
+            11
+        );
+    }
+
+    #[test]
+    fn malformed_trial_duration_or_start_trigger_fails_closed() {
+        let invalid_duration = TierConfig::from_toml("[trial]\nduration_days = 0\n")
+            .expect("TOML parses before semantic validation");
+        assert!(trial_duration_days_from_config(&invalid_duration).is_err());
+
+        let invalid_trigger = TierConfig::from_toml("[trial]\nstarts_on = \"signup\"\n")
+            .expect("TOML parses before semantic validation");
+        assert!(trial_duration_days_from_config(&invalid_trigger).is_err());
+
+        assert!(TierConfig::from_toml("[trial]\nduration_days = \"later\"\n").is_err());
     }
 }
 
@@ -159,6 +231,69 @@ fn cors_layer() -> CorsLayer {
         // on every call, so the dashboard could not even read its own auth providers
         // and rendered a login screen with no form on it.
         .allow_headers(AllowHeaders::mirror_request())
+}
+
+fn admin_hostname(host_header: Option<&str>, configured_suffix: &str) -> bool {
+    let configured_suffix = configured_suffix
+        .trim()
+        .trim_start_matches('.')
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let Some(host_header) = host_header else {
+        return false;
+    };
+    let Ok(authority) = host_header.parse::<Authority>() else {
+        return false;
+    };
+    let host = authority.host().trim_end_matches('.').to_ascii_lowercase();
+    let Some(tenant_label) = host.strip_suffix(&format!(".{configured_suffix}")) else {
+        return false;
+    };
+    !configured_suffix.is_empty() && !tenant_label.is_empty() && !tenant_label.contains('.')
+}
+
+fn admin_session_issue_is_forbidden(
+    method: &Method,
+    path: &str,
+    host_header: Option<&str>,
+    configured_suffix: &str,
+) -> bool {
+    method == Method::POST
+        && path == "/auth/session"
+        && !admin_hostname(host_header, configured_suffix)
+}
+
+async fn admin_response_headers(
+    State(configured_suffix): State<String>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let path = request.uri().path();
+    let admin_path = path == "/admin" || path.starts_with("/admin/");
+    let host_header = request
+        .headers()
+        .get(axum::http::header::HOST)
+        .and_then(|value| value.to_str().ok());
+    if admin_session_issue_is_forbidden(request.method(), path, host_header, &configured_suffix) {
+        return (StatusCode::NOT_FOUND, "Not Found").into_response();
+    }
+    let admin_host = admin_hostname(host_header, &configured_suffix);
+
+    let mut response = next.run(request).await;
+    if admin_path || admin_host {
+        response.headers_mut().insert(
+            axum::http::header::CACHE_CONTROL,
+            HeaderValue::from_static("private, no-store"),
+        );
+        // ADR-037 decision 9: admin responses allow scripts only from the admin origin and
+        // can never be framed, so an injected storefront script or a framing page cannot
+        // act as the signed-in merchant.
+        response.headers_mut().insert(
+            axum::http::header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("script-src 'self'; frame-ancestors 'none'"),
+        );
+    }
+    response
 }
 
 /// Populates an empty deployment with a demo catalogue, regions, tax, locales, and an
@@ -366,6 +501,7 @@ pub async fn seed_demo(pool: stheno_db::DbPool) {
     // needs no keys — its credential schema is empty — but it still needs the row.
     let payment_service = stheno_payment::PaymentService::new(pool.clone());
     payment_service.register_factory(std::sync::Arc::new(OfflinePaymentProviderFactory));
+    payment_service.register_factory(std::sync::Arc::new(ManualTransferPaymentProviderFactory));
 
     if let Ok(region) = &reg_na {
         match stheno_db::tenant::current() {
@@ -668,8 +804,21 @@ pub const PAYMENT_SWEEP_SCHEDULE: &str = "*/15 * * * *";
 /// subscription to change nothing.
 pub const DUNNING_SCHEDULE: &str = "0 3 * * *";
 
+/// Reconcile expired entitlements frequently; request-time resolution enforces the exact
+/// expiry instant while this job persists downgrades to make them immune to clock rollback.
+pub const ENTITLEMENT_EXPIRY_SCHEDULE: &str = "*/15 * * * *";
+
+/// Trial warnings use the same cadence as entitlement reconciliation so delayed delivery retries.
+pub const TRIAL_WARNING_SCHEDULE: &str = "*/15 * * * *";
+
+/// Drain a bounded number of durable notification intents every minute.
+pub const NOTIFICATION_OUTBOX_SCHEDULE: &str = "* * * * *";
+
 /// Daily at 01:00. Fetch FX rates for platform subscriptions.
 pub const FX_FETCH_SCHEDULE: &str = "0 1 * * *";
+
+/// Daily at 02:00. Repairs quota counters from the tenant-owned product and user rows.
+pub const QUOTA_RECONCILIATION_SCHEDULE: &str = "0 2 * * *";
 
 /// Requests older than this are considered stranded rather than merely in progress.
 const SWEEP_MIN_AGE_SECONDS: i64 = 300;
@@ -677,14 +826,27 @@ const SWEEP_LIMIT: usize = 500;
 
 /// The periodic work the engine owes itself.
 ///
-/// Both jobs iterate tenants explicitly. Neither underlying method scopes itself: they read
-/// tenant-owned tables under RLS, so a sweep run without a tenant scope sees nothing and
-/// reports a clean pass over an empty result — the silent no-op this scheduler exists to end.
+/// Jobs that read tenant-owned tables enumerate tenants explicitly and enter each RLS scope;
+/// a sweep without that scope would report a clean pass over an empty result. Platform-only
+/// lifecycle and billing jobs use the unscoped platform service methods.
 pub fn scheduled_jobs(
     pool: stheno_db::DbPool,
     payment: Arc<PaymentService>,
+    notifications: Arc<stheno_notification::NotificationService>,
 ) -> Vec<scheduler::Job> {
     let platform = Arc::new(PlatformService::new(pool.clone()));
+
+    let quota_platform = platform.clone();
+    let quota_pool = pool.clone();
+    let quota_reconciliation = scheduler::Job::new(
+        "entitlement-quota-reconciliation",
+        QUOTA_RECONCILIATION_SCHEDULE,
+        move || {
+            let platform = quota_platform.clone();
+            let pool = quota_pool.clone();
+            async move { reconcile_quota_usage(&platform, pool).await }
+        },
+    );
 
     let sweep_platform = platform.clone();
     let sweep = scheduler::Job::new("payment-reconcile", PAYMENT_SWEEP_SCHEDULE, move || {
@@ -743,6 +905,149 @@ pub fn scheduled_jobs(
         }
     });
 
+    let expiry_platform = platform.clone();
+    let entitlement_expiry = scheduler::Job::new(
+        "subscription-entitlement-expiry",
+        ENTITLEMENT_EXPIRY_SCHEDULE,
+        move || {
+            let platform = expiry_platform.clone();
+            async move {
+                let transitioned = platform
+                    .reconcile_expired_subscriptions(chrono::Utc::now())
+                    .await
+                    .map_err(|error| {
+                        format!("entitlement expiry reconciliation failed: {error}")
+                    })?;
+                Ok(format!(
+                    "persisted {transitioned} subscription lifecycle transition(s)"
+                ))
+            }
+        },
+    );
+
+    let trial_warning_platform = platform.clone();
+    let trial_warning_notifications = notifications.clone();
+    let trial_warning = scheduler::Job::new(
+        "subscription-trial-warnings",
+        TRIAL_WARNING_SCHEDULE,
+        move || {
+            let platform = trial_warning_platform.clone();
+            let notifications = trial_warning_notifications.clone();
+            async move {
+                let now = chrono::Utc::now();
+                let subscriptions = platform
+                    .list_subscriptions()
+                    .await
+                    .map_err(|error| format!("could not list trial subscriptions: {error}"))?;
+                let mut sent = 0usize;
+                let mut failed = 0usize;
+                for subscription in subscriptions.iter().filter(|row| row.tier == "trial") {
+                    let (Some(started_at), Some(ends_at)) =
+                        (subscription.trial_started_at, subscription.trial_ends_at)
+                    else {
+                        continue;
+                    };
+                    for (day, label) in [(3i64, "day-3"), (6i64, "day-6")] {
+                        if now < started_at + chrono::Duration::days(day) || now >= ends_at {
+                            continue;
+                        }
+                        if day == 3 && now >= started_at + chrono::Duration::days(6) {
+                            continue;
+                        }
+                        let trigger = format!("trial_warning_{label}");
+                        match notifications
+                            .has_sent_for_resource(
+                                &trigger,
+                                "trial_subscription",
+                                &subscription.tenant_id,
+                            )
+                            .await
+                        {
+                            Ok(true) => continue,
+                            Ok(false) => {}
+                            Err(error) => {
+                                failed += 1;
+                                tracing::warn!(tenant = %subscription.tenant_id, error = %error, "trial warning dedupe lookup failed");
+                                continue;
+                            }
+                        }
+                        let recipient = match platform
+                            .trial_warning_recipient(&subscription.tenant_id)
+                            .await
+                        {
+                            Ok(Some(recipient)) => recipient,
+                            Ok(None) => continue,
+                            Err(error) => {
+                                failed += 1;
+                                tracing::warn!(tenant = %subscription.tenant_id, error = %error, "trial warning owner lookup failed");
+                                continue;
+                            }
+                        };
+                        let tenant_key = format!(
+                            "{:x}",
+                            sha2::Sha256::digest(subscription.tenant_id.as_bytes())
+                        );
+                        let idempotency_key = format!("trial-warning/{tenant_key}/{label}");
+                        let store_name = recipient
+                            .tenant_name
+                            .replace('&', "&amp;")
+                            .replace('<', "&lt;")
+                            .replace('>', "&gt;")
+                            .replace('"', "&quot;")
+                            .replace('\'', "&#39;");
+                        let result = notifications
+                            .enqueue_notification_idempotent_for_tenant(
+                                stheno_notification::SendNotificationInput {
+                                    to: recipient.email,
+                                    channel: "email".to_string(),
+                                    template: None,
+                                    subject: Some("Your Vendryx Pro trial is ending soon".to_string()),
+                                    body: Some(format!(
+                                        "Your Pro trial for {store_name} ends at {}. Review your plan in the store dashboard to keep using Pro features.",
+                                        ends_at.to_rfc3339()
+                                    )),
+                                    data: None,
+                                    trigger_type: Some(trigger),
+                                    resource_id: Some(subscription.tenant_id.clone()),
+                                    resource_type: Some("trial_subscription".to_string()),
+                                    receiver_id: None,
+                                },
+                                &idempotency_key,
+                                &subscription.tenant_id,
+                            )
+                            .await;
+                        match result {
+                            Ok(_) => sent += 1,
+                            Err(error) => {
+                                failed += 1;
+                                tracing::warn!(tenant = %subscription.tenant_id, day, error = %error, "trial warning delivery failed");
+                            }
+                        }
+                    }
+                }
+                Ok(format!("sent {sent} trial warning(s); {failed} failed"))
+            }
+        },
+    );
+
+    let outbox_notifications = notifications.clone();
+    let notification_outbox = scheduler::Job::new(
+        "notification-outbox",
+        NOTIFICATION_OUTBOX_SCHEDULE,
+        move || {
+            let notifications = outbox_notifications.clone();
+            async move {
+                let (sent, failed) = notifications
+                    .deliver_due_outbox(10)
+                    .await
+                    .map_err(|error| format!("notification outbox drain failed: {error}"))?;
+                Ok(format!(
+                    "delivered {sent} notification(s); {failed} retryable failure(s)"
+                ))
+            }
+        },
+    );
+
     let fx_platform = platform.clone();
     let fx_fetch = scheduler::Job::new("fx-rate-fetch", FX_FETCH_SCHEDULE, move || {
         let platform = fx_platform.clone();
@@ -750,12 +1055,68 @@ pub fn scheduled_jobs(
             let fetcher = stheno_flows_platform::fx::BangladeshBankRateFetcher::new(platform);
             match fetcher.fetch_and_store().await {
                 Ok(_) => Ok("FX rate fetched successfully".to_string()),
-                Err(e) => Err(format!("FX rate fetch failed: {}", e)),
+                Err(e) => Err(format!("FX rate fetch failed: {e}")),
             }
         }
     });
 
-    vec![sweep, dunning, fx_fetch]
+    vec![
+        quota_reconciliation,
+        sweep,
+        dunning,
+        entitlement_expiry,
+        trial_warning,
+        notification_outbox,
+        fx_fetch,
+    ]
+}
+
+/// Rebuild the persisted product and staff-seat counters for every tenant.
+///
+/// The startup call prevents legacy rows or newly provisioned tenants from receiving a
+/// zero counter when route-level quota checks begin. The scheduled call repairs drift.
+pub async fn reconcile_quota_usage(
+    platform: &PlatformService,
+    pool: stheno_db::DbPool,
+) -> Result<String, String> {
+    let tenants = platform.list_tenants().await.map_err(|e| e.to_string())?;
+    let products = ProductService::new(pool.clone());
+    let users = UserService::new(pool.clone());
+    let reconciliation = stheno_flows::QuotaReconciliationJob::new(QuotaCounter::new(pool));
+    let mut corrected = 0usize;
+
+    for tenant in &tenants {
+        let products = &products;
+        let users = &users;
+        let reconciliation = &reconciliation;
+        let tenant_id = tenant.id.clone();
+        let did_correct = stheno_db::tenant::scope(tenant_id.clone(), async move {
+            let product_count = products
+                .count_active_products()
+                .await
+                .map_err(|e| format!("tenant {tenant_id}: could not count products: {e}"))?;
+            let user_count = users
+                .count_active_users()
+                .await
+                .map_err(|e| format!("tenant {tenant_id}: could not count staff seats: {e}"))?;
+            let products_changed = reconciliation
+                .reconcile_resource("products", product_count)
+                .await
+                .map_err(|e| format!("tenant {tenant_id}: could not reconcile products: {e}"))?;
+            let users_changed = reconciliation
+                .reconcile_resource("users", user_count)
+                .await
+                .map_err(|e| format!("tenant {tenant_id}: could not reconcile staff seats: {e}"))?;
+            Ok::<_, String>(usize::from(products_changed) + usize::from(users_changed))
+        })
+        .await?;
+        corrected += did_correct;
+    }
+
+    Ok(format!(
+        "reconciled {} tenant(s); corrected {corrected} quota counter(s)",
+        tenants.len()
+    ))
 }
 
 pub struct AppServer {
@@ -771,6 +1132,21 @@ impl AppServer {
     /// Every path needs a database: migrated services hold repositories, not
     /// maps, so there is no longer a meaningful server without one.
     pub fn new(context: AppContext, entitlements: Entitlements, pool: stheno_db::DbPool) -> Self {
+        let admin_domain_suffix = std::env::var("STHENO_ADMIN_DOMAIN_SUFFIX")
+            .unwrap_or_default()
+            .trim()
+            .trim_start_matches('.')
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        Self::new_with_admin_domain_suffix(context, entitlements, pool, admin_domain_suffix)
+    }
+
+    fn new_with_admin_domain_suffix(
+        context: AppContext,
+        entitlements: Entitlements,
+        pool: stheno_db::DbPool,
+        admin_domain_suffix: String,
+    ) -> Self {
         let entitlements = Arc::new(entitlements);
         let product_service = Arc::new(ProductService::new(pool.clone()));
         let region_service = Arc::new(RegionService::new(pool.clone()));
@@ -779,6 +1155,7 @@ impl AppServer {
         let cart_service = Arc::new(CartService::new(pool.clone()));
         let payment_service = Arc::new(PaymentService::new(pool.clone()));
         payment_service.register_factory(Arc::new(OfflinePaymentProviderFactory));
+        payment_service.register_factory(Arc::new(ManualTransferPaymentProviderFactory));
         payment_service.register_factory(Arc::new(StripePaymentProviderFactory));
         payment_service.register_factory(Arc::new(SslcommerzPaymentProviderFactory));
         payment_service.register_factory(Arc::new(BkashPaymentProviderFactory));
@@ -858,16 +1235,53 @@ impl AppServer {
         }
         let translation_service = Arc::new(TranslationService::new(pool.clone()));
         let reporting_service = Arc::new(stheno_reporting::ReportingService::new(pool.clone()));
+        let ai_configuration_service =
+            Arc::new(stheno_ai::AiConfigurationService::new(pool.clone()));
+        let ai_webhook_events = Arc::new(stheno_ai::WebhookEventService::new(pool.clone()));
         let workflow_store = Arc::new(WorkflowStore::from_pool(pool.clone()));
-        let platform_service = Arc::new(PlatformService::new(pool.clone()));
+        let platform_service = Arc::new(
+            PlatformService::new(pool.clone())
+                .with_trial_duration_days(
+                    load_trial_duration_days().expect("trial tier config must be valid"),
+                )
+                .expect("trial duration must be between 1 and 3650 days"),
+        );
+        notification_service.register_quota_policy(Arc::new(
+            notification_quota::PlatformNotificationQuotaPolicy::new(platform_service.clone()),
+        ));
+        notification_service.register_provider(Arc::new(
+            whatsapp_notifications::RoutedWhatsAppNotificationProvider::new(
+                ai_configuration_service.clone(),
+                platform_service.clone(),
+                notification_service.as_ref(),
+            ),
+        ));
         let rbac_service = Arc::new(stheno_rbac::RbacService::new(pool.clone()));
         let api_key_service = Arc::new(stheno_api_key::ApiKeyService::new(pool.clone()));
         let settings_service = Arc::new(stheno_settings::SettingsService::new(pool.clone()));
         let auth_flows = Arc::new(AuthWorkflows::new(auth_service.clone()));
         let order_flow = Arc::new(OrderWorkflowEngine::new(order_service.clone()));
-        let social_flows = Arc::new(stheno_flows_order::SocialDraftWorkflow::new(
-            order_service.clone(),
-        ));
+        let social_flows = Arc::new(
+            stheno_flows_order::SocialDraftWorkflow::new(order_service.clone())
+                .with_inventory(
+                    inventory_service.clone(),
+                    Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
+                )
+                .with_chat_offer_validation(
+                    pool.clone(),
+                    stheno_ai::ChatOfferService,
+                    stheno_flows::ProductOfferTool::new(
+                        product_service.clone(),
+                        pricing_service.clone(),
+                        inventory_service.clone(),
+                        region_service.clone(),
+                    ),
+                )
+                .with_shipping_validation(stheno_flows::ShippingQuoteTool::new(
+                    fulfillment_service.clone(),
+                    region_service.clone(),
+                )),
+        );
         // Turns a cart into an order. Built with tests since the cart phase and never
         // mounted, so "Place order" had nothing to call.
         let file_provider = Arc::new(stheno_file_local::LocalFileProvider::new(
@@ -905,10 +1319,14 @@ impl AppServer {
                 pricing_service.clone(),
                 inventory_service.clone(),
             ))
-            .merge(admin_order_routes(
+            .merge(admin_order_routes_with_social_flows_settings_and_links(
                 order_service.clone(),
                 fulfillment_service.clone(),
                 payment_service.clone(),
+                social_flows.clone(),
+                settings_service.clone(),
+                notification_service.clone(),
+                Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
             ))
             .merge(admin_customer_routes(customer_service.clone()))
             .merge(admin_inventory_routes(
@@ -961,9 +1379,14 @@ impl AppServer {
             // read its own entitlements in order to hide what it may not show.
             .merge(admin_platform_routes(AdminPlatformContext {
                 entitlements: entitlements.clone(),
+                tier_config: Arc::new(load_tier_config().expect("config/tiers.toml must parse")),
                 usage: usage_snapshot.clone(),
                 workflows: workflow_store.clone(),
                 platform: Some(platform_service.clone()),
+            }))
+            .layer(axum::Extension(AdminQuotaContext {
+                entitlements: entitlements.clone(),
+                counter: QuotaCounter::new(pool.clone()),
             }));
 
         // A gate is a mount-point decision, never an `if` inside domain logic
@@ -979,10 +1402,21 @@ impl AppServer {
         // window clamp inside `admin_reports_routes`, not the mount.
         let admin_routes = mount_gated_for_request(
             admin_core,
-            vec![GatedGroup::new(
-                Feature::AnalyticsBasic,
-                admin_reports_routes(reporting_service.clone()),
-            )],
+            vec![
+                GatedGroup::new(
+                    Feature::AnalyticsBasic,
+                    admin_reports_routes(reporting_service.clone()),
+                ),
+                GatedGroup::new(
+                    Feature::AiAssistant,
+                    admin_ai_routes(
+                        ai_configuration_service.clone(),
+                        user_service.clone(),
+                        pool.clone(),
+                        order_service.clone(),
+                    ),
+                ),
+            ],
         )
         // Every /admin route routes through one credential check rather than
         // eighty-five (SECURITY.md 6). Auth and store routes are mounted outside
@@ -1043,12 +1477,14 @@ impl AppServer {
                         .extensions()
                         .get::<Arc<Entitlements>>()
                         .is_some_and(|entitlements| entitlements.has(Feature::BuyerAccounts));
-                    Json(json!({ "buyer_accounts": buyer_accounts }))
+                    let tenant_id = stheno_db::tenant::current().unwrap_or_default();
+                    Json(json!({ "buyer_accounts": buyer_accounts, "tenant_id": tenant_id }))
                 }),
             )
             .merge(store_routes(StoreApiContext {
                 social_flows: social_flows.clone(),
                 store_service: store_service.clone(),
+                notification_service: notification_service.clone(),
                 store_name: std::env::var("STHENO_STORE_NAME")
                     .unwrap_or_else(|_| "Stheno Store".to_string()),
                 product_service: product_service.clone(),
@@ -1070,6 +1506,20 @@ impl AppServer {
                 cache_service: Some(Arc::new(stheno_caching::CacheService::new(Arc::new(
                     stheno_caching::InMemoryCacheProvider::new(),
                 )))),
+                meta_webhook: Some(crate::ai_social::build_meta_webhook_context(
+                    pool.clone(),
+                    ai_configuration_service.clone(),
+                    ai_webhook_events.clone(),
+                    product_service.clone(),
+                    pricing_service.clone(),
+                    inventory_service.clone(),
+                    region_service.clone(),
+                    currency_service.clone(),
+                    fulfillment_service.clone(),
+                    store_service.clone(),
+                    social_flows.clone(),
+                    notification_service.clone(),
+                )),
             }))
             // Buyer accounts are an archetype the merchant chooses on the store request,
             // not something a plan sells (PRODUCT.md 2, ENTITLEMENTS.md 4.2). No tier in
@@ -1080,7 +1530,11 @@ impl AppServer {
                 Router::new(),
                 vec![GatedGroup::new(
                     Feature::BuyerAccounts,
-                    store_customer_routes(customer_service.clone(), auth_service.clone()),
+                    store_customer_routes(
+                        customer_service.clone(),
+                        auth_service.clone(),
+                        notification_service.clone(),
+                    ),
                 )],
             ))
             .merge(admin_routes)
@@ -1156,6 +1610,10 @@ impl AppServer {
                 tier_config: Arc::new(load_tier_config().expect("config/tiers.toml must parse")),
             }))
             .merge(space_routes)
+            .layer(middleware::from_fn_with_state(
+                admin_domain_suffix,
+                admin_response_headers,
+            ))
             .layer(cors);
 
         Self {
@@ -1166,6 +1624,54 @@ impl AppServer {
             payment_service,
             notification_service,
         }
+    }
+}
+
+#[cfg(test)]
+mod admin_hostname_tests {
+    use super::{admin_hostname, admin_session_issue_is_forbidden};
+    use axum::http::Method;
+
+    #[test]
+    fn admin_hostname_requires_one_label_before_the_configured_suffix() {
+        assert!(admin_hostname(
+            Some("merchant.admin.example.test"),
+            "admin.example.test"
+        ));
+        assert!(!admin_hostname(
+            Some("admin.example.test"),
+            "admin.example.test"
+        ));
+        assert!(!admin_hostname(
+            Some("shop.example.test"),
+            "admin.example.test"
+        ));
+        assert!(!admin_hostname(
+            Some("nested.merchant.admin.example.test"),
+            "admin.example.test"
+        ));
+    }
+
+    #[test]
+    fn session_cookie_issue_is_rejected_on_a_storefront_host() {
+        assert!(admin_session_issue_is_forbidden(
+            &Method::POST,
+            "/auth/session",
+            Some("shop.example.test"),
+            "admin.example.test"
+        ));
+        assert!(!admin_session_issue_is_forbidden(
+            &Method::POST,
+            "/auth/session",
+            Some("merchant.admin.example.test"),
+            "admin.example.test"
+        ));
+        assert!(!admin_session_issue_is_forbidden(
+            &Method::POST,
+            "/auth/user/emailpass",
+            Some("shop.example.test"),
+            "admin.example.test"
+        ));
     }
 }
 
@@ -1203,7 +1709,12 @@ impl TestApp {
         let entitlements = load_entitlements().expect("tier config must resolve");
 
         let pool = stheno_db::create_pool(&db.url, 5).expect("test pool must build");
-        let server = AppServer::new(context.clone(), entitlements, pool);
+        let server = AppServer::new_with_admin_domain_suffix(
+            context.clone(),
+            entitlements,
+            pool,
+            "admin.example.test".to_string(),
+        );
 
         Self {
             context,

@@ -60,7 +60,13 @@ async fn nagad_initialise_executes_two_step_checkout_and_returns_redirect_url() 
     let redirect = output.redirect_url();
     assert_eq!(
         redirect,
-        Some(format!("{}/dfs/payment?paymentRefId=NAGAD_REF_998877", mock_server.uri()).as_str())
+        Some(
+            format!(
+                "{}/dfs/payment?paymentRefId=NAGAD_REF_998877",
+                mock_server.uri()
+            )
+            .as_str()
+        )
     );
 }
 

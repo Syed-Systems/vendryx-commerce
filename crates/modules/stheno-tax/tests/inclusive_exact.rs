@@ -81,10 +81,7 @@ fn test_tax_inclusive_proptest_invariant_100_amounts() {
                 assert_eq!(
                     breakdown.subtotal + breakdown.tax_total,
                     breakdown.total,
-                    "Invariant failed for total={}, rate={}, precision={}",
-                    total,
-                    rate,
-                    precision
+                    "Invariant failed for total={total}, rate={rate}, precision={precision}"
                 );
             }
         }

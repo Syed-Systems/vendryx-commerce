@@ -1,14 +1,54 @@
 //! `stheno-http::csrf`: CSRF double-submit token and Origin validation (SECURITY §6).
 
-use axum::http::{HeaderMap, Method};
+use axum::http::{uri::Authority, HeaderMap, Method, Uri};
 use stheno_types::{Error, Result};
 
 pub const CSRF_HEADER_NAME: &str = "X-CSRF-Token";
 pub const CSRF_COOKIE_NAME: &str = "stheno_csrf";
 
+/// Requires unsafe cookie-authenticated requests to originate from the request host.
+pub fn validate_origin_host(method: &Method, headers: &HeaderMap) -> Result<()> {
+    if is_safe_method(method) {
+        return Ok(());
+    }
+
+    let origin = headers
+        .get("origin")
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| Error::Unauthorized("Missing or invalid Origin".to_string()))?;
+    let host = headers
+        .get("host")
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| Error::Unauthorized("Missing or invalid Host".to_string()))?;
+    let origin_uri = origin
+        .parse::<Uri>()
+        .map_err(|_| Error::Unauthorized("Invalid Origin".to_string()))?;
+    let origin_authority = origin_uri
+        .authority()
+        .filter(|authority| !authority.as_str().contains('@'))
+        .ok_or_else(|| Error::Unauthorized("Invalid Origin".to_string()))?;
+    let request_authority = host
+        .parse::<Authority>()
+        .map_err(|_| Error::Unauthorized("Invalid Host".to_string()))?;
+
+    if !matches!(origin_uri.scheme_str(), Some("http" | "https"))
+        || !matches!(origin_uri.path(), "" | "/")
+        || origin_uri.query().is_some()
+        || !origin_authority
+            .host()
+            .eq_ignore_ascii_case(request_authority.host())
+    {
+        return Err(Error::Unauthorized(
+            "Origin host does not match request Host".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
 pub fn validate_csrf(method: &Method, headers: &HeaderMap, allowed_origins: &[&str]) -> Result<()> {
     // Safe idempotent methods do not require CSRF validation
-    if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
+    if is_safe_method(method) {
         return Ok(());
     }
 
@@ -53,4 +93,8 @@ pub fn validate_csrf(method: &Method, headers: &HeaderMap, allowed_origins: &[&s
     }
 
     Ok(())
+}
+
+fn is_safe_method(method: &Method) -> bool {
+    matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS)
 }

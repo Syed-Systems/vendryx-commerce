@@ -13,9 +13,11 @@ stheno-workflow = { workspace = true }
 stheno-order = { workspace = true }
 rand = { workspace = true }
 stheno-inventory = { workspace = true }
+stheno-links = { workspace = true }
 stheno-product = { workspace = true }
 stheno-customer = { workspace = true }
 stheno-flows = { workspace = true }
+stheno-ai = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }

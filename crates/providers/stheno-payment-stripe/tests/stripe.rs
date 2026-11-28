@@ -20,7 +20,7 @@ fn test_stripe_webhook_verification_signature_tolerance_and_livemode() {
     mac.update(signed_payload.as_bytes());
     let valid_sig = hex::encode(mac.finalize().into_bytes());
 
-    let header = format!("t={},v1={}", now, valid_sig);
+    let header = format!("t={now},v1={valid_sig}");
 
     // Verify valid webhook
     let verified = provider
@@ -39,7 +39,7 @@ fn test_stripe_webhook_verification_signature_tolerance_and_livemode() {
     let mut mac_old = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
     mac_old.update(old_signed.as_bytes());
     let old_sig = hex::encode(mac_old.finalize().into_bytes());
-    let old_header = format!("t={},v1={}", old_ts, old_sig);
+    let old_header = format!("t={old_ts},v1={old_sig}");
 
     let err_old = provider
         .verify_webhook(raw_payload, Some(&old_header))
@@ -52,10 +52,8 @@ fn test_stripe_webhook_verification_signature_tolerance_and_livemode() {
     }
 
     // 3. Forged signature (E14) -> rejected
-    let bad_header = format!(
-        "t={},v1=0000000000000000000000000000000000000000000000000000000000000000",
-        now
-    );
+    let bad_header =
+        format!("t={now},v1=0000000000000000000000000000000000000000000000000000000000000000");
     let err_bad = provider
         .verify_webhook(raw_payload, Some(&bad_header))
         .unwrap_err();
@@ -72,7 +70,7 @@ fn test_stripe_webhook_verification_signature_tolerance_and_livemode() {
     let mut mac_live = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
     mac_live.update(live_signed.as_bytes());
     let live_sig = hex::encode(mac_live.finalize().into_bytes());
-    let live_header = format!("t={},v1={}", now, live_sig);
+    let live_header = format!("t={now},v1={live_sig}");
 
     let err_live = provider
         .verify_webhook(live_payload, Some(&live_header))

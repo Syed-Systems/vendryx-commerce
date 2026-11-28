@@ -59,6 +59,21 @@ export const updateCustomer = async (body: HttpTypes.StoreUpdateCustomer) => {
   return updateRes
 }
 
+export const revokeCustomerWhatsAppConsent = async () => {
+  const headers = {
+    ...(await getAuthHeaders()),
+  }
+
+  return await sdk.client.fetch<{ revoked: boolean }>(
+    "/store/customers/me/whatsapp-consent",
+    {
+      method: "DELETE",
+      headers,
+      cache: "no-store",
+    }
+  )
+}
+
 export async function signup(_currentState: unknown, formData: FormData) {
   const password = formData.get("password") as string
   const customerForm = {

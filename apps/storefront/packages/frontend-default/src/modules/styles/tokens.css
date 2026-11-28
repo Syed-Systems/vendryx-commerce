@@ -190,6 +190,18 @@ body[data-theme="matrix"] {
   --glass-edge: rgb(0 255 65 / 0.34);
 }
 
+/* Merchant-approved composition settings; all selectors keep the canonical DOM intact. */
+body[data-product-card-style="editorial"] [data-product-card] { border-radius: 0; box-shadow: none; }
+body[data-product-card-style="editorial"] [data-product-card] [data-product-image] { border-radius: 0; }
+body[data-product-card-style="dense"] [data-product-card] { gap: 0; padding: 0.5rem; }
+body[data-product-card-style="dense"] [data-product-card] h3 { font-size: 0.75rem; }
+body[data-product-image-aspect="square"] [data-product-image] > div { aspect-ratio: 1 / 1 !important; }
+body[data-product-image-aspect="portrait"] [data-product-image] > div { aspect-ratio: 3 / 4 !important; }
+body[data-product-image-aspect="landscape"] [data-product-image] > div { aspect-ratio: 4 / 3 !important; }
+@media (prefers-reduced-motion: reduce) {
+  [data-product-card], [data-product-image] * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
 body[data-theme="default"] .theme-hero-default,
 body[data-theme="stheno-store"] .theme-hero-default {
   display: flex;

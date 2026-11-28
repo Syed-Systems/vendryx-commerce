@@ -14,21 +14,23 @@
 # binary and is overridable per deployment.
 
 [trial]
-duration_days = 14
+duration_days = 7
 starts_on     = "store_request_submitted"    # never on account signup
-features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic", "branding"]
+features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic",
+                 "payment_gateway", "courier_dispatch", "fraud_score", "custom_domain",
+                 "custom_theme", "branding", "ai_assistant"]
 quotas        = { max_products = 0, max_staff_seats = 10 }
 windows       = { analytics_window_days = 0 }
 
 [free]
-features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic", "branding"]
+features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic", "branding", "custom_domain"]
 quotas        = { max_products = 100, max_staff_seats = 3 }   # owner + 2
 windows       = { analytics_window_days = 30 }
 
 [pro]
 features      = ["spreadsheet_import", "csv_export", "web_push", "analytics_basic",
-                 "payment_gateway", "courier_dispatch", "fraud_score",
-                 "custom_theme", "branding"]
+                 "payment_gateway", "courier_dispatch", "fraud_score", "custom_domain",
+                 "custom_theme", "branding", "ai_assistant"]
 quotas        = { max_products = 0, max_staff_seats = 10 }
 windows       = { analytics_window_days = 0 }
 term_months   = [1]                           # minimum purchase is 1 month; checkout may sell any length

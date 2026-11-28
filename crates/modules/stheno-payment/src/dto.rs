@@ -684,6 +684,24 @@ pub trait PaymentProvider: Send + Sync + 'static {
     async fn authorize(&self, i: AuthorizeInput) -> Result<AuthorizeOutput>;
     async fn capture(&self, i: CaptureInput) -> Result<CaptureOutput>;
     async fn refund(&self, i: RefundInput) -> Result<RefundOutput>;
+    /// Refunds with the durable key issued by the payment service.
+    /// Providers with native idempotency should override this method.
+    async fn refund_with_idempotency_key(
+        &self,
+        i: RefundInput,
+        _idempotency_key: &str,
+    ) -> Result<RefundOutput> {
+        self.refund(i).await
+    }
+    /// Looks up a previously submitted refund by its durable idempotency key.
+    /// `None` means the provider cannot prove the outcome; callers must fail closed.
+    async fn reconcile_refund(
+        &self,
+        _i: &RefundInput,
+        _idempotency_key: &str,
+    ) -> Result<Option<RefundOutput>> {
+        Ok(None)
+    }
     async fn cancel(&self, i: CancelInput) -> Result<CancelOutput>;
 
     // ---- reads ----
@@ -1169,4 +1187,3 @@ pub struct DiscrepancyAlertDTO {
     pub alert_level: String,
     pub message: String,
 }
-

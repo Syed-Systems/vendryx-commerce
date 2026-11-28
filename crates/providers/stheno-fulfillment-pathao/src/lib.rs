@@ -28,14 +28,93 @@ impl Default for PathaoConfig {
     fn default() -> Self {
         Self {
             base_url: "https://courier-api-sandbox.pathao.com".to_string(),
-            client_id: "test_client_id".to_string(),
-            client_secret: "test_client_secret".to_string(),
-            username: "merchant@example.com".to_string(),
-            password: "test_password".to_string(),
-            store_id: Some(1),
+            client_id: String::new(),
+            client_secret: String::new(),
+            username: String::new(),
+            password: String::new(),
+            store_id: None,
             sandbox: true,
         }
     }
+}
+
+fn required_text<'a>(
+    data: Option<&'a serde_json::Value>,
+    field: &str,
+    label: &str,
+) -> Result<&'a str> {
+    data.and_then(|value| value.get(field))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| Error::Invalid {
+            code: "pathao_shipment_field_missing",
+            message: format!("{label} is required to create a Pathao shipment."),
+            field: Some(field.to_string()),
+        })
+}
+
+fn required_positive_u64(
+    data: Option<&serde_json::Value>,
+    field: &str,
+    label: &str,
+) -> Result<u64> {
+    data.and_then(|value| value.get(field))
+        .and_then(serde_json::Value::as_u64)
+        .filter(|value| *value > 0)
+        .ok_or_else(|| Error::Invalid {
+            code: "pathao_destination_mapping_missing",
+            message: format!("{label} is required to create a Pathao shipment."),
+            field: Some(field.to_string()),
+        })
+}
+
+fn optional_nonnegative_u64(data: Option<&serde_json::Value>, field: &str) -> Result<u64> {
+    match data.and_then(|value| value.get(field)) {
+        None | Some(serde_json::Value::Null) => Ok(0),
+        Some(value) => value.as_u64().ok_or_else(|| Error::Invalid {
+            code: "pathao_collection_amount_invalid",
+            message:
+                "Pathao amount to collect must be a non-negative integer in minor currency units."
+                    .to_string(),
+            field: Some(field.to_string()),
+        }),
+    }
+}
+
+fn location_rows(body: &serde_json::Value) -> Result<&Vec<serde_json::Value>> {
+    body.get("data")
+        .and_then(|data| data.get("data").or(Some(data)))
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| Error::Invalid {
+            code: "pathao_location_response_invalid",
+            message: "Pathao returned an invalid destination list.".to_string(),
+            field: None,
+        })
+}
+
+fn positive_u32(value: Option<&serde_json::Value>, field: &str) -> Result<u32> {
+    value
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok())
+        .filter(|value| *value > 0)
+        .ok_or_else(|| Error::Invalid {
+            code: "pathao_location_id_invalid",
+            message: format!("Pathao returned an invalid {field}."),
+            field: Some(field.to_string()),
+        })
+}
+
+fn nonempty_text<'a>(value: Option<&'a serde_json::Value>, field: &str) -> Result<&'a str> {
+    value
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| Error::Invalid {
+            code: "pathao_location_name_invalid",
+            message: format!("Pathao returned an invalid {field}."),
+            field: Some(field.to_string()),
+        })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,6 +159,17 @@ impl PathaoFulfillmentProvider {
 
     /// Obtain or return cached bearer token.
     pub async fn get_token(&self) -> Result<String> {
+        if self.config.client_id.trim().is_empty()
+            || self.config.client_secret.trim().is_empty()
+            || self.config.username.trim().is_empty()
+            || self.config.password.trim().is_empty()
+        {
+            return Err(Error::Invalid {
+                code: "pathao_credentials_missing",
+                message: "Pathao merchant credentials are not configured.".to_string(),
+                field: None,
+            });
+        }
         {
             let guard = self.access_token.read().await;
             if let Some(token) = &*guard {
@@ -101,209 +191,212 @@ impl PathaoFulfillmentProvider {
             .send()
             .await;
 
-        match resp {
-            Ok(r) if r.status().is_success() => {
-                // A 2xx with a body that is not the JSON we asked for is a failure, not a
-                // token. Parsing errors used to collapse to an empty object, which then
-                // yielded a hardcoded sandbox token and reported success.
-                let body: serde_json::Value = r.json().await.map_err(|e| Error::ProviderFailed {
-                    provider: "pathao".to_string(),
-                    source: format!("Pathao returned a non-JSON token response: {e}").into(),
-                })?;
-                let token = body
-                    .get("access_token")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| Error::ProviderFailed {
-                        provider: "pathao".to_string(),
-                        source: "Pathao response carried no access_token".into(),
-                    })?
-                    .to_string();
-                let mut guard = self.access_token.write().await;
-                *guard = Some(token.clone());
-                Ok(token)
-            }
-            Ok(r) => Err(Error::ProviderFailed {
-                provider: "pathao".to_string(),
-                source: format!("Pathao auth failed with HTTP {}", r.status()).into(),
-            }),
-            Err(e) => Err(Error::ProviderFailed {
-                provider: "pathao".to_string(),
-                source: format!("Pathao auth request failed: {e}").into(),
-            }),
+        let response = resp.map_err(|_| Error::Invalid {
+            code: "pathao_auth_request_failed",
+            message: "Pathao authentication request failed.".to_string(),
+            field: None,
+        })?;
+        if !response.status().is_success() {
+            return Err(Error::Invalid {
+                code: "pathao_auth_rejected",
+                message: "Pathao rejected the configured merchant credentials.".to_string(),
+                field: None,
+            });
         }
+        let body: serde_json::Value = response.json().await.map_err(|_| Error::Invalid {
+            code: "pathao_auth_response_invalid",
+            message: "Pathao returned an invalid authentication response.".to_string(),
+            field: None,
+        })?;
+        let token = body
+            .get("access_token")
+            .and_then(|v| v.as_str())
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| Error::Invalid {
+                code: "pathao_auth_token_missing",
+                message: "Pathao authentication response did not contain an access token."
+                    .to_string(),
+                field: None,
+            })?
+            .to_string();
+        let mut guard = self.access_token.write().await;
+        *guard = Some(token.clone());
+        Ok(token)
     }
 
     /// List serviceable cities from Pathao (P23-02).
     pub async fn list_cities(&self) -> Result<Vec<PathaoCity>> {
         let token = self.get_token().await?;
-        let url = format!("{}/aladdin/api/v1/countries/1/city-list", self.config.base_url);
+        let url = format!(
+            "{}/aladdin/api/v1/countries/1/city-list",
+            self.config.base_url
+        );
         let resp = self
             .client
             .get(&url)
             .bearer_auth(token)
             .send()
-            .await;
-
-        if let Ok(r) = resp {
-            if r.status().is_success() {
-                if let Ok(json) = r.json::<serde_json::Value>().await {
-                    if let Some(cities_raw) = json
-                        .get("data")
-                        .and_then(|d| d.get("data").or(Some(d)))
-                        .and_then(|d| d.as_array())
-                    {
-                        let cities = cities_raw
-                            .iter()
-                            .filter_map(|c| {
-                                Some(PathaoCity {
-                                    city_id: c.get("city_id")?.as_u64()? as u32,
-                                    city_name: c.get("city_name")?.as_str()?.to_string(),
-                                })
-                            })
-                            .collect();
-                        return Ok(cities);
-                    }
-                }
-            }
+            .await
+            .map_err(|_| Error::Invalid {
+                code: "pathao_city_list_unavailable",
+                message: "Pathao destination cities could not be loaded.".to_string(),
+                field: None,
+            })?;
+        if !resp.status().is_success() {
+            return Err(Error::Invalid {
+                code: "pathao_city_list_rejected",
+                message: format!(
+                    "Pathao destination city lookup failed with HTTP {}.",
+                    resp.status()
+                ),
+                field: None,
+            });
         }
-
-        // Default standard cities list if endpoint unreachable
-        Ok(vec![
-            PathaoCity {
-                city_id: 1,
-                city_name: "Dhaka".to_string(),
-            },
-            PathaoCity {
-                city_id: 2,
-                city_name: "Chittagong".to_string(),
-            },
-            PathaoCity {
-                city_id: 3,
-                city_name: "Sylhet".to_string(),
-            },
-        ])
+        let body: serde_json::Value = resp.json().await.map_err(|_| Error::Invalid {
+            code: "pathao_city_list_invalid",
+            message: "Pathao returned an invalid destination city response.".to_string(),
+            field: None,
+        })?;
+        location_rows(&body)?
+            .iter()
+            .map(|city| {
+                Ok(PathaoCity {
+                    city_id: positive_u32(city.get("city_id"), "city_id")?,
+                    city_name: nonempty_text(city.get("city_name"), "city_name")?.to_string(),
+                })
+            })
+            .collect()
     }
 
     /// List zones for a city from Pathao (P23-02).
     pub async fn list_zones(&self, city_id: u32) -> Result<Vec<PathaoZone>> {
         let token = self.get_token().await?;
-        let url = format!("{}/aladdin/api/v1/cities/{city_id}/zone-list", self.config.base_url);
+        let url = format!(
+            "{}/aladdin/api/v1/cities/{city_id}/zone-list",
+            self.config.base_url
+        );
         let resp = self
             .client
             .get(&url)
             .bearer_auth(token)
             .send()
-            .await;
-
-        if let Ok(r) = resp {
-            if r.status().is_success() {
-                if let Ok(json) = r.json::<serde_json::Value>().await {
-                    if let Some(zones_raw) = json
-                        .get("data")
-                        .and_then(|d| d.get("data").or(Some(d)))
-                        .and_then(|d| d.as_array())
-                    {
-                        let zones = zones_raw
-                            .iter()
-                            .filter_map(|z| {
-                                Some(PathaoZone {
-                                    zone_id: z.get("zone_id")?.as_u64()? as u32,
-                                    zone_name: z.get("zone_name")?.as_str()?.to_string(),
-                                    city_id,
-                                })
-                            })
-                            .collect();
-                        return Ok(zones);
-                    }
+            .await
+            .map_err(|_| Error::Invalid {
+                code: "pathao_zone_list_unavailable",
+                message: "Pathao destination zones could not be loaded.".to_string(),
+                field: None,
+            })?;
+        if !resp.status().is_success() {
+            return Err(Error::Invalid {
+                code: "pathao_zone_list_rejected",
+                message: format!(
+                    "Pathao destination zone lookup failed with HTTP {}.",
+                    resp.status()
+                ),
+                field: None,
+            });
+        }
+        let body: serde_json::Value = resp.json().await.map_err(|_| Error::Invalid {
+            code: "pathao_zone_list_invalid",
+            message: "Pathao returned an invalid destination zone response.".to_string(),
+            field: None,
+        })?;
+        location_rows(&body)?
+            .iter()
+            .map(|zone| {
+                let response_city_id = positive_u32(zone.get("city_id"), "city_id")?;
+                if response_city_id != city_id {
+                    return Err(Error::Invalid {
+                        code: "pathao_zone_city_mismatch",
+                        message: "Pathao returned a zone for a different city.".to_string(),
+                        field: Some("city_id".to_string()),
+                    });
                 }
-            }
-        }
-
-        // Default zones for Dhaka
-        if city_id == 1 {
-            Ok(vec![
-                PathaoZone {
-                    zone_id: 101,
-                    zone_name: "Gulshan".to_string(),
-                    city_id: 1,
-                },
-                PathaoZone {
-                    zone_id: 102,
-                    zone_name: "Dhanmondi".to_string(),
-                    city_id: 1,
-                },
-                PathaoZone {
-                    zone_id: 103,
-                    zone_name: "Uttara".to_string(),
-                    city_id: 1,
-                },
-            ])
-        } else {
-            Ok(vec![])
-        }
+                Ok(PathaoZone {
+                    zone_id: positive_u32(zone.get("zone_id"), "zone_id")?,
+                    zone_name: nonempty_text(zone.get("zone_name"), "zone_name")?.to_string(),
+                    city_id,
+                })
+            })
+            .collect()
     }
 
     /// List areas for a zone from Pathao (P23-02).
     pub async fn list_areas(&self, zone_id: u32) -> Result<Vec<PathaoArea>> {
         let token = self.get_token().await?;
-        let url = format!("{}/aladdin/api/v1/zones/{zone_id}/area-list", self.config.base_url);
+        let url = format!(
+            "{}/aladdin/api/v1/zones/{zone_id}/area-list",
+            self.config.base_url
+        );
         let resp = self
             .client
             .get(&url)
             .bearer_auth(token)
             .send()
-            .await;
-
-        if let Ok(r) = resp {
-            if r.status().is_success() {
-                if let Ok(json) = r.json::<serde_json::Value>().await {
-                    if let Some(areas_raw) = json
-                        .get("data")
-                        .and_then(|d| d.get("data").or(Some(d)))
-                        .and_then(|d| d.as_array())
-                    {
-                        let areas = areas_raw
-                            .iter()
-                            .filter_map(|a| {
-                                Some(PathaoArea {
-                                    area_id: a.get("area_id")?.as_u64()? as u32,
-                                    area_name: a.get("area_name")?.as_str()?.to_string(),
-                                    zone_id,
-                                })
-                            })
-                            .collect();
-                        return Ok(areas);
-                    }
+            .await
+            .map_err(|_| Error::Invalid {
+                code: "pathao_area_list_unavailable",
+                message: "Pathao destination areas could not be loaded.".to_string(),
+                field: None,
+            })?;
+        if !resp.status().is_success() {
+            return Err(Error::Invalid {
+                code: "pathao_area_list_rejected",
+                message: format!(
+                    "Pathao destination area lookup failed with HTTP {}.",
+                    resp.status()
+                ),
+                field: None,
+            });
+        }
+        let body: serde_json::Value = resp.json().await.map_err(|_| Error::Invalid {
+            code: "pathao_area_list_invalid",
+            message: "Pathao returned an invalid destination area response.".to_string(),
+            field: None,
+        })?;
+        location_rows(&body)?
+            .iter()
+            .map(|area| {
+                let response_zone_id = positive_u32(area.get("zone_id"), "zone_id")?;
+                if response_zone_id != zone_id {
+                    return Err(Error::Invalid {
+                        code: "pathao_area_zone_mismatch",
+                        message: "Pathao returned an area for a different zone.".to_string(),
+                        field: Some("zone_id".to_string()),
+                    });
                 }
-            }
-        }
-
-        if zone_id == 101 {
-            Ok(vec![
-                PathaoArea {
-                    area_id: 1001,
-                    area_name: "Gulshan-1".to_string(),
-                    zone_id: 101,
-                },
-                PathaoArea {
-                    area_id: 1002,
-                    area_name: "Gulshan-2".to_string(),
-                    zone_id: 101,
-                },
-            ])
-        } else {
-            Ok(vec![])
-        }
+                Ok(PathaoArea {
+                    area_id: positive_u32(area.get("area_id"), "area_id")?,
+                    area_name: nonempty_text(area.get("area_name"), "area_name")?.to_string(),
+                    zone_id,
+                })
+            })
+            .collect()
     }
 
     /// Validate if an area is serviceable (P23-02).
-    pub async fn is_serviceable_area(&self, city_id: u32, zone_id: u32, _area_id: Option<u32>) -> Result<bool> {
+    pub async fn is_serviceable_area(
+        &self,
+        city_id: u32,
+        zone_id: u32,
+        area_id: Option<u32>,
+    ) -> Result<bool> {
         let cities = self.list_cities().await?;
         if !cities.iter().any(|c| c.city_id == city_id) {
             return Ok(false);
         }
         let zones = self.list_zones(city_id).await?;
-        Ok(zones.iter().any(|z| z.zone_id == zone_id))
+        if !zones.iter().any(|zone| zone.zone_id == zone_id) {
+            return Ok(false);
+        }
+        match area_id {
+            Some(area_id) => Ok(self
+                .list_areas(zone_id)
+                .await?
+                .iter()
+                .any(|area| area.area_id == area_id)),
+            None => Ok(true),
+        }
     }
 
     /// Map raw status from Pathao into canonical CourierStatus (P23-05).
@@ -438,25 +531,113 @@ impl FulfillmentProvider for PathaoFulfillmentProvider {
         _items: &[CreateFulfillmentItemInput],
         _order_data: Option<&serde_json::Value>,
     ) -> Result<CreateFulfillmentResponse> {
-        let token = self.get_token().await?;
-        let url = format!("{}/aladdin/api/v1/orders", self.config.base_url);
-
         let merchant_ref = data
             .and_then(|d| d.get("merchant_order_id").or_else(|| d.get("reference")))
             .and_then(|v| v.as_str())
-            .unwrap_or("ORD-REF-001");
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| Error::Invalid {
+                code: "pathao_order_reference_missing",
+                message: "Pathao shipment requires a stable merchant order reference.".to_string(),
+                field: Some("merchant_order_id".to_string()),
+            })?;
+        let store_id = data
+            .and_then(|value| value.get("store_id"))
+            .and_then(|value| {
+                value
+                    .as_str()
+                    .and_then(|raw| raw.parse::<u32>().ok())
+                    .or_else(|| value.as_u64().and_then(|raw| u32::try_from(raw).ok()))
+            })
+            .filter(|value| *value > 0)
+            .or(self.config.store_id)
+            .ok_or_else(|| Error::Invalid {
+                code: "pathao_store_mapping_missing",
+                message: "Pathao shipment requires the configured merchant store ID.".to_string(),
+                field: Some("store_id".to_string()),
+            })?;
+        let recipient_name = required_text(data, "recipient_name", "Pathao recipient name")?;
+        let recipient_phone = required_text(data, "recipient_phone", "Pathao recipient phone")?;
+        let recipient_address =
+            required_text(data, "recipient_address", "Pathao recipient address")?;
+        let recipient_city = required_positive_u64(data, "recipient_city", "Pathao city mapping")?;
+        let recipient_zone = required_positive_u64(data, "recipient_zone", "Pathao zone mapping")?;
+        let amount_to_collect = optional_nonnegative_u64(data, "amount_to_collect")?;
+        let base_url = match data
+            .and_then(|value| value.get("sandbox_mode"))
+            .and_then(serde_json::Value::as_bool)
+        {
+            Some(true) => "https://courier-api-sandbox.pathao.com",
+            Some(false) => "https://api.pathao.com",
+            None => self.config.base_url.as_str(),
+        };
+        let request_credentials = ["client_id", "client_secret", "username", "password"]
+            .iter()
+            .all(|key| {
+                data.and_then(|value| value.get(key))
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|value| !value.trim().is_empty())
+            });
+        let token = if request_credentials {
+            let credentials = data.ok_or_else(|| Error::Invalid {
+                code: "pathao_credentials_missing",
+                message: "Pathao merchant credentials are not configured.".to_string(),
+                field: None,
+            })?;
+            let url = format!("{base_url}/aladdin/api/v1/issue-token");
+            let response = self
+                .client
+                .post(url)
+                .json(&serde_json::json!({
+                    "client_id": credentials["client_id"],
+                    "client_secret": credentials["client_secret"],
+                    "grant_type": "password",
+                    "username": credentials["username"],
+                    "password": credentials["password"],
+                }))
+                .send()
+                .await
+                .map_err(|_| Error::Invalid {
+                    code: "pathao_auth_request_failed",
+                    message: "Pathao authentication request failed.".to_string(),
+                    field: None,
+                })?;
+            if !response.status().is_success() {
+                return Err(Error::Invalid {
+                    code: "pathao_auth_rejected",
+                    message: "Pathao rejected the configured merchant credentials.".to_string(),
+                    field: None,
+                });
+            }
+            let body: serde_json::Value = response.json().await.map_err(|_| Error::Invalid {
+                code: "pathao_auth_response_invalid",
+                message: "Pathao returned an invalid authentication response.".to_string(),
+                field: None,
+            })?;
+            body.get("access_token")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| Error::Invalid {
+                    code: "pathao_auth_response_invalid",
+                    message: "Pathao returned an invalid authentication response.".to_string(),
+                    field: None,
+                })?
+                .to_string()
+        } else {
+            self.get_token().await?
+        };
+        let url = format!("{base_url}/aladdin/api/v1/orders");
 
         let order_payload = serde_json::json!({
-            "store_id": self.config.store_id.unwrap_or(1),
+            "store_id": store_id,
             "merchant_order_id": merchant_ref,
-            "recipient_name": data.and_then(|d| d.get("recipient_name")).and_then(|v| v.as_str()).unwrap_or("Customer"),
-            "recipient_phone": data.and_then(|d| d.get("recipient_phone")).and_then(|v| v.as_str()).unwrap_or("01700000000"),
-            "recipient_address": data.and_then(|d| d.get("recipient_address")).and_then(|v| v.as_str()).unwrap_or("Dhaka"),
-            "recipient_city": data.and_then(|d| d.get("recipient_city")).and_then(|v| v.as_u64()).unwrap_or(1),
-            "recipient_zone": data.and_then(|d| d.get("recipient_zone")).and_then(|v| v.as_u64()).unwrap_or(101),
+            "recipient_name": recipient_name,
+            "recipient_phone": recipient_phone,
+            "recipient_address": recipient_address,
+            "recipient_city": recipient_city,
+            "recipient_zone": recipient_zone,
             "delivery_type": 48,
             "item_type": 1,
-            "amount_to_collect": data.and_then(|d| d.get("amount_to_collect")).and_then(|v| v.as_u64()).unwrap_or(0),
+            "amount_to_collect": amount_to_collect,
         });
 
         let resp = self
@@ -467,40 +648,40 @@ impl FulfillmentProvider for PathaoFulfillmentProvider {
             .send()
             .await;
 
-        let (consignment_id, tracking_url) = match resp {
-            Ok(r) if r.status().is_success() => {
-                let json: serde_json::Value = r.json().await.map_err(|e| Error::ProviderFailed {
-                    provider: "pathao".to_string(),
-                    source: format!("Pathao returned a non-JSON response: {e}").into(),
-                })?;
-                // No inventing an id. A consignment number Pathao never issued is worse
-                // than a failed dispatch: the order is marked sent, the customer gets a
-                // dead tracking link, and the parcel does not exist.
-                let cid = json
-                    .get("data")
-                    .and_then(|d| d.get("consignment_id"))
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| Error::ProviderFailed {
-                        provider: "pathao".to_string(),
-                        source: "Pathao response carried no consignment_id".into(),
-                    })?
-                    .to_string();
-                let track = format!("https://courier.pathao.com/tracking?consignment_id={cid}");
-                (cid, track)
-            }
-            Ok(r) => {
-                return Err(Error::ProviderFailed {
-                    provider: "pathao".to_string(),
-                    source: format!("Pathao dispatch failed with HTTP {}", r.status()).into(),
-                })
-            }
-            Err(e) => {
-                return Err(Error::ProviderFailed {
-                    provider: "pathao".to_string(),
-                    source: format!("Pathao dispatch request failed: {e}").into(),
-                })
-            }
-        };
+        let response = resp.map_err(|_| Error::Invalid {
+            code: "pathao_create_request_failed",
+            message: "Pathao shipment request failed; shipment status is unknown.".to_string(),
+            field: None,
+        })?;
+        if !response.status().is_success() {
+            return Err(Error::Invalid {
+                code: "pathao_create_rejected",
+                message: format!(
+                    "Pathao rejected shipment creation with HTTP {}.",
+                    response.status()
+                ),
+                field: None,
+            });
+        }
+        let body: serde_json::Value = response.json().await.map_err(|_| Error::Invalid {
+            code: "pathao_create_response_invalid",
+            message: "Pathao shipment response was invalid; shipment status is unknown."
+                .to_string(),
+            field: None,
+        })?;
+        let consignment_id = body
+            .get("data")
+            .and_then(|d| d.get("consignment_id"))
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| Error::Invalid {
+                code: "pathao_consignment_id_missing",
+                message: "Pathao accepted the request but returned no consignment ID; shipment status is unknown.".to_string(),
+                field: None,
+            })?
+            .to_string();
+        let tracking_url =
+            format!("https://courier.pathao.com/tracking?consignment_id={consignment_id}");
 
         let mut res_data = data.cloned().unwrap_or_else(|| serde_json::json!({}));
         if !res_data.is_object() {
@@ -513,7 +694,9 @@ impl FulfillmentProvider for PathaoFulfillmentProvider {
         let labels = vec![CreateFulfillmentLabelInput {
             tracking_number: consignment_id.clone(),
             tracking_url: Some(tracking_url),
-            label_url: Some(format!("https://courier.pathao.com/labels/{consignment_id}.pdf")),
+            label_url: Some(format!(
+                "https://courier.pathao.com/labels/{consignment_id}.pdf"
+            )),
             metadata: Some(serde_json::json!({ "provider": "pathao" })),
         }];
 
@@ -535,13 +718,11 @@ impl FulfillmentProvider for PathaoFulfillmentProvider {
             })?;
 
         let token = self.get_token().await?;
-        let url = format!("{}/aladdin/api/v1/orders/{consignment_id}/cancel", self.config.base_url);
-        let _ = self
-            .client
-            .post(&url)
-            .bearer_auth(token)
-            .send()
-            .await;
+        let url = format!(
+            "{}/aladdin/api/v1/orders/{consignment_id}/cancel",
+            self.config.base_url
+        );
+        let _ = self.client.post(&url).bearer_auth(token).send().await;
 
         Ok(())
     }
@@ -566,7 +747,9 @@ impl FulfillmentProvider for PathaoFulfillmentProvider {
 
         let labels = vec![CreateFulfillmentLabelInput {
             tracking_number: ret_cns.clone(),
-            tracking_url: Some(format!("https://courier.pathao.com/tracking?consignment_id={ret_cns}")),
+            tracking_url: Some(format!(
+                "https://courier.pathao.com/tracking?consignment_id={ret_cns}"
+            )),
             label_url: Some(format!("https://courier.pathao.com/labels/{ret_cns}.pdf")),
             metadata: Some(serde_json::json!({ "is_return": true })),
         }];
@@ -608,12 +791,7 @@ impl FulfillmentProvider for PathaoFulfillmentProvider {
     async fn get_tracking_status(&self, reference: &str) -> Result<CourierStatus> {
         let token = self.get_token().await?;
         let url = format!("{}/aladdin/api/v1/orders/{reference}", self.config.base_url);
-        let resp = self
-            .client
-            .get(&url)
-            .bearer_auth(token)
-            .send()
-            .await;
+        let resp = self.client.get(&url).bearer_auth(token).send().await;
 
         if let Ok(r) = resp {
             if r.status().is_success() {

@@ -16,6 +16,7 @@ use diesel_async::{AsyncConnection, AsyncPgConnection, RunQueryDsl, SimpleAsyncC
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
+static TEST_DB_CREATE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[derive(QueryableByName)]
 struct BoolRow {
@@ -48,6 +49,7 @@ impl TestDb {
     /// test that silently passes without a database is precisely the failure
     /// Phase 2 exists to eliminate (PHASE2_PLAN.md 1.3).
     pub async fn create() -> Self {
+        let _create_guard = TEST_DB_CREATE_LOCK.lock().await;
         let admin_url = std::env::var("DATABASE_URL").expect(
             "DATABASE_URL must be set to run persistence tests; see README.md 'Running the tests'",
         );

@@ -125,7 +125,7 @@ async fn test_store_cart_promotion_application_parity() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/store/carts/{}/line-items", cart_id))
+                .uri(format!("/store/carts/{cart_id}/line-items"))
                 .header("Content-Type", "application/json")
                 .body(Body::from(add_item_payload.to_string()))
                 .unwrap(),
@@ -145,7 +145,7 @@ async fn test_store_cart_promotion_application_parity() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/store/carts/{}/promotions", cart_id))
+                .uri(format!("/store/carts/{cart_id}/promotions"))
                 .header("Content-Type", "application/json")
                 .body(Body::from(promo_payload.to_string()))
                 .unwrap(),
@@ -182,6 +182,7 @@ fn cart_context(
     promotion_service: Option<std::sync::Arc<stheno_promotion::PromotionService>>,
 ) -> stheno_api_store::StoreCartContext {
     stheno_api_store::StoreCartContext {
+        store_name: "test store".to_string(),
         cart_service: cart_service.clone(),
         promotion_service,
         pricing_service: std::sync::Arc::new(stheno_pricing::PricingService::new(pool.clone())),
@@ -200,5 +201,8 @@ fn cart_context(
             std::sync::Arc::new(stheno_workflow::WorkflowStore::from_pool(pool.clone())),
         )),
         payment_service: std::sync::Arc::new(stheno_payment::PaymentService::new(pool.clone())),
+        notification_service: std::sync::Arc::new(stheno_notification::NotificationService::new(
+            pool.clone(),
+        )),
     }
 }

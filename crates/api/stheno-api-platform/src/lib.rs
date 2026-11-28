@@ -48,6 +48,8 @@ pub mod support;
 pub mod themes_and_config;
 mod tiers;
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
@@ -58,10 +60,12 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use stheno_api_core::{overlay_tier_rows, Tier, TierConfig, TierRow};
+use stheno_flows::EraseTenantStoreIntelligenceWorkflow;
 use stheno_platform::{
     ApplyInvoiceCreditsInput, NewOperatorAudit, NewTenant, PlatformService,
     StartBillingAttemptInput, SubscriptionDTO, SubscriptionPatch,
 };
+use stheno_query::query_tenant_store_intelligence_export;
 use stheno_types::currency::CurrencyCode;
 use stheno_types::{Error, Money};
 
@@ -674,13 +678,40 @@ pub async fn export_tenant_data(
         return deny();
     };
 
-    match ctx.platform.export_tenant_data(&id).await {
-        Ok(bundle) => {
-            record(&ctx, &actor, "tenant.export", "tenant", &id, None).await;
-            Json(json!({ "export": bundle })).into_response()
+    let bundle = match ctx.platform.export_tenant_data(&id).await {
+        Ok(bundle) => bundle,
+        Err(error) => return platform_error(error),
+    };
+    let pool = ctx.platform.db_pool();
+    let source_data = query_tenant_store_intelligence_export(&pool, &id).await;
+    let source_data = match source_data {
+        Ok(data) => data,
+        Err(error) => return platform_error(error),
+    };
+    let mut export = match serde_json::to_value(bundle) {
+        Ok(value) => value,
+        Err(error) => {
+            return platform_error(Error::Database(format!(
+                "could not serialize tenant export: {error}"
+            )));
         }
-        Err(e) => platform_error(e),
-    }
+    };
+    let Some(fields) = export.as_object_mut() else {
+        return platform_error(Error::Database(
+            "tenant export did not serialize as an object".to_string(),
+        ));
+    };
+    let source_data = match serde_json::to_value(source_data) {
+        Ok(value) => value,
+        Err(error) => {
+            return platform_error(Error::Database(format!(
+                "could not serialize Store Intelligence export: {error}"
+            )));
+        }
+    };
+    fields.insert("store_intelligence".to_string(), source_data);
+    record(&ctx, &actor, "tenant.export", "tenant", &id, None).await;
+    Json(json!({ "export": export })).into_response()
 }
 
 #[derive(Debug, Deserialize)]
@@ -697,7 +728,17 @@ pub async fn purge_closed_tenants(
         return deny();
     };
 
-    match ctx.platform.purge_closed_tenants(body.retention_days).await {
+    let pool = ctx.platform.db_pool();
+    let erasure = EraseTenantStoreIntelligenceWorkflow::new(pool);
+    let result = ctx
+        .platform
+        .purge_closed_tenants_with(body.retention_days, move |tenant_id| {
+            let erasure = erasure.clone();
+            Box::pin(async move { erasure.execute(&tenant_id).await })
+                as Pin<Box<dyn Future<Output = stheno_types::Result<()>> + Send>>
+        })
+        .await;
+    match result {
         Ok(result) => {
             record(
                 &ctx,

@@ -1,5 +1,7 @@
 //! `stheno-flows`: SAGA cross-module workflows (WORKFLOWS.md).
 
+pub mod ai_conversation;
+pub mod ai_tools;
 pub mod api_key;
 pub mod auth;
 pub mod cart;
@@ -27,6 +29,8 @@ pub mod tax;
 pub mod translation;
 pub mod user;
 
+pub use ai_conversation::*;
+pub use ai_tools::*;
 pub use api_key::*;
 pub use auth::*;
 pub use cart::*;
@@ -224,7 +228,10 @@ impl Step for CreateUserStep {
                 last_name: input["last_name"].as_str().map(|s| s.to_string()),
                 avatar_url: input["avatar_url"].as_str().map(|s| s.to_string()),
                 role: input["role"].as_str().map(|s| s.to_string()),
-                metadata: None,
+                metadata: input
+                    .get("metadata")
+                    .cloned()
+                    .filter(|value| !value.is_null()),
             })
             .await?;
 

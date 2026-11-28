@@ -14,7 +14,7 @@ use axum::http::{Request, StatusCode};
 use rust_decimal_macros::dec;
 use std::sync::Arc;
 use stheno_api_store::{store_order_routes, StoreOrderContext};
-use stheno_auth::{AuthenticateInput, AuthService, CreateIdentityInput};
+use stheno_auth::{AuthService, AuthenticateInput, CreateIdentityInput};
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
 use stheno_flows::OrderWorkflowEngine;
@@ -108,6 +108,7 @@ async fn get_order_rejects_anonymous_callers() {
         links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
         payment_service: Arc::new(stheno_payment::PaymentService::new(pool.clone())),
         auth_service: auth_service.clone(),
+        notification_service: Arc::new(stheno_notification::NotificationService::new(pool.clone())),
     });
 
     let order_id = make_order(&order_service, ALICE).await;
@@ -143,6 +144,7 @@ async fn get_order_returns_404_for_another_customers_order() {
         links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
         payment_service: Arc::new(stheno_payment::PaymentService::new(pool.clone())),
         auth_service: auth_service.clone(),
+        notification_service: Arc::new(stheno_notification::NotificationService::new(pool.clone())),
     });
 
     let alice_order = make_order(&order_service, ALICE).await;
@@ -181,6 +183,7 @@ async fn owner_can_read_their_own_order() {
         links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
         payment_service: Arc::new(stheno_payment::PaymentService::new(pool.clone())),
         auth_service: auth_service.clone(),
+        notification_service: Arc::new(stheno_notification::NotificationService::new(pool.clone())),
     });
 
     let alice_order = make_order(&order_service, ALICE).await;
@@ -218,6 +221,7 @@ async fn transfer_rejects_a_caller_who_does_not_own_the_order() {
         links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
         payment_service: Arc::new(stheno_payment::PaymentService::new(pool.clone())),
         auth_service: auth_service.clone(),
+        notification_service: Arc::new(stheno_notification::NotificationService::new(pool.clone())),
     });
 
     let alice_order = make_order(&order_service, ALICE).await;
@@ -261,6 +265,7 @@ async fn transfer_rejects_anonymous_callers() {
         links: Arc::new(stheno_links::PgLinkStore::new(pool.clone())),
         payment_service: Arc::new(stheno_payment::PaymentService::new(pool.clone())),
         auth_service: auth_service.clone(),
+        notification_service: Arc::new(stheno_notification::NotificationService::new(pool.clone())),
     });
 
     let alice_order = make_order(&order_service, ALICE).await;

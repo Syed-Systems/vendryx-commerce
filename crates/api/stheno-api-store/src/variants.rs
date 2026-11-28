@@ -25,7 +25,7 @@ pub async fn get_variant(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 r#type: "not_found".to_string(),
-                message: format!("Product variant with id {} was not found", id),
+                message: format!("Product variant with id {id} was not found"),
             }),
         )
             .into_response()),

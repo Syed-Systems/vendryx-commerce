@@ -77,11 +77,7 @@ impl PaymentProviderFactory for BkashPaymentProviderFactory {
         let password = credential_str(creds, "password")?;
 
         Ok(Arc::new(BkashPaymentProvider::new(
-            base_url,
-            app_key,
-            app_secret,
-            username,
-            password,
+            base_url, app_key, app_secret, username, password,
         )))
     }
 }
@@ -172,10 +168,10 @@ impl BkashPaymentProvider {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("bKash token grant network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("bKash token grant network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse bKash token grant response: {}", e).into())
+            Error::Internal(format!("Failed to parse bKash token grant response: {e}").into())
         })?;
 
         let id_token = body["id_token"]
@@ -254,10 +250,12 @@ impl PaymentProvider for BkashPaymentProvider {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("bKash payment create network error: {}", e).into()))?;
+            .map_err(|e| {
+                Error::Internal(format!("bKash payment create network error: {e}").into())
+            })?;
 
         let mut body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse bKash payment create response: {}", e).into())
+            Error::Internal(format!("Failed to parse bKash payment create response: {e}").into())
         })?;
 
         let status_code = body["statusCode"].as_str().unwrap_or_default();
@@ -284,7 +282,10 @@ impl PaymentProvider for BkashPaymentProvider {
             .map(ToString::to_string);
         if let Some(url_str) = redirect_url {
             if let Some(obj) = body.as_object_mut() {
-                obj.insert("redirect_url".to_string(), serde_json::Value::String(url_str));
+                obj.insert(
+                    "redirect_url".to_string(),
+                    serde_json::Value::String(url_str),
+                );
             }
         }
 
@@ -353,12 +354,15 @@ impl PaymentProvider for BkashPaymentProvider {
                 }),
                 PaymentSessionStatus::Error => Err(Error::Invalid {
                     code: "bkash_capture_failed",
-                    message: "bKash execute failed and query confirms payment failed or was cancelled".to_string(),
+                    message:
+                        "bKash execute failed and query confirms payment failed or was cancelled"
+                            .to_string(),
                     field: None,
                 }),
                 _ => Err(Error::Invalid {
                     code: "bkash_capture_inconclusive",
-                    message: "bKash execute was inconclusive and query status remains pending".to_string(),
+                    message: "bKash execute was inconclusive and query status remains pending"
+                        .to_string(),
                     field: None,
                 }),
             },
@@ -408,10 +412,10 @@ impl PaymentProvider for BkashPaymentProvider {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("bKash refund network error: {}", e).into()))?;
+            .map_err(|e| Error::Internal(format!("bKash refund network error: {e}").into()))?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse bKash refund response: {}", e).into())
+            Error::Internal(format!("Failed to parse bKash refund response: {e}").into())
         })?;
 
         let status_code = body["statusCode"].as_str().unwrap_or_default();
@@ -450,10 +454,12 @@ impl PaymentProvider for BkashPaymentProvider {
             .header("X-App-Key", &self.app_key)
             .send()
             .await
-            .map_err(|e| Error::Internal(format!("bKash query payment network error: {}", e).into()))?;
+            .map_err(|e| {
+                Error::Internal(format!("bKash query payment network error: {e}").into())
+            })?;
 
         let body: serde_json::Value = resp.json().await.map_err(|e| {
-            Error::Internal(format!("Failed to parse bKash query response: {}", e).into())
+            Error::Internal(format!("Failed to parse bKash query response: {e}").into())
         })?;
 
         let transaction_status = body["transactionStatus"].as_str().unwrap_or_default();
@@ -524,13 +530,12 @@ impl PaymentProvider for BkashPaymentProvider {
     }
 
     fn verify_webhook(&self, raw: &[u8], _signature_header: Option<&str>) -> Result<VerifiedEvent> {
-        let event_json: serde_json::Value = serde_json::from_slice(raw).map_err(|e| {
-            Error::Invalid {
+        let event_json: serde_json::Value =
+            serde_json::from_slice(raw).map_err(|e| Error::Invalid {
                 code: "invalid_webhook_payload",
-                message: format!("Could not parse bKash webhook JSON: {}", e),
+                message: format!("Could not parse bKash webhook JSON: {e}"),
                 field: None,
-            }
-        })?;
+            })?;
 
         // P22-05: AWS SNS SigningCertURL validation against Amazon SNS host allowlist
         if let Some(cert_url) = event_json.get("SigningCertURL").and_then(|v| v.as_str()) {

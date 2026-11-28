@@ -78,7 +78,7 @@ impl NotificationProvider for WebPushNotificationProvider {
         if channel != "push" {
             return Err(Error::Invalid {
                 code: "unsupported_channel",
-                message: format!("WebPush provider does not support channel '{}'", channel),
+                message: format!("WebPush provider does not support channel '{channel}'"),
                 field: Some("channel".to_string()),
             });
         }
@@ -88,7 +88,7 @@ impl NotificationProvider for WebPushNotificationProvider {
             let sub: WebPushSubscription =
                 serde_json::from_str(to).map_err(|e| Error::Invalid {
                     code: "invalid_push_subscription",
-                    message: format!("Invalid JSON push subscription: {}", e),
+                    message: format!("Invalid JSON push subscription: {e}"),
                     field: Some("to".to_string()),
                 })?;
             sub.endpoint
@@ -99,7 +99,7 @@ impl NotificationProvider for WebPushNotificationProvider {
         if !endpoint.starts_with("https://") && !endpoint.starts_with("http://") {
             return Err(Error::Invalid {
                 code: "invalid_push_endpoint",
-                message: format!("Invalid push endpoint URI: {}", endpoint),
+                message: format!("Invalid push endpoint URI: {endpoint}"),
                 field: Some("to".to_string()),
             });
         }

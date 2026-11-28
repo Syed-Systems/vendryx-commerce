@@ -1,5 +1,9 @@
 import "server-only"
 import { cookies as nextCookies } from "next/headers"
+import {
+  decryptCartIdFromEnvironment,
+  encryptCartIdFromEnvironment,
+} from "./cart-cookie-crypto"
 
 export const getAuthHeaders = async (): Promise<
   { authorization: string } | {}
@@ -85,12 +89,23 @@ export const removeAuthToken = async () => {
 
 export const getCartId = async () => {
   const cookies = await nextCookies()
-  return cookies.get("_stheno_cart_id")?.value
+  const value = cookies.get("_stheno_cart_id")?.value
+  if (!value) {
+    return undefined
+  }
+
+  if (value.startsWith("v1.")) {
+    return decryptCartIdFromEnvironment(value) ?? undefined
+  }
+
+  // Existing seven-day cookies remain readable through rollout, but malformed values
+  // are never sent to the Store API as cart identifiers.
+  return /^[A-Za-z0-9_-]{1,255}$/.test(value) ? value : undefined
 }
 
 export const setCartId = async (cartId: string) => {
   const cookies = await nextCookies()
-  cookies.set("_stheno_cart_id", cartId, {
+  cookies.set("_stheno_cart_id", encryptCartIdFromEnvironment(cartId), {
     maxAge: 60 * 60 * 24 * 7,
     httpOnly: true,
     sameSite: "strict",

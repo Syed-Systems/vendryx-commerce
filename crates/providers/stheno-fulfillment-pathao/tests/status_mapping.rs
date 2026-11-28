@@ -54,7 +54,7 @@ fn pathao_every_documented_status_mapped() {
             .expect("payload successfully mapped");
 
         assert_eq!(mapped.0, "PT-TRACK-1001");
-        assert_eq!(mapped.1, expected, "Mismatch for status '{}'", raw);
+        assert_eq!(mapped.1, expected, "Mismatch for status '{raw}'");
     }
 }
 

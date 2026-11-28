@@ -200,7 +200,9 @@ async fn courier_zone_options_configuration_and_resolution() {
         .resolve_eligible_shipping_options(&ctx_outside)
         .await
         .expect("resolve outside options");
-    assert!(resolved_outside.iter().any(|o| o.id == opt_steadfast_outside.id));
+    assert!(resolved_outside
+        .iter()
+        .any(|o| o.id == opt_steadfast_outside.id));
 
     let price_outside = service
         .calculate_shipping_price(&opt_steadfast_outside.id, Some(&calc_ctx))

@@ -32,7 +32,7 @@ impl Step for CreateStoreStep {
         let parsed: CreateStoreInput =
             serde_json::from_value(input).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse CreateStoreInput: {}", e),
+                message: format!("Failed to parse CreateStoreInput: {e}"),
                 field: None,
             })?;
 
@@ -76,7 +76,7 @@ impl Step for UpdateStoreStep {
         let parsed: UpdateStoreInput =
             serde_json::from_value(input["data"].clone()).map_err(|e| Error::Invalid {
                 code: "invalid_input",
-                message: format!("Failed to parse UpdateStoreInput: {}", e),
+                message: format!("Failed to parse UpdateStoreInput: {e}"),
                 field: None,
             })?;
 

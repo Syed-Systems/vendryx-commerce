@@ -147,6 +147,10 @@ pub async fn create_social_draft(
                 .collect(),
             buyer_name: body.buyer_name,
             buyer_phone: body.buyer_phone,
+            delivery_address: None,
+            shipping_method: None,
+            payment_preference: None,
+            source_event_id: None,
             // The ref travels in metadata, which is how the admin queue finds it.
             source_ref: Some(
                 body.source_ref

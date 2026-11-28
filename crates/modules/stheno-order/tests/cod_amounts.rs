@@ -15,8 +15,8 @@ fn cod_amounts_accounting_identity_and_distinctness() {
     let courier_fee = dec!(120.00); // 100 delivery + 20 COD percentage fee
     let remitted = dec!(2380.00); // 2500 - 120
 
-    let cod = CodAmounts::new(order_total, collected, remitted, courier_fee)
-        .expect("valid COD amounts");
+    let cod =
+        CodAmounts::new(order_total, collected, remitted, courier_fee).expect("valid COD amounts");
 
     // Assert all three figures are distinct numbers (BP8: never conflated)
     assert_eq!(cod.order_total(), dec!(2500.00));
@@ -53,7 +53,10 @@ fn invalid_accounting_identity_is_rejected() {
     let invalid_remitted = dec!(2400.00); // 2400 + 120 = 2520 != 2500
 
     let err = CodAmounts::new(order_total, collected, invalid_remitted, courier_fee);
-    assert!(err.is_err(), "mismatched courier fee accounting must be rejected");
+    assert!(
+        err.is_err(),
+        "mismatched courier fee accounting must be rejected"
+    );
 }
 
 #[test]
@@ -110,7 +113,9 @@ async fn order_persists_three_distinct_amounts_in_database() {
 
         // 3. Re-read through full DTO assembly and verify amounts are populated and distinct
         let reloaded = service.get_order(&order.id).await.expect("reloaded order");
-        let cod = reloaded.cod_amounts.expect("cod_amounts present on reloaded order");
+        let cod = reloaded
+            .cod_amounts
+            .expect("cod_amounts present on reloaded order");
 
         assert_eq!(cod.order_total, dec!(3500.00));
         assert_eq!(cod.collected_amount, dec!(3500.00));

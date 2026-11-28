@@ -4,9 +4,11 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
 use stheno_db::QuotaCounter;
 use stheno_types::{Error, Result};
-use stheno_workflow::{Step, StepConfig, StepContext};
+use stheno_user::{AcceptInviteInput, UserService};
+use stheno_workflow::{SagaCoordinator, Step, StepConfig, StepContext};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntitlementUsage {
@@ -31,6 +33,61 @@ impl CheckQuotaStep {
             limit,
         }
     }
+}
+
+struct AcceptInviteStep {
+    users: Arc<UserService>,
+}
+
+#[async_trait]
+impl Step for AcceptInviteStep {
+    fn name(&self) -> &'static str {
+        "AcceptInviteStep"
+    }
+
+    fn config(&self) -> StepConfig {
+        StepConfig {
+            retries: 0,
+            ..Default::default()
+        }
+    }
+
+    async fn invoke(&self, _ctx: &StepContext, input: Value) -> Result<Value> {
+        let token = input["token"].as_str().ok_or_else(|| Error::Invalid {
+            code: "missing_invite_token",
+            message: "Missing invite token in workflow input".to_string(),
+            field: Some("token".to_string()),
+        })?;
+        let user = self
+            .users
+            .accept_invite(AcceptInviteInput {
+                token: token.to_string(),
+                first_name: input["first_name"].as_str().map(str::to_string),
+                last_name: input["last_name"].as_str().map(str::to_string),
+            })
+            .await?;
+        Ok(serde_json::json!({
+            "user_id": user.id,
+            "email": user.email,
+            "role": user.role,
+        }))
+    }
+
+    async fn compensate(&self, _ctx: &StepContext, _input: Value) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// Reserves one staff seat before accepting an invite through the user service.
+pub fn build_accept_invite_quota_saga(
+    users: Arc<UserService>,
+    counter: QuotaCounter,
+    limit: Option<i64>,
+) -> SagaCoordinator {
+    let mut saga = SagaCoordinator::new();
+    saga.add_step(Arc::new(CheckQuotaStep::new(counter, "users", limit)));
+    saga.add_step(Arc::new(AcceptInviteStep { users }));
+    saga
 }
 
 #[async_trait]
@@ -146,13 +203,14 @@ impl QuotaReconciliationJob {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TrialStatus {
     Active,
-    WarningDay7,
-    WarningDay13,
+    WarningFirst,
+    WarningFinal,
     ExpiredToFree,
 }
 
 pub struct TrialLifecycleJob {
     pub trial_started_at: DateTime<Utc>,
+    pub trial_ends_at: DateTime<Utc>,
     pub status: TrialStatus,
     pub audit_logs: Vec<String>,
 }
@@ -161,36 +219,82 @@ impl TrialLifecycleJob {
     pub fn new(started_at: DateTime<Utc>) -> Self {
         Self {
             trial_started_at: started_at,
+            trial_ends_at: started_at + Duration::days(7),
             status: TrialStatus::Active,
             audit_logs: Vec::new(),
         }
     }
 
-    pub fn evaluate_lifecycle_at(&mut self, as_of: DateTime<Utc>) -> TrialStatus {
-        let age = as_of.signed_duration_since(self.trial_started_at);
-        let days = age.num_days();
+    /// Builds lifecycle state from the persisted expiry so legacy trials keep their term.
+    pub fn with_trial_ends_at(
+        started_at: DateTime<Utc>,
+        trial_ends_at: DateTime<Utc>,
+    ) -> Result<Self> {
+        if trial_ends_at <= started_at {
+            return Err(Error::Invalid {
+                code: "trial_term_invalid",
+                message: "Trial end must be later than trial start.".to_string(),
+                field: Some("trial_ends_at".to_string()),
+            });
+        }
+        Ok(Self {
+            trial_started_at: started_at,
+            trial_ends_at,
+            status: TrialStatus::Active,
+            audit_logs: Vec::new(),
+        })
+    }
 
-        if self.status == TrialStatus::ExpiredToFree {
+    pub fn evaluate_lifecycle_at(&mut self, as_of: DateTime<Utc>) -> TrialStatus {
+        if as_of < self.trial_started_at {
             return self.status.clone();
         }
 
-        if days >= 14 {
-            self.status = TrialStatus::ExpiredToFree;
-            self.audit_logs.push(format!(
-                "Day {}: Trial expired, downgraded to Free tier",
-                days
-            ));
-        } else if days >= 13 && self.status != TrialStatus::WarningDay13 {
-            self.status = TrialStatus::WarningDay13;
-            self.audit_logs
-                .push("Day 13: Final trial expiration warning emitted".to_string());
-        } else if days >= 7 && self.status != TrialStatus::WarningDay7 {
-            self.status = TrialStatus::WarningDay7;
-            self.audit_logs
-                .push("Day 7: First trial expiration warning emitted".to_string());
+        let duration_days = self
+            .trial_ends_at
+            .signed_duration_since(self.trial_started_at)
+            .num_days();
+        let first_warning_at = self.trial_started_at + Duration::days(duration_days / 2);
+        let final_warning_at = self.trial_ends_at - Duration::days(1);
+        let next_status = if as_of >= self.trial_ends_at {
+            TrialStatus::ExpiredToFree
+        } else if as_of >= final_warning_at {
+            TrialStatus::WarningFinal
+        } else if as_of >= first_warning_at {
+            TrialStatus::WarningFirst
+        } else {
+            TrialStatus::Active
+        };
+        if trial_status_rank(&next_status) <= trial_status_rank(&self.status) {
+            return self.status.clone();
         }
 
+        let days = as_of
+            .signed_duration_since(self.trial_started_at)
+            .num_days();
+        match next_status {
+            TrialStatus::WarningFirst => self.audit_logs.push(format!(
+                "Day {days}: First trial expiration warning emitted"
+            )),
+            TrialStatus::WarningFinal => self.audit_logs.push(format!(
+                "Day {days}: Final trial expiration warning emitted"
+            )),
+            TrialStatus::ExpiredToFree => self.audit_logs.push(format!(
+                "Day {days}: Trial expired, downgraded to Free tier"
+            )),
+            TrialStatus::Active => {}
+        }
+        self.status = next_status;
         self.status.clone()
+    }
+}
+
+fn trial_status_rank(status: &TrialStatus) -> u8 {
+    match status {
+        TrialStatus::Active => 0,
+        TrialStatus::WarningFirst => 1,
+        TrialStatus::WarningFinal => 2,
+        TrialStatus::ExpiredToFree => 3,
     }
 }
 

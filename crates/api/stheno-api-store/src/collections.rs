@@ -44,12 +44,18 @@ pub async fn list_collections(
     let count = filtered.len();
     let offset = query.offset.unwrap_or(0);
     let limit = query.limit.unwrap_or(20);
-    let headers = crate::cache::public_cache_headers(&["collections", "catalog"]);
+    let page: Vec<_> = filtered.into_iter().skip(offset).take(limit).collect();
+    let tenant_id = stheno_db::tenant::current().unwrap_or_default();
+    let entities: Vec<_> = page
+        .iter()
+        .map(|collection| ("collection", collection.handle.as_str()))
+        .collect();
+    let headers = crate::cache::public_cache_headers(&tenant_id, &entities, true);
 
     Ok((
         headers,
         Json(ListCollectionsResponse {
-            collections: filtered.into_iter().skip(offset).take(limit).collect(),
+            collections: page,
             count,
             offset,
             limit,
@@ -63,15 +69,19 @@ pub async fn get_collection(
 ) -> Result<(axum::http::HeaderMap, Json<GetCollectionResponse>), Response> {
     match service.get_collection(&id).await {
         Ok(collection) => {
-            let headers =
-                crate::cache::public_cache_headers(&["collections", &format!("collection-{}", id)]);
+            let tenant_id = stheno_db::tenant::current().unwrap_or_default();
+            let headers = crate::cache::public_cache_headers(
+                &tenant_id,
+                &[("collection", collection.handle.as_str())],
+                false,
+            );
             Ok((headers, Json(GetCollectionResponse { collection })))
         }
         Err(_) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 r#type: "not_found".to_string(),
-                message: format!("Collection with id {} was not found", id),
+                message: format!("Collection with id {id} was not found"),
             }),
         )
             .into_response()),

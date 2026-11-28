@@ -1,7 +1,7 @@
 ﻿import { ArrowDownTray, ArrowPath, CheckCircle, CreditCard, Sparkles, XCircle } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Table, Text, toast } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { SingleColumnPage } from "../../components/layout/pages"
 import { sdk } from "../../lib/client"
 
@@ -28,6 +28,19 @@ interface EntitlementsData {
   windows: WindowItem[]
 }
 
+interface NotificationChannelUsage {
+  sent: number
+  reserved: number
+  limit: number | null
+  remaining: number | null
+}
+
+interface NotificationUsageData {
+  usage_date_utc: string
+  email: NotificationChannelUsage
+  whatsapp: NotificationChannelUsage
+}
+
 interface FeatureFlagsData {
   feature_flags: Record<string, boolean>
 }
@@ -46,18 +59,37 @@ interface InvoiceItem {
 interface SubscriptionData {
   tier: string
   status: string
-  current_period_end: string | null
-  plan_amount: number
-  currency: string
+  trial_ends_at?: string | null
+  term_ends_at: string | null
+  grace_ends_at?: string | null
+  plan_amount: string | null
+  currency: string | null
+  billing_interval?: string | null
+  pro_plan?: {
+    amount: string
+    currency: string
+    interval: string
+  } | null
 }
 
 const humanise = (key: string) => key.replace(/_/g, " ")
-const formatDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" }) : null
+const formatInstant = (iso: string | null) => {
+  if (!iso) return null
+  const timestamp = Date.parse(iso)
+  return Number.isFinite(timestamp)
+    ? new Date(timestamp).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : null
+}
 
 export const EntitlementsDetail = () => {
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false)
   const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  const planModalRef = useRef<HTMLDivElement>(null)
+  const paymentModalRef = useRef<HTMLDivElement>(null)
 
   const {
     data: entitlements,
@@ -78,6 +110,16 @@ export const EntitlementsDetail = () => {
     queryFn: () => sdk.client.fetch<FeatureFlagsData>("/admin/feature-flags"),
   })
 
+  const {
+    data: notificationUsage,
+    isLoading: isNotificationUsageLoading,
+    isError: isNotificationUsageError,
+  } = useQuery<{ usage: NotificationUsageData }>({
+    queryKey: ["admin", "notifications", "usage"],
+    queryFn: () => sdk.client.fetch<{ usage: NotificationUsageData }>("/admin/notifications/usage"),
+    refetchInterval: 60_000,
+  })
+
   const { data: billingSubscription } = useQuery<{ subscription: SubscriptionData }>({
     queryKey: ["admin", "billing", "subscription"],
     queryFn: async () => {
@@ -87,10 +129,14 @@ export const EntitlementsDetail = () => {
         return {
           subscription: {
             tier: "free",
-            status: "active",
-            current_period_end: null,
-            plan_amount: 0,
-            currency: "BDT",
+            status: "unknown",
+            trial_ends_at: null,
+            term_ends_at: null,
+            grace_ends_at: null,
+            plan_amount: null,
+            currency: "USD",
+            billing_interval: null,
+            pro_plan: null,
           },
         }
       }
@@ -109,20 +155,108 @@ export const EntitlementsDetail = () => {
   })
 
   const tier = billingSubscription?.subscription?.tier || entitlements?.tier || "free"
-  const trialEnds = formatDate(entitlements?.trial_ends_at ?? null)
-  const termEnds = formatDate(billingSubscription?.subscription?.current_period_end || entitlements?.term_ends_at || null)
-  const inGrace = entitlements?.quotas?.some((q) => q.state === "grace") ?? false
+  const trialEnds = formatInstant(
+    billingSubscription?.subscription?.trial_ends_at ?? entitlements?.trial_ends_at ?? null
+  )
+  const trialEndsAt = billingSubscription?.subscription?.trial_ends_at ?? entitlements?.trial_ends_at ?? null
+  const termEnds = formatInstant(
+    billingSubscription?.subscription?.term_ends_at ?? entitlements?.term_ends_at ?? null
+  )
+  const inGrace = billingSubscription?.subscription?.status === "grace"
+  const overQuota = entitlements?.quotas?.some((q) => q.state === "grace") ?? false
+  const graceEndsAt = billingSubscription?.subscription?.grace_ends_at ?? null
+  useEffect(() => {
+    if (!inGrace && tier !== "trial") return
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [inGrace, graceEndsAt, tier, trialEndsAt])
+  useEffect(() => {
+    const dialog = isPlanModalOpen
+      ? planModalRef.current
+      : isPaymentMethodModalOpen
+        ? paymentModalRef.current
+        : null
+    if (!dialog) return
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    dialog.focus()
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (isPlanModalOpen) setIsPlanModalOpen(false)
+        else setIsPaymentMethodModalOpen(false)
+        return
+      }
+      if (event.key !== "Tab") return
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => element.getAttribute("aria-hidden") !== "true")
+      if (focusable.length === 0) {
+        event.preventDefault()
+        dialog.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const activeElement = document.activeElement
+      if (
+        event.shiftKey &&
+        (!dialog.contains(activeElement) || activeElement === first || activeElement === dialog)
+      ) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (!dialog.contains(activeElement) || activeElement === last)) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("keydown", onKeyDown)
+      if (previouslyFocused?.isConnected) previouslyFocused.focus()
+    }
+  }, [isPaymentMethodModalOpen, isPlanModalOpen])
+  const graceEndEpoch = graceEndsAt ? Date.parse(graceEndsAt) : Number.NaN
+  const graceEnds = formatInstant(graceEndsAt)
+  const graceDaysRemaining = Number.isFinite(graceEndEpoch)
+    ? Math.max(0, Math.ceil((graceEndEpoch - now) / 86_400_000))
+    : null
+  const trialEndEpoch = trialEndsAt ? Date.parse(trialEndsAt) : Number.NaN
+  const trialDaysRemaining = Number.isFinite(trialEndEpoch)
+    ? Math.max(0, Math.ceil((trialEndEpoch - now) / 86_400_000))
+    : null
+  const subscriptionStatus = billingSubscription?.subscription?.status
+  const statusLabel =
+    subscriptionStatus && subscriptionStatus !== "unknown"
+      ? subscriptionStatus.replace(/_/g, " ")
+      : "Status unavailable"
+  const statusColor = inGrace ? "orange" : tier === "pro" ? "green" : "blue"
   const gateable = Object.entries(flags?.feature_flags ?? {})
     .filter(([, enabled]) => typeof enabled === "boolean")
     .sort(([a], [b]) => a.localeCompare(b))
 
   const invoices = billingInvoices?.invoices || []
+  const proPlan = billingSubscription?.subscription?.pro_plan
+  const proPlanPrice = proPlan
+    ? `${proPlan.currency.toUpperCase()} ${proPlan.amount} / ${proPlan.interval}`
+    : "Pricing unavailable"
   const tierPrice =
-    tier === "pro"
-      ? "৳1,500.00 / month"
+    tier === "trial"
+      ? "Trial access"
       : tier === "free"
-      ? "৳0.00 / month"
-      : "14-day trial"
+      ? "Free plan"
+      : billingSubscription?.subscription?.plan_amount &&
+          billingSubscription.subscription.currency &&
+          billingSubscription.subscription.billing_interval
+        ? `${billingSubscription.subscription.currency.toUpperCase()} ${billingSubscription.subscription.plan_amount} / ${billingSubscription.subscription.billing_interval}`
+        : "Pricing unavailable"
 
   const handleDownloadInvoice = (invoiceId: string) => {
     const inv = invoices.find((i: any) => i.id === invoiceId)
@@ -135,7 +269,7 @@ export const EntitlementsDetail = () => {
     }
   }
 
-  const handleOpenBillingPortal = async () => {
+  const handleOpenBillingPortal = async (showPlanFallback = true) => {
     try {
       const res = await sdk.client.fetch<{ portal_url?: string; url?: string }>("/admin/billing/portal-url", {
         method: "GET",
@@ -146,9 +280,13 @@ export const EntitlementsDetail = () => {
         return
       }
     } catch {
-      // Fall back to showing details modal
+      // A missing portal falls back to in-page plan details for plan changes.
     }
-    setIsPlanModalOpen(true)
+    if (showPlanFallback) {
+      setIsPlanModalOpen(true)
+    } else {
+      toast.info("Billing portal is unavailable. Contact platform support to manage payment methods.")
+    }
   }
 
   return (
@@ -187,7 +325,7 @@ export const EntitlementsDetail = () => {
             <Button
               variant="primary"
               size="small"
-              onClick={handleOpenBillingPortal}
+              onClick={() => void handleOpenBillingPortal()}
             >
               <Sparkles className="me-1.5" />
               Change plan
@@ -207,6 +345,68 @@ export const EntitlementsDetail = () => {
         )}
 
         {inGrace && (
+          <Container
+            role="status"
+            aria-live="polite"
+            className="border-ui-tag-orange-border bg-ui-tag-orange-bg p-4"
+          >
+            <Text size="small" weight="plus" className="text-ui-tag-orange-text">
+              Your Pro subscription is in its seven-day grace period.
+            </Text>
+            <Text size="small" className="text-ui-tag-orange-text mt-1">
+              {graceEnds ? (
+                <>
+                  {graceDaysRemaining !== null && (
+                    <>
+                      {graceDaysRemaining} day{graceDaysRemaining === 1 ? "" : "s"} remain. {" "}
+                    </>
+                  )}
+                  Pro features remain available through {graceEnds}. Renew before then to keep
+                  them enabled.
+                </>
+              ) : (
+                "Renew now to keep Pro features enabled. The grace end date is unavailable."
+              )}
+            </Text>
+            <Button
+              variant="secondary"
+              size="small"
+              className="mt-3"
+              onClick={() => void handleOpenBillingPortal()}
+            >
+              Renew Pro
+            </Button>
+          </Container>
+        )}
+
+        {tier === "trial" && (
+          <Container
+            role="status"
+            aria-live="polite"
+            className="border-ui-tag-orange-border bg-ui-tag-orange-bg p-4"
+          >
+            <Text size="small" weight="plus" className="text-ui-tag-orange-text">
+              Your Pro trial is active.
+            </Text>
+            <Text size="small" className="text-ui-tag-orange-text mt-1">
+              {trialEnds && trialDaysRemaining !== null
+                ? trialDaysRemaining === 0
+                  ? `Your trial ended at ${trialEnds}. Refresh plan details to see your current access.`
+                  : `Your trial ends in ${trialDaysRemaining} day${trialDaysRemaining === 1 ? "" : "s"} (${trialEnds}). Review upgrade options to keep Pro features.`
+                : "Your trial end date is unavailable. Contact platform support to confirm your plan."}
+            </Text>
+            <Button
+              variant="secondary"
+              size="small"
+              className="mt-3"
+              onClick={() => void handleOpenBillingPortal()}
+            >
+              View upgrade options
+            </Button>
+          </Container>
+        )}
+
+        {overQuota && (
           <Container className="border-ui-tag-orange-border bg-ui-tag-orange-bg p-4">
             <Text size="small" weight="plus" className="text-ui-tag-orange-text">
               This store is over one of its plan limits.
@@ -223,14 +423,14 @@ export const EntitlementsDetail = () => {
           <div className="flex flex-col gap-y-2 sm:flex-row sm:items-center sm:justify-between border-b border-ui-border-base pb-4">
             <div>
               <Heading level="h2" className="text-ui-fg-base text-base">
-                Active Subscription Plan
+                Current Plan Overview
               </Heading>
               <Text size="small" className="text-ui-fg-subtle mt-0.5">
                 Managed by Syed Systems Cloud platform billing.
               </Text>
             </div>
-            <Badge color="green" size="small" className="w-fit">
-              Active &amp; In Good Standing
+            <Badge color={statusColor} size="small" className="w-fit capitalize">
+              {statusLabel}
             </Badge>
           </div>
 
@@ -255,7 +455,7 @@ export const EntitlementsDetail = () => {
                 {tierPrice}
               </Text>
               <Text size="xsmall" className="text-ui-fg-subtle mt-1">
-                Billed monthly via bKash / Card
+                Plan terms follow the platform billing configuration.
               </Text>
             </div>
 
@@ -264,10 +464,10 @@ export const EntitlementsDetail = () => {
                 Billing Cycle
               </Text>
               <Text size="small" weight="plus" className="text-ui-fg-base mt-1">
-                {termEnds ? `Renews on ${termEnds}` : "Monthly auto-renewal"}
+                {termEnds ? `Term ends ${termEnds}` : "No paid term end is recorded"}
               </Text>
               <Text size="xsmall" className="text-ui-fg-subtle mt-1">
-                Next invoice on 1st of next month
+                Billing dates reflect the current subscription record.
               </Text>
             </div>
 
@@ -276,10 +476,10 @@ export const EntitlementsDetail = () => {
                 Trial Status
               </Text>
               <Text size="small" weight="plus" className="text-ui-fg-base mt-1">
-                {trialEnds ? `Ends ${trialEnds}` : "Not on trial"}
+                {tier === "trial" && trialEnds ? `Ends ${trialEnds}` : tier === "trial" ? "End date unavailable" : "Not on trial"}
               </Text>
               <Text size="xsmall" className="text-ui-fg-subtle mt-1">
-                Full production environment
+                Access follows this store&apos;s current entitlement configuration.
               </Text>
             </div>
           </div>
@@ -353,6 +553,49 @@ export const EntitlementsDetail = () => {
           </Table>
         </Container>
 
+        <Container className="p-6">
+          <div className="mb-4">
+            <Heading level="h2" className="text-ui-fg-base text-base">
+              Daily notification usage
+            </Heading>
+            <Text size="small" className="text-ui-fg-subtle">
+              Email and WhatsApp usage is counted by UTC day. In-flight messages are included in the remaining allowance.
+            </Text>
+          </div>
+          {isNotificationUsageLoading ? (
+            <Text size="small" className="text-ui-fg-muted">Loading notification usage…</Text>
+          ) : isNotificationUsageError || !notificationUsage?.usage ? (
+            <Text size="small" className="text-ui-fg-subtle">
+              Notification usage is temporarily unavailable.
+            </Text>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {(["email", "whatsapp"] as const).map((channel) => {
+                const usage = notificationUsage.usage[channel]
+                const label = channel === "email" ? "Email" : "WhatsApp"
+                return (
+                  <div key={channel} className="rounded-lg border border-ui-border-base p-4">
+                    <Text size="small" weight="plus" className="text-ui-fg-base">{label}</Text>
+                    <Text size="small" className="text-ui-fg-subtle mt-1">
+                      {usage.sent} sent · {usage.reserved} in progress
+                    </Text>
+                    <Text size="small" className="text-ui-fg-base mt-2 font-medium">
+                      {usage.limit === null
+                        ? "No daily cap"
+                        : `${usage.remaining ?? 0} remaining of ${usage.limit}`}
+                    </Text>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {notificationUsage?.usage && (
+            <Text size="xsmall" className="text-ui-fg-muted mt-3">
+              Usage date: {notificationUsage.usage.usage_date_utc} (UTC)
+            </Text>
+          )}
+        </Container>
+
         {/* Payment Method Card */}
         <Container className="p-6">
           <div className="flex flex-col gap-y-3 sm:flex-row sm:items-center sm:justify-between">
@@ -366,11 +609,11 @@ export const EntitlementsDetail = () => {
                     Default Payment Method
                   </Text>
                   <Badge color="blue" size="2xsmall">
-                    Auto-Debit
+                    Not configured
                   </Badge>
                 </div>
                 <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
-                  bKash Merchant Subscription • 017•••••890 • Managed via SSLCommerz
+                  No saved subscription payment method is available.
                 </Text>
               </div>
             </div>
@@ -392,7 +635,7 @@ export const EntitlementsDetail = () => {
               Invoices &amp; Payment History
             </Heading>
             <Text size="small" className="text-ui-fg-subtle">
-              Download tax invoices and official VAT-compliant receipts for this store.
+              Review billing records and receipts available for this store.
             </Text>
           </div>
           <Table>
@@ -490,8 +733,11 @@ export const EntitlementsDetail = () => {
       {/* Plan Upgrade / Switch Modal */}
       {isPlanModalOpen && (
         <div
+          ref={planModalRef}
           role="dialog"
+          aria-modal="true"
           aria-labelledby="plan-modal-title"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-ui-bg-overlay/50 p-4 backdrop-blur-sm"
         >
           <div className="w-full max-w-xl rounded-xl border border-ui-border-base bg-ui-bg-base p-6 shadow-xl">
@@ -521,7 +767,7 @@ export const EntitlementsDetail = () => {
                     {tier === "free" && <Badge color="blue" size="2xsmall">Current</Badge>}
                   </div>
                   <Text size="large" weight="plus" className="mt-2 text-ui-fg-base">
-                    ৳0 <span className="text-xs text-ui-fg-subtle font-normal">/ month</span>
+                    $0.00 USD <span className="text-xs text-ui-fg-subtle font-normal">/ month</span>
                   </Text>
                   <ul className="mt-4 space-y-2 text-xs text-ui-fg-subtle">
                     <li>• Up to 100 products</li>
@@ -552,7 +798,7 @@ export const EntitlementsDetail = () => {
                     {tier === "pro" && <Badge color="green" size="2xsmall">Current</Badge>}
                   </div>
                   <Text size="large" weight="plus" className="mt-2 text-ui-fg-base">
-                    ৳1,500 <span className="text-xs text-ui-fg-subtle font-normal">/ month</span>
+                    {proPlanPrice}
                   </Text>
                   <ul className="mt-4 space-y-2 text-xs text-ui-fg-subtle">
                     <li>• Unlimited products</li>
@@ -566,13 +812,13 @@ export const EntitlementsDetail = () => {
                   variant="primary"
                   size="small"
                   className="mt-5 w-full"
-                  disabled={tier === "pro"}
+                  disabled={tier === "pro" || !proPlan}
                   onClick={() => {
                     setIsPlanModalOpen(false)
                     handleOpenBillingPortal()
                   }}
                 >
-                  {tier === "pro" ? "Active" : "Upgrade to Pro"}
+                  {tier === "pro" ? "Active" : proPlan ? "Upgrade to Pro" : "Pricing unavailable"}
                 </Button>
               </div>
             </div>
@@ -593,8 +839,11 @@ export const EntitlementsDetail = () => {
       {/* Payment Method Modal */}
       {isPaymentMethodModalOpen && (
         <div
+          ref={paymentModalRef}
           role="dialog"
+          aria-modal="true"
           aria-labelledby="payment-modal-title"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center bg-ui-bg-overlay/50 p-4 backdrop-blur-sm"
         >
           <div className="w-full max-w-md rounded-xl border border-ui-border-base bg-ui-bg-base p-6 shadow-xl">
@@ -616,38 +865,20 @@ export const EntitlementsDetail = () => {
             </div>
 
             <div className="py-4 space-y-3">
-              <div className="rounded-lg border border-ui-border-base p-3 flex items-center justify-between cursor-pointer hover:bg-ui-bg-subtle">
-                <div className="flex items-center gap-x-3">
-                  <div className="h-8 w-8 rounded bg-[#E2136E]/10 flex items-center justify-center font-bold text-[#E2136E] text-xs">
-                    bKash
-                  </div>
-                  <div>
-                    <Text size="small" weight="plus">bKash Merchant Subscription</Text>
-                    <Text size="xsmall" className="text-ui-fg-subtle">Automatic monthly charge</Text>
-                  </div>
-                </div>
-                <Badge color="green" size="2xsmall">Active</Badge>
-              </div>
-
-              <div className="rounded-lg border border-ui-border-base p-3 flex items-center justify-between cursor-pointer hover:bg-ui-bg-subtle">
-                <div className="flex items-center gap-x-3">
-                  <CreditCard className="text-ui-fg-subtle" />
-                  <div>
-                    <Text size="small" weight="plus">Debit / Credit Card</Text>
-                    <Text size="xsmall" className="text-ui-fg-subtle">Visa, Mastercard, Amex</Text>
-                  </div>
-                </div>
-                <Button
-                  size="small"
-                  variant="secondary"
-                  onClick={() => {
-                    setIsPaymentMethodModalOpen(false)
-                    handleOpenBillingPortal()
-                  }}
-                >
-                  Switch
-                </Button>
-              </div>
+              <Text size="small" className="text-ui-fg-subtle">
+                No saved subscription payment method is recorded. Payment methods are managed
+                through the platform billing portal.
+              </Text>
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => {
+                  setIsPaymentMethodModalOpen(false)
+                  void handleOpenBillingPortal(false)
+                }}
+              >
+                Open billing portal
+              </Button>
             </div>
 
             <div className="flex justify-end pt-3 border-t border-ui-border-base">

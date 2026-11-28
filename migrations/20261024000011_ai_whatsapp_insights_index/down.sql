@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS ai.idx_ai_channel_event_whatsapp_insights_window;

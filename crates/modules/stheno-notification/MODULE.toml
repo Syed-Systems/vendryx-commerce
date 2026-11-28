@@ -1,6 +1,6 @@
 [module]
 name = "stheno-notification"
 schema = "notification"
-owned_tables = ["notification", "notification_template", "notification_delivery"]
+owned_tables = ["notification", "notification_template", "notification_delivery", "notification_outbox", "whatsapp_consent", "whatsapp_analytics_consent", "daily_notification_usage", "daily_notification_reservation"]
 events = ["notification.sent", "notification.failed"]
 links = []

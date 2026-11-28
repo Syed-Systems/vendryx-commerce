@@ -30,7 +30,10 @@ fn sslcommerz_factory_rejects_missing_credentials() {
     let mut incomplete = valid_credentials();
     incomplete.remove("store_id");
 
-    let err = factory.build(&incomplete).err().expect("must fail on missing store_id");
+    let err = factory
+        .build(&incomplete)
+        .err()
+        .expect("must fail on missing store_id");
     assert!(matches!(err, stheno_types::Error::Invalid { .. }));
 }
 
@@ -47,5 +50,8 @@ fn sslcommerz_factory_builds_and_verifies_honest_capabilities() {
     assert!(caps.partial_refund, "SSLCommerz supports partial refund");
     assert!(caps.partial_capture, "SSLCommerz supports partial capture");
     assert!(!caps.multi_capture);
-    assert!(caps.async_settlement, "SSLCommerz IPN settles asynchronously");
+    assert!(
+        caps.async_settlement,
+        "SSLCommerz IPN settles asynchronously"
+    );
 }

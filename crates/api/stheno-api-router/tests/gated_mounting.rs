@@ -57,41 +57,40 @@ async fn core_routes_mount_on_every_tier() {
         assert_eq!(
             status(app(tier), "/store/products").await,
             StatusCode::OK,
-            "core commerce must never be gated on {:?}",
-            tier
+            "core commerce must never be gated on {tier:?}"
         );
     }
 }
 
 #[tokio::test]
 async fn gated_routes_are_absent_when_the_feature_is_off() {
-    // Free and Trial do not include payment_gateway or courier_dispatch.
-    for tier in [Tier::Trial, Tier::Free] {
-        assert_eq!(
-            status(app(tier), "/store/payment-gateway").await,
-            StatusCode::NOT_FOUND,
-            "payment gateway must be unmounted on {:?}",
-            tier
-        );
-        assert_eq!(
-            status(app(tier), "/admin/courier-dispatch").await,
-            StatusCode::NOT_FOUND,
-            "courier dispatch must be unmounted on {:?}",
-            tier
-        );
-    }
+    // Free does not include payment_gateway or courier_dispatch; Trial receives the Pro feature set.
+    assert_eq!(
+        status(app(Tier::Free), "/store/payment-gateway").await,
+        StatusCode::NOT_FOUND,
+        "payment gateway must be unmounted on Free"
+    );
+    assert_eq!(
+        status(app(Tier::Free), "/admin/courier-dispatch").await,
+        StatusCode::NOT_FOUND,
+        "courier dispatch must be unmounted on Free"
+    );
 }
 
 #[tokio::test]
 async fn gated_routes_mount_when_the_feature_is_on() {
-    assert_eq!(
-        status(app(Tier::Pro), "/store/payment-gateway").await,
-        StatusCode::OK
-    );
-    assert_eq!(
-        status(app(Tier::Pro), "/admin/courier-dispatch").await,
-        StatusCode::OK
-    );
+    for tier in [Tier::Trial, Tier::Pro] {
+        assert_eq!(
+            status(app(tier), "/store/payment-gateway").await,
+            StatusCode::OK,
+            "payment gateway must mount on {tier:?}"
+        );
+        assert_eq!(
+            status(app(tier), "/admin/courier-dispatch").await,
+            StatusCode::OK,
+            "courier dispatch must mount on {tier:?}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -147,6 +146,7 @@ fn all_features_lists_every_variant() {
         CustomTheme,
         Branding,
         BuyerAccounts,
+        AiAssistant,
     ];
 
     for feature in every {
@@ -154,7 +154,7 @@ fn all_features_lists_every_variant() {
         match feature {
             SpreadsheetImport | CsvExport | WebPush | AnalyticsBasic | PaymentGateway
             | CourierDispatch | FraudScore | CustomDomain | CustomTheme | Branding
-            | BuyerAccounts => {}
+            | BuyerAccounts | AiAssistant => {}
         }
         assert!(
             ALL_FEATURES.contains(&feature),
@@ -180,7 +180,19 @@ async fn hosted_admin_routes_use_the_request_tenant_not_the_boot_tier() {
         )],
     );
 
-    for tier in [Tier::Trial, Tier::Free] {
+    let mut free = Request::builder()
+        .uri("/admin/gateways")
+        .body(Body::empty())
+        .unwrap();
+    free.extensions_mut()
+        .insert(std::sync::Arc::new(entitlements(Tier::Free)));
+    assert_eq!(
+        app.clone().oneshot(free).await.unwrap().status(),
+        StatusCode::NOT_FOUND,
+        "a disabled feature must look unmounted for Free"
+    );
+
+    for tier in [Tier::Trial, Tier::Pro] {
         let mut request = Request::builder()
             .uri("/admin/gateways")
             .body(Body::empty())
@@ -190,21 +202,10 @@ async fn hosted_admin_routes_use_the_request_tenant_not_the_boot_tier() {
             .insert(std::sync::Arc::new(entitlements(tier)));
         assert_eq!(
             app.clone().oneshot(request).await.unwrap().status(),
-            StatusCode::NOT_FOUND,
-            "a disabled feature must look unmounted for {tier:?}"
+            StatusCode::OK,
+            "an enabled feature must mount for {tier:?}"
         );
     }
-
-    let mut pro = Request::builder()
-        .uri("/admin/gateways")
-        .body(Body::empty())
-        .unwrap();
-    pro.extensions_mut()
-        .insert(std::sync::Arc::new(entitlements(Tier::Pro)));
-    assert_eq!(
-        app.clone().oneshot(pro).await.unwrap().status(),
-        StatusCode::OK
-    );
 
     for tier in [Tier::Trial, Tier::Free, Tier::Pro] {
         let mut request = Request::builder()
@@ -229,7 +230,10 @@ async fn hosted_admin_routes_use_the_request_tenant_not_the_boot_tier() {
 fn buyer_auth_app() -> Router {
     gate_buyer_auth(
         Router::new()
-            .route("/auth/{actor_type}/providers", get(|| async { "providers" }))
+            .route(
+                "/auth/{actor_type}/providers",
+                get(|| async { "providers" }),
+            )
             .route("/auth/token/refresh", get(|| async { "refresh" })),
     )
 }

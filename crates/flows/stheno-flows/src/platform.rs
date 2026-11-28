@@ -4,11 +4,59 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use stheno_ai::StoreIntelligenceTenantDataService;
 use stheno_auth::AuthService;
 use stheno_customer::CustomerService;
+use stheno_db::DbPool;
+use stheno_notification::NotificationService;
 use stheno_order::dto::OrderFilter;
 use stheno_order::OrderService;
 use stheno_types::{Error, Result};
+
+/// Idempotent module cleanup step used before a platform tenant is purged.
+///
+/// There is no compensation: this intentionally erases source credentials and metrics
+/// as part of the tenant's requested retention purge. The transaction is rolled back if
+/// either module cannot complete its delete.
+#[derive(Clone)]
+pub struct EraseTenantStoreIntelligenceWorkflow {
+    pool: DbPool,
+    ai_data: StoreIntelligenceTenantDataService,
+    notifications: NotificationService,
+}
+
+impl EraseTenantStoreIntelligenceWorkflow {
+    /// Builds the cross-module erasure step over the application's shared pool.
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            notifications: NotificationService::new(pool.clone()),
+            pool,
+            ai_data: StoreIntelligenceTenantDataService,
+        }
+    }
+
+    /// Erases AI source records and WhatsApp analytics consent for one tenant atomically.
+    pub async fn execute(&self, tenant_id: &str) -> Result<()> {
+        stheno_db::tenant::validate(tenant_id)?;
+        let tenant_id = tenant_id.to_string();
+        let pool = self.pool.clone();
+        let ai_data = self.ai_data;
+        let notifications = self.notifications.clone();
+        stheno_db::tenant::scope(tenant_id, async move {
+            stheno_db::tenant::with_tenant_conn(&pool, move |mut conn| {
+                let notifications = notifications.clone();
+                Box::pin(async move {
+                    ai_data.erase(&mut conn).await?;
+                    notifications
+                        .erase_whatsapp_analytics_consents(&mut conn)
+                        .await
+                })
+            })
+            .await
+        })
+        .await
+    }
+}
 
 // ==========================================
 // 1. Reporting & Analytics Aggregates (P8-22b, P8-22c)
@@ -179,7 +227,7 @@ impl ErasurePipelineWorkflow {
         let _customer = self.customer_service.get_customer(customer_id).await?;
 
         // 1. Pseudonymize customer record
-        let pseudonym_email = format!("deleted_customer_{}@pseudonym.local", customer_id);
+        let pseudonym_email = format!("deleted_customer_{customer_id}@pseudonym.local");
         let _ = self
             .customer_service
             .update_customer(
@@ -336,8 +384,7 @@ impl RetentionJobWorkflow {
         let stores_checked = 5; // e.g. cart, order, customer, token, event
         if purged_count > 10_000 {
             alerts.push(format!(
-                "High volume of expired carts purged: {}",
-                purged_count
+                "High volume of expired carts purged: {purged_count}"
             ));
         }
 

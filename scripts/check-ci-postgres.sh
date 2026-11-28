@@ -26,8 +26,23 @@ grep -qE '^\s+DATABASE_URL:\s*postgres://' "$WORKFLOW" \
 grep -qE 'pg_isready' "$WORKFLOW" \
   || fail "$WORKFLOW postgres service has no pg_isready health check."
 
-grep -qE 'cargo test --workspace' "$WORKFLOW" \
-  || fail "$WORKFLOW never runs cargo test --workspace."
+grep -qE 'affected-cargo-gate\.py .*--gate test' "$WORKFLOW" \
+  || fail "$WORKFLOW does not run the affected-package Rust test gate."
+grep -qF 'command.append("--workspace")' scripts/affected-cargo-gate.py \
+  || fail "The affected-package gate does not fall back to the complete Cargo workspace."
+grep -q -- '--force-full' "$WORKFLOW" \
+  || fail "$WORKFLOW does not provide an explicit full-workspace Rust gate."
+
+# Nightly invokes repository scripts through bash because GitHub checkout preserves
+# their non-executable 100644 mode; direct ./script.sh calls fail with exit 126.
+NIGHTLY=".github/workflows/nightly.yml"
+[ -f "$NIGHTLY" ] || fail "$NIGHTLY is missing."
+grep -qF 'run: bash scripts/dev-tenants.sh up' "$NIGHTLY" \
+  || fail "$NIGHTLY must invoke dev-tenants.sh through bash."
+grep -qF 'run: bash scripts/restore-drill.sh' "$NIGHTLY" \
+  || fail "$NIGHTLY must invoke restore-drill.sh through bash."
+grep -qF 'run: bash scripts/dev-tenants.sh down || true' "$NIGHTLY" \
+  || fail "$NIGHTLY must invoke dev-tenants.sh cleanup through bash."
 
 # Local compose must offer the same major version CI runs, so a developer
 # cannot pass locally against a Postgres that CI does not have.

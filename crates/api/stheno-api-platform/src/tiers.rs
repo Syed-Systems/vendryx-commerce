@@ -116,7 +116,7 @@ pub async fn get_tiers(State(ctx): State<PlatformApiContext>, headers: HeaderMap
                         "message": format!("tier {} does not resolve: {e}", tier.as_str())
                     })),
                 )
-                    .into_response()
+                    .into_response();
             }
         }
     }

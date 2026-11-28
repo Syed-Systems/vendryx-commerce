@@ -90,7 +90,7 @@ pub async fn get_region(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Region {} not found", id),
+                &format!("Region {id} not found"),
             )),
         )
             .into_response()),
@@ -184,7 +184,7 @@ pub async fn get_currency(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Currency {} not found", code),
+                &format!("Currency {code} not found"),
             )),
         )
             .into_response()),
@@ -332,7 +332,7 @@ pub async fn get_tax_region(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Tax region {} not found", id),
+                &format!("Tax region {id} not found"),
             )),
         )
             .into_response()),
@@ -421,7 +421,7 @@ pub async fn get_tax_rate(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Tax rate {} not found", id),
+                &format!("Tax rate {id} not found"),
             )),
         )
             .into_response()),
@@ -624,7 +624,7 @@ pub async fn get_sales_channel(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                &format!("Sales channel {} not found", id),
+                &format!("Sales channel {id} not found"),
             )),
         )
             .into_response()),

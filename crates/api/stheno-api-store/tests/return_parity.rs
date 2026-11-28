@@ -5,6 +5,7 @@ use rust_decimal_macros::dec;
 use serde_json::Value;
 use std::sync::Arc;
 use stheno_api_store::store_return_routes;
+use stheno_auth::{AuthService, AuthenticateInput, CreateIdentityInput};
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
 use stheno_flows::ReturnWorkflowEngine;
@@ -17,6 +18,29 @@ async fn test_store_returns_endpoints_parity() {
     let pool = create_pool(&db.url, 5).expect("pool");
     let order_service = Arc::new(OrderService::new(pool.clone()));
     let return_flows = Arc::new(ReturnWorkflowEngine::new(order_service.clone(), None));
+    let auth_service = Arc::new(AuthService::new(pool.clone(), None));
+    auth_service
+        .create_identity(CreateIdentityInput {
+            provider_id: "emailpass".to_string(),
+            entity_id: "return-customer@example.com".to_string(),
+            password: Some("ReturnTestPassw0rd!".to_string()),
+            actor_id: Some("cust_ret_parity".to_string()),
+            actor_type: Some("customer".to_string()),
+            provider_metadata: None,
+            app_metadata: None,
+            user_metadata: None,
+        })
+        .await
+        .unwrap();
+    let (_, tokens) = auth_service
+        .authenticate(AuthenticateInput {
+            provider_id: "emailpass".to_string(),
+            entity_id: "return-customer@example.com".to_string(),
+            password: Some("ReturnTestPassw0rd!".to_string()),
+        })
+        .await
+        .unwrap();
+    let bearer = format!("Bearer {}", tokens.access_token);
 
     // 1. Create base order
     let order = order_service
@@ -61,7 +85,12 @@ async fn test_store_returns_endpoints_parity() {
         .await
         .unwrap();
 
-    let app = store_return_routes(order_service.clone(), return_flows.clone());
+    let app = store_return_routes(
+        order_service.clone(),
+        return_flows.clone(),
+        auth_service,
+        Arc::new(stheno_notification::NotificationService::new(pool.clone())),
+    );
 
     // ── Test 1: POST /store/returns ─────────────────────────────────────────
     let create_payload = serde_json::json!({
@@ -79,6 +108,7 @@ async fn test_store_returns_endpoints_parity() {
         .uri("/store/returns")
         .method("POST")
         .header("content-type", "application/json")
+        .header("authorization", &bearer)
         .body(Body::from(create_payload.to_string()))
         .unwrap();
 
@@ -98,6 +128,7 @@ async fn test_store_returns_endpoints_parity() {
     let req = Request::builder()
         .uri(format!("/store/returns?order_id={}", order.id))
         .method("GET")
+        .header("authorization", &bearer)
         .body(Body::empty())
         .unwrap();
 
@@ -115,6 +146,7 @@ async fn test_store_returns_endpoints_parity() {
     let req = Request::builder()
         .uri(format!("/store/returns/{ret_id}"))
         .method("GET")
+        .header("authorization", &bearer)
         .body(Body::empty())
         .unwrap();
 

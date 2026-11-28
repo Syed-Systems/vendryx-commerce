@@ -3,7 +3,7 @@
 use chrono::{Duration, TimeZone, Utc};
 use stheno_db::create_pool;
 use stheno_db::testing::TestDb;
-use stheno_platform::{DunningInput, PlatformService};
+use stheno_platform::{DunningInput, PlatformService, SubscriptionPatch};
 
 async fn service() -> (TestDb, PlatformService) {
     let db = TestDb::migrated().await;
@@ -76,6 +76,70 @@ async fn payment_resets_dunning_to_active() {
     assert_eq!(reset.status, "active");
     assert_eq!(reset.dunning_attempts, 0);
     assert_eq!(reset.next_attempt_at, None);
+
+    db.drop().await;
+}
+
+#[tokio::test]
+async fn payment_dunning_does_not_shorten_the_contract_term_grace_period() {
+    let (db, service) = service().await;
+    let term_end = Utc.with_ymd_and_hms(2026, 8, 1, 10, 0, 0).unwrap();
+    service
+        .update_subscription(
+            TestDb::TEST_TENANT,
+            SubscriptionPatch {
+                tier: Some("pro".to_string()),
+                term_ends_at: Some(Some(term_end)),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("configure a paid term");
+
+    service
+        .reconcile_expired_subscriptions(term_end)
+        .await
+        .expect("enter term grace");
+    let during_grace = service
+        .advance_dunning(DunningInput {
+            tenant_id: TestDb::TEST_TENANT.to_string(),
+            now: term_end + Duration::days(4),
+        })
+        .await
+        .expect("dunning must not consume term grace");
+    assert_eq!(during_grace.status, "grace");
+    assert_eq!(during_grace.tier, "pro");
+
+    db.drop().await;
+}
+
+#[tokio::test]
+async fn free_and_trial_subscriptions_do_not_enter_payment_dunning() {
+    let (db, service) = service().await;
+    let now = Utc.with_ymd_and_hms(2026, 8, 1, 10, 0, 0).unwrap();
+
+    for tier in ["free", "trial"] {
+        service
+            .update_subscription(
+                TestDb::TEST_TENANT,
+                SubscriptionPatch {
+                    tier: Some(tier.to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("assign non-billed tier");
+        let subscription = service
+            .advance_dunning(DunningInput {
+                tenant_id: TestDb::TEST_TENANT.to_string(),
+                now,
+            })
+            .await
+            .expect("non-billed tier is outside dunning");
+        assert_eq!(subscription.status, "active");
+        assert_eq!(subscription.dunning_attempts, 0);
+        assert_eq!(subscription.next_attempt_at, None);
+    }
 
     db.drop().await;
 }

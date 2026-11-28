@@ -60,8 +60,7 @@ fn test_allocation_across_all_22_special_currencies() {
         let sum: Decimal = allocated.iter().map(|p| p.amount).sum();
         assert_eq!(
             sum, rounded_total,
-            "Allocation sum mismatch for currency {:?}",
-            currency
+            "Allocation sum mismatch for currency {currency:?}"
         );
     }
 }

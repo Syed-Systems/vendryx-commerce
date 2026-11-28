@@ -389,7 +389,9 @@ pub async fn list_webhook_oversight(
                             tenant_id: tenant.id.clone(),
                             provider_id: event.provider_id,
                             event_type: event.event_type,
-                            failure_reason: event.error.unwrap_or_else(|| "unhandled webhook error".to_string()),
+                            failure_reason: event
+                                .error
+                                .unwrap_or_else(|| "unhandled webhook error".to_string()),
                             attempts: 1,
                             last_attempt_at: event.created_at,
                         });
@@ -431,7 +433,10 @@ pub async fn replay_dead_letter_webhook(
     if let Some(payment_service) = &ctx.payment_service {
         let tenants = ctx.platform.list_tenants().await.unwrap_or_default();
         for tenant in &tenants {
-            if let Ok(replayed) = payment_service.replay_webhook_event(&tenant.id, &body.webhook_id).await {
+            if let Ok(replayed) = payment_service
+                .replay_webhook_event(&tenant.id, &body.webhook_id)
+                .await
+            {
                 record(
                     &ctx,
                     &actor,
@@ -564,7 +569,10 @@ pub async fn list_settlement_reconciliations(
 
     if let Some(payment_service) = &ctx.payment_service {
         for tenant in &tenants {
-            if let Ok(runs) = payment_service.list_reconciliation_runs(&tenant.id, 50).await {
+            if let Ok(runs) = payment_service
+                .list_reconciliation_runs(&tenant.id, 50)
+                .await
+            {
                 for run in runs {
                     reconciliations.push(SettlementReconciliationDTO {
                         tenant_id: tenant.id.clone(),
@@ -581,7 +589,10 @@ pub async fn list_settlement_reconciliations(
     }
 
     if reconciliations.is_empty() {
-        let default_tenant = tenants.first().map(|t| t.id.clone()).unwrap_or_else(|| "ten_test".to_string());
+        let default_tenant = tenants
+            .first()
+            .map(|t| t.id.clone())
+            .unwrap_or_else(|| "ten_test".to_string());
         reconciliations.push(SettlementReconciliationDTO {
             tenant_id: default_tenant,
             provider_id: "pp_sslcommerz".to_string(),
@@ -621,7 +632,8 @@ pub async fn list_cod_settlements(
     if let Some(fs) = &ctx.fulfillment_service {
         for tenant in &tenants {
             if let Ok(requests) = fs.list_provider_requests(&tenant.id, 100).await {
-                let mut courier_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+                let mut courier_counts: std::collections::HashMap<String, usize> =
+                    std::collections::HashMap::new();
                 for req in requests {
                     if req.operation.contains("fulfillment") || req.resource_type == "cod" {
                         *courier_counts.entry(req.provider_id).or_insert(0) += 1;
@@ -642,7 +654,10 @@ pub async fn list_cod_settlements(
     }
 
     if cod_reports.is_empty() {
-        let default_tenant = tenants.first().map(|t| t.id.clone()).unwrap_or_else(|| "ten_test".to_string());
+        let default_tenant = tenants
+            .first()
+            .map(|t| t.id.clone())
+            .unwrap_or_else(|| "ten_test".to_string());
         cod_reports.push(CodSettlementOversightDTO {
             tenant_id: default_tenant,
             courier_id: "fp_steadfast".to_string(),
@@ -695,7 +710,10 @@ pub async fn list_couriers_oversight(
         if let Some(fs) = &ctx.fulfillment_service {
             for tenant in &tenants {
                 if let Ok(requests) = fs.list_provider_requests(&tenant.id, 100).await {
-                    active_consignments += requests.iter().filter(|r| r.provider_id == id && r.state == "in_flight").count();
+                    active_consignments += requests
+                        .iter()
+                        .filter(|r| r.provider_id == id && r.state == "in_flight")
+                        .count();
                 }
             }
         }

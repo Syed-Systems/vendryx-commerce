@@ -1,7 +1,16 @@
 //! User & Invite Service managing administrative users, team invites and token acceptance (P7-15, P14-04).
 
 use chrono::{Duration, Utc};
-use stheno_db::{CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection, PgCrudRepository};
+use stheno_db::diesel::{
+    result::OptionalExtension,
+    sql_types::{BigInt, Text},
+    QueryableByName,
+};
+use stheno_db::diesel_async::RunQueryDsl;
+use stheno_db::{
+    tenant, transaction, CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection,
+    PgCrudRepository,
+};
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::{
@@ -9,8 +18,21 @@ use crate::dto::{
 };
 use crate::models::{Invite, User};
 
+#[derive(QueryableByName)]
+struct InviteIdRow {
+    #[diesel(sql_type = Text)]
+    id: String,
+}
+
+#[derive(QueryableByName)]
+struct UserCountRow {
+    #[diesel(sql_type = BigInt)]
+    count: i64,
+}
+
 #[derive(Clone)]
 pub struct UserService {
+    pool: DbPool,
     users: PgCrudRepository<User>,
     invites: PgCrudRepository<Invite>,
     event_bus: Option<std::sync::Arc<dyn stheno_events::EventBus>>,
@@ -19,6 +41,7 @@ pub struct UserService {
 impl UserService {
     pub fn new(pool: DbPool) -> Self {
         Self {
+            pool: pool.clone(),
             users: PgCrudRepository::new(pool.clone()),
             invites: PgCrudRepository::new(pool),
             event_bus: None,
@@ -110,10 +133,81 @@ impl UserService {
         Ok(list.iter().map(|u| self.to_user_dto(u)).collect())
     }
 
+    /// Counts all live staff seats without applying the admin list page ceiling.
+    pub async fn count_active_users(&self) -> Result<i64> {
+        let pool = self.pool.clone();
+        tenant::with_tenant_conn(&pool, |conn| {
+            Box::pin(async move {
+                stheno_db::diesel::sql_query(
+                    "SELECT COUNT(*)::BIGINT AS count FROM \"user\".\"user\" WHERE deleted_at IS NULL",
+                )
+                .get_result::<UserCountRow>(conn)
+                .await
+                .map(|row| row.count)
+                .map_err(|error| Error::Database(error.to_string()))
+            })
+        })
+        .await
+    }
+
     pub async fn delete_user(&self, id: &str) -> Result<UserDTO> {
         let user = self.users.retrieve(None, id).await?;
         let dto = self.to_user_dto(&user);
-        self.users.soft_delete(None, &user.id.to_string()).await?;
+        let pool = self.pool.clone();
+        let user_id = user.id.to_string();
+        let delete_id = user_id.clone();
+        let affected = tenant::with_tenant_conn(&pool, move |conn| {
+            Box::pin(async move {
+                stheno_db::diesel::sql_query(
+                    "UPDATE \"user\".\"user\" SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+                )
+                .bind::<Text, _>(&delete_id)
+                .execute(conn)
+                .await
+                .map_err(|error| Error::Database(error.to_string()))
+            })
+        })
+        .await?;
+        if affected == 0 {
+            return Err(Error::NotFound {
+                entity: "user",
+                id: user_id,
+            });
+        }
+        Ok(dto)
+    }
+
+    /// Soft-deletes a user and releases its tenant quota in one transaction.
+    pub async fn delete_user_with_quota(
+        &self,
+        id: &str,
+        counter: &stheno_db::QuotaCounter,
+    ) -> Result<UserDTO> {
+        let user = self.users.retrieve(None, id).await?;
+        let dto = self.to_user_dto(&user);
+        let user_id = user.id.to_string();
+        let pool = self.pool.clone();
+        let counter = counter.clone();
+        tenant::with_tenant_conn(&pool, move |conn| {
+            Box::pin(async move {
+                let affected = stheno_db::diesel::sql_query(
+                    "UPDATE \"user\".\"user\" SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+                )
+                .bind::<Text, _>(&user_id)
+                .execute(conn)
+                .await
+                .map_err(|error| Error::Database(error.to_string()))?;
+                if affected == 0 {
+                    return Err(Error::NotFound {
+                        entity: "user",
+                        id: user_id,
+                    });
+                }
+                counter.decrement(conn, "users").await?;
+                Ok(())
+            })
+        })
+        .await?;
         Ok(dto)
     }
 
@@ -231,42 +325,90 @@ impl UserService {
     }
 
     pub async fn accept_invite(&self, input: AcceptInviteInput) -> Result<UserDTO> {
-        let filter = FilterSpec::new()
-            .with_predicate("token", FilterOp::Eq(input.token.clone()))
-            .with_predicate("accepted_at", FilterOp::IsNull)
-            .with_predicate("deleted_at", FilterOp::IsNull)
-            .with_pagination(0, 1);
+        let pool = self.pool.clone();
+        let users = self.users.clone();
+        let invites = self.invites.clone();
+        let token = input.token.clone();
+        let user = tenant::with_tenant_conn(&pool, move |conn| {
+            let users = users.clone();
+            let invites = invites.clone();
+            let input = input.clone();
+            let token = token.clone();
+            Box::pin(async move {
+                transaction::with_transaction(conn, move |mut conn| {
+                    let users = users.clone();
+                    let invites = invites.clone();
+                    let input = input.clone();
+                    let token = token.clone();
+                    Box::pin(async move {
+                        let invite_id = stheno_db::diesel::sql_query(
+                            "SELECT id FROM \"user\".invite \
+                             WHERE token = $1 AND accepted_at IS NULL AND deleted_at IS NULL \
+                             FOR UPDATE",
+                        )
+                        .bind::<Text, _>(&token)
+                        .get_result::<InviteIdRow>(&mut conn)
+                        .await
+                        .optional()
+                        .map_err(|error| Error::Database(error.to_string()))?
+                        .ok_or_else(|| Error::NotFound {
+                            entity: "invite_token",
+                            id: token.clone(),
+                        })?
+                        .id;
+                        let mut invite = invites.retrieve(Some(&mut conn), &invite_id).await?;
+                        if invite.expires_at < Utc::now() {
+                            return Err(Error::Unauthorized(
+                                "Invite token has expired".to_string(),
+                            ));
+                        }
+                        let existing = users
+                            .list(
+                                Some(&mut conn),
+                                &FilterSpec::new()
+                                    .with_predicate("email", FilterOp::Eq(invite.email.clone()))
+                                    .with_predicate("deleted_at", FilterOp::IsNull)
+                                    .with_pagination(0, 1),
+                            )
+                            .await?;
+                        if !existing.is_empty() {
+                            return Err(Error::Conflict {
+                                code: "user_email_exists",
+                                message: format!("User with email {} already exists", invite.email),
+                            });
+                        }
 
-        let list = self.invites.list(None, &filter).await?;
-        let mut invite = list.into_iter().next().ok_or_else(|| Error::NotFound {
-            entity: "invite_token",
-            id: input.token.clone(),
-        })?;
-
-        if invite.expires_at < Utc::now() {
-            return Err(Error::Unauthorized("Invite token has expired".to_string()));
-        }
-
-        // Create user
-        let user = self
-            .create_user(CreateUserInput {
-                email: invite.email.clone(),
-                first_name: input.first_name,
-                last_name: input.last_name,
-                avatar_url: None,
-                role: Some(invite.role.clone()),
-                metadata: invite.metadata.clone(),
+                        let now = Utc::now();
+                        let user = users
+                            .create(
+                                Some(&mut conn),
+                                User {
+                                    id: Id::new(),
+                                    email: invite.email.clone(),
+                                    first_name: input.first_name,
+                                    last_name: input.last_name,
+                                    avatar_url: None,
+                                    role: invite.role.clone(),
+                                    metadata: invite.metadata.clone(),
+                                    created_at: now,
+                                    updated_at: now,
+                                    deleted_at: None,
+                                },
+                            )
+                            .await?;
+                        invite.accepted_at = Some(now);
+                        invite.updated_at = now;
+                        invites
+                            .update(Some(&mut conn), &invite.id.to_string(), invite)
+                            .await?;
+                        Ok(user)
+                    })
+                })
+                .await
             })
-            .await?;
-
-        // Mark invite accepted
-        invite.accepted_at = Some(Utc::now());
-        invite.updated_at = Utc::now();
-        self.invites
-            .update(None, &invite.id.to_string(), invite)
-            .await?;
-
-        Ok(user)
+        })
+        .await?;
+        Ok(self.to_user_dto(&user))
     }
 
     fn to_user_dto(&self, u: &User) -> UserDTO {

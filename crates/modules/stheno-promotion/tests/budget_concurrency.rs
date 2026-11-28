@@ -36,7 +36,7 @@ async fn test_campaign_budget_concurrency_100_parallel_requests() {
         let svc = Arc::clone(&service);
         let cid = Arc::clone(&camp_id);
         handles.push(tokio::spawn(async move {
-            let order_id = format!("ord_{}", i);
+            let order_id = format!("ord_{i}");
             svc.consume_campaign_budget(&cid, dec!(1.00), Some(&order_id), None)
                 .await
         }));
@@ -54,7 +54,7 @@ async fn test_campaign_budget_concurrency_100_parallel_requests() {
             }) => {
                 failures += 1;
             }
-            Err(e) => panic!("unexpected error during concurrency test: {:?}", e),
+            Err(e) => panic!("unexpected error during concurrency test: {e:?}"),
         }
     }
 

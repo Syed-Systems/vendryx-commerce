@@ -1,19 +1,36 @@
 //! InventoryService with atomic reservations and oversell prevention, backed by Postgres (P12-07, P12-08).
 
 use chrono::Utc;
+use stheno_db::diesel::result::OptionalExtension;
+use stheno_db::diesel::sql_types::{Integer, Nullable, Text};
+use stheno_db::diesel::QueryableByName;
 use stheno_db::diesel::{self, sql_query};
 use stheno_db::diesel_async::RunQueryDsl;
+use stheno_db::filter::MAX_PAGE_LIMIT;
 use stheno_db::tenant;
 use stheno_db::{
     with_transaction, CrudRepository, DbPool, FilterOp, FilterSpec, OrderDirection,
     PgCrudRepository,
 };
-use stheno_db::filter::MAX_PAGE_LIMIT;
 
 use stheno_types::{Error, Id, Result};
 
 use crate::dto::*;
 use crate::models::{InventoryItem, InventoryLevel, ReservationItem};
+
+#[derive(QueryableByName)]
+struct ExistingReservationRow {
+    #[diesel(sql_type = Text)]
+    id: String,
+    #[diesel(sql_type = Nullable<Text>)]
+    line_item_id: Option<String>,
+    #[diesel(sql_type = Text)]
+    inventory_item_id: String,
+    #[diesel(sql_type = Text)]
+    location_id: String,
+    #[diesel(sql_type = Integer)]
+    quantity: i32,
+}
 
 #[derive(Clone)]
 pub struct InventoryService {
@@ -107,7 +124,7 @@ impl InventoryService {
         let levels = self.levels.list(None, &filter).await?;
         let level = levels.into_iter().next().ok_or_else(|| Error::NotFound {
             entity: "inventory_level",
-            id: format!("{}::{}", inventory_item_id, location_id),
+            id: format!("{inventory_item_id}::{location_id}"),
         })?;
 
         Ok(InventoryLevelDTO {
@@ -123,6 +140,13 @@ impl InventoryService {
     /// Atomically reserves quantity against an inventory level (P12-07, P12-08).
     /// Uses Postgres atomic conditional update to guarantee no overselling under concurrency.
     pub async fn reserve(&self, input: CreateReservationInput) -> Result<ReservationItemDTO> {
+        if input.quantity <= 0 {
+            return Err(Error::Invalid {
+                code: "reservation_quantity_invalid",
+                message: "Reservation quantity must be positive.".to_string(),
+                field: Some("quantity".to_string()),
+            });
+        }
         // Cloned out of `self` before the closure: `with_tenant_conn` moves it into a
         // 'static future, which cannot borrow `&self`.
         let reservations = self.reservations.clone();
@@ -150,6 +174,42 @@ impl InventoryService {
 
                 with_transaction(conn, move |mut c| {
                     Box::pin(async move {
+                        if let Some(line_item_id) = input.line_item_id.as_deref() {
+                            sql_query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+                                .bind::<Text, _>(format!("reservation:{line_item_id}"))
+                                .execute(&mut c)
+                                .await
+                                .map_err(|error| Error::Database(error.to_string()))?;
+                            let existing = sql_query(
+                                "SELECT id, line_item_id, inventory_item_id, location_id, quantity \
+                                 FROM inventory.reservation_item \
+                                 WHERE line_item_id = $1 AND deleted_at IS NULL LIMIT 1",
+                            )
+                            .bind::<Text, _>(line_item_id)
+                            .get_result::<ExistingReservationRow>(&mut c)
+                            .await
+                            .optional()
+                            .map_err(|error| Error::Database(error.to_string()))?;
+                            if let Some(existing) = existing {
+                                if existing.inventory_item_id != input.inventory_item_id
+                                    || existing.location_id != input.location_id
+                                    || existing.quantity != input.quantity
+                                {
+                                    return Err(Error::Conflict {
+                                        code: "reservation_idempotency_conflict",
+                                        message: "This order line already has a different active inventory reservation.".to_string(),
+                                    });
+                                }
+                                return Ok(ReservationItemDTO {
+                                    id: Id::from_string(existing.id).unwrap_or_default(),
+                                    line_item_id: existing.line_item_id,
+                                    inventory_item_id: existing.inventory_item_id,
+                                    location_id: existing.location_id,
+                                    quantity: existing.quantity,
+                                });
+                            }
+                        }
+
                         // Atomic conditional update on inventory_level
                         let update_query = sql_query(
                             "UPDATE inventory.inventory_level \
@@ -169,7 +229,7 @@ impl InventoryService {
                         if updated_rows == 0 {
                             return Err(Error::Conflict {
                                 code: "insufficient_inventory",
-                                message: format!("Insufficient inventory: requested {}", qty),
+                                message: format!("Insufficient inventory: requested {qty}"),
                             });
                         }
 
@@ -193,32 +253,42 @@ impl InventoryService {
     /// Releases a reservation upon cancellation
     pub async fn release_reservation(&self, reservation_id: &str) -> Result<()> {
         let reservation_id = reservation_id.to_string();
-        let reservations = self.reservations.clone();
         tenant::with_tenant_conn(&self.pool, move |conn| {
             Box::pin(async move {
-
-                let reservation = reservations.retrieve(None, &reservation_id).await?;
-
-                let resid = reservation.id.to_string();
-                let item_id = reservation.inventory_item_id.clone();
-                let loc_id = reservation.location_id.clone();
-                let qty = reservation.quantity;
-
                 with_transaction(conn, move |mut c| {
                     Box::pin(async move {
+                        let Some(reservation) = sql_query(
+                            "SELECT id, line_item_id, inventory_item_id, location_id, quantity \
+                             FROM inventory.reservation_item \
+                             WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+                        )
+                        .bind::<Text, _>(&reservation_id)
+                        .get_result::<ExistingReservationRow>(&mut c)
+                        .await
+                        .optional()
+                        .map_err(|error| Error::Database(error.to_string()))?
+                        else {
+                            return Ok(());
+                        };
                         sql_query(
                             "UPDATE inventory.inventory_level \
                              SET reserved_quantity = GREATEST(0, reserved_quantity - $1), updated_at = now() \
                              WHERE inventory_item_id = $2 AND location_id = $3",
                         )
-                        .bind::<diesel::sql_types::Integer, _>(qty)
-                        .bind::<diesel::sql_types::Text, _>(&item_id)
-                        .bind::<diesel::sql_types::Text, _>(&loc_id)
+                        .bind::<Integer, _>(reservation.quantity)
+                        .bind::<Text, _>(&reservation.inventory_item_id)
+                        .bind::<Text, _>(&reservation.location_id)
                         .execute(&mut c)
                         .await
-                        .map_err(|e| Error::Database(e.to_string()))?;
-
-                        reservations.delete(Some(&mut c), &resid).await?;
+                        .map_err(|error| Error::Database(error.to_string()))?;
+                        sql_query(
+                            "UPDATE inventory.reservation_item SET deleted_at = now(), updated_at = now() \
+                             WHERE id = $1 AND deleted_at IS NULL",
+                        )
+                        .bind::<Text, _>(&reservation.id)
+                        .execute(&mut c)
+                        .await
+                        .map_err(|error| Error::Database(error.to_string()))?;
                         Ok(())
                     })
                 })
@@ -667,7 +737,11 @@ impl InventoryService {
         limit: usize,
     ) -> Result<Vec<InventoryLevelDTO>> {
         let effective_threshold = threshold.max(0);
-        let effective_limit = if limit == 0 { MAX_PAGE_LIMIT } else { limit.min(MAX_PAGE_LIMIT) };
+        let effective_limit = if limit == 0 {
+            MAX_PAGE_LIMIT
+        } else {
+            limit.min(MAX_PAGE_LIMIT)
+        };
 
         let filter = FilterSpec::new()
             .with_predicate("deleted_at", FilterOp::IsNull)

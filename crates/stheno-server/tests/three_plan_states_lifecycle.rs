@@ -1,5 +1,5 @@
-//! End-to-end integration test proving the 3 commercial plan states and 14-day trial lifecycle:
-//!   State 1: Active 14-Day Free Trial (Appliance Store, ten_trial_appliance)
+//! End-to-end integration test proving the 3 commercial plan states and 7-day trial lifecycle:
+//!   State 1: Active 7-Day Free Trial (Appliance Store, ten_trial_appliance)
 //!   State 2: Trial Expired -> Free Tier (Clothing Store, ten_expired_clothing)
 //!   State 3: Pro Active (Tech Store, ten_pro_tech)
 //!
@@ -7,7 +7,7 @@
 //!   - Tenant provisioning across trial, free, and pro tiers
 //!   - Per-tenant entitlement quotas and feature gating
 //!   - Host-based branding resolution (/store/branding) for each store
-//!   - 14-day trial lifecycle warning checkpoints and expiry to Free
+//!   - 7-day trial lifecycle warning checkpoints and expiry to Free
 //!   - Upgrade from Free to Pro unlocking payment gateway and lifting quotas
 
 use axum::body::Body;
@@ -15,7 +15,8 @@ use axum::http::{Request, StatusCode};
 use chrono::{Duration, Utc};
 use serde_json::{json, Value};
 use stheno_flows::{TrialLifecycleJob, TrialStatus};
-use stheno_server::TestApp;
+use stheno_platform::PlatformService;
+use stheno_server::{load_trial_duration_days, TestApp};
 use tower::ServiceExt;
 
 const TOKEN: &str = "three-states-operator-token";
@@ -114,7 +115,7 @@ fn quota_limit(entitlements: &Value, key: &str) -> Option<u64> {
 }
 
 #[tokio::test]
-async fn test_three_plan_states_and_14_day_lifecycle() {
+async fn test_three_plan_states_and_trial_lifecycle() {
     std::env::set_var("STHENO_PLATFORM_TOKEN", TOKEN);
     let harness = TestApp::spawn().await;
     let app = harness.app.clone();
@@ -122,7 +123,7 @@ async fn test_three_plan_states_and_14_day_lifecycle() {
     // -----------------------------------------------------------------------------------
     // 1. Provision the 3 Tenants representing the 3 Commercial States
     // -----------------------------------------------------------------------------------
-    // State 1: Active 14-Day Free Trial -> Appliance Store
+    // State 1: Active 7-Day Free Trial -> Appliance Store
     let (status, body) = operator(
         &app,
         "POST",
@@ -135,7 +136,27 @@ async fn test_three_plan_states_and_14_day_lifecycle() {
         })),
     )
     .await;
-    assert_eq!(status, StatusCode::CREATED, "provision trial tenant: {body}");
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "provision trial tenant: {body}"
+    );
+    // A trial runs only once it has started (ADR-033: it starts when the store request is
+    // submitted, not at provisioning); an undated trial resolves to Free, fail-closed. Start
+    // it the way that flow does, through the operator subscription patch.
+    let trial_started_at = Utc::now();
+    let trial_days = load_trial_duration_days().expect("deployment trial config");
+    let (status, body) = operator(
+        &app,
+        "PATCH",
+        "/platform/tenants/ten_trial_appliance/subscription",
+        Some(json!({
+            "trial_started_at": trial_started_at.to_rfc3339(),
+            "trial_ends_at": (trial_started_at + Duration::days(i64::try_from(trial_days).expect("trial length fits in i64"))).to_rfc3339(),
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "start the trial: {body}");
 
     // State 2: Trial Expired (Free tier) -> Clothing Store
     let (status, body) = operator(
@@ -150,7 +171,11 @@ async fn test_three_plan_states_and_14_day_lifecycle() {
         })),
     )
     .await;
-    assert_eq!(status, StatusCode::CREATED, "provision expired/free tenant: {body}");
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "provision expired/free tenant: {body}"
+    );
 
     // State 3: Pro Active -> Tech Store
     let (status, body) = operator(
@@ -176,8 +201,13 @@ async fn test_three_plan_states_and_14_day_lifecycle() {
     // 2. Verify Entitlements and Quotas Per State
     // -----------------------------------------------------------------------------------
     // State 1: Trial Tenant Entitlements (Full access trial)
-    let (status, ent_trial) =
-        as_merchant(&app, APPLIANCE_HOST, &appliance_token, "/admin/entitlements").await;
+    let (status, ent_trial) = as_merchant(
+        &app,
+        APPLIANCE_HOST,
+        &appliance_token,
+        "/admin/entitlements",
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(ent_trial["tier"], "trial");
     // Trial has elevated staff seats (10)
@@ -196,8 +226,7 @@ async fn test_three_plan_states_and_14_day_lifecycle() {
     );
 
     // State 3: Pro Tenant Entitlements (Unlimited products, payment gateway, courier)
-    let (status, ent_pro) =
-        as_merchant(&app, TECH_HOST, &tech_token, "/admin/entitlements").await;
+    let (status, ent_pro) = as_merchant(&app, TECH_HOST, &tech_token, "/admin/entitlements").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(ent_pro["tier"], "pro");
     assert!(
@@ -245,38 +274,44 @@ async fn test_three_plan_states_and_14_day_lifecycle() {
     assert!(tech_branding["branding"].is_object());
 
     // -----------------------------------------------------------------------------------
-    // 4. Validate 14-Day Trial Lifecycle Transitions
+    // 4. Validate seven-day trial lifecycle transitions.
     // -----------------------------------------------------------------------------------
+    assert_eq!(
+        load_trial_duration_days().expect("deployment trial config"),
+        PlatformService::DEFAULT_TRIAL_DURATION_DAYS
+    );
     let trial_start = Utc::now();
     let mut lifecycle = TrialLifecycleJob::new(trial_start);
 
-    // Day 0-6: Active
+    // Days 0-2: Active. (Day 5 was a leftover from the 14-day trial; with seven days the
+    // first warning is at day 3, and the lifecycle only moves forward, so a day-5 check
+    // before the day-3 one could never be Active.)
     assert_eq!(
-        lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(5)),
+        lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(1)),
         TrialStatus::Active
     );
 
-    // Day 7: First Warning (7 days remaining)
+    // Day 3: first trial warning.
+    assert_eq!(
+        lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(3)),
+        TrialStatus::WarningFirst
+    );
+
+    // Day 6: final trial warning (24 hours remaining).
+    assert_eq!(
+        lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(6)),
+        TrialStatus::WarningFinal
+    );
+
+    // Day 7: Trial Expiration -> Downgrade to Free.
     assert_eq!(
         lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(7)),
-        TrialStatus::WarningDay7
-    );
-
-    // Day 13: Final Expiry Warning (24 hours remaining)
-    assert_eq!(
-        lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(13)),
-        TrialStatus::WarningDay13
-    );
-
-    // Day 14: Trial Expiration -> Downgrade to Free
-    assert_eq!(
-        lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(14)),
         TrialStatus::ExpiredToFree
     );
 
-    // Idempotent re-evaluation at Day 15 -> stays ExpiredToFree without spurious duplicate logs
+    // Idempotent re-evaluation at Day 8 -> stays ExpiredToFree without duplicate logs.
     assert_eq!(
-        lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(15)),
+        lifecycle.evaluate_lifecycle_at(trial_start + Duration::days(8)),
         TrialStatus::ExpiredToFree
     );
     assert_eq!(lifecycle.audit_logs.len(), 3);

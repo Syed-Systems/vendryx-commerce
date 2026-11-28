@@ -129,7 +129,17 @@ pub fn resolve_for_tenant(
     config: &TierConfig,
     plan: &TenantPlan,
 ) -> Result<Entitlements, EntitlementsError> {
-    let tier: Tier = plan.tier.parse()?;
+    resolve_for_tenant_at(config, plan, chrono::Utc::now())
+}
+
+/// Resolves entitlements at an explicit instant so expiry behavior is deterministic in
+/// tests and identical for every request handled at the same time.
+pub fn resolve_for_tenant_at(
+    config: &TierConfig,
+    plan: &TenantPlan,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<Entitlements, EntitlementsError> {
+    let tier: Tier = effective_tier(plan, now)?;
 
     let mut overrides = BTreeMap::new();
     flatten("STHENO_QUOTA_", &plan.quota_overrides, &mut overrides);
@@ -153,6 +163,30 @@ pub fn resolve_for_tenant(
     Ok(resolved)
 }
 
+fn effective_tier(
+    plan: &TenantPlan,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<Tier, EntitlementsError> {
+    let assigned: Tier = plan.tier.parse()?;
+    // A trial without a persisted end must never become an indefinite Pro grant.
+    let expired_trial = assigned == Tier::Trial
+        && match plan.trial_ends_at {
+            None => true,
+            Some(end) => now >= end,
+        };
+    let expired_paid_term = assigned == Tier::Pro
+        && plan
+            .term_ends_at
+            .and_then(|end| end.checked_add_signed(chrono::Duration::days(7)))
+            .is_some_and(|grace_end| now >= grace_end);
+
+    if expired_trial || expired_paid_term {
+        Ok(Tier::Free)
+    } else {
+        Ok(assigned)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,6 +203,54 @@ mod tests {
             window_overrides: serde_json::json!({}),
             feature_overrides: serde_json::json!({}),
         }
+    }
+
+    #[test]
+    fn expired_trial_and_paid_term_resolve_to_free_at_exact_boundaries() {
+        let config = TierConfig::from_toml(TIERS).unwrap();
+        let trial_end = chrono::DateTime::parse_from_rfc3339("2026-10-10T12:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let mut trial = plan("trial", serde_json::json!({}));
+        trial.trial_ends_at = Some(trial_end);
+
+        let before_trial_end = resolve_for_tenant_at(
+            &config,
+            &trial,
+            trial_end - chrono::Duration::nanoseconds(1),
+        )
+        .unwrap();
+        let at_trial_end = resolve_for_tenant_at(&config, &trial, trial_end).unwrap();
+        assert_eq!(before_trial_end.tier(), Tier::Trial);
+        assert_eq!(at_trial_end.tier(), Tier::Free);
+        assert!(!at_trial_end.has(Feature::PaymentGateway));
+
+        let term_end = trial_end;
+        let mut pro = plan("pro", serde_json::json!({}));
+        pro.term_ends_at = Some(term_end);
+        let grace_end = term_end + chrono::Duration::days(7);
+
+        let at_term_end = resolve_for_tenant_at(&config, &pro, term_end).unwrap();
+        let before_grace_end =
+            resolve_for_tenant_at(&config, &pro, grace_end - chrono::Duration::nanoseconds(1))
+                .unwrap();
+        let at_grace_end = resolve_for_tenant_at(&config, &pro, grace_end).unwrap();
+        assert_eq!(at_term_end.tier(), Tier::Pro);
+        assert_eq!(before_grace_end.tier(), Tier::Pro);
+        assert_eq!(at_grace_end.tier(), Tier::Free);
+        assert!(!at_grace_end.has(Feature::PaymentGateway));
+        assert_eq!(at_grace_end.quota(QuotaKey::MaxProducts), Some(100));
+    }
+
+    #[test]
+    fn missing_trial_expiry_fails_closed_but_missing_paid_term_stays_assigned() {
+        let config = TierConfig::from_toml(TIERS).unwrap();
+        let now = chrono::Utc::now();
+        let trial =
+            resolve_for_tenant_at(&config, &plan("trial", serde_json::json!({})), now).unwrap();
+        let pro = resolve_for_tenant_at(&config, &plan("pro", serde_json::json!({})), now).unwrap();
+        assert_eq!(trial.tier(), Tier::Free);
+        assert_eq!(pro.tier(), Tier::Pro);
     }
 
     #[test]

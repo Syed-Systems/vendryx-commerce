@@ -22,9 +22,12 @@ async fn test_quota_100_parallel_creates_against_limit_of_10() {
         handles.push(tokio::spawn(async move {
             let saga = build_create_product_quota_saga(ps, qc, Some(limit));
             saga.execute(
-                &format!("tx_conc_{}", i),
+                &format!("tx_conc_{i}"),
                 "create-product",
-                json!({ "title": format!("Parallel Prod {}", i), "handle": format!("parallel-prod-{}", i) }),
+                json!({
+                    "title": format!("Parallel Prod {i}"),
+                    "handle": format!("parallel-prod-{i}"),
+                }),
             )
             .await
         }));

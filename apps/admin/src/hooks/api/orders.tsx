@@ -108,7 +108,51 @@ export const useOrderPreview = (
   >
 ) => {
   const { data, ...rest } = useQuery({
-    queryFn: async () => sdk.admin.order.retrievePreview(id, query),
+    queryFn: async () => {
+      const preview = await sdk.admin.order.retrievePreview(id, query)
+      const changes = await sdk.client.fetch<{
+        order_changes: Array<{
+          id: string
+          order_id: string
+          change_type: string
+          status: string
+          metadata?: Record<string, unknown> | null
+          actions: Array<{
+            id: string
+            order_change_id: string
+            action: string
+            reference_id?: string | null
+            details?: Record<string, unknown> | null
+          }>
+        }>
+      }>(`/admin/orders/${id}/changes`, { method: "GET" })
+
+      const orderChanges = changes.order_changes ?? []
+      const orderChange = orderChanges.find((change) =>
+        ["pending", "requested"].includes(change.status)
+      )
+      if (!orderChange) {
+        return preview
+      }
+
+      const receiptChange = orderChanges.find(
+        (change) =>
+          ["pending", "requested"].includes(change.status) &&
+          change.change_type === "return_receive"
+      )
+      const actions = receiptChange?.actions ?? []
+      const items = preview.order?.items?.map((item: any) => ({
+        ...item,
+        actions: actions.filter((action) => action.reference_id === item.id),
+      }))
+
+      return {
+        ...preview,
+        order: preview.order
+          ? { ...preview.order, items, order_change: orderChange } as any
+          : preview.order,
+      }
+    },
     queryKey: ordersQueryKeys.preview(id),
     ...options,
   })

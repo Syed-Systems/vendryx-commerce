@@ -26,9 +26,9 @@ async fn test_check_quota_step_workflow_execution() {
     for i in 2..=5 {
         let res = saga
             .execute(
-                &format!("tx_{}", i),
+                &format!("tx_{i}"),
                 "check-quota",
-                json!({ "title": format!("Prod {}", i) }),
+                json!({ "title": format!("Prod {i}") }),
             )
             .await;
         assert!(res.is_ok());

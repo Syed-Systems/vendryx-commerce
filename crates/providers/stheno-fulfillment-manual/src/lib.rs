@@ -92,11 +92,8 @@ impl FulfillmentProvider for ManualFulfillmentProvider {
 
         let labels = vec![CreateFulfillmentLabelInput {
             tracking_number: tracking_number.to_string(),
-            tracking_url: Some(format!("https://tracking.example.com/{}", tracking_number)),
-            label_url: Some(format!(
-                "https://labels.example.com/{}.pdf",
-                tracking_number
-            )),
+            tracking_url: Some(format!("https://tracking.example.com/{tracking_number}")),
+            label_url: Some(format!("https://labels.example.com/{tracking_number}.pdf")),
             metadata: Some(serde_json::json!({ "item_count": items.len() })),
         }];
 
@@ -121,12 +118,10 @@ impl FulfillmentProvider for ManualFulfillmentProvider {
         let labels = vec![CreateFulfillmentLabelInput {
             tracking_number: tracking_number.to_string(),
             tracking_url: Some(format!(
-                "https://tracking.example.com/return/{}",
-                tracking_number
+                "https://tracking.example.com/return/{tracking_number}"
             )),
             label_url: Some(format!(
-                "https://labels.example.com/return/{}.pdf",
-                tracking_number
+                "https://labels.example.com/return/{tracking_number}.pdf"
             )),
             metadata: None,
         }];

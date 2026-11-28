@@ -222,7 +222,10 @@ impl CartService {
     pub fn check_creation_rate_limit(&self, ip: &str, limit_per_minute: usize) -> bool {
         // Poison-safe: one request panicking mid-write should not make every later cart
         // creation panic too.
-        let mut map = self.creation_timestamps.write().unwrap_or_else(|e| e.into_inner());
+        let mut map = self
+            .creation_timestamps
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let now = Utc::now();
         let one_minute_ago = now - Duration::minutes(1);
 

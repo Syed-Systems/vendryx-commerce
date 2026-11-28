@@ -103,7 +103,7 @@ fn product_not_found(id: &str) -> Response {
         StatusCode::NOT_FOUND,
         Json(ErrorResponse {
             r#type: "not_found".to_string(),
-            message: format!("Product with id {} was not found", id),
+            message: format!("Product with id {id} was not found"),
         }),
     )
         .into_response()
@@ -181,9 +181,12 @@ pub async fn list_products(
     let offset = query.offset.unwrap_or(0);
     let limit = query.limit.unwrap_or(20);
     let currency = resolve_currency(&ctx, query.region_id.as_ref(), query.currency_code).await;
+    let tenant_id = stheno_db::tenant::current().unwrap_or_default();
+    let cache_enabled = !tenant_id.is_empty();
 
     let cache_key = format!(
-        "catalog:products:list:{}:{}:{}:{}:{}:{}",
+        "catalog:{}:products:list:{}:{}:{}:{}:{}:{}",
+        tenant_id,
         offset,
         limit,
         currency,
@@ -192,11 +195,17 @@ pub async fn list_products(
         handles.join(",")
     );
 
-    let headers = crate::cache::public_cache_headers(&["products", "catalog"]);
-
-    if let Some(ref cache) = ctx.cache_service {
-        if let Ok(Some(cached)) = cache.get_json::<ListProductsResponse>(&cache_key).await {
-            return Ok((headers, Json(cached)));
+    if cache_enabled {
+        if let Some(ref cache) = ctx.cache_service {
+            if let Ok(Some(cached)) = cache.get_json::<ListProductsResponse>(&cache_key).await {
+                let entities: Vec<_> = cached
+                    .products
+                    .iter()
+                    .map(|product| ("product", product.product.handle.as_str()))
+                    .collect();
+                let headers = crate::cache::public_cache_headers(&tenant_id, &entities, true);
+                return Ok((headers, Json(cached)));
+            }
         }
     }
 
@@ -250,9 +259,18 @@ pub async fn list_products(
         limit,
     };
 
-    if let Some(ref cache) = ctx.cache_service {
-        let _ = cache.set_json(&cache_key, &response, Some(300)).await;
+    if cache_enabled {
+        if let Some(ref cache) = ctx.cache_service {
+            let _ = cache.set_json(&cache_key, &response, Some(300)).await;
+        }
     }
+
+    let entities: Vec<_> = response
+        .products
+        .iter()
+        .map(|product| ("product", product.product.handle.as_str()))
+        .collect();
+    let headers = crate::cache::public_cache_headers(&tenant_id, &entities, true);
 
     Ok((headers, Json(response)))
 }
@@ -262,18 +280,27 @@ pub async fn get_product(
     Path(id): Path<String>,
     Query(query): Query<GetProductQuery>,
 ) -> Result<(axum::http::HeaderMap, Json<GetProductResponse>), Response> {
+    let tenant_id = stheno_db::tenant::current().unwrap_or_default();
+    let cache_enabled = !tenant_id.is_empty();
     let currency = resolve_currency(&ctx, query.region_id.as_ref(), query.currency_code).await;
     let cache_key = format!(
-        "catalog:products:get:{}:{}:{}",
+        "catalog:{}:products:get:{}:{}:{}",
+        tenant_id,
         id,
         currency,
         query.region_id.as_deref().unwrap_or("")
     );
-    let headers = crate::cache::public_cache_headers(&["products", &format!("product-{}", id)]);
 
-    if let Some(ref cache) = ctx.cache_service {
-        if let Ok(Some(cached)) = cache.get_json::<GetProductResponse>(&cache_key).await {
-            return Ok((headers, Json(cached)));
+    if cache_enabled {
+        if let Some(ref cache) = ctx.cache_service {
+            if let Ok(Some(cached)) = cache.get_json::<GetProductResponse>(&cache_key).await {
+                let headers = crate::cache::public_cache_headers(
+                    &tenant_id,
+                    &[("product", cached.product.product.handle.as_str())],
+                    false,
+                );
+                return Ok((headers, Json(cached)));
+            }
         }
     }
 
@@ -302,9 +329,17 @@ pub async fn get_product(
         product: expanded.remove(0),
     };
 
-    if let Some(ref cache) = ctx.cache_service {
-        let _ = cache.set_json(&cache_key, &response, Some(300)).await;
+    if cache_enabled {
+        if let Some(ref cache) = ctx.cache_service {
+            let _ = cache.set_json(&cache_key, &response, Some(300)).await;
+        }
     }
+
+    let headers = crate::cache::public_cache_headers(
+        &tenant_id,
+        &[("product", response.product.product.handle.as_str())],
+        false,
+    );
 
     Ok((headers, Json(response)))
 }
@@ -359,7 +394,7 @@ pub async fn get_product_option(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 r#type: "not_found".to_string(),
-                message: format!("Product option with id {} was not found", id),
+                message: format!("Product option with id {id} was not found"),
             }),
         )
             .into_response()

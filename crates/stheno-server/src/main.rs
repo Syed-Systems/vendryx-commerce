@@ -4,7 +4,7 @@ use clap::Parser;
 use std::time::Duration;
 use stheno_registry::AppContext;
 use stheno_server::db::DbConfig;
-use stheno_server::{load_entitlements, AppServer};
+use stheno_server::{load_entitlements, load_trial_duration_days, AppServer};
 
 /// How long boot waits for the database before giving up. Long enough to ride
 /// out a container starting alongside us, short enough to fail a broken
@@ -105,7 +105,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("--create-tenant expects ID:NAME:TIER[:DOMAIN]");
             std::process::exit(2);
         }
-        let platform = stheno_platform::PlatformService::new(pool.clone());
+        let platform = stheno_platform::PlatformService::new(pool.clone())
+            .with_trial_duration_days(load_trial_duration_days()?)?;
         let created = platform
             .create_tenant(stheno_platform::NewTenant {
                 id: parts[0].to_string(),
@@ -138,12 +139,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         entitlements.tier().as_str(),
         db_config.pool_size
     );
+    if let Err(error) = stheno_server::reconcile_quota_usage(
+        &stheno_platform::PlatformService::new(pool.clone()),
+        pool.clone(),
+    )
+    .await
+    {
+        return Err(format!("quota usage reconciliation failed: {error}").into());
+    }
     let ctx = AppContext::create_test_context();
     let server = AppServer::new(ctx, entitlements, pool);
 
     // The periodic work. Started before the listener so a scheduling typo aborts the boot
     // instead of leaving a process that serves traffic and quietly collects no money.
-    let jobs = stheno_server::scheduled_jobs(server.pool.clone(), server.payment_service.clone());
+    let jobs = stheno_server::scheduled_jobs(
+        server.pool.clone(),
+        server.payment_service.clone(),
+        server.notification_service.clone(),
+    );
     match stheno_server::scheduler::spawn(server.pool.clone(), jobs) {
         Ok(n) => println!("Scheduler started: {n} job(s)."),
         Err(e) => {

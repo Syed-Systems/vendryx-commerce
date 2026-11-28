@@ -48,7 +48,7 @@ impl IntoResponse for HttpError {
             Error::NotFound { entity, id } => (
                 StatusCode::NOT_FOUND,
                 "not_found",
-                format!("{} with id {} was not found", entity, id),
+                format!("{entity} with id {id} was not found"),
                 Some("not_found".to_string()),
             ),
             Error::Invalid { code, message, .. } => (
@@ -66,10 +66,7 @@ impl IntoResponse for HttpError {
             Error::Forbidden { permission } => (
                 StatusCode::NOT_FOUND, // AGENTS.md §2.10: Return 404, not 403, to prevent existence oracle
                 "not_found",
-                format!(
-                    "Resource not found or insufficient permissions for {}",
-                    permission
-                ),
+                format!("Resource not found or insufficient permissions for {permission}"),
                 Some("not_found".to_string()),
             ),
             Error::Conflict { code, message } => {
@@ -87,7 +84,7 @@ impl IntoResponse for HttpError {
             Error::CurrencyMismatch { expected, found } => (
                 StatusCode::BAD_REQUEST,
                 "invalid_data",
-                format!("Currency mismatch: expected {}, found {}", expected, found),
+                format!("Currency mismatch: expected {expected}, found {found}"),
                 Some("currency_mismatch".to_string()),
             ),
             Error::InvalidCurrency(msg) => (
@@ -111,7 +108,7 @@ impl IntoResponse for HttpError {
             Error::ProviderFailed { provider, source } => (
                 StatusCode::BAD_GATEWAY,
                 "provider_error",
-                format!("Provider {} failed: {}", provider, source),
+                format!("Provider {provider} failed: {source}"),
                 Some("provider_failed".to_string()),
             ),
             Error::Internal(err) => (

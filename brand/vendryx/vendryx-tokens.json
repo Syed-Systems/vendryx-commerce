@@ -1,0 +1,20 @@
+{
+  "brand": {
+    "orange": "#FF7A00",
+    "orangeHover": "#D95700",
+    "orangeLight": "#FFAF24",
+    "orangeDeep": "#F45605"
+  },
+  "neutral": {
+    "charcoal": "#0F1115",
+    "pureBlack": "#080A0C",
+    "warmWhite": "#FFFCF8",
+    "slate": "#64748B",
+    "lightGray": "#E5E7EB",
+    "darkSurface": "#1B1E24"
+  },
+  "type": {
+    "display": "Inter Display",
+    "body": "Inter"
+  }
+}

@@ -264,7 +264,13 @@ pub struct EligibilityContext {
     pub currency_code: Option<String>,
     pub is_return: Option<bool>,
     pub customer_id: Option<String>,
+    #[serde(default)]
+    pub customer_group_id: Option<String>,
     pub sales_channel_id: Option<String>,
+    #[serde(default)]
+    pub items_count: Option<usize>,
+    #[serde(default)]
+    pub total_weight: Option<Decimal>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -339,6 +345,20 @@ pub struct FulfillmentProviderRequestDTO {
     pub settled_at: Option<DateTime<Utc>>,
 }
 
+/// A staff resolution of a courier request whose response was ambiguous.
+#[derive(Debug, Clone)]
+pub enum SocialDispatchResolution {
+    /// The courier confirms acceptance; these canonical fields let local persistence resume.
+    Accepted {
+        courier_reference: String,
+        tracking_number: String,
+        tracking_url: Option<String>,
+        label_url: Option<String>,
+    },
+    /// The courier confirms no consignment exists; one replay may attempt dispatch.
+    NotCreated,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FulfillmentWebhookEventDTO {
     pub id: String,
@@ -353,5 +373,3 @@ pub struct FulfillmentWebhookEventDTO {
     pub error: Option<String>,
     pub created_at: DateTime<Utc>,
 }
-
-

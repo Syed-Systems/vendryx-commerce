@@ -5,6 +5,10 @@
 //! dashboard hides disabled screens unmodified (ENTITLEMENTS.md 7.1).
 //! `GET /admin/entitlements` is additive — quotas and grace state have no Medusa
 //! equivalent, and the dashboard ignores what it does not read (ADR-002).
+//!
+//! Axum's response value is the established endpoint error type; its body is already boxed, and
+//! wrapping every handler error in another box would add allocations across this compatibility API.
+#![allow(clippy::result_large_err)]
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -18,7 +22,9 @@ use axum::{Json, Router};
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
-use stheno_api_core::{Entitlements, ErrorResponse, QuotaKey, QuotaState, WindowKey};
+use stheno_api_core::{
+    Entitlements, ErrorResponse, QuotaKey, QuotaState, Tier, TierConfig, WindowKey,
+};
 use stheno_db::QuotaCounter;
 use stheno_workflow::{WorkflowExecution, WorkflowStore};
 
@@ -92,6 +98,8 @@ impl UsageSnapshot {
 #[derive(Clone)]
 pub struct AdminPlatformContext {
     pub entitlements: Arc<Entitlements>,
+    /// Deployment tier definitions provide the canonical displayed plan price.
+    pub tier_config: Arc<TierConfig>,
     pub usage: Arc<UsageSnapshot>,
     pub workflows: Arc<WorkflowStore>,
     pub platform: Option<Arc<stheno_platform::PlatformService>>,
@@ -294,7 +302,7 @@ pub async fn run_workflow(
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_micros())
         .unwrap_or(0);
-    let tx_id = format!("tx_{}", now);
+    let tx_id = format!("tx_{now}");
     Ok(Json(json!({
         "acknowledgement": {
             "workflow_id": workflow_id,
@@ -317,14 +325,18 @@ pub async fn step_failure(
     Path(workflow_id): Path<String>,
     Json(_body): Json<Value>,
 ) -> Result<Json<Value>, Response> {
-    Ok(Json(json!({ "workflow_id": workflow_id, "success": false })))
+    Ok(Json(
+        json!({ "workflow_id": workflow_id, "success": false }),
+    ))
 }
 
 pub async fn subscribe_workflow(
     State(_ctx): State<AdminPlatformContext>,
     Path(workflow_id): Path<String>,
 ) -> Result<Json<Value>, Response> {
-    Ok(Json(json!({ "workflow_id": workflow_id, "subscribed": true })))
+    Ok(Json(
+        json!({ "workflow_id": workflow_id, "subscribed": true }),
+    ))
 }
 
 pub async fn get_workflow_transaction(
@@ -365,7 +377,7 @@ pub async fn list_domains(
     State(ctx): State<AdminPlatformContext>,
 ) -> Result<impl IntoResponse, Response> {
     let tenant_id = stheno_db::tenant::current().unwrap_or_else(|_| "merchant".to_string());
-    let default_domain = format!("{}.vendryx.shop", tenant_id);
+    let default_domain = format!("{tenant_id}.vendryx.shop");
 
     let mut domains_list = vec![json!({
         "id": format!("dom_default_{tenant_id}"),
@@ -458,7 +470,8 @@ pub async fn add_domain(
                 "type": "unavailable",
                 "message": "Platform domain service is not available"
             })),
-        ).into_response());
+        )
+            .into_response());
     };
 
     match platform.add_tenant_domain(&tenant_id, &domain, false).await {
@@ -484,14 +497,16 @@ pub async fn add_domain(
                 "type": "domain_conflict",
                 "message": "This domain is already registered to another store"
             })),
-        ).into_response()),
+        )
+            .into_response()),
         Err(e) => Err((
             StatusCode::BAD_REQUEST,
             Json(json!({
                 "type": "invalid_domain",
                 "message": e.to_string()
             })),
-        ).into_response()),
+        )
+            .into_response()),
     }
 }
 
@@ -508,23 +523,28 @@ pub async fn delete_domain(
                 "type": "immutable_domain",
                 "message": "System default domain cannot be removed"
             })),
-        ).into_response());
+        )
+            .into_response());
     }
 
     let Some(platform) = &ctx.platform else {
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({ "type": "unavailable", "message": "Domain service is not available" })),
-        ).into_response());
+        )
+            .into_response());
     };
 
     platform
         .remove_tenant_domain(&tenant_id, &domain)
         .await
-        .map_err(|e| (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "type": "not_found", "message": e.to_string() })),
-        ).into_response())?;
+        .map_err(|e| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "type": "not_found", "message": e.to_string() })),
+            )
+                .into_response()
+        })?;
 
     Ok((
         StatusCode::OK,
@@ -544,13 +564,20 @@ pub async fn verify_domain(
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({ "type": "unavailable", "message": "Domain service is not available" })),
-        ).into_response());
+        )
+            .into_response());
     };
 
-    let ver = platform.get_domain_verification(&domain).await.map_err(|e| (
-        StatusCode::BAD_REQUEST,
-        Json(json!({ "type": "verification_failed", "message": e.to_string() })),
-    ).into_response())?;
+    let ver = platform
+        .get_domain_verification(&domain)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "type": "verification_failed", "message": e.to_string() })),
+            )
+                .into_response()
+        })?;
 
     let is_verified = ver.dns_pointed && ver.tls_issued;
     Ok((
@@ -568,6 +595,7 @@ pub async fn verify_domain(
 /// `GET /admin/billing/subscription`
 pub async fn get_billing_subscription(
     State(ctx): State<AdminPlatformContext>,
+    Extension(entitlements): Extension<Arc<Entitlements>>,
 ) -> Result<impl IntoResponse, Response> {
     let tenant_id = stheno_db::tenant::current().unwrap_or_else(|_| "merchant".to_string());
     let sub = if let Some(platform) = &ctx.platform {
@@ -576,17 +604,48 @@ pub async fn get_billing_subscription(
         None
     };
 
-    let tier_str = ctx.entitlements.tier().as_str();
+    let subscription_tier = sub
+        .as_ref()
+        .and_then(|subscription| subscription.tier.parse::<Tier>().ok());
+    let tier = subscription_tier.unwrap_or(entitlements.tier());
+    let tier_str = tier.as_str();
+    let pricing = ctx.tier_config.pricing(tier).ok().flatten();
+    let pro_pricing = ctx.tier_config.pricing(Tier::Pro).ok().flatten();
+    let status = sub
+        .as_ref()
+        .map(|subscription| subscription.status.as_str())
+        .unwrap_or("unknown");
+    let term_ends_at = sub
+        .as_ref()
+        .and_then(|subscription| subscription.term_ends_at)
+        .or_else(|| ctx.entitlements.term_ends_at());
+    let grace_ends_at = if status == "grace" {
+        term_ends_at.map(|end| end + chrono::Duration::days(7))
+    } else {
+        None
+    };
 
     Ok((
         StatusCode::OK,
         Json(json!({
             "subscription": {
                 "tenant_id": tenant_id,
-                "tier": sub.as_ref().map(|s| s.tier.as_str()).unwrap_or(tier_str),
-                "status": "active",
-                "trial_ends_at": sub.as_ref().and_then(|s| s.trial_ends_at),
-                "term_ends_at": sub.as_ref().and_then(|s| s.term_ends_at),
+                "tier": tier_str,
+                "status": status,
+                "trial_ends_at": sub
+                    .as_ref()
+                    .and_then(|s| s.trial_ends_at)
+                    .or_else(|| ctx.entitlements.trial_ends_at()),
+                "term_ends_at": term_ends_at,
+                "grace_ends_at": grace_ends_at,
+                "plan_amount": pricing.as_ref().map(|p| p.price.to_string()),
+                "currency": pricing.as_ref().map(|p| p.currency.as_str()),
+                "billing_interval": pricing.as_ref().map(|p| p.interval.as_str()),
+                "pro_plan": pro_pricing.as_ref().map(|p| json!({
+                    "amount": p.price.to_string(),
+                    "currency": p.currency.as_str(),
+                    "interval": p.interval.as_str(),
+                })),
             }
         })),
     ))
@@ -598,7 +657,10 @@ pub async fn list_billing_invoices(
 ) -> Result<impl IntoResponse, Response> {
     let tenant_id = stheno_db::tenant::current().unwrap_or_else(|_| "merchant".to_string());
     let invoices = if let Some(platform) = &ctx.platform {
-        platform.list_invoices_for_tenant(&tenant_id).await.unwrap_or_default()
+        platform
+            .list_invoices_for_tenant(&tenant_id)
+            .await
+            .unwrap_or_default()
     } else {
         Vec::new()
     };
@@ -626,7 +688,7 @@ pub async fn get_billing_portal_url(
     };
 
     let portal_url = std::env::var("BILLING_PORTAL_URL")
-        .unwrap_or_else(|_| format!("https://billing.vendryx.com/p/session/{}", tenant_id));
+        .unwrap_or_else(|_| format!("https://billing.vendryx.com/p/session/{tenant_id}"));
 
     Ok((
         StatusCode::OK,
@@ -659,13 +721,20 @@ pub async fn upload_payment_proof(
             .into_response()
     })?;
 
-    match platform.upload_payment_proof(&tenant_id, &invoice_id, input).await {
+    match platform
+        .upload_payment_proof(&tenant_id, &invoice_id, input)
+        .await
+    {
         Ok(proof) => Ok((StatusCode::CREATED, Json(json!({ "proof": proof })))),
-        Err(e) => Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "message": e.to_string() })),
-        )
-            .into_response()),
+        Err(error) => {
+            let status = match &error {
+                stheno_types::Error::NotFound { .. } => StatusCode::NOT_FOUND,
+                stheno_types::Error::Conflict { .. } => StatusCode::CONFLICT,
+                stheno_types::Error::Invalid { .. } => StatusCode::BAD_REQUEST,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            Err((status, Json(json!({ "message": error.to_string() }))).into_response())
+        }
     }
 }
 
@@ -676,7 +745,7 @@ pub async fn review_payment_proof(
 ) -> Result<impl IntoResponse, Response> {
     // In a real scenario, this gets the operator ID from an auth token.
     // We will hardcode it for now.
-    let operator_id = "op_test"; 
+    let operator_id = "op_test";
 
     let platform = ctx.platform.as_ref().ok_or_else(|| {
         (
@@ -686,7 +755,10 @@ pub async fn review_payment_proof(
             .into_response()
     })?;
 
-    match platform.review_payment_proof(operator_id, &proof_id, input).await {
+    match platform
+        .review_payment_proof(operator_id, &proof_id, input)
+        .await
+    {
         Ok(proof) => Ok((StatusCode::OK, Json(json!({ "proof": proof })))),
         Err(e) => Err((
             StatusCode::BAD_REQUEST,
@@ -707,7 +779,10 @@ pub fn admin_platform_routes(ctx: AdminPlatformContext) -> Router {
         .route("/admin/domains/{domain}/verify", post(verify_domain))
         .route("/admin/billing/subscription", get(get_billing_subscription))
         .route("/admin/billing/invoices", get(list_billing_invoices))
-        .route("/admin/billing/portal-url", get(get_billing_portal_url).post(get_billing_portal_url))
+        .route(
+            "/admin/billing/portal-url",
+            get(get_billing_portal_url).post(get_billing_portal_url),
+        )
         .route("/admin/workflows-executions", get(list_workflow_executions))
         .route(
             "/admin/workflows-executions/{id}",

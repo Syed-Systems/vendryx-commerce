@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use rust_decimal::RoundingStrategy;
 use stheno_types::currency::CurrencyCode;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FxMetadata {
@@ -57,7 +57,8 @@ impl SubscriptionInvoiceCalculator {
 
         let total_usd = subtotal_usd - discount_usd;
 
-        let is_bangladesh = billing_country.eq_ignore_ascii_case("BD") || billing_country.eq_ignore_ascii_case("BGD");
+        let is_bangladesh = billing_country.eq_ignore_ascii_case("BD")
+            || billing_country.eq_ignore_ascii_case("BGD");
 
         let presentment_currency = if is_bangladesh {
             CurrencyCode::Bdt
@@ -67,10 +68,12 @@ impl SubscriptionInvoiceCalculator {
 
         let (payable_amount, fx_metadata) = if is_bangladesh {
             let meta = provided_fx_metadata.ok_or(CalculatorError::MissingFxRate)?;
-            let rate = meta.rate.unwrap_or_else(|| Decimal::from(120)); // Fallback if missing
-            
+            // No fallback rate: an invoice converted at a made-up rate is silently wrong money.
+            let rate = meta.rate.ok_or(CalculatorError::MissingFxRate)?;
+
             // Bangladesh payable is rounded to whole taka
-            let amount = (total_usd * rate).round_dp_with_strategy(0, RoundingStrategy::MidpointNearestEven);
+            let amount =
+                (total_usd * rate).round_dp_with_strategy(0, RoundingStrategy::MidpointNearestEven);
             (amount, meta)
         } else {
             (

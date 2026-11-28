@@ -104,7 +104,8 @@ test.describe("admin authentication", () => {
  */
 test.describe("tier matrix", () => {
   const expected = {
-    trial: { window: 365, maxProducts: undefined, seats: 10, paid: false },
+    // A trial is Pro for its duration (config/tiers.toml [trial]).
+    trial: { window: 365, maxProducts: undefined, seats: 10, paid: true },
     free: { window: 30, maxProducts: 100, seats: 3, paid: false },
     pro: { window: 365, maxProducts: undefined, seats: 10, paid: true },
   } as const
@@ -143,14 +144,11 @@ test.describe("tier matrix", () => {
       const flags = (
         await (await request.get(`${BACKEND}/admin/feature-flags`, { headers })).json()
       ).feature_flags
-      for (const paid of [
-        "payment_gateway",
-        "courier_dispatch",
-        "fraud_score",
-        "custom_domain",
-      ]) {
+      for (const paid of ["payment_gateway", "courier_dispatch", "fraud_score"]) {
         expect(flags[paid], `${tenant}.${paid}`).toBe(want.paid)
       }
+      // Every tier includes a custom domain (config/tiers.toml, ENTITLEMENTS.md).
+      expect(flags.custom_domain, `${tenant}.custom_domain`).toBe(true)
     })
 
     test(`${tenant}: serves the capability flags the dashboard reads`, async ({

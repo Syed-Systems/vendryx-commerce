@@ -1,6 +1,6 @@
 use rust_decimal::Decimal;
-use stheno_platform::service::PlatformService;
 use std::sync::Arc;
+use stheno_platform::service::PlatformService;
 
 pub struct BangladeshBankRateFetcher {
     platform: Arc<PlatformService>,
@@ -17,9 +17,11 @@ impl BangladeshBankRateFetcher {
         let fetched_rate = Decimal::from(120);
         let source = "bangladesh_bank";
         let rate_kind = "WAR";
-        
-        self.platform.upsert_fx_rate("USD/BDT", fetched_rate, source, rate_kind).await?;
-        
+
+        self.platform
+            .upsert_fx_rate("USD/BDT", fetched_rate, source, rate_kind)
+            .await?;
+
         Ok(())
     }
 }

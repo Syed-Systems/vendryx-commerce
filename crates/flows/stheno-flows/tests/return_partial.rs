@@ -92,20 +92,26 @@ async fn test_return_partial_receipt_with_damaged_quantities() {
     assert_eq!(received_ret.items[0].received_quantity, 5);
     assert_eq!(received_ret.items[0].damaged_quantity, 2);
 
-    // 4. Confirm return with calculated refund for all 5 returned units ($50.00)
-    let confirmed_ret = engine
-        .confirm_return(&ret.id, Some(dec!(50.00)))
-        .await
-        .unwrap();
+    // 4. Positive refunds must be executed through the payment service. Return
+    // confirmation cannot synthesize a ledger entry or claim that money moved.
+    let confirmation = engine.confirm_return(&ret.id, Some(dec!(50.00))).await;
+    assert!(matches!(
+        confirmation,
+        Err(stheno_types::Error::Invalid {
+            code: "refund_requires_payment_service",
+            ..
+        })
+    ));
 
-    assert_eq!(confirmed_ret.status, "completed");
-    assert_eq!(confirmed_ret.refund_amount, Some(dec!(50.00)));
-
-    // 5. Verify order financial summary reflect the $50 refund
+    // 5. Verify the order summary has no invented refund.
     let updated_order = order_service.get_order(&order.id).await.unwrap();
     let summary = updated_order.summary.unwrap();
-    assert_eq!(summary.refunded_total, dec!(50.00));
-    assert_eq!(summary.accounting_total, dec!(50.00));
+    assert_eq!(summary.refunded_total, dec!(0.00));
+    assert_eq!(summary.accounting_total, dec!(100.00));
+    assert_eq!(
+        order_service.get_return_dto(&ret.id).await.unwrap().status,
+        "received"
+    );
 
     db.drop().await;
 }

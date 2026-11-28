@@ -6,6 +6,8 @@ import "../styles/globals.css"
 // re-point the UI preset's CSS variables. Every frontend supplies this file.
 import "@frontend/styles/tokens.css"
 import { emitBrandingCss, resolveThemeByHost } from "../lib/branding"
+import { getStoreBranding } from "../lib/data/branding"
+import { getStorefrontAppearance } from "../lib/data/appearance"
 import { fontVariables } from "../lib/fonts"
 import DevThemeSwitcher from "@frontend/layout/components/dev-theme-switcher"
 
@@ -17,8 +19,13 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
   const headersList = await headers()
   const host = headersList.get("host")
   const mockBranding = resolveThemeByHost(host)
-  const themeName = (mockBranding?.store_name || "default").toLowerCase().replace(/\s+/g, '-')
-  const brandCss = emitBrandingCss(mockBranding)
+  const tenantBranding = await getStoreBranding(host)
+  const appearance = await getStorefrontAppearance(host)
+  const branding = tenantBranding ?? (process.env.NODE_ENV === "development" ? mockBranding : null)
+  const themeName = branding === mockBranding
+    ? (mockBranding?.store_name || "default").toLowerCase().replace(/\s+/g, '-')
+    : "default"
+  const brandCss = emitBrandingCss(branding)
 
   return (
     // `fontVariables` defines the `--font-*` custom properties on <html>, which is
@@ -49,6 +56,11 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
                     if (e.data.themeName) {
                       document.body.setAttribute('data-theme', e.data.themeName);
                     }
+                    if (e.data.appearance) {
+                      document.body.setAttribute('data-storefront-archetype', e.data.appearance.storefront_archetype);
+                      document.body.setAttribute('data-product-card-style', e.data.appearance.product_card_style);
+                      document.body.setAttribute('data-product-image-aspect', e.data.appearance.product_image_aspect);
+                    }
                   }
                 });
               }
@@ -68,7 +80,7 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
           Every product and category title was stuck on its hover accent
           (Mahal's gold) instead of `--ink`. Theme isolation does not need it:
           `mahal:`, `lustre:` and `matrix:` resolve from `data-theme` alone. */}
-      <body data-theme={themeName} className="bg-brand-background text-brand-text" style={{ fontFamily: "var(--brand-font-body)" }}>
+      <body data-theme={themeName} data-storefront-archetype={appearance.storefront_archetype} data-product-card-style={appearance.product_card_style} data-product-image-aspect={appearance.product_image_aspect} className="bg-brand-background text-brand-text" style={{ fontFamily: "var(--brand-font-body)" }}>
         <main className="relative">{props.children}</main>
         {process.env.NODE_ENV === "development" && <DevThemeSwitcher />}
       </body>

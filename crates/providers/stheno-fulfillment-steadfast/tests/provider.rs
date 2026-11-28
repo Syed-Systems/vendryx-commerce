@@ -15,7 +15,9 @@ async fn steadfast_options_and_zone_rates() {
     let options = provider.get_fulfillment_options().await.expect("options");
     assert_eq!(options.len(), 4);
     assert!(options.iter().any(|o| o.id == "steadfast-standard"));
-    assert!(options.iter().any(|o| o.id == "steadfast-return" && o.is_return));
+    assert!(options
+        .iter()
+        .any(|o| o.id == "steadfast-return" && o.is_return));
 
     // Zone rates
     let inside_rate = provider
@@ -48,11 +50,7 @@ async fn steadfast_options_and_zone_rates() {
     assert_eq!(sub_rate, dec!(120.00));
 
     let outside_rate = provider
-        .calculate_price(
-            Some(&json!({ "id": "steadfast-outside-city" })),
-            None,
-            None,
-        )
+        .calculate_price(Some(&json!({ "id": "steadfast-outside-city" })), None, None)
         .await
         .expect("outside rate");
     assert_eq!(outside_rate, dec!(130.00));
@@ -147,4 +145,67 @@ async fn steadfast_consignment_lifecycle_wiremock() {
         ret.data.unwrap().get("is_return").and_then(|v| v.as_bool()),
         Some(true)
     );
+}
+
+#[tokio::test]
+async fn failed_steadfast_create_is_not_reported_as_a_fake_consignment() {
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/create_order"))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&mock_server)
+        .await;
+    let provider = SteadfastFulfillmentProvider::new(SteadfastConfig {
+        base_url: mock_server.uri(),
+        api_key: "test-api-key".to_string(),
+        secret_key: "test-secret-key".to_string(),
+    });
+
+    let result = provider
+        .create_fulfillment(
+            Some(&json!({
+                "invoice": "order-stable-123",
+                "recipient_name": "Test Buyer",
+                "recipient_phone": "01711111111",
+                "recipient_address": "House 1, Dhaka",
+                "cod_amount": 0
+            })),
+            &[],
+            None,
+        )
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn steadfast_rate_limit_does_not_retry_shipment_creation() {
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/create_order"))
+        .respond_with(ResponseTemplate::new(429))
+        .mount(&mock_server)
+        .await;
+    let provider = SteadfastFulfillmentProvider::new(SteadfastConfig {
+        base_url: mock_server.uri(),
+        api_key: "test-api-key".to_string(),
+        secret_key: "test-secret-key".to_string(),
+    });
+
+    let result = provider
+        .create_fulfillment(
+            Some(&json!({
+                "invoice": "order-rate-limited-123",
+                "recipient_name": "Test Buyer",
+                "recipient_phone": "01711111111",
+                "recipient_address": "House 1, Dhaka",
+                "cod_amount": 0
+            })),
+            &[],
+            None,
+        )
+        .await;
+
+    assert!(result.is_err());
+    assert_eq!(mock_server.received_requests().await.unwrap().len(), 1);
 }

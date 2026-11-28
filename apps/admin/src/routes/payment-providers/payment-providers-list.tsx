@@ -84,6 +84,12 @@ export const PaymentProvidersList = () => {
   }
 
   const getProviderDescription = (id: string) => {
+    if (id === "pp_manual") {
+      return "Accept bKash, Nagad, Rocket, or bank transfers using the account and instructions configured by your store."
+    }
+    if (id === "pp_system_default") {
+      return "Cash on delivery. Customers do not submit a transfer reference for this method."
+    }
     if (id.includes("bkash")) {
       return "Direct mobile wallet tokenized checkout with automated refunds for Bangladesh consumers."
     }

@@ -62,7 +62,7 @@ jobs:
         run: cargo build -p stheno-server
 
       - name: Start stack
-        run: ./scripts/dev-tenants.sh up
+        run: bash scripts/dev-tenants.sh up
 
       # Drives real traffic and samples the server process's real RSS against the
       # 400 MB budget (P10-14). Fails if it cannot take a sample, rather than
@@ -76,7 +76,7 @@ jobs:
         if: always()
         env:
           BACKUP_ENCRYPTION_KEY: nightly-drill-${{ github.run_id }}
-        run: ./scripts/restore-drill.sh
+        run: bash scripts/restore-drill.sh
 
       - name: Server log
         if: failure()
@@ -84,4 +84,4 @@ jobs:
 
       - name: Stop stack
         if: always()
-        run: ./scripts/dev-tenants.sh down || true
+        run: bash scripts/dev-tenants.sh down || true
