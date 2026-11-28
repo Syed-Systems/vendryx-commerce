@@ -318,8 +318,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: rust-static
     timeout-minutes: 20
+    permissions:
+      contents: read
+      checks: write # Publish RustSec audit results to the Checks API.
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Advisory audit
         uses: rustsec/audit-check@v2
