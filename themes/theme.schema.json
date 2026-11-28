@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Vendryx storefront theme manifest",
+  "type": "object",
+  "required": ["schema_version", "id", "name", "tokens", "sections"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,40}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "tokens": { "type": "array", "items": { "$ref": "#/$defs/token" } },
+    "sections": {
+      "type": "object",
+      "description": "Maps a storefront page key to its ordered section definitions.",
+      "patternProperties": {
+        "^[\\s\\S]*$": { "type": "array", "items": { "$ref": "#/$defs/section" } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "tokenId": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,40}$" },
+    "label": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "fontKey": {
+      "type": "string",
+      "enum": ["inter", "geist", "noto_sans_bengali", "playfair", "plus_jakarta_sans", "roboto", "cinzel"]
+    },
+    "token": {
+      "oneOf": [
+        { "$ref": "#/$defs/colorToken" },
+        { "$ref": "#/$defs/rangeToken" },
+        { "$ref": "#/$defs/selectToken" },
+        { "$ref": "#/$defs/fontToken" },
+        { "$ref": "#/$defs/textToken" },
+        { "$ref": "#/$defs/richtextToken" },
+        { "$ref": "#/$defs/imageToken" },
+        { "$ref": "#/$defs/urlToken" },
+        { "$ref": "#/$defs/booleanToken" }
+      ]
+    },
+    "colorToken": {
+      "type": "object",
+      "required": ["id", "type", "default", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/tokenId" },
+        "type": { "const": "color" },
+        "default": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
+        "label": { "$ref": "#/$defs/label" }
+      },
+      "additionalProperties": false
+    },
+    "rangeToken": {
+      "type": "object",
+      "required": ["id", "type", "min", "max", "default", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/tokenId" },
+        "type": { "const": "range" },
+        "min": { "type": "integer" },
+        "max": { "type": "integer" },
+        "unit": { "type": ["string", "null"] },
+        "default": { "type": "integer" },
+        "label": { "$ref": "#/$defs/label" }
+      },
+      "additionalProperties": false
+    },
+    "selectToken": {
+      "type": "object",
+      "required": ["id", "type", "options", "default", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/tokenId" },
+        "type": { "const": "select" },
+        "options": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "default": { "type": "string" },
+        "label": { "$ref": "#/$defs/label" }
+      },
+      "additionalProperties": false
+    },
+    "fontToken": {
+      "type": "object",
+      "required": ["id", "type", "options", "default", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/tokenId" },
+        "type": { "const": "font" },
+        "options": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/fontKey" } },
+        "default": { "$ref": "#/$defs/fontKey" },
+        "label": { "$ref": "#/$defs/label" }
+      },
+      "additionalProperties": false
+    },
+    "textToken": {
+      "type": "object",
+      "required": ["id", "type", "max_length", "default", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/tokenId" },
+        "type": { "const": "text" },
+        "max_length": { "type": "integer", "minimum": 0 },
+        "default": { "type": "string" },
+        "label": { "$ref": "#/$defs/label" }
+      },
+      "additionalProperties": false
+    },
+    "richtextToken": {
+      "type": "object",
+      "required": ["id", "type", "max_length", "default", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/tokenId" },
+        "type": { "const": "richtext" },
+        "max_length": { "type": "integer", "minimum": 0 },
+        "default": { "type": "string" },
+        "label": { "$ref": "#/$defs/label" }
+      },
+      "additionalProperties": false
+    },
+    "imageToken": {
+      "type": "object",
+      "required": ["id", "type", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/tokenId" },
+        "type": { "const": "image" },
+        "label": { "$ref": "#/$defs/label" }
+      },
+      "additionalProperties": false
+    },
+    "urlToken": {
+      "type": "object",
+      "required": ["id", "type", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/tokenId" },
+        "type": { "const": "url" },
+        "default": { "type": ["string", "null"] },
+        "label": { "$ref": "#/$defs/label" }
+      },
+      "additionalProperties": false
+    },
+    "booleanToken": {
+      "type": "object",
+      "required": ["id", "type", "default", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/tokenId" },
+        "type": { "const": "boolean" },
+        "default": { "type": "boolean" },
+        "label": { "$ref": "#/$defs/label" }
+      },
+      "additionalProperties": false
+    },
+    "section": {
+      "type": "object",
+      "required": ["type", "settings"],
+      "properties": {
+        "type": { "type": "string" },
+        "settings": { "type": "array", "items": { "$ref": "#/$defs/token" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}

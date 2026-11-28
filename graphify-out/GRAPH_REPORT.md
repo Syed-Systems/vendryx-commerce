@@ -5656,7 +5656,7 @@ Nodes (14): 0. Pre-phase — not engineering work, on the critical path anyway, 
 
 ### Community 1259 - "Vendryx Brand Guidelines & Design System Specification"
 Cohesion: 0.14
-Nodes (14): 1.1 Product Name & Attribution, 1.2 Naming Boundary ([ADR-028](DECISIONS.md#adr-028)), 1.3 Architectural Distinction: Corporate Brand vs Merchant Theming, 1. Brand Identity & Core Naming Rules, 2. Core Corporate Design Philosophy: Simplicity is Elegance, 3.1 Primary Corporate Colors (Solid Colors Only), 3.2 Neutral & Surface Backgrounds, 3.3 Semantic Status States (Universal) (+6 more)
+Nodes (14): 1.1 Product Name & Attribution, 1.2 Naming Boundary ([ADR-028](../docs/DECISIONS.md#adr-028)), 1.3 Architectural Distinction: Corporate Brand vs Merchant Theming, 1. Brand Identity & Core Naming Rules, 2. Core Corporate Design Philosophy: Simplicity is Elegance, 3.1 Primary Corporate Colors (Solid Colors Only), 3.2 Neutral & Surface Backgrounds, 3.3 Semantic Status States (Universal) (+6 more)
 
 ### Community 1260 - "Payments setup — what to supply, and where"
 Cohesion: 0.14
@@ -5884,7 +5884,7 @@ Nodes (6): TransactionStepStatus, IDLE, OK, PERMANENT_FAILURE, TEMPORARY_FAILURE
 
 ### Community 1322 - "Vendryx Platform Control Plane (Transitional)"
 Cohesion: 0.29
-Nodes (7): 1. Architectural Role & Space Migration Baseline, 2. Operator Domains & Capabilities, 3. Directory Structure, 4. Environment Variables, 5. Development & Build Commands, The Space Extraction ([ADR-030](../../docs/DECISIONS.md#adr-030)), Vendryx Platform Control Plane (Transitional)
+Nodes (7): 1. Architectural Role & Space Migration Baseline, 2. Operator Domains & Capabilities, 3. Directory Structure, 4. Environment Variables, 5. Development & Build Commands, The Space Extraction ([ADR-030](../docs/DECISIONS.md#adr-030)), Vendryx Platform Control Plane (Transitional)
 
 ### Community 1323 - "Vendryx Unified Storefront"
 Cohesion: 0.29

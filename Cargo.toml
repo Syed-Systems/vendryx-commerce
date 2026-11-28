@@ -76,6 +76,7 @@ members = [
     "crates/flows/stheno-flows-platform",
     "crates/api/stheno-api-core",
     "crates/api/stheno-api-store",
+    "crates/storefront/stheno-storefront",
     "crates/api/stheno-api-admin",
     "crates/api/stheno-api-admin-platform",
     "crates/api/stheno-api-platform",
@@ -102,6 +103,9 @@ authors = ["Syed Systems <engineering@syedsystems.com>"]
 float_arithmetic = "deny"
 
 [workspace.dependencies]
+minijinja = "3"
+stheno-storefront = { path = "crates/storefront/stheno-storefront", version = "0.1.0" }
+
 # Internal core crates
 stheno-types = { path = "crates/core/stheno-types", version = "0.1.0" }
 stheno-db = { path = "crates/core/stheno-db", version = "0.1.0" }

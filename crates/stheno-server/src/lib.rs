@@ -1462,6 +1462,15 @@ impl AppServer {
                     "docs": "https://docs.stheno.store"
                 }))
             }))
+            .merge(
+                if std::env::var("STHENO_ENGINE_STOREFRONT").as_deref() == Ok("1") {
+                    stheno_storefront::storefront_router(stheno_storefront::StorefrontContext {
+                        store_service: store_service.clone(),
+                    })
+                } else {
+                    Router::new()
+                },
+            )
             // The one bit the storefront cannot infer. Buyer accounts are a per-tenant
             // archetype, and a single build serves every tenant, so the shape of the
             // account routes cannot be decided at build time (FRONTEND_MATRIX 3) or read
